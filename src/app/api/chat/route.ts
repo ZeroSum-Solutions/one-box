@@ -6,7 +6,7 @@
 import { streamText, tool, convertToModelMessages, type UIMessage } from "ai";
 import { z } from "zod";
 import { IntakeSchema, ARTIFACTS, MODELS } from "@/lib/contracts";
-import { createRun, saveArtifact } from "@/lib/runstate";
+import { createRun, saveArtifact, startStage, finishStage } from "@/lib/runstate";
 import { openrouter } from "@/lib/openrouter";
 
 export const maxDuration = 120;
@@ -36,7 +36,9 @@ export async function POST(req: Request) {
         execute: async (intake) => {
           const parsed = IntakeSchema.parse(intake);
           const runId = await createRun();
+          await startStage(runId, "intake");
           await saveArtifact(runId, ARTIFACTS.intake, parsed);
+          await finishStage(runId, "intake");
           return { runId, started: true };
         },
       }),

@@ -8,6 +8,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { addCost, CostCapExceeded } from "../runstate";
 
 const execFileAsync = promisify(execFile);
 
@@ -15,6 +16,9 @@ const CRAWL4AI_SCRIPT =
   "/Users/zero-suminc./projects/tools/zs-skills/skills/research/deep-dive/scripts/crawl4ai-scrape.sh";
 const CRAWL4AI_TIMEOUT_MS = 100_000;
 const FIRECRAWL_BASE = "https://api.firecrawl.dev";
+/** Firecrawl credit cost per fallback scrape, billed to the run (audit P1:
+ * fallback spend must count against the cap). */
+const FIRECRAWL_SCRAPE_COST_USD = 0.01;
 
 export interface CrawlResult {
   markdownPath?: string;
@@ -22,7 +26,11 @@ export interface CrawlResult {
   error?: string;
 }
 
-export async function crawlSite(url: string, outDir: string): Promise<CrawlResult> {
+export async function crawlSite(
+  url: string,
+  outDir: string,
+  runId?: string
+): Promise<CrawlResult> {
   try {
     const viaScript = await runCrawl4aiScript(url, outDir);
     if (viaScript) return viaScript;
@@ -30,8 +38,14 @@ export async function crawlSite(url: string, outDir: string): Promise<CrawlResul
     // fall through to Firecrawl
   }
   try {
-    return await firecrawlScrapeFallback(url, outDir);
+    const result = await firecrawlScrapeFallback(url, outDir);
+    if (result.provenance === "firecrawl" && runId) {
+      await addCost(runId, FIRECRAWL_SCRAPE_COST_USD);
+    }
+    return result;
   } catch (err) {
+    // a cost-cap trip is a hard stop, never a soft per-site failure
+    if (err instanceof CostCapExceeded) throw err;
     return { error: err instanceof Error ? err.message : String(err) };
   }
 }

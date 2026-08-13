@@ -21,6 +21,7 @@ import { createOpenRouter, type OpenRouterProvider } from "@openrouter/ai-sdk-pr
 import {
   generateObject,
   generateText,
+  NoObjectGeneratedError,
   type ModelMessage,
   type ProviderMetadata,
   type ToolSet,
@@ -153,11 +154,41 @@ export async function generateTextCapped(
 
 // ---------- generateJson: cost-tracked structured generation ----------
 
+/** Peel code fences / surrounding prose off a would-be JSON payload. */
+function extractJsonCandidate(text: string): string {
+  let t = text.trim();
+  const fence = t.match(/^```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (fence) t = fence[1].trim();
+  const start = t.search(/[{[]/);
+  if (start > 0) {
+    const end = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+    if (end > start) t = t.slice(start, end + 1);
+  }
+  return t;
+}
+
+/** A failed generateObject call still spent money — bill it to the run. */
+async function billFailedGeneration(
+  runId: string,
+  err: NoObjectGeneratedError,
+  apiKey: string
+): Promise<void> {
+  const id = err.response?.id;
+  if (!id) return;
+  const cost = await fetchGenerationCost(id, apiKey);
+  if (cost) await addCost(runId, cost); // CostCapExceeded propagates — never swallow
+}
+
 /**
  * Generate an object matching `schema` and return it directly (already
  * validated by the model-side schema + zod). Uses the (deprecated-but-
  * functional) `generateObject` primitive — simpler than generateText's
  * `output` setting for this use case; see WAVE-NOTES for the tradeoff.
+ *
+ * Schema misses are the #1 live failure (Kimi K3 wraps JSON in fences or
+ * drifts on record-typed fields), so this self-heals: bill the failed call,
+ * try a zero-cost local repair of the raw text, then retry the model with
+ * the validation error as feedback — up to 3 model calls total.
  */
 export async function generateJson<T>(
   runId: string,
@@ -167,7 +198,37 @@ export async function generateJson<T>(
 ): Promise<T> {
   const apiKey = requireApiKey();
   const languageModel = openrouter.chat(model, { usage: { include: true } });
-  const result = await generateObject({ model: languageModel, schema, prompt });
-  await trackCost(runId, result, apiKey);
-  return result.object;
+
+  let attemptPrompt = prompt;
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await generateObject({ model: languageModel, schema, prompt: attemptPrompt });
+      await trackCost(runId, result, apiKey);
+      return result.object;
+    } catch (err) {
+      if (!NoObjectGeneratedError.isInstance(err)) throw err;
+      lastError = err;
+      await billFailedGeneration(runId, err, apiKey);
+
+      // zero-cost local repair: fence-strip + parse + validate
+      const raw = err.text ?? "";
+      if (raw) {
+        try {
+          const parsed = schema.safeParse(JSON.parse(extractJsonCandidate(raw)));
+          if (parsed.success) return parsed.data;
+        } catch {
+          // not locally repairable — fall through to a model retry
+        }
+      }
+
+      const problem =
+        err.cause instanceof Error ? err.cause.message : err.message;
+      attemptPrompt = `${prompt}\n\nYour previous response did not match the required JSON schema.\nPrevious response (broken):\n${raw.slice(0, 6000)}\n\nValidation problem:\n${String(problem).slice(0, 2000)}\n\nReturn ONLY the corrected JSON object matching the schema exactly. No prose, no code fences, no extra keys. Record-typed fields must map string keys to plain string values.`;
+      console.warn(
+        `[openrouter] run ${runId}: generateJson attempt ${attempt + 1} failed schema (${model}) — retrying with feedback`
+      );
+    }
+  }
+  throw lastError;
 }

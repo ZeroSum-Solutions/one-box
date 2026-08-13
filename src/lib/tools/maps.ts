@@ -25,6 +25,17 @@ const DIRECTORY_DOMAINS = [
   "mapquest.com",
   "reddit.com",
   "wikipedia.org",
+  "yellowpages.com",
+  "nextdoor.com",
+  // job boards rank high for "<trade> <city>" queries but are never competitors
+  "indeed.com",
+  "ziprecruiter.com",
+  "glassdoor.com",
+  "linkedin.com",
+  "monster.com",
+  "simplyhired.com",
+  "careerbuilder.com",
+  "craigslist.org",
 ];
 
 export interface FindCompetitorsOptions {

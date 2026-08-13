@@ -1,0 +1,76 @@
+{
+  "at": "2026-08-13T12:18:39.585Z",
+  "runId": "DUfT88Vsv1TY",
+  "results": [
+    {
+      "name": "chat intake produces runId via start_pipeline",
+      "pass": true,
+      "detail": "DUfT88Vsv1TY"
+    },
+    {
+      "name": "pipeline completes all stages",
+      "pass": false,
+      "detail": "done: scanned,locked"
+    },
+    {
+      "name": "artifact intake.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "artifact scan.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "artifact reference-lock.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "artifact tokens.json",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "artifact copy.json",
+      "pass": false,
+      "detail": ""
+    },
+    {
+      "name": "artifact DESIGN.md",
+      "pass": false,
+      "detail": ""
+    },
+    {
+      "name": "artifact gates.json",
+      "pass": false,
+      "detail": ""
+    },
+    {
+      "name": "artifact site/manifest.json",
+      "pass": false,
+      "detail": ""
+    },
+    {
+      "name": "artifact site/index.html",
+      "pass": false,
+      "detail": ""
+    },
+    {
+      "name": "reference lock: one primary + ≤2 borrowed + ledger",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "all blocking gates pass",
+      "pass": false,
+      "detail": "Error: ENOENT: no such file or directory, open '/Users/zero-suminc./projects/one"
+    },
+    {
+      "name": "copy stop-slop score ≥ 35/50",
+      "pass": false,
+      "detail": ""
+    }
+  ]
+}

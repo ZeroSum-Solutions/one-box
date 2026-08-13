@@ -41,6 +41,7 @@ import {
   searchStyles,
   searchScreens,
   getStyle,
+  getScreen,
 } from "./tools/refero";
 import { generateImage } from "./tools/higgsfield";
 import { buildSite } from "./builder";
@@ -56,7 +57,60 @@ const STAGE_NOTES = {
   built: "Building the site",
 } as const;
 
+// One execution per run at a time (audit P1: a reconnect must never repeat
+// paid stages). The first caller executes; later callers attach as listeners,
+// get a state snapshot, and share the same completion.
+interface ActiveRun {
+  emitters: Set<Emit>;
+  done: Promise<void>;
+}
+const activeRuns = new Map<string, ActiveRun>();
+
+const PIPELINE_STAGES = ["scanned", "locked", "synthesized", "built"] as const;
+
 export async function runPipeline(runId: string, emit: Emit) {
+  const existing = activeRuns.get(runId);
+  if (existing) {
+    existing.emitters.add(emit);
+    try {
+      const run = await loadRun(runId);
+      for (const name of PIPELINE_STAGES) {
+        const st = run.stages[name];
+        if (st && st.status !== "pending") {
+          emit({
+            type: "stage",
+            stage: name,
+            status: st.status === "done" ? "done" : st.status === "failed" ? "failed" : "running",
+            note: "attached to build in progress",
+          });
+        }
+      }
+      emit({ type: "cost", usd: run.costUsd });
+      await existing.done;
+    } finally {
+      existing.emitters.delete(emit);
+    }
+    return;
+  }
+
+  const emitters = new Set<Emit>([emit]);
+  const broadcast: Emit = (ev) => {
+    for (const e of emitters) {
+      try {
+        e(ev);
+      } catch {
+        // a disconnected listener must never break the run for the others
+      }
+    }
+  };
+  const done = executePipeline(runId, broadcast).finally(() => {
+    activeRuns.delete(runId);
+  });
+  activeRuns.set(runId, { emitters, done });
+  await done;
+}
+
+async function executePipeline(runId: string, emit: Emit) {
   const paths = sitePaths(runId);
   const intake = (await loadArtifact(runId, ARTIFACTS.intake)) as Intake;
   if (!intake) throw new Error("intake artifact missing — run /api/chat first");
@@ -152,7 +206,7 @@ async function stageScan(
       found.slice(i, i + 2).map(async (c) => {
         const dir = path.join(/*turbopackIgnore: true*/ paths.research, domainSlug(c.url));
         await fs.mkdir(dir, { recursive: true });
-        const crawl = await crawlSite(c.url, dir);
+        const crawl = await crawlSite(c.url, dir, runId);
         let shots: string[] = [];
         try {
           shots = await capture(c.url, dir);
@@ -294,42 +348,82 @@ async function stageSynthesize(
   lock: ReferenceLock,
   emit: Emit
 ): Promise<Synth> {
-  const primaryRecord = await getStyle(lock.primary.referoId).catch(() => null);
-
-  const tokens = await generateJson(
-    runId,
-    MODELS.orchestrator,
-    DesignTokensSchema,
-    `Convert the locked reference into a complete client design contract. Tokens must serve ${intake.businessName} (${intake.category}, ${intake.location}) — client-owned identity derived FROM the reference, never a copy of it and never a blend of competitors. Include role AND forbidden-context per color (Refero's own discipline), substitute fonts for licensed faces, a motion block (CSS-only reveals), component states, and an imagery art-direction brief (subject/lighting/grade/framing/avoid) grounded in the reference's imagery language.\n\nREFERENCE LOCK:\n${JSON.stringify(lock)}\n\nPRIMARY RECORD:\n${JSON.stringify(primaryRecord)?.slice(0, 14000)}`
-  );
-  await saveArtifact(runId, ARTIFACTS.tokens, tokens);
-
-  const skeleton = await generateJson(
-    runId,
-    MODELS.orchestrator,
-    SkeletonSpecSchema,
-    `Choose and order sections for a ${intake.category} one-pager. Available section ids (the frozen template registry — you may ONLY use these): nav, hero, trust-bar, services, why-us, reviews, service-area, contact, footer. Use the market table stakes (${scan.commonSections.join(", ")}) and gaps (${scan.gaps.join("; ")}). primaryAction=${intake.primaryAction}. Every section gets purpose + contentNeeds.`
-  );
-  await saveArtifact(runId, ARTIFACTS.skeleton, skeleton);
-
-  // Copy: builder-model drafts under stop-slop rules, bulk model scores, one revision.
-  const copyPrompt = (feedback?: string) =>
-    `Write website copy for ${intake.businessName}. FACTS YOU MAY USE (nothing else may be claimed): ${JSON.stringify(intake)}. Sections: ${skeleton.sections.map((s) => `${s.id} (${s.contentNeeds.join("/")})`).join(", ")}. Rules: plain, concrete, no AI-slop constructions (no "seamless", "elevate", "unlock", no em-dash chains, no rule-of-three padding), sentences a real owner would say, primary action = ${intake.primaryAction}. Keys per section: headline, sub, body, cta as needed.${feedback ? `\nREVISE per this critique: ${feedback}` : ""}`;
-  let copy = await generateJson(runId, MODELS.builder, CopyDocSchema.omit({ stopSlopScore: true }), copyPrompt());
-  const score = await generateJson(
-    runId,
-    MODELS.bulk,
-    z.object({ total: z.number(), critique: z.string() }),
-    `Score this website copy 0-50 across 5 dimensions (10 each): natural voice, concreteness, zero AI-tells, conversion clarity, fact-grounding (no invented claims vs these facts: ${JSON.stringify(intake.claims.concat(intake.services))}). Be harsh. Copy: ${JSON.stringify(copy)}`
-  );
-  let stopSlopScore = score.total;
-  if (score.total < 35) {
-    copy = await generateJson(runId, MODELS.builder, CopyDocSchema.omit({ stopSlopScore: true }), copyPrompt(score.critique));
-    const re = await generateJson(runId, MODELS.bulk, z.object({ total: z.number(), critique: z.string() }), `Re-score 0-50, same dimensions. Copy: ${JSON.stringify(copy)}`);
-    stopSlopScore = re.total;
+  // Each sub-step checkpoints its artifact, so a mid-stage crash (e.g. a
+  // schema miss on copy) resumes here without re-buying tokens/skeleton.
+  let tokens = await loadArtifact<DesignTokens>(runId, ARTIFACTS.tokens);
+  if (!tokens) {
+    const primaryRecord = await (lock.primary.kind === "screen"
+      ? getScreen(lock.primary.referoId)
+      : getStyle(lock.primary.referoId)
+    ).catch(() => null);
+    tokens = await generateJson(
+      runId,
+      MODELS.orchestrator,
+      DesignTokensSchema,
+      `Convert the locked reference into a complete client design contract. Tokens must serve ${intake.businessName} (${intake.category}, ${intake.location}) — client-owned identity derived FROM the reference, never a copy of it and never a blend of competitors. Include role AND forbidden-context per color (Refero's own discipline), substitute fonts for licensed faces, a motion block (CSS-only reveals), component states, and an imagery art-direction brief (subject/lighting/grade/framing/avoid) grounded in the reference's imagery language.\n\nREFERENCE LOCK:\n${JSON.stringify(lock)}\n\nPRIMARY RECORD:\n${JSON.stringify(primaryRecord)?.slice(0, 14000)}`
+    );
+    await saveArtifact(runId, ARTIFACTS.tokens, tokens);
   }
-  const copyDoc: CopyDoc = CopyDocSchema.parse({ ...copy, stopSlopScore });
-  await saveArtifact(runId, ARTIFACTS.copy, copyDoc);
+
+  let skeleton = await loadArtifact<SkeletonSpec>(runId, ARTIFACTS.skeleton);
+  if (!skeleton) {
+    skeleton = await generateJson(
+      runId,
+      MODELS.orchestrator,
+      SkeletonSpecSchema,
+      `Choose and order sections for a ${intake.category} one-pager. Available section ids (the frozen template registry — you may ONLY use these): nav, hero, trust-bar, services, why-us, service-area, contact, footer. Use the market table stakes (${scan.commonSections.join(", ")}) and gaps (${scan.gaps.join("; ")}). primaryAction=${intake.primaryAction}. Every section gets purpose + contentNeeds.`
+    );
+    // The intake shape carries no real customer quotes, so a reviews section
+    // could only be fabricated — a hard disqualifier. Strip it if suggested.
+    skeleton = SkeletonSpecSchema.parse({
+      sections: skeleton.sections.filter((s) => s.id !== "reviews"),
+    });
+    await saveArtifact(runId, ARTIFACTS.skeleton, skeleton);
+  }
+
+  let copyDoc = await loadArtifact<CopyDoc>(runId, ARTIFACTS.copy);
+  if (!copyDoc) {
+    // Copy: builder-model drafts under stop-slop rules, bulk model scores, one revision.
+    // The key names are the builder's EXACT template contract (builder.ts
+    // numbered-item convention) — generic keys render as empty sections.
+    const sectionIds = new Set(skeleton.sections.map((s) => s.id));
+    const keyContract = [
+      `"nav": { "logo": string, "phone": string }`,
+      `"hero": { "headline": string, "sub": string, "cta": string, "image-alt": string }`,
+      sectionIds.has("trust-bar") &&
+        `"trust-bar": { "stat-1-value": string, "stat-1-label": string, "stat-2-value": string, "stat-2-label": string, "stat-3-value": string, "stat-3-label": string } — stats MUST come from the client's real numbers (years, homes wired, certifications)`,
+      sectionIds.has("services") &&
+        `"services": { "intro": string, "card-1-title": string, "card-1-body": string, ... } — one card per client service, numbered contiguously from 1`,
+      sectionIds.has("why-us") &&
+        `"why-us": { "intro": string, "point-1-title": string, "point-1-body": string, ... } — 3-4 points, numbered contiguously`,
+      sectionIds.has("reviews") &&
+        `"reviews": { "card-1-quote": string, "card-1-author": string, ... }`,
+      sectionIds.has("service-area") &&
+        `"service-area": { "intro": string, "area-1": string, "area-2": string, ... } — real neighborhoods/towns inside the stated service area, numbered contiguously`,
+      `"contact": { "headline": string, "sub": string, "cta": string, "phone": string }`,
+      `"footer": { "business-name": string, "tagline": string, "phone": string }`,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    const copyPrompt = (feedback?: string) =>
+      `Write website copy for ${intake.businessName}. FACTS YOU MAY USE (nothing else may be claimed): ${JSON.stringify(intake)}. Rules: plain, concrete, no AI-slop constructions (no "seamless", "elevate", "unlock", no em-dash chains, no rule-of-three padding), sentences a real owner would say, primary action = ${intake.primaryAction}.\n\nsections must use EXACTLY these keys (every value a plain string — no nested objects or arrays; numbered keys contiguous from 1, the first missing number ends the list):\n${keyContract}\n\nDo not add other sections or other keys.${feedback ? `\nREVISE per this critique: ${feedback}` : ""}`;
+    let copy = await generateJson(runId, MODELS.builder, CopyDocSchema.omit({ stopSlopScore: true }), copyPrompt());
+    const score = await generateJson(
+      runId,
+      MODELS.bulk,
+      z.object({ total: z.number(), critique: z.string() }),
+      `Score this website copy 0-50 across 5 dimensions (10 each): natural voice, concreteness, zero AI-tells, conversion clarity, fact-grounding (no invented claims vs these facts: ${JSON.stringify(intake.claims.concat(intake.services))}). Be harsh. Copy: ${JSON.stringify(copy)}`
+    );
+    let stopSlopScore = score.total;
+    if (score.total < 35) {
+      copy = await generateJson(runId, MODELS.builder, CopyDocSchema.omit({ stopSlopScore: true }), copyPrompt(score.critique));
+      const re = await generateJson(runId, MODELS.bulk, z.object({ total: z.number(), critique: z.string() }), `Re-score 0-50, same dimensions. Copy: ${JSON.stringify(copy)}`);
+      stopSlopScore = re.total;
+    }
+    copyDoc = CopyDocSchema.parse({ ...copy, stopSlopScore });
+    await saveArtifact(runId, ARTIFACTS.copy, copyDoc);
+  }
+  const stopSlopScore = copyDoc.stopSlopScore ?? 0;
   emit({
     type: "card",
     stage: "synthesized",
@@ -341,7 +435,8 @@ async function stageSynthesize(
   await saveArtifact(runId, ARTIFACTS.designMd, renderDesignMd(intake, tokens, lock), true);
 
   // Hero image — ONE build-time Higgsfield generation from the imagery brief.
-  let heroImagePath: string | undefined;
+  let heroImagePath: string | undefined = await findHero(runId);
+  if (heroImagePath) return { tokens, skeleton, copy: copyDoc, heroImagePath };
   const b = tokens.imageryBrief;
   const hero = await generateImage({
     prompt: `${b.subject}. Lighting: ${b.lighting}. Color grade: ${b.grade}. Framing: ${b.framing}. Avoid: ${b.avoid.join(", ")}. Photorealistic marketing hero image for a ${intake.category} website, no text, no logos.`,
@@ -410,9 +505,16 @@ async function stageBuild(runId: string, intake: Intake, synth: Synth, emit: Emi
   emit({
     type: "card",
     stage: "built",
-    title: stillFailing.length ? `Gates: ${stillFailing.length} still failing (site viewable, honestly flagged)` : "All blocking gates green",
+    title: stillFailing.length ? `Gates: ${stillFailing.length} still failing after repair` : "All blocking gates green",
     body: reports.map((r) => `${r.pass ? "✓" : "✗"} ${r.gate}${r.blocking ? "" : " (advisory)"}`).join("\n"),
   });
+  // Blocking gates are invariants — a build that fails them is not done
+  // (audit P1). The stage stays failed and resumable, never published green.
+  if (stillFailing.length) {
+    throw new Error(
+      `blocking gates failing after repair: ${stillFailing.map((r) => r.gate).join(", ")}`
+    );
+  }
 }
 
 // ---------- helpers ----------

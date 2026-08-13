@@ -45,7 +45,12 @@ export async function POST(req: Request) {
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
 
   if (imageIntent || el.is("img")) {
-    // Image swap: regenerate through the run's locked imagery brief + instruction.
+    // Image swap: resolve + validate the target BEFORE the paid generation
+    // (audit P2: a bad selection must cost nothing and write nothing).
+    const target = el.is("img") ? el : el.find("img").first();
+    if (!target.length) {
+      return Response.json({ error: "no <img> under that element" }, { status: 400 });
+    }
     const b = tokens.imageryBrief;
     const assetName = `edit-${Date.now().toString(36)}.jpg`;
     const outPath = path.join(sitePaths(runId).site, "assets", assetName);
@@ -57,15 +62,16 @@ export async function POST(req: Request) {
     if ("error" in gen) {
       return Response.json({ error: `image generation failed: ${gen.error}` }, { status: 502 });
     }
-    const target = el.is("img") ? el : el.find("img").first();
-    if (!target.length) {
-      return Response.json({ error: "no <img> under that element" }, { status: 400 });
-    }
     target.attr("src", `assets/${assetName}`);
     if (!target.attr("alt")) target.attr("alt", instruction.slice(0, 100));
   } else {
     // Text/structure edit: model rewrites the fragment's inner content only.
     const fragment = $.html(el);
+    const idsBefore = el
+      .find("[data-edit-id]")
+      .map((_, d) => $(d).attr("data-edit-id") ?? "")
+      .get()
+      .filter(Boolean);
     const out = await generateJson(
       runId,
       MODELS.builder,
@@ -73,6 +79,21 @@ export async function POST(req: Request) {
       `Rewrite ONLY the inner content of this element per the instruction. Hard rules: keep every data-edit-id attribute on descendants; do not add classes, ids, inline styles, scripts, or new colors — styling comes from the site's token sheet; keep the same tag structure unless the instruction requires otherwise; return innerHtml only (no outer tag).\n\nINSTRUCTION: ${instruction}\n\nELEMENT (outer HTML for context):\n${fragment}\n\nAVAILABLE TOKENS (for reference, do not inline them): ${tokens.colors.map((c) => c.cssVar).join(", ")}`
     );
     el.html(out.innerHtml);
+    // Descendant edit-ids are the editor's address space — losing one makes
+    // that node permanently uneditable (audit P2). Reject any loss.
+    const idsAfter = new Set(
+      el
+        .find("[data-edit-id]")
+        .map((_, d) => $(d).attr("data-edit-id") ?? "")
+        .get()
+    );
+    const lost = idsBefore.filter((id) => !idsAfter.has(id));
+    if (lost.length) {
+      return Response.json(
+        { error: `edit would remove editable elements (${lost.join(", ")}) — rejected; try a narrower instruction` },
+        { status: 409 }
+      );
+    }
   }
 
   // Verify every script selector still resolves (audit B8) before writing.

@@ -245,6 +245,25 @@ export default function Home() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [input, setInput] = useState("");
 
+  // Restore a run from the URL so a refresh rejoins the build instead of
+  // stranding the checkpointed run (audit P1). The server attaches
+  // reconnects to an in-flight run; finished stages replay instantly.
+  useEffect(() => {
+    const runId = new URLSearchParams(window.location.search).get("run");
+    if (runId && /^[a-z0-9_-]{4,40}$/i.test(runId)) {
+      dispatch({ type: "PIPELINE_START", runId });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (state.phase !== "pipeline" || !state.runId) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("run") !== state.runId) {
+      url.searchParams.set("run", state.runId);
+      window.history.replaceState(null, "", url);
+    }
+  }, [state.phase, state.runId]);
+
   // Pipeline SSE: opens once per run, closes itself on complete/error.
   useEffect(() => {
     if (state.phase !== "pipeline" || !state.runId) return;
