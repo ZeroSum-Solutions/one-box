@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
-import type { Stage } from "@/lib/contracts";
+import type { CardLink, CardMap, Stage } from "@/lib/contracts";
 
 export type StageCardStatus = "running" | "done" | "failed";
 
 export interface StageCardImage {
   src: string;
   alt: string;
+  href?: string;
 }
 
 export interface StageCardProps {
@@ -14,8 +15,17 @@ export interface StageCardProps {
   body?: string;
   status?: StageCardStatus;
   images?: StageCardImage[];
+  links?: CardLink[];
+  map?: CardMap;
   tone?: "default" | "error";
 }
+
+const LINK_ICON: Record<CardLink["kind"], string> = {
+  site: "↗",
+  maps: "◎",
+  artifact: "⁝",
+  reference: "◆",
+};
 
 export const STAGE_LABEL: Record<Stage, string> = {
   intake: "Intake",
@@ -35,7 +45,16 @@ const STAGE_COLOR: Record<Stage, string> = {
   edited: "var(--stage-edited)",
 };
 
-export function StageCard({ stage, title, body, status, images, tone = "default" }: StageCardProps) {
+export function StageCard({
+  stage,
+  title,
+  body,
+  status,
+  images,
+  links,
+  map,
+  tone = "default",
+}: StageCardProps) {
   return (
     <article className={`stage-card${tone === "error" ? " stage-card--error" : ""}`}>
       <div className="stage-card__eyebrow">
@@ -50,16 +69,83 @@ export function StageCard({ stage, title, body, status, images, tone = "default"
       {body && <MarkdownLite text={body} />}
       {images && images.length > 0 && (
         <div className="stage-card__images">
-          {images.map((img) => (
+          {images.map((img) => {
             // next/image needs known dimensions or a configured remote loader;
             // these are small runtime thumbnails from an arbitrary, variable-
             // count set of local generated files, never the page's LCP element.
             // eslint-disable-next-line @next/next/no-img-element
-            <img key={img.src} src={img.src} alt={img.alt} loading="lazy" />
-          ))}
+            const thumb = <img src={img.src} alt={img.alt} title={img.alt} loading="lazy" />;
+            return img.href ? (
+              <a
+                key={img.src}
+                href={img.href}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="stage-card__thumb-link"
+                aria-label={`Open full size: ${img.alt}`}
+              >
+                {thumb}
+              </a>
+            ) : (
+              <span key={img.src}>{thumb}</span>
+            );
+          })}
         </div>
       )}
+      {map && <CardMapView map={map} />}
+      {links && links.length > 0 && (
+        <ul className="stage-card__links">
+          {links.map((link) => (
+            <li key={`${link.kind}-${link.href}-${link.label}`}>
+              <a
+                href={link.href}
+                className={`card-link card-link--${link.kind}`}
+                {...(link.external ? { target: "_blank", rel: "noreferrer noopener" } : {})}
+              >
+                <span className="card-link__icon" aria-hidden="true">
+                  {LINK_ICON[link.kind]}
+                </span>
+                <span className="card-link__text">
+                  <span className="card-link__label">{link.label}</span>
+                  {link.sub && <span className="card-link__sub">{link.sub}</span>}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
     </article>
+  );
+}
+
+/** The embed only renders when a Maps Platform key produced an embedUrl.
+ * Without one the card says so plainly and still offers a working map link —
+ * a missing map must never read as "these businesses have no location". */
+function CardMapView({ map }: { map: CardMap }) {
+  return (
+    <div className="stage-card__map">
+      {map.embedUrl ? (
+        <iframe
+          className="stage-card__map-frame"
+          src={map.embedUrl}
+          title="Competitor locations"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          allowFullScreen
+        />
+      ) : (
+        <p className="stage-card__map-note">{map.note ?? "Map unavailable."}</p>
+      )}
+      <p className="stage-card__map-meta">
+        {map.pins.length > 0
+          ? `${map.pins.length} competitor${map.pins.length === 1 ? "" : "s"} located`
+          : "No competitor locations resolved"}
+        {" · "}
+        <a href={map.fallbackUrl} target="_blank" rel="noreferrer noopener">
+          open in Google Maps
+        </a>
+      </p>
+    </div>
   );
 }
 

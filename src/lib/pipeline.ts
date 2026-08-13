@@ -12,9 +12,12 @@ import {
   DesignTokensSchema,
   Intake,
   PipelineEvent,
+  ReferenceLockDraftSchema,
   ReferenceLockSchema,
   ScanResultSchema,
   SkeletonSpecSchema,
+  type CardLink,
+  type ReferenceCandidate,
   type DesignTokens,
   type ReferenceLock,
   type ScanResult,
@@ -33,9 +36,13 @@ import {
   failStage,
   stageDone,
   addCost,
+  appendEvent,
+  readEvents,
 } from "./runstate";
 import { generateJson, generateTextCapped } from "./openrouter";
+import { ConfigError, preflight } from "./preflight";
 import { findCompetitors } from "./tools/maps";
+import { embedSearchUrl, mapsSearchUrl } from "./tools/places";
 import { crawlSite } from "./tools/crawl";
 import { capture } from "./tools/capture";
 import {
@@ -43,6 +50,7 @@ import {
   searchScreens,
   getStyle,
   getScreen,
+  getScreenImage,
 } from "./tools/refero";
 import { generateImage } from "./tools/higgsfield";
 import { localLibraryCandidates, localLibraryRecord } from "./tools/locallib";
@@ -59,6 +67,39 @@ const STAGE_NOTES = {
   built: "Building the site",
 } as const;
 
+/** How many reference images the orchestrator actually looks at before
+ * locking. Bounded: every image costs vision tokens, and screen thumbnails
+ * cost one refero MCP call each against the 8k/mo budget. */
+const MAX_VISION_STYLES = 5;
+const MAX_VISION_SCREENS = 2;
+
+/** A candidate whose pixels the orchestrator will actually see. `displayUrl`
+ * is for the chat card (the browser CAN load a remote URL); `data` is what
+ * goes to the model, because the provider cannot. */
+interface ViewedRef {
+  id: string;
+  name: string;
+  displayUrl: string;
+  data: Uint8Array;
+  mediaType: string;
+}
+
+/** Fetch an image for the vision call. Returns undefined on any failure — a
+ * reference we cannot show is simply not shown; it never fails the lock. */
+async function fetchImage(
+  url: string
+): Promise<{ data: Uint8Array; mediaType: string } | undefined> {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+    if (!res.ok) return undefined;
+    const mediaType = res.headers.get("content-type")?.split(";")[0]?.trim();
+    if (!mediaType?.startsWith("image/")) return undefined;
+    return { data: new Uint8Array(await res.arrayBuffer()), mediaType };
+  } catch {
+    return undefined;
+  }
+}
+
 // One execution per run at a time (audit P1: a reconnect must never repeat
 // paid stages). The first caller executes; later callers attach as listeners,
 // get a state snapshot, and share the same completion.
@@ -70,23 +111,27 @@ const activeRuns = new Map<string, ActiveRun>();
 
 const PIPELINE_STAGES = ["scanned", "locked", "synthesized", "built"] as const;
 
+/** Transport-only note: a stage the controller skipped because it was already
+ * checkpointed. Never logged — otherwise every reload of a partially-finished
+ * run appends another set of them and the history grows without new work. */
+const RESUMED_NOTE = "resumed from checkpoint";
+
 export async function runPipeline(runId: string, emit: Emit) {
+  // Replay this run's history to the NEW listener before anything else, so a
+  // reload shows the cards, links and screenshots the run produced instead of
+  // four bare "done" rows. Sent only to this emitter — never broadcast.
+  const history = await readEvents(runId);
+  let sawComplete = false;
+  for (const ev of history) {
+    if (ev.type === "complete") sawComplete = true;
+    emit(ev);
+  }
+
   const existing = activeRuns.get(runId);
   if (existing) {
     existing.emitters.add(emit);
     try {
       const run = await loadRun(runId);
-      for (const name of PIPELINE_STAGES) {
-        const st = run.stages[name];
-        if (st && st.status !== "pending") {
-          emit({
-            type: "stage",
-            stage: name,
-            status: st.status === "done" ? "done" : st.status === "failed" ? "failed" : "running",
-            note: "attached to build in progress",
-          });
-        }
-      }
       emit({ type: "cost", usd: run.costUsd });
       await existing.done;
     } finally {
@@ -95,8 +140,40 @@ export async function runPipeline(runId: string, emit: Emit) {
     return;
   }
 
+  // Nothing left to execute: replaying the log IS the response. Re-running the
+  // controller here would only re-emit "resumed from checkpoint" noise.
+  const run = await loadRun(runId);
+  if (PIPELINE_STAGES.every((name) => run.stages[name]?.status === "done")) {
+    emit({ type: "cost", usd: run.costUsd });
+    if (!sawComplete) {
+      // pre-log run: no history to replay, so synthesize the terminal event
+      emit({ type: "complete", runId, previewUrl: `/preview/${runId}` });
+    }
+    return;
+  }
+
+  // A run that already blew its cap must NOT resume. Reconnecting is how the
+  // UI recovers from a dropped stream ("refresh — the run resumes"), so an
+  // over-cap run would re-run the failing stage and spend MORE on every
+  // reload. Observed live in HOmEC9VCJ9Ri: $0.232 → $0.264 on one reconnect.
+  if (run.costUsd > run.costCapUsd) {
+    emit({ type: "cost", usd: run.costUsd });
+    emit({
+      type: "error",
+      message: `This run stopped at its $${run.costCapUsd.toFixed(2)} spend cap ($${run.costUsd.toFixed(3)} spent) and will not resume — reloading would only spend more. Its artifacts so far are on disk; raise costCapUsd in run.json to continue it, or start a new run.`,
+    });
+    return;
+  }
+
   const emitters = new Set<Emit>([emit]);
   const broadcast: Emit = (ev) => {
+    // Persist before fan-out: the log is the durable record, listeners are not.
+    // "cost" is skipped — it is a running total replayed from run.json, and
+    // logging every tick would bury the narrative.
+    const isResumeNoise = ev.type === "stage" && ev.note === RESUMED_NOTE;
+    if (ev.type !== "cost" && !isResumeNoise) {
+      void appendEvent(runId, ev);
+    }
     for (const e of emitters) {
       try {
         e(ev);
@@ -117,6 +194,23 @@ async function executePipeline(runId: string, emit: Emit) {
   const intake = (await loadArtifact(runId, ARTIFACTS.intake)) as Intake;
   if (!intake) throw new Error("intake artifact missing — run /api/chat first");
   const mode = (await loadRun(runId)).referenceMode;
+
+  // Check credentials BEFORE the first paid call. A run that cannot finish
+  // must not buy a competitive scan on the way to finding that out.
+  const pre = preflight(mode);
+  if (!pre.ok) {
+    const err = new ConfigError(pre.blocking);
+    emit({ type: "error", message: err.message });
+    throw err;
+  }
+  for (const issue of pre.advisory) {
+    emit({
+      type: "card",
+      stage: "intake",
+      title: `Degraded: ${issue.key} not set`,
+      body: `Unavailable this run: ${issue.message}.\n${issue.fix}`,
+    });
+  }
 
   try {
     const scan = await stage(runId, "scanned", emit, () =>
@@ -152,7 +246,7 @@ async function stage<T>(
 ): Promise<T> {
   if (await stageDone(runId, name)) {
     const cached = await cachedResult(runId, name);
-    emit({ type: "stage", stage: name, status: "done", note: "resumed from checkpoint" });
+    emit({ type: "stage", stage: name, status: "done", note: RESUMED_NOTE });
     return cached as T;
   }
   await startStage(runId, name);
@@ -190,19 +284,61 @@ async function stageScan(
   emit: Emit
 ): Promise<ScanResult> {
   const paths = sitePaths(runId);
-  const found = await findCompetitors(runId, {
+  const rel = (p: string) => path.relative(paths.root, p);
+
+  const { competitors: found, excluded, mapsNote } = await findCompetitors(runId, {
     category: intake.category,
     location: intake.location,
     excludeUrl: intake.prospectUrl,
   });
+
+  // Every competitor is clickable from the moment it is found — its own site
+  // and its Google Maps listing. This card is what proves (or disproves) that
+  // discovery actually found local operators.
   emit({
     type: "card",
     stage: "scanned",
     title: `Found ${found.length} competitors`,
-    body: found.map((c) => `${c.name} — ${c.url}`).join("\n"),
+    body: excluded.length
+      ? `${excluded.length} result(s) dropped as directories or listicles — see "Filtered out" below.`
+      : "No results were filtered out.",
+    links: found.flatMap((c): CardLink[] => [
+      {
+        label: c.name,
+        href: c.url,
+        kind: "site",
+        external: true,
+        sub: c.place
+          ? `${c.place.address}${c.place.rating ? ` · ★${c.place.rating}${c.place.userRatingCount ? ` (${c.place.userRatingCount})` : ""}` : ""}`
+          : c.kindReason,
+      },
+      {
+        label: `${c.name} on Google Maps`,
+        href: c.place?.mapsUri || c.mapsSearchUrl,
+        kind: "maps",
+        external: true,
+        sub: c.place ? "verified listing" : "map search — not verified against Places",
+      },
+    ]),
   });
 
-  const competitors = [];
+  if (excluded.length) {
+    emit({
+      type: "card",
+      stage: "scanned",
+      title: `Filtered out (${excluded.length})`,
+      body: "Dropped before crawling — these teach blog structure, not competitor structure.",
+      links: excluded.map((e): CardLink => ({
+        label: e.title || e.url,
+        href: e.url,
+        kind: "site",
+        external: true,
+        sub: e.why,
+      })),
+    });
+  }
+
+  const competitors: typeof found = [];
   // concurrency 2 (audit A5) — simple pair batching
   for (let i = 0; i < found.length; i += 2) {
     const batch = await Promise.all(
@@ -219,21 +355,64 @@ async function stageScan(
         return { ...c, markdownPath: crawl.markdownPath, screenshotPaths: shots };
       })
     );
+    // Report each pair as it lands. Before this, the crawl+screenshot window
+    // (~30s) emitted nothing at all and the UI looked frozen.
+    for (const c of batch) {
+      emit({
+        type: "card",
+        stage: "scanned",
+        title: `Captured ${c.name}`,
+        body: c.markdownPath
+          ? `${c.screenshotPaths.length} screenshot(s) + page text.`
+          : "Crawl failed — no page text; this competitor adds no structure signal.",
+        images: c.screenshotPaths.map((p) => ({
+          path: rel(p),
+          label: `${c.name} — ${path.basename(p).startsWith("mobile") ? "mobile" : "desktop"}`,
+          href: `/api/sites/${runId}/${rel(p)}`,
+        })),
+      });
+    }
     competitors.push(...batch);
   }
 
-  // Structure inventory from markdown — bulk model, one call per competitor.
-  for (const c of competitors) {
-    if (!c.markdownPath) continue;
-    const md = (await fs.readFile(c.markdownPath, "utf8")).slice(0, 12000);
-    const out = await generateJson(
-      runId,
-      MODELS.bulk,
-      z.object({ sections: z.array(z.string()), notes: z.string() }),
-      `List the homepage sections of this local-service business site in order (short kebab-case names like hero, services-grid, reviews). Then one sentence on what the site does well or badly.\n\nSITE MARKDOWN:\n${md}`
-    );
-    Object.assign(c, { structure: out.sections, notes: out.notes });
-  }
+  // Structure inventory — one bulk-model call per competitor. These are
+  // INDEPENDENT, so they run concurrently: serially they were ~110s of the
+  // scan's 147s (measured, run 2KJ9KwYM4SeA) with no UI output the whole time.
+  // Each task emits its own card the moment it finishes.
+  await Promise.all(
+    competitors.map(async (c) => {
+      if (!c.markdownPath) return;
+      const md = (await fs.readFile(c.markdownPath, "utf8")).slice(0, 12000);
+      const out = await generateJson(
+        runId,
+        MODELS.bulk,
+        z.object({ sections: z.array(z.string()), notes: z.string() }),
+        `List the homepage sections of this local-service business site in order (short kebab-case names like hero, services-grid, reviews). Then one sentence on what the site does well or badly.\n\nSITE MARKDOWN:\n${md}`
+      );
+      Object.assign(c, { structure: out.sections, notes: out.notes });
+      emit({
+        type: "card",
+        stage: "scanned",
+        title: `Decoded ${c.name}`,
+        body: `${out.sections.length} sections: ${out.sections.join(", ")}\n${out.notes}`,
+        links: [
+          {
+            label: "Crawled page text",
+            href: `/api/sites/${runId}/${rel(c.markdownPath!)}`,
+            kind: "artifact",
+            sub: rel(c.markdownPath!),
+          },
+        ],
+      });
+    })
+  );
+
+  emit({
+    type: "card",
+    stage: "scanned",
+    title: "Reading the market",
+    body: "Comparing every competitor's structure to find table stakes and gaps…",
+  });
 
   const agg = await generateJson(
     runId,
@@ -248,8 +427,15 @@ async function stageScan(
     competitors: competitors.slice(0, 4),
     commonSections: agg.commonSections,
     gaps: agg.gaps,
+    excluded,
   });
   await saveArtifact(runId, ARTIFACTS.scan, scan);
+
+  const marketQuery = `${intake.category} in ${intake.location}`;
+  const pins = scan.competitors
+    .filter((c) => c.place)
+    .map((c) => ({ name: c.place!.name, lat: c.place!.lat, lng: c.place!.lng }));
+
   emit({
     type: "card",
     stage: "scanned",
@@ -257,8 +443,51 @@ async function stageScan(
     body: `Table stakes: ${scan.commonSections.join(", ")}\nGaps: ${scan.gaps.join("; ")}`,
     // cards carry run-root-relative paths — the serving route treats research/* as root-relative
     images: scan.competitors.flatMap((c) =>
-      c.screenshotPaths.slice(0, 1).map((p) => path.relative(paths.root, p))
+      c.screenshotPaths.slice(0, 1).map((p) => ({
+        path: rel(p),
+        label: `${c.name} homepage`,
+        href: `/api/sites/${runId}/${rel(p)}`,
+      }))
     ),
+    links: [
+      ...scan.competitors.map((c): CardLink => ({
+        label: c.name,
+        href: c.url,
+        kind: "site",
+        external: true,
+        sub: c.place ? `${c.place.address} · map-verified` : c.kindReason,
+      })),
+      ...scan.competitors
+        .filter((c) => c.markdownPath)
+        .map((c): CardLink => ({
+          label: `${c.name} — page text`,
+          href: `/api/sites/${runId}/${rel(c.markdownPath!)}`,
+          kind: "artifact",
+        })),
+      ...scan.competitors.flatMap((c) =>
+        c.screenshotPaths.map((p): CardLink => ({
+          label: `${c.name} — ${path.basename(p).startsWith("mobile") ? "mobile" : "desktop"} screenshot`,
+          href: `/api/sites/${runId}/${rel(p)}`,
+          kind: "artifact",
+        }))
+      ),
+      {
+        label: "scan.json (full artifact)",
+        href: `/api/sites/${runId}/${ARTIFACTS.scan}`,
+        kind: "artifact",
+        sub: "every competitor, section inventory, and exclusion reason",
+      },
+    ],
+    map: {
+      embedUrl: embedSearchUrl(marketQuery),
+      fallbackUrl: mapsSearchUrl(marketQuery),
+      pins,
+      note:
+        mapsNote ??
+        (pins.length
+          ? undefined
+          : "No competitor resolved to a Google Places listing."),
+    },
   });
   return scan;
 }
@@ -306,28 +535,85 @@ async function stageLock(
     `Per the refero_skill methodology (research-first, 3-5 distinct search angles), write style-search queries for a ${intake.category} site in ${intake.location}. Vibe words from the client: ${intake.vibeWords.join(", ") || "none given — infer a premium-but-trustworthy local-service direction"}. Angles must be DIFFERENT lenses (mood, industry-adjacent, layout archetype, typography direction), not synonyms.`
   );
 
-  const candidates: { id: string; kind: "style" | "screen"; name: string; summary: string }[] = [];
+  // Candidates keep their sourceUrl/previewImageUrl. Dropping them (the old
+  // shape) made the lock unauditable: DESIGN.md recorded a bare UUID nobody
+  // could click, and the vision orchestrator never saw a single pixel.
+  const candidates: Array<{
+    id: string;
+    kind: "style" | "screen";
+    name: string;
+    summary: string;
+    sourceUrl?: string;
+    previewImageUrl?: string;
+    foundVia: string;
+  }> = [];
   if (mode === "local") {
     // L arm: the entire candidate pool is the local library's written index
     // (rights: text-only per RIGHTS.md — see locallib.ts). No Refero calls.
     const local = await localLibraryCandidates();
     candidates.push(
-      ...local.map((c) => ({ id: c.id, kind: "style" as const, name: c.name, summary: c.summary }))
+      ...local.map((c) => ({
+        id: c.id,
+        kind: "style" as const,
+        name: c.name,
+        summary: c.summary,
+        foundVia: "local library index",
+      }))
     );
   } else {
-    for (const angle of angles.angles) {
-      const styles = await searchStyles(angle, 4);
-      candidates.push(
-        ...styles.map((s) => ({ id: s.id, kind: "style" as const, name: s.name, summary: s.summary }))
-      );
-    }
+    // Angles are independent searches — run them concurrently, and report
+    // each as it lands instead of after all of them.
+    const styleBatches = await Promise.all(
+      angles.angles.map(async (angle) => {
+        const styles = await searchStyles(angle, 4);
+        emit({
+          type: "card",
+          stage: "locked",
+          title: `${styles.length} references for "${angle}"`,
+          body: styles.map((s) => `→ ${s.name}`).join("\n") || "no results",
+          links: styles
+            .filter((s) => s.sourceUrl)
+            .map((s): CardLink => ({
+              label: s.name || s.sourceUrl!,
+              href: s.sourceUrl!,
+              kind: "reference",
+              external: true,
+              sub: s.summary.slice(0, 90),
+            })),
+        });
+        return styles.map((s) => ({
+          id: s.id,
+          kind: "style" as const,
+          name: s.name,
+          summary: s.summary,
+          sourceUrl: s.sourceUrl,
+          previewImageUrl: s.previewImageUrl,
+          foundVia: angle,
+        }));
+      })
+    );
+    candidates.push(...styleBatches.flat());
+
     // two screen searches for section patterns
-    for (const q of [`${intake.category} hero section`, `local service contact conversion section`]) {
-      const screens = await searchScreens(q, 3);
-      candidates.push(
-        ...screens.map((s) => ({ id: s.id, kind: "screen" as const, name: s.name, summary: s.summary }))
-      );
-    }
+    const screenQueries = [
+      `${intake.category} hero section`,
+      `local service contact conversion section`,
+    ];
+    const screenBatches = await Promise.all(
+      screenQueries.map(async (q) => {
+        const screens = await searchScreens(q, 3);
+        return screens.map((s) => ({
+          id: s.id,
+          kind: "screen" as const,
+          name: s.name,
+          summary: s.summary,
+          sourceUrl: undefined,
+          previewImageUrl: undefined,
+          foundVia: q,
+        }));
+      })
+    );
+    candidates.push(...screenBatches.flat());
   }
 
   emit({
@@ -337,22 +623,139 @@ async function stageLock(
     body: angles.angles.map((a) => `→ ${a}`).join("\n"),
   });
 
+  // Show the model the actual references. Style hits carry a previewImageUrl;
+  // screen hits carry none, so their pixels come from refero_get_screen_image
+  // (a thumbnail, base64 → data URL). Both are capped so the prompt stays
+  // bounded and the MCP call budget stays predictable.
+  const stylePreviews: ViewedRef[] = (
+    await Promise.all(
+      candidates
+        .filter((c) => c.kind === "style" && c.previewImageUrl)
+        .slice(0, MAX_VISION_STYLES)
+        .map(async (c): Promise<ViewedRef | undefined> => {
+          const img = await fetchImage(c.previewImageUrl!);
+          if (!img) return undefined;
+          return { id: c.id, name: c.name, displayUrl: c.previewImageUrl!, ...img };
+        })
+    )
+  ).filter((c): c is ViewedRef => c !== undefined);
+  const screenShots: ViewedRef[] = (
+    await Promise.all(
+      candidates
+        .filter((c) => c.kind === "screen")
+        .slice(0, MAX_VISION_SCREENS)
+        .map(async (c): Promise<ViewedRef | undefined> => {
+          const img = await getScreenImage(c.id, "thumbnail").catch(() => undefined);
+          if (!img) return undefined;
+          return {
+            id: c.id,
+            name: c.name,
+            displayUrl: `data:${img.mimeType};base64,${img.data}`,
+            data: new Uint8Array(Buffer.from(img.data, "base64")),
+            mediaType: img.mimeType,
+          };
+        })
+    )
+  ).filter((c): c is ViewedRef => c !== undefined);
+  const viewed = [...stylePreviews, ...screenShots];
+  if (viewed.length) {
+    emit({
+      type: "card",
+      stage: "locked",
+      title: `Viewing ${viewed.length} references`,
+      body: "The design decision is made from the reference images, not from their descriptions.",
+      images: viewed.map((c) => ({ path: c.displayUrl, label: c.name })),
+    });
+  }
+
+  const imageIndex = viewed
+    .map((c, i) => `IMAGE ${i + 1} = ${c.id} (${c.name})`)
+    .join("\n");
   const lockRaw = await generateJson(
     runId,
     MODELS.orchestrator,
-    ReferenceLockSchema.omit({ searchAngles: true }),
-    `You are enforcing the reference-lock discipline (vendor/refero_skill): pick ONE primary reference, borrow at most 2 specific details from others, reject the rest with reasons, and write a decision ledger where every choice cites its source. Anti-averaging is absolute — do not blend.\n\nCLIENT: ${JSON.stringify({ category: intake.category, location: intake.location, vibeWords: intake.vibeWords })}\nMARKET GAPS: ${scan.gaps.join("; ")}\nCANDIDATES:\n${candidates.map((c) => `[${c.kind}] ${c.id} — ${c.name}: ${c.summary}`).join("\n")}`
+    ReferenceLockDraftSchema,
+    `You are enforcing the reference-lock discipline (vendor/refero_skill): pick ONE primary reference, borrow at most 2 specific details from others, reject the rest with reasons, and write a decision ledger where every choice cites its source. Anti-averaging is absolute — do not blend.\n\nCLIENT: ${JSON.stringify({ category: intake.category, location: intake.location, vibeWords: intake.vibeWords })}\nMARKET GAPS: ${scan.gaps.join("; ")}\nCANDIDATES:\n${candidates.map((c) => `[${c.kind}] ${c.id} — ${c.name}: ${c.summary}`).join("\n")}${
+      viewed.length
+        ? `\n\nATTACHED IMAGES — judge these on what you SEE, and say so in the ledger:\n${imageIndex}`
+        : ""
+    }`,
+    viewed.length
+      ? { images: viewed.map((c) => ({ data: c.data, mediaType: c.mediaType })) }
+      : {}
   );
+
+  const byId = new Map(candidates.map((c) => [c.id, c]));
+  const toCandidate = (id: string): ReferenceCandidate | undefined => {
+    const c = byId.get(id);
+    if (!c) return undefined;
+    return {
+      referoId: c.id,
+      kind: c.kind,
+      name: c.name,
+      sourceUrl: c.sourceUrl,
+      previewImageUrl: c.previewImageUrl,
+      foundVia: c.foundVia,
+    };
+  };
+
   const lock: ReferenceLock = ReferenceLockSchema.parse({
     ...lockRaw,
     searchAngles: angles.angles,
+    provenance: {
+      primary: toCandidate(lockRaw.primary.referoId),
+      candidates: candidates.map((c) => toCandidate(c.id)!),
+      // Screen thumbnails are inline data URLs — record the id, not a
+      // multi-megabyte base64 blob, or the lock artifact becomes unreadable.
+      imagesViewed: viewed.map((c) =>
+        c.displayUrl.startsWith("data:") ? `refero:screen:${c.id}` : c.displayUrl
+      ),
+    },
   });
   await saveArtifact(runId, ARTIFACTS.lock, lock);
+
+  const primaryRef = lock.provenance?.primary;
   emit({
     type: "card",
     stage: "locked",
     title: `Reference locked: ${lock.primary.name}`,
     body: `${lock.primary.why}\nBorrowed: ${lock.borrowedDetails.map((b) => b.detail).join("; ") || "nothing"}`,
+    images: primaryRef?.previewImageUrl
+      ? [{ path: primaryRef.previewImageUrl, label: `Locked reference — ${lock.primary.name}` }]
+      : undefined,
+    links: [
+      ...(primaryRef?.sourceUrl
+        ? [
+            {
+              label: `${lock.primary.name} — the real site`,
+              href: primaryRef.sourceUrl,
+              kind: "reference" as const,
+              external: true,
+              sub: `Refero ${lock.primary.referoId}`,
+            },
+          ]
+        : []),
+      ...lock.rejected.slice(0, 6).flatMap((r): CardLink[] => {
+        const cand = lock.provenance?.candidates.find((c) => c.referoId === r.referoId);
+        return cand?.sourceUrl
+          ? [
+              {
+                label: `Rejected: ${r.name}`,
+                href: cand.sourceUrl,
+                kind: "reference",
+                external: true,
+                sub: r.why.slice(0, 100),
+              },
+            ]
+          : [];
+      }),
+      {
+        label: "reference-lock.json (full artifact)",
+        href: `/api/sites/${runId}/${ARTIFACTS.lock}`,
+        kind: "artifact",
+        sub: "angles, every candidate, borrowed details, rejections, decision ledger",
+      },
+    ],
   });
   return lock;
 }
@@ -520,6 +923,12 @@ async function stageSynthesize(
   // schema miss on copy) resumes here without re-buying tokens/skeleton.
   let tokens = await loadArtifact<DesignTokens>(runId, ARTIFACTS.tokens);
   if (!tokens) {
+    emit({
+      type: "card",
+      stage: "synthesized",
+      title: "Deriving design tokens",
+      body: `Converting "${lock.primary.name}" into a client-owned token set — colors, type scale, spacing, motion, imagery brief.`,
+    });
     const primaryRecord =
       mode === "none"
         ? null
@@ -537,10 +946,30 @@ async function stageSynthesize(
     );
     tokens = foldTokens(transport);
     await saveArtifact(runId, ARTIFACTS.tokens, tokens);
+    emit({
+      type: "card",
+      stage: "synthesized",
+      title: "Tokens set",
+      body: tokens.colors.map((c) => `${c.name} ${c.value} — ${c.role}`).join("\n"),
+      links: [
+        {
+          label: "tokens.json",
+          href: `/api/sites/${runId}/${ARTIFACTS.tokens}`,
+          kind: "artifact",
+          sub: `${tokens.fonts.map((f) => f.family).join(" + ")} · ${tokens.typeScale.length}-step scale`,
+        },
+      ],
+    });
   }
 
   let skeleton = await loadArtifact<SkeletonSpec>(runId, ARTIFACTS.skeleton);
   if (!skeleton) {
+    emit({
+      type: "card",
+      stage: "synthesized",
+      title: "Choosing sections",
+      body: "Ordering the page against the market's table stakes and gaps.",
+    });
     skeleton = await generateJson(
       runId,
       MODELS.orchestrator,
@@ -548,6 +977,12 @@ async function stageSynthesize(
       `Choose and order sections for a ${intake.category} one-pager. Available section ids (the frozen template registry — you may ONLY use these): nav, hero, trust-bar, services, why-us, service-area, contact, footer. Use the market table stakes (${scan.commonSections.join(", ")}) and gaps (${scan.gaps.join("; ")}). primaryAction=${intake.primaryAction}. Every section gets purpose + contentNeeds.`
     );
     await saveArtifact(runId, ARTIFACTS.skeleton, skeleton);
+    emit({
+      type: "card",
+      stage: "synthesized",
+      title: `${skeleton.sections.length} sections chosen`,
+      body: skeleton.sections.map((s) => `→ ${s.id} — ${s.purpose}`).join("\n"),
+    });
   }
   // The intake shape carries no real customer quotes, so a reviews section
   // could only be fabricated — a hard disqualifier. Strip it on generation
@@ -615,9 +1050,21 @@ async function stageSynthesize(
         ([sec, key]) => `${sec}.${key}`
       );
 
+    emit({
+      type: "card",
+      stage: "synthesized",
+      title: "Writing copy",
+      body: `Only these facts may be claimed: ${intake.claims.concat(intake.services).join("; ")}`,
+    });
     let sections = foldCopy(
       await generateJson(runId, MODELS.builder, CopyTransportSchema, copyPrompt())
     );
+    emit({
+      type: "card",
+      stage: "synthesized",
+      title: "Scoring copy",
+      body: "Grading against the stop-slop rubric — natural voice, concreteness, zero AI tells, conversion clarity, fact-grounding.",
+    });
     const score = await generateJson(
       runId,
       MODELS.bulk,
@@ -627,6 +1074,12 @@ async function stageSynthesize(
     let stopSlopScore = score.total;
     const needsRevision = score.total < 35 || missingKeys(sections).length > 0;
     if (needsRevision) {
+      emit({
+        type: "card",
+        stage: "synthesized",
+        title: `Copy scored ${score.total}/50 — revising`,
+        body: score.critique.slice(0, 400),
+      });
       const critique = [
         score.critique,
         ...(missingKeys(sections).length
@@ -636,6 +1089,12 @@ async function stageSynthesize(
       sections = foldCopy(
         await generateJson(runId, MODELS.builder, CopyTransportSchema, copyPrompt(critique))
       );
+      emit({
+        type: "card",
+        stage: "synthesized",
+        title: "Re-scoring revised copy",
+        body: "Second and final pass — the pipeline revises copy once, never in a loop.",
+      });
       const re = await generateJson(runId, MODELS.bulk, z.object({ total: z.number(), critique: z.string() }), `Re-score 0-50, same dimensions. Copy: ${JSON.stringify(sections)}`);
       stopSlopScore = re.total;
     }
@@ -647,20 +1106,43 @@ async function stageSynthesize(
     await saveArtifact(runId, ARTIFACTS.copy, copyDoc);
   }
   const stopSlopScore = copyDoc.stopSlopScore ?? 0;
+
+  // DESIGN.md — deterministic render, no LLM.
+  await saveArtifact(runId, ARTIFACTS.designMd, renderDesignMd(intake, tokens, lock), true);
+
   emit({
     type: "card",
     stage: "synthesized",
     title: "Design contract written",
     body: `${tokens.colors.length} color tokens · ${skeleton.sections.length} sections · copy ${stopSlopScore}/50`,
+    links: (
+      [
+        [ARTIFACTS.designMd, "DESIGN.md", "the human-readable contract + decision ledger"],
+        [ARTIFACTS.tokens, "tokens.json", "every CSS variable the template consumes"],
+        [ARTIFACTS.skeleton, "skeleton.json", "section order + purpose"],
+        [ARTIFACTS.copy, "copy.json", `all site copy · stop-slop ${stopSlopScore}/50`],
+        [ARTIFACTS.intake, "intake.json", "the facts the copy is allowed to claim"],
+      ] as const
+    ).map(([file, label, sub]): CardLink => ({
+      label,
+      href: `/api/sites/${runId}/${file}`,
+      kind: "artifact",
+      sub,
+    })),
   });
-
-  // DESIGN.md — deterministic render, no LLM.
-  await saveArtifact(runId, ARTIFACTS.designMd, renderDesignMd(intake, tokens, lock), true);
 
   // Hero image — ONE build-time Higgsfield generation from the imagery brief.
   let heroImagePath: string | undefined = await findHero(runId);
   if (heroImagePath) return { tokens, skeleton, copy: copyDoc, heroImagePath };
   const b = tokens.imageryBrief;
+  // Image generation is the single longest call in the pipeline (~125s live).
+  // Announce it, or the UI goes dark right at the end of synthesis.
+  emit({
+    type: "card",
+    stage: "synthesized",
+    title: "Generating hero image",
+    body: `${b.subject}\nLighting: ${b.lighting} · Grade: ${b.grade} · Framing: ${b.framing}\nThis is the slowest step — around two minutes.`,
+  });
   const heroOpts = {
     prompt: `${b.subject}. Lighting: ${b.lighting}. Color grade: ${b.grade}. Framing: ${b.framing}. Avoid: ${b.avoid.join(", ")}. Photorealistic marketing hero image for a ${intake.category} website, no text, no logos.`,
     aspectRatio: "16:9",
@@ -683,7 +1165,13 @@ async function stageSynthesize(
       stage: "synthesized",
       title: "Hero imagery generated",
       body: b.subject,
-      images: ["research/hero-preview.jpg"],
+      images: [
+        {
+          path: "research/hero-preview.jpg",
+          label: `Generated hero — ${b.subject.slice(0, 60)}`,
+          href: `/api/sites/${runId}/research/hero-preview.jpg`,
+        },
+      ],
     });
   } else {
     emit({ type: "card", stage: "synthesized", title: "Hero imagery skipped", body: `Higgsfield unavailable: ${hero.error}. Using gradient hero.` });

@@ -412,6 +412,115 @@ textarea {
   object-fit: cover;
 }
 
+.stage-card__thumb-link {
+  display: inline-flex;
+  border-radius: var(--radius-sm);
+  transition: opacity 120ms ease;
+}
+
+.stage-card__thumb-link:hover img,
+.stage-card__thumb-link:focus-visible img {
+  opacity: 0.78;
+}
+
+/* ---------- card links (competitor sites, maps, artifacts) ---------- */
+
+.stage-card__links {
+  list-style: none;
+  margin: var(--spacing-16) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.card-link {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-8);
+  padding: 6px var(--spacing-8);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--color-surface-cream);
+  transition: background-color 120ms ease;
+}
+
+.card-link:hover,
+.card-link:focus-visible {
+  background: var(--color-surface-10, rgba(255, 255, 255, 0.06));
+}
+
+.card-link__icon {
+  font-size: var(--text-caption);
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.card-link--site .card-link__icon {
+  color: var(--stage-scanned);
+}
+.card-link--maps .card-link__icon {
+  color: var(--stage-built);
+}
+.card-link--reference .card-link__icon {
+  color: var(--stage-locked);
+}
+.card-link--artifact .card-link__icon {
+  color: var(--stage-synthesized);
+}
+
+.card-link__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.card-link__label {
+  font-size: var(--text-body-sm);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.card-link__sub {
+  font-size: var(--text-caption);
+  color: var(--color-surface-50);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- embedded competitor map ---------- */
+
+.stage-card__map {
+  margin-top: var(--spacing-16);
+}
+
+.stage-card__map-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+.stage-card__map-note,
+.stage-card__map-meta {
+  margin: var(--spacing-8) 0 0;
+  font-size: var(--text-caption);
+  color: var(--color-surface-50);
+}
+
+.stage-card__map-note {
+  padding: var(--spacing-12);
+  border: 1px dashed var(--color-surface-25);
+  border-radius: var(--radius-sm);
+  margin-top: 0;
+}
+
+.stage-card__map-meta a {
+  color: var(--color-surface-cream);
+}
+
 .status-dot {
   display: inline-flex;
   align-items: center;

@@ -1,14 +1,27 @@
 /**
  * Local competitor discovery via the Firecrawl v2 search API (v1 fallback
- * on a 404 — see docs.firecrawl.dev). Two queries per run ("<category>
- * <location>" and "best <category> <location>"), directory/aggregator
- * domains and the prospect's own domain filtered out, deduped by
- * registrable domain, top 4 returned as {name, url, source}.
+ * on a 404 — see docs.firecrawl.dev), then CLASSIFIED so only real local
+ * operators reach the crawl.
+ *
+ * Why the classifier exists (live failure, run 2KJ9KwYM4SeA, 2026-08-13): a
+ * Portland bakery scan returned feastio.com, pdx.eater.com and
+ * portlandfoodanddrink.com — three listicles — plus one coffee shop. The old
+ * DIRECTORY_DOMAINS list blocked Yelp and Angi but nothing editorial, so the
+ * "table stakes" fed to the skeleton spec were BLOG sections (newsletter
+ * signup, listings grid, image gallery), not local-business sections. Wrong
+ * structure signal in, wrong site out.
+ *
+ * Three tiers, cheapest first: known editorial domains → roundup-shaped URLs
+ * and titles → Google Places verification (only when the Maps lane is wired).
+ * Everything rejected is recorded in ScanResult.excluded, because a filter
+ * that silently eats a real competitor is worse than no filter.
  */
 import { addCost, CostCapExceeded } from "../runstate";
+import { findPlace, mapsConfigured, mapsSearchUrl } from "./places";
+import type { Place } from "../contracts";
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev";
-const RESULTS_PER_QUERY = 8;
+const RESULTS_PER_QUERY = 10;
 const MAX_COMPETITORS = 4;
 /** Firecrawl credit cost per search call, tracked into the run's costUsd. */
 const FIRECRAWL_SEARCH_COST_USD = 0.01;
@@ -21,12 +34,22 @@ const DIRECTORY_DOMAINS = [
   "homeadvisor.com",
   "thumbtack.com",
   "facebook.com",
+  "instagram.com",
   "bbb.org",
   "mapquest.com",
   "reddit.com",
   "wikipedia.org",
   "yellowpages.com",
   "nextdoor.com",
+  "tripadvisor.com",
+  "opentable.com",
+  "doordash.com",
+  "ubereats.com",
+  "grubhub.com",
+  "google.com",
+  "youtube.com",
+  "pinterest.com",
+  "tiktok.com",
   // job boards rank high for "<trade> <city>" queries but are never competitors
   "indeed.com",
   "ziprecruiter.com",
@@ -37,6 +60,76 @@ const DIRECTORY_DOMAINS = [
   "careerbuilder.com",
   "craigslist.org",
 ];
+
+// Media/editorial publishers. They rank at the top for "best <trade> <city>"
+// and are never the competitor — they're writing ABOUT the competitors.
+const EDITORIAL_DOMAINS = [
+  "eater.com",
+  "timeout.com",
+  "thrillist.com",
+  "infatuation.com",
+  "zagat.com",
+  "foodandwine.com",
+  "bonappetit.com",
+  "seriouseats.com",
+  "tastingtable.com",
+  "delish.com",
+  "buzzfeed.com",
+  "usatoday.com",
+  "nytimes.com",
+  "forbes.com",
+  "yahoo.com",
+  "msn.com",
+  "medium.com",
+  "substack.com",
+  "wordpress.com",
+  "blogspot.com",
+  "houzz.com",
+  "architecturaldigest.com",
+  "expedia.com",
+  "booking.com",
+];
+
+/** URL paths that mark a roundup/guide rather than a business's own site. */
+const EDITORIAL_PATH_RE =
+  /(^|\/)(best|top|guide|guides|blog|blogs|article|articles|news|maps|list|lists|roundup|review|reviews|things-to-do|where-to)(\/|-|$)|\/\d{4}\/\d{2}\/|-guide|best-\d+|top-\d+|\d+-best/i;
+
+/** Titles shaped like a listicle. Deliberately conservative — it must match
+ * the ROUNDUP form ("The 12 Best X in Y", "Guide to X"), not merely contain
+ * the word "best", so a business actually named "Best Bakery" survives. */
+const EDITORIAL_TITLE_RE =
+  /^\s*(the\s+)?(\d+\s+)?(best|top|greatest|ultimate)\b.*\b(in|of|near|around)\b|^\s*(a\s+)?guide\s+to\b|\bguide\s+to\s+\w+'?s?\b|^\s*\d+\s+(best|top|great|amazing)\b|\bbest\s+\w+\s+(in|near)\s+\w+|'s\s+best\b|\bbest\s+\d+\b/i;
+
+export type CompetitorKind = "business" | "editorial" | "unknown";
+
+export interface Classification {
+  kind: CompetitorKind;
+  why: string;
+}
+
+/** Free, offline classification — domain list, then URL path, then title. */
+export function classifyResult(
+  title: string,
+  url: string,
+  domain: string
+): Classification {
+  if (EDITORIAL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+    return { kind: "editorial", why: `${domain} is a media/publisher domain` };
+  }
+  let pathname = "";
+  try {
+    pathname = new URL(url).pathname;
+  } catch {
+    pathname = "";
+  }
+  if (pathname && pathname !== "/" && EDITORIAL_PATH_RE.test(pathname)) {
+    return { kind: "editorial", why: `URL path "${pathname}" is roundup-shaped` };
+  }
+  if (EDITORIAL_TITLE_RE.test(title)) {
+    return { kind: "editorial", why: `title "${title.slice(0, 60)}" reads as a listicle` };
+  }
+  return { kind: "unknown", why: "no editorial signal — treated as a business" };
+}
 
 export interface FindCompetitorsOptions {
   category: string;
@@ -53,10 +146,29 @@ export interface CompetitorLead {
   url: string;
   /** the query that surfaced this result */
   source: string;
+  kind: CompetitorKind;
+  kindReason: string;
+  place?: Place;
+  mapsSearchUrl: string;
   markdownPath?: string;
   screenshotPaths?: string[];
   structure?: string[];
   notes?: string;
+}
+
+export interface ExcludedLead {
+  url: string;
+  title: string;
+  why: string;
+}
+
+export interface FindCompetitorsResult {
+  competitors: CompetitorLead[];
+  /** everything discovery found and the filter dropped, with the reason */
+  excluded: ExcludedLead[];
+  /** set when the Maps lane could not verify — surfaced on the scan card so a
+   * missing map reads as "not wired", not "no competitors have locations" */
+  mapsNote?: string;
 }
 
 interface FirecrawlSearchHit {
@@ -149,18 +261,51 @@ function isDirectoryDomain(domain: string): boolean {
   return DIRECTORY_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
 }
 
+/**
+ * Google Places verification for one candidate. A match means Google knows a
+ * local business at this exact domain — the strongest "real operator" signal
+ * available. A miss is NOT proof of the opposite (plenty of real businesses
+ * have no website listed on their Google profile), so it never downgrades a
+ * candidate; it only fails to promote it.
+ */
+async function verifyWithPlaces(
+  lead: CompetitorLead,
+  location: string,
+  runId: string
+): Promise<{ place?: Place; note?: string }> {
+  const domain = registrableDomain(lead.url);
+  const { places, unavailable } = await findPlace(`${lead.name} ${location}`, runId);
+  if (unavailable) return { note: unavailable };
+  const match = places.find(
+    (p) => p.websiteUri && registrableDomain(p.websiteUri) === domain
+  );
+  return { place: match };
+}
+
 export async function findCompetitors(
   runId: string,
   opts: FindCompetitorsOptions
-): Promise<CompetitorLead[]> {
+): Promise<FindCompetitorsResult> {
+  // Three angles. "best <category>" pulls the roundups the classifier then
+  // drops, but those pages still rank the real operators, so the query earns
+  // its place; the third angle targets operator sites directly.
   const queries = [
     `${opts.category} ${opts.location}`,
     `best ${opts.category} ${opts.location}`,
+    `${opts.category} ${opts.location} services contact`,
   ];
   const excludeDomain = opts.excludeUrl ? registrableDomain(opts.excludeUrl) : undefined;
 
   const seen = new Map<string, CompetitorLead>();
+  const excluded: ExcludedLead[] = [];
   const errors: string[] = [];
+  const seenExcluded = new Set<string>();
+
+  const drop = (url: string, title: string, why: string) => {
+    if (seenExcluded.has(url)) return;
+    seenExcluded.add(url);
+    excluded.push({ url, title, why });
+  };
 
   for (const query of queries) {
     if (seen.size >= MAX_COMPETITORS) break;
@@ -171,10 +316,30 @@ export async function findCompetitors(
         if (seen.size >= MAX_COMPETITORS) break;
         if (!r.url) continue;
         const domain = registrableDomain(r.url);
-        if (!domain || isDirectoryDomain(domain)) continue;
-        if (excludeDomain && domain === excludeDomain) continue;
+        if (!domain) continue;
+        if (isDirectoryDomain(domain)) {
+          drop(r.url, r.title, `${domain} is a directory/aggregator`);
+          continue;
+        }
+        if (excludeDomain && domain === excludeDomain) {
+          drop(r.url, r.title, "the prospect's own site");
+          continue;
+        }
         if (seen.has(domain)) continue;
-        seen.set(domain, { name: r.title || domain, url: r.url, source: query });
+
+        const verdict = classifyResult(r.title, r.url, domain);
+        if (verdict.kind === "editorial") {
+          drop(r.url, r.title, verdict.why);
+          continue;
+        }
+        seen.set(domain, {
+          name: r.title || domain,
+          url: r.url,
+          source: query,
+          kind: verdict.kind,
+          kindReason: verdict.why,
+          mapsSearchUrl: mapsSearchUrl(`${r.title || domain} ${opts.location}`),
+        });
       }
     } catch (err) {
       // A cost-cap trip is a hard stop, never a soft per-query failure.
@@ -186,5 +351,26 @@ export async function findCompetitors(
   if (seen.size === 0 && errors.length === queries.length) {
     throw new Error(`findCompetitors: all searches failed — ${errors.join(" | ")}`);
   }
-  return [...seen.values()].slice(0, MAX_COMPETITORS);
+
+  const competitors = [...seen.values()].slice(0, MAX_COMPETITORS);
+
+  // Places verification runs only when the Maps lane is wired. Concurrent —
+  // these are independent lookups and each is a network round-trip.
+  let mapsNote: string | undefined;
+  if (mapsConfigured() && competitors.length > 0) {
+    const verdicts = await Promise.all(
+      competitors.map((c) => verifyWithPlaces(c, opts.location, runId))
+    );
+    verdicts.forEach((v, i) => {
+      if (v.note) mapsNote ??= v.note;
+      if (!v.place) return;
+      competitors[i].place = v.place;
+      competitors[i].kind = "business";
+      competitors[i].kindReason = `Google Places confirms a local business at this domain (${v.place.address})`;
+    });
+  } else if (!mapsConfigured()) {
+    mapsNote = "GOOGLE_MAPS_API_KEY is not set — map embed and Places verification skipped";
+  }
+
+  return { competitors, excluded, mapsNote };
 }
