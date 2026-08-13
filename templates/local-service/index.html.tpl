@@ -95,7 +95,7 @@
     <!-- SECTION:services -->
     <section class="section services" id="services" aria-labelledby="services-heading">
       <div class="section__inner">
-        <p class="section__eyebrow" data-reveal="up">{ services }</p>
+        <p class="section__eyebrow" data-reveal="up">Services</p>
         <h2 class="section__heading" id="services-heading" data-reveal="up">{{services.intro}}</h2>
         <ul class="services__grid">
           {{services.items}}
@@ -107,7 +107,7 @@
     <!-- SECTION:why-us -->
     <section class="section why-us" id="why-us" aria-labelledby="why-us-heading">
       <div class="section__inner">
-        <p class="section__eyebrow" data-reveal="up">{ why us }</p>
+        <p class="section__eyebrow" data-reveal="up">Why Us</p>
         <h2 class="section__heading" id="why-us-heading" data-reveal="up">{{why-us.intro}}</h2>
         <ul class="why-us__list">
           {{why-us.items}}
@@ -119,7 +119,7 @@
     <!-- SECTION:reviews -->
     <section class="section reviews" id="reviews" aria-labelledby="reviews-heading">
       <div class="section__inner">
-        <p class="section__eyebrow" data-reveal="up">{ reviews }</p>
+        <p class="section__eyebrow" data-reveal="up">Reviews</p>
         <h2 class="section__heading" id="reviews-heading" data-reveal="up">What people say</h2>
         <ul class="reviews__grid">
           {{reviews.items}}
@@ -132,15 +132,17 @@
     <section class="section service-area" id="service-area" aria-labelledby="service-area-heading">
       <div class="section__inner service-area__inner">
         <div class="service-area__copy" data-reveal="up">
-          <p class="section__eyebrow">{ service area }</p>
+          <p class="section__eyebrow">Service Area</p>
           <h2 class="section__heading" id="service-area-heading">{{service-area.intro}}</h2>
           <ul class="area-list">
             {{service-area.items}}
           </ul>
         </div>
-        <div class="map-placeholder" role="img" aria-label="Service area map placeholder" data-reveal="up">
-          <span aria-hidden="true" class="icon icon--pin"></span>
-        </div>
+        <aside class="area-panel" data-reveal="up">
+          <p class="area-panel__value">{{service-area.range}}</p>
+          <p class="area-panel__note">Not sure if we reach you? Call and we&#39;ll tell you straight.</p>
+          <a class="btn btn--ghost area-panel__cta" href="{{nav.phoneHref}}">{{nav.phone}}</a>
+        </aside>
       </div>
     </section>
     <!-- /SECTION:service-area -->

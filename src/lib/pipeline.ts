@@ -534,6 +534,7 @@ async function stageSynthesize(
         `"service-area": { "intro": string, "area-1": string, "area-2": string, ... } — real neighborhoods/towns inside the stated service area, numbered contiguously`,
       `"contact": { "headline": string, "sub": string, "cta": string, "phone": string }`,
       `"footer": { "business-name": string, "tagline": string, "phone": string }`,
+      `NOTE: every "intro" renders as a LARGE section heading — punchy, max 9 words, never a paragraph.`,
     ]
       .filter(Boolean)
       .join("\n");

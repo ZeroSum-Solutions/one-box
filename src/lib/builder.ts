@@ -272,6 +272,9 @@ function renderHtml(opts: {
     "reviews.items": buildPairedItems(copy, "reviews", "card", ["quote", "author"], "card"),
     "service-area.intro": escapeHtml(field(copy, "service-area", "intro")),
     "service-area.items": buildAreaItems(copy),
+    "service-area.range": escapeHtml(
+      firstNonEmpty(intake.serviceArea, `${intake.location} and nearby`)
+    ),
     "contact.headline": escapeHtml(field(copy, "contact", "headline")),
     "contact.sub": escapeHtml(field(copy, "contact", "sub")),
     "contact.cta": escapeHtml(field(copy, "contact", "cta")),

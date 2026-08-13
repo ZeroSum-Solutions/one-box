@@ -216,6 +216,19 @@ export async function generateJson<T>(
       await trackCost(runId, result, apiKey);
       return result.object;
     } catch (err) {
+      // provider hangs/timeouts are transient — retry with the same prompt
+      // (observed live: Kimi stalls under load). Cost of the cut call may
+      // not be recoverable from an abort; accepted as a known undercount.
+      if (
+        err instanceof Error &&
+        (err.name === "TimeoutError" || err.name === "AbortError")
+      ) {
+        lastError = err;
+        console.warn(
+          `[openrouter] run ${runId}: generateJson attempt ${attempt + 1} timed out (${model}) — retrying`
+        );
+        continue;
+      }
       if (!NoObjectGeneratedError.isInstance(err)) throw err;
       lastError = err;
       await billFailedGeneration(runId, err, apiKey);
