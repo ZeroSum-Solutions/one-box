@@ -196,16 +196,19 @@ try {
   const chipVisible = await page.getByText(/hero\.headline/).first().isVisible().catch(() => false);
   ok("overlay click → selection chip in parent", chipVisible);
 
-  // deterministic text edit through the real API
+  // deterministic text edit through the real API — headline is unique per
+  // invocation so a --reuse re-run never no-ops into a false failure
+  const stamp = `v${Date.now().toString(36).slice(-4)}`;
+  const targetHeadline = `Fiber that just works ${stamp}`;
   const beforeHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
   const editRes = await fetch(`${BASE}/api/edit`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ runId, editId: "hero.headline", instruction: "Change the headline text to exactly: Fiber that just works", imageIntent: false }),
+    body: JSON.stringify({ runId, editId: "hero.headline", instruction: `Change the headline text to exactly: ${targetHeadline}`, imageIntent: false }),
   }).then((r) => r.json());
   const afterHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
   ok("edit_site applies NL edit", editRes.ok === true && afterHtml !== beforeHtml, editRes.error ?? "");
-  ok("edited headline present in source", /Fiber that just works/i.test(afterHtml));
+  ok("edited headline present in source", afterHtml.includes(targetHeadline));
   ok("gates re-ran after edit", Array.isArray(editRes.gates) && editRes.gates.length > 0, `clean=${editRes.gatesClean}`);
 
   // other data-edit-ids intact
@@ -216,7 +219,7 @@ try {
   // reload iframe shows the change
   await page.reload({ waitUntil: "domcontentloaded" });
   const newHeadline = await page.frameLocator("iframe").locator('[data-edit-id="hero.headline"]').innerText({ timeout: 20000 });
-  ok("preview reflects the edit", /fiber that just works/i.test(newHeadline), newHeadline.slice(0, 60));
+  ok("preview reflects the edit", newHeadline.includes(targetHeadline), newHeadline.slice(0, 60));
 
   ok("no page errors in preview shell", consoleErrors.length === 0, consoleErrors.join("; ").slice(0, 100));
 

@@ -1,17 +1,7 @@
 {
-  "at": "2026-08-13T12:18:39.585Z",
+  "at": "2026-08-13T13:05:08.996Z",
   "runId": "DUfT88Vsv1TY",
   "results": [
-    {
-      "name": "chat intake produces runId via start_pipeline",
-      "pass": true,
-      "detail": "DUfT88Vsv1TY"
-    },
-    {
-      "name": "pipeline completes all stages",
-      "pass": false,
-      "detail": "done: scanned,locked"
-    },
     {
       "name": "artifact intake.json",
       "pass": true,
@@ -34,27 +24,27 @@
     },
     {
       "name": "artifact copy.json",
-      "pass": false,
+      "pass": true,
       "detail": ""
     },
     {
       "name": "artifact DESIGN.md",
-      "pass": false,
+      "pass": true,
       "detail": ""
     },
     {
       "name": "artifact gates.json",
-      "pass": false,
+      "pass": true,
       "detail": ""
     },
     {
       "name": "artifact site/manifest.json",
-      "pass": false,
+      "pass": true,
       "detail": ""
     },
     {
       "name": "artifact site/index.html",
-      "pass": false,
+      "pass": true,
       "detail": ""
     },
     {
@@ -64,12 +54,52 @@
     },
     {
       "name": "all blocking gates pass",
-      "pass": false,
-      "detail": "Error: ENOENT: no such file or directory, open '/Users/zero-suminc./projects/one"
+      "pass": true,
+      "detail": "clean"
     },
     {
       "name": "copy stop-slop score ≥ 35/50",
-      "pass": false,
+      "pass": true,
+      "detail": "39/50"
+    },
+    {
+      "name": "preview iframe renders built site",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "overlay click → selection chip in parent",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "edit_site applies NL edit",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "edited headline present in source",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "gates re-ran after edit",
+      "pass": true,
+      "detail": "clean=true"
+    },
+    {
+      "name": "edit preserves all other data-edit-ids",
+      "pass": true,
+      "detail": ""
+    },
+    {
+      "name": "preview reflects the edit",
+      "pass": true,
+      "detail": "Fiber that just works v668w"
+    },
+    {
+      "name": "no page errors in preview shell",
+      "pass": true,
       "detail": ""
     }
   ]
