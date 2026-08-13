@@ -194,16 +194,25 @@ export async function generateJson<T>(
   runId: string,
   model: string,
   schema: ZodType<T>,
-  prompt: string
+  prompt: string,
+  opts: { timeoutMs?: number } = {}
 ): Promise<T> {
   const apiKey = requireApiKey();
   const languageModel = openrouter.chat(model, { usage: { include: true } });
+  // Providers occasionally hang mid-generation (observed live on the gate
+  // repair call) — a per-attempt deadline turns that into an honest failure.
+  const timeoutMs = opts.timeoutMs ?? 300_000;
 
   let attemptPrompt = prompt;
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const result = await generateObject({ model: languageModel, schema, prompt: attemptPrompt });
+      const result = await generateObject({
+        model: languageModel,
+        schema,
+        prompt: attemptPrompt,
+        abortSignal: AbortSignal.timeout(timeoutMs),
+      });
       await trackCost(runId, result, apiKey);
       return result.object;
     } catch (err) {

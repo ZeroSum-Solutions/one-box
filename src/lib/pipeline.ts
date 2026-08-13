@@ -341,6 +341,133 @@ async function findHero(runId: string) {
   }
 }
 
+// ---- token transport shape ----
+// Strict structured-output providers collapse open-keyed z.record fields and
+// let free-form cssVar names drift off the template's contract (live failure:
+// a tokens.css with zero canonical vars → the whole site rendered in UA
+// black/Times). Generation therefore uses FIXED-KEY objects — one required
+// property per canonical CSS variable the frozen template consumes — folded
+// deterministically into the DesignTokens artifact shape.
+
+const ColorSlot = z.object({
+  name: z.string(),
+  value: z.string(),
+  role: z.string(),
+  forbidden: z.string().optional(),
+});
+const FontSlot = z.object({
+  family: z.string(),
+  weights: z.array(z.number()),
+  role: z.string(),
+  substitutes: z.array(z.string()).default([]),
+});
+const ScaleSlot = z.object({
+  sizePx: z.number(),
+  lineHeight: z.number(),
+  trackingEm: z.number().optional(),
+});
+
+const TokenTransportSchema = z.object({
+  colors: z.object({
+    bg: ColorSlot,
+    surface: ColorSlot,
+    surfaceAlt: ColorSlot,
+    text: ColorSlot,
+    textMuted: ColorSlot,
+    primary: ColorSlot,
+    primaryContrast: ColorSlot,
+    border: ColorSlot,
+  }),
+  fonts: z.object({ body: FontSlot, display: FontSlot }),
+  typeScale: z.object({
+    caption: ScaleSlot,
+    bodySm: ScaleSlot,
+    body: ScaleSlot,
+    bodyLg: ScaleSlot,
+    headingSm: ScaleSlot,
+    heading: ScaleSlot,
+    headingLg: ScaleSlot,
+    display: ScaleSlot,
+  }),
+  radii: z.object({ sm: z.string(), md: z.string(), lg: z.string(), pill: z.string() }),
+  spacing: z.object({
+    xs: z.string(),
+    sm: z.string(),
+    md: z.string(),
+    lg: z.string(),
+    xl: z.string(),
+  }),
+  layout: z.object({
+    maxWidthPx: z.number(),
+    sectionGapPx: z.number(),
+    cardPaddingPx: z.number(),
+  }),
+  motion: z.object({
+    easing: z.string(),
+    durationMs: z.object({ micro: z.number(), reveal: z.number() }),
+    revealClasses: z.array(z.string()),
+  }),
+  componentStates: z.array(
+    z.object({
+      component: z.string(),
+      states: z.array(z.object({ state: z.string(), css: z.string() })).min(1),
+    })
+  ),
+  imageryBrief: z.object({
+    subject: z.string(),
+    lighting: z.string(),
+    grade: z.string(),
+    framing: z.string(),
+    avoid: z.array(z.string()),
+  }),
+});
+type TokenTransport = z.infer<typeof TokenTransportSchema>;
+
+const COLOR_SLOT_VAR: Record<keyof TokenTransport["colors"], string> = {
+  bg: "--color-bg",
+  surface: "--color-surface",
+  surfaceAlt: "--color-surface-alt",
+  text: "--color-text",
+  textMuted: "--color-text-muted",
+  primary: "--color-primary",
+  primaryContrast: "--color-primary-contrast",
+  border: "--color-border",
+};
+const SCALE_SLOT_VAR: Record<keyof TokenTransport["typeScale"], string> = {
+  caption: "--text-caption",
+  bodySm: "--text-body-sm",
+  body: "--text-body",
+  bodyLg: "--text-body-lg",
+  headingSm: "--text-heading-sm",
+  heading: "--text-heading",
+  headingLg: "--text-heading-lg",
+  display: "--text-display",
+};
+
+function foldTokens(t: TokenTransport): DesignTokens {
+  return DesignTokensSchema.parse({
+    colors: (Object.keys(COLOR_SLOT_VAR) as Array<keyof TokenTransport["colors"]>).map(
+      (slot) => ({ ...t.colors[slot], cssVar: COLOR_SLOT_VAR[slot] })
+    ),
+    fonts: [
+      { ...t.fonts.body, cssVar: "--font-body" },
+      { ...t.fonts.display, cssVar: "--font-display" },
+    ],
+    typeScale: (Object.keys(SCALE_SLOT_VAR) as Array<keyof TokenTransport["typeScale"]>).map(
+      (slot) => ({ ...t.typeScale[slot], role: slot, cssVar: SCALE_SLOT_VAR[slot] })
+    ),
+    radii: t.radii,
+    spacing: t.spacing,
+    layout: t.layout,
+    motion: t.motion,
+    componentStates: t.componentStates.map((c) => ({
+      component: c.component,
+      states: Object.fromEntries(c.states.map((s) => [s.state, s.css])),
+    })),
+    imageryBrief: t.imageryBrief,
+  });
+}
+
 async function stageSynthesize(
   runId: string,
   intake: Intake,
@@ -356,12 +483,13 @@ async function stageSynthesize(
       ? getScreen(lock.primary.referoId)
       : getStyle(lock.primary.referoId)
     ).catch(() => null);
-    tokens = await generateJson(
+    const transport = await generateJson(
       runId,
       MODELS.orchestrator,
-      DesignTokensSchema,
-      `Convert the locked reference into a complete client design contract. Tokens must serve ${intake.businessName} (${intake.category}, ${intake.location}) — client-owned identity derived FROM the reference, never a copy of it and never a blend of competitors. Include role AND forbidden-context per color (Refero's own discipline), substitute fonts for licensed faces, a motion block (CSS-only reveals), component states, and an imagery art-direction brief (subject/lighting/grade/framing/avoid) grounded in the reference's imagery language.\n\nREFERENCE LOCK:\n${JSON.stringify(lock)}\n\nPRIMARY RECORD:\n${JSON.stringify(primaryRecord)?.slice(0, 14000)}`
+      TokenTransportSchema,
+      `Convert the locked reference into a complete client design contract. Tokens must serve ${intake.businessName} (${intake.category}, ${intake.location}) — client-owned identity derived FROM the reference, never a copy of it and never a blend of competitors. Every slot in the schema maps 1:1 to a CSS variable the frozen template consumes, so fill every one deliberately: colors get a role AND a forbidden-context (Refero's own discipline), fonts substitute licensed faces with a free equivalent, the type scale runs caption→display, radii/spacing set the geometry rhythm, motion is CSS-only reveals, and the imagery brief (subject/lighting/grade/framing/avoid) is grounded in the reference's imagery language.\n\nREFERENCE LOCK:\n${JSON.stringify(lock)}\n\nPRIMARY RECORD:\n${JSON.stringify(primaryRecord)?.slice(0, 14000)}`
     );
+    tokens = foldTokens(transport);
     await saveArtifact(runId, ARTIFACTS.tokens, tokens);
   }
 
@@ -373,8 +501,12 @@ async function stageSynthesize(
       SkeletonSpecSchema,
       `Choose and order sections for a ${intake.category} one-pager. Available section ids (the frozen template registry — you may ONLY use these): nav, hero, trust-bar, services, why-us, service-area, contact, footer. Use the market table stakes (${scan.commonSections.join(", ")}) and gaps (${scan.gaps.join("; ")}). primaryAction=${intake.primaryAction}. Every section gets purpose + contentNeeds.`
     );
-    // The intake shape carries no real customer quotes, so a reviews section
-    // could only be fabricated — a hard disqualifier. Strip it if suggested.
+    await saveArtifact(runId, ARTIFACTS.skeleton, skeleton);
+  }
+  // The intake shape carries no real customer quotes, so a reviews section
+  // could only be fabricated — a hard disqualifier. Strip it on generation
+  // AND on artifact load (older runs may have saved one).
+  if (skeleton.sections.some((s) => s.id === "reviews")) {
     skeleton = SkeletonSpecSchema.parse({
       sections: skeleton.sections.filter((s) => s.id !== "reviews"),
     });
@@ -406,21 +538,65 @@ async function stageSynthesize(
       .filter(Boolean)
       .join("\n");
     const copyPrompt = (feedback?: string) =>
-      `Write website copy for ${intake.businessName}. FACTS YOU MAY USE (nothing else may be claimed): ${JSON.stringify(intake)}. Rules: plain, concrete, no AI-slop constructions (no "seamless", "elevate", "unlock", no em-dash chains, no rule-of-three padding), sentences a real owner would say, primary action = ${intake.primaryAction}.\n\nsections must use EXACTLY these keys (every value a plain string — no nested objects or arrays; numbered keys contiguous from 1, the first missing number ends the list):\n${keyContract}\n\nDo not add other sections or other keys.${feedback ? `\nREVISE per this critique: ${feedback}` : ""}`;
-    let copy = await generateJson(runId, MODELS.builder, CopyDocSchema.omit({ stopSlopScore: true }), copyPrompt());
+      `Write website copy for ${intake.businessName}. FACTS YOU MAY USE (nothing else may be claimed): ${JSON.stringify(intake)}. Rules: plain, concrete, no AI-slop constructions (no "seamless", "elevate", "unlock", no em-dash chains, no rule-of-three padding), sentences a real owner would say, primary action = ${intake.primaryAction}.\n\nReturn sections as an array; each section has its id and a fields array of {key, value} pairs. Use EXACTLY these keys (every value a plain string; numbered keys contiguous from 1, the first missing number ends the list):\n${keyContract}\n\nDo not add other sections or other keys.${feedback ? `\nREVISE per this critique: ${feedback}` : ""}`;
+    // Kimi's strict structured-output collapses open-keyed z.record fields
+    // (live failure: empty sections object), so generation uses an explicit
+    // array transport shape and folds it into the CopyDoc record.
+    const CopyTransportSchema = z.object({
+      sections: z
+        .array(
+          z.object({
+            id: z.string(),
+            fields: z.array(z.object({ key: z.string(), value: z.string() })).min(1),
+          })
+        )
+        .min(3),
+    });
+    const foldCopy = (t: z.infer<typeof CopyTransportSchema>): CopyDoc["sections"] =>
+      Object.fromEntries(
+        t.sections.map((s) => [s.id, Object.fromEntries(s.fields.map((f) => [f.key, f.value]))])
+      );
+    const REQUIRED_COPY_KEYS: Array<[string, string]> = [
+      ["hero", "headline"],
+      ["hero", "sub"],
+      ["hero", "cta"],
+      ["contact", "headline"],
+      ["contact", "cta"],
+    ];
+    const missingKeys = (sections: CopyDoc["sections"]) =>
+      REQUIRED_COPY_KEYS.filter(([sec, key]) => !sections[sec]?.[key]?.trim()).map(
+        ([sec, key]) => `${sec}.${key}`
+      );
+
+    let sections = foldCopy(
+      await generateJson(runId, MODELS.builder, CopyTransportSchema, copyPrompt())
+    );
     const score = await generateJson(
       runId,
       MODELS.bulk,
       z.object({ total: z.number(), critique: z.string() }),
-      `Score this website copy 0-50 across 5 dimensions (10 each): natural voice, concreteness, zero AI-tells, conversion clarity, fact-grounding (no invented claims vs these facts: ${JSON.stringify(intake.claims.concat(intake.services))}). Be harsh. Copy: ${JSON.stringify(copy)}`
+      `Score this website copy 0-50 across 5 dimensions (10 each): natural voice, concreteness, zero AI-tells, conversion clarity, fact-grounding (no invented claims vs these facts: ${JSON.stringify(intake.claims.concat(intake.services))}). Be harsh. Copy: ${JSON.stringify(sections)}`
     );
     let stopSlopScore = score.total;
-    if (score.total < 35) {
-      copy = await generateJson(runId, MODELS.builder, CopyDocSchema.omit({ stopSlopScore: true }), copyPrompt(score.critique));
-      const re = await generateJson(runId, MODELS.bulk, z.object({ total: z.number(), critique: z.string() }), `Re-score 0-50, same dimensions. Copy: ${JSON.stringify(copy)}`);
+    const needsRevision = score.total < 35 || missingKeys(sections).length > 0;
+    if (needsRevision) {
+      const critique = [
+        score.critique,
+        ...(missingKeys(sections).length
+          ? [`MISSING REQUIRED KEYS: ${missingKeys(sections).join(", ")} — every one must be present and non-empty.`]
+          : []),
+      ].join("\n");
+      sections = foldCopy(
+        await generateJson(runId, MODELS.builder, CopyTransportSchema, copyPrompt(critique))
+      );
+      const re = await generateJson(runId, MODELS.bulk, z.object({ total: z.number(), critique: z.string() }), `Re-score 0-50, same dimensions. Copy: ${JSON.stringify(sections)}`);
       stopSlopScore = re.total;
     }
-    copyDoc = CopyDocSchema.parse({ ...copy, stopSlopScore });
+    const stillMissing = missingKeys(sections);
+    if (stillMissing.length) {
+      throw new Error(`copy incomplete after revision — missing ${stillMissing.join(", ")}`);
+    }
+    copyDoc = CopyDocSchema.parse({ sections, stopSlopScore });
     await saveArtifact(runId, ARTIFACTS.copy, copyDoc);
   }
   const stopSlopScore = copyDoc.stopSlopScore ?? 0;

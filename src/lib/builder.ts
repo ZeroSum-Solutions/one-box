@@ -9,8 +9,12 @@
  * this file was written, and buildSite must work standalone for
  * scripts/smoke/gates-smoke.mjs regardless of build order across waves.
  */
-import { mkdir, readFile, writeFile, copyFile, rename } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdir, readFile, writeFile, copyFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 import {
   SITES_DIR,
   SITE_DIR,
@@ -202,9 +206,31 @@ async function renderHeroMedia(opts: {
   const ext = path.extname(opts.heroImagePath) || ".jpg";
   const relPath = `assets/hero${ext}`;
   await copyFile(opts.heroImagePath, path.join(opts.siteDir, relPath));
+  await compressHeroInPlace(path.join(opts.siteDir, relPath));
   opts.assetEntries.push({ path: relPath, kind: "image", generatedBy: "intake:hero-image" });
   opts.files.push(relPath);
   return `<div class="hero__media" data-edit-id="hero.image"><img src="${relPath}" alt="${alt}" loading="eager" /></div>`;
+}
+
+/**
+ * Generated heroes come back at 5MB+ — far past the perf budget (500KB image
+ * bytes). macOS `sips` (always present, no deps) downscales + recompresses
+ * in place. Best-effort: a failure leaves the original, never breaks a build.
+ */
+async function compressHeroInPlace(filePath: string): Promise<void> {
+  try {
+    const { size } = await stat(filePath);
+    if (size <= 600 * 1024) return;
+    await execFileAsync("sips", [
+      "--resampleHeightWidthMax", "1920",
+      "-s", "format", "jpeg",
+      "-s", "formatOptions", "72",
+      filePath,
+      "--out", filePath,
+    ]);
+  } catch {
+    // keep the original — the perf-budget gate reports it honestly
+  }
 }
 
 // ---------- HTML render ----------
