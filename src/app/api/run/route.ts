@@ -20,11 +20,22 @@ export async function GET(req: Request) {
       const send = (ev: PipelineEvent) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
       };
+      // Long model calls leave the stream silent for minutes; undici kills a
+      // quiet body after 300s (UND_ERR_BODY_TIMEOUT, observed live). SSE
+      // comment frames keep every consumer's connection warm.
+      const heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: ping\n\n`));
+        } catch {
+          clearInterval(heartbeat);
+        }
+      }, 20_000);
       try {
         await runPipeline(runId, send);
       } catch {
         // error event already emitted by the pipeline
       } finally {
+        clearInterval(heartbeat);
         controller.close();
       }
     },

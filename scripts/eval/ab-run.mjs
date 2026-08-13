@@ -101,7 +101,13 @@ function freshRunState(id, referenceMode) {
 
 async function createRun(id, intake, referenceMode) {
   const dir = path.join(ROOT, "sites", id);
-  await fs.rm(dir, { recursive: true, force: true });
+  // Idempotent: a crash-interrupted harness relaunch must resume existing
+  // runs from their checkpoints, never wipe paid work.
+  const exists = await fs
+    .access(path.join(dir, "run.json"))
+    .then(() => true)
+    .catch(() => false);
+  if (exists) return dir;
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(path.join(dir, "run.json"), JSON.stringify(freshRunState(id, referenceMode), null, 2));
   await fs.writeFile(path.join(dir, "intake.json"), JSON.stringify(intake, null, 2));
@@ -123,30 +129,36 @@ async function inheritScan(fromId, toId) {
 // ---------- pipeline driving ----------
 
 async function streamRun(runId) {
-  const res = await fetch(`${BASE}/api/run?runId=${runId}`);
-  if (!res.ok) throw new Error(`run ${runId}: HTTP ${res.status}`);
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let buf = "";
   let complete = false;
   let lastError = null;
-  const deadline = Date.now() + 20 * 60_000;
-  while (Date.now() < deadline) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    let idx;
-    while ((idx = buf.indexOf("\n\n")) >= 0) {
-      const frame = buf.slice(0, idx);
-      buf = buf.slice(idx + 2);
-      if (!frame.startsWith("data: ")) continue;
-      try {
-        const ev = JSON.parse(frame.slice(6));
-        if (ev.type === "stage") console.log(`   [${runId}] ${ev.stage} ${ev.status}`);
-        if (ev.type === "error") lastError = ev.message;
-        if (ev.type === "complete") complete = true;
-      } catch {}
+  try {
+    const res = await fetch(`${BASE}/api/run?runId=${runId}`);
+    if (!res.ok) throw new Error(`run ${runId}: HTTP ${res.status}`);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    const deadline = Date.now() + 20 * 60_000;
+    while (Date.now() < deadline) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n\n")) >= 0) {
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        if (!frame.startsWith("data: ")) continue;
+        try {
+          const ev = JSON.parse(frame.slice(6));
+          if (ev.type === "stage") console.log(`   [${runId}] ${ev.stage} ${ev.status}`);
+          if (ev.type === "error") lastError = ev.message;
+          if (ev.type === "complete") complete = true;
+        } catch {}
+      }
     }
+  } catch (err) {
+    // A dropped stream is an incomplete attempt, never a harness crash —
+    // checkpoints make the retry cheap.
+    lastError = err instanceof Error ? err.message : String(err);
   }
   return { complete, lastError };
 }
@@ -212,8 +224,23 @@ try {
 // ---------- blind manifest ----------
 // Random arm→label assignment per prompt; the mapping file is the unblinding
 // key and is NOT shown to the advisory model.
-const manifest = { generatedAt: new Date().toISOString(), prompts: {} };
+// Label assignment is generated ONCE and reused on every later run — a
+// reshuffle would silently invalidate scores already recorded against the
+// old labels.
+const priorManifest = await fs
+  .readFile(path.join(OUT, "manifest.json"), "utf8")
+  .then((raw) => JSON.parse(raw))
+  .catch(() => null);
+const manifest = {
+  generatedAt: priorManifest?.generatedAt ?? new Date().toISOString(),
+  prompts: {},
+};
 for (const prompt of PROMPTS) {
+  const existing = priorManifest?.prompts?.[prompt.slug];
+  if (existing && Object.keys(existing).length === ARMS.length) {
+    manifest.prompts[prompt.slug] = existing;
+    continue;
+  }
   const labels = ["A", "B", "C"];
   // Fisher–Yates on a copy, crypto-seeded
   for (let i = labels.length - 1; i > 0; i--) {

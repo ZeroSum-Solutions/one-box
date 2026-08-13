@@ -116,7 +116,7 @@ h1, h2, h3 {
 }
 .btn--ghost:hover {
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
 }
 
 /* ---------- Icons (CSS-drawn, currentColor — no raster assets) ---------- */
@@ -144,7 +144,9 @@ h1, h2, h3 {
 .footer__inner {
   max-width: var(--layout-max-width);
   margin-inline: auto;
-  padding-inline: var(--space-lg);
+  /* a reference can set space-lg as high as 64px, which eats a 390px screen
+   * alive — cap the gutter by viewport while still honoring the token */
+  padding-inline: min(var(--space-lg), 6vw);
 }
 
 .section { padding-block: var(--layout-section-gap); }
@@ -153,7 +155,7 @@ h1, h2, h3 {
   font-size: var(--text-caption);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   margin-bottom: var(--space-sm);
 }
 .section__heading {
@@ -175,13 +177,25 @@ h1, h2, h3 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-md);
+  gap: min(var(--space-md), 3vw);
   padding-block: var(--space-md);
+}
+.nav__cta {
+  white-space: nowrap;
+  flex: 0 0 auto;
+  padding-inline: min(var(--space-lg), 4vw);
 }
 .nav__logo {
   font-family: var(--font-display);
   font-weight: 600;
   font-size: var(--text-body-lg);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+@media (max-width: 479px) {
+  /* below this width a multi-word business name would stack one word per
+   * line next to the phone pill (live gate failure) */
+  .nav__logo { font-size: var(--text-body); }
 }
 .nav__links {
   display: none;
@@ -256,7 +270,7 @@ h1, h2, h3 {
   display: block;
   font-family: var(--font-display);
   font-size: var(--text-heading-sm);
-  color: var(--color-primary);
+  color: var(--color-primary-text);
   font-weight: 600;
 }
 .stat__label {
@@ -430,8 +444,10 @@ h1, h2, h3 {
   color: var(--color-bg);
 }
 .contact-band .btn--ghost:hover {
+  /* inverted band: keep text at the always-contrasting bg color; the accent
+   * lives on the border (primary-text would invert the wrong way here) */
   border-color: var(--color-primary);
-  color: var(--color-primary);
+  color: var(--color-bg);
 }
 .contact-band .btn--ghost .icon--phone { background: var(--color-bg); }
 .contact-band .btn--ghost:hover .icon--phone { background: var(--color-primary); }
@@ -450,18 +466,21 @@ h1, h2, h3 {
   justify-content: space-between;
   padding-block: var(--space-xl);
   font-size: var(--text-body-sm);
-  color: var(--color-text-muted);
+  /* surface-alt can be light OR dark depending on the locked reference, so
+   * footer text uses the builder-derived on-color, never a light-surface
+   * assumption (live axe failure: dark alt surface + dark text) */
+  color: var(--color-on-surface-alt-muted);
 }
 .footer__business-name {
   font-family: var(--font-display);
   font-weight: 600;
-  color: var(--color-text);
+  color: var(--color-on-surface-alt);
 }
 .footer__phone {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  color: var(--color-text);
+  color: var(--color-on-surface-alt);
   font-weight: 600;
 }
 .footer__copyright { width: 100%; font-size: var(--text-caption); }

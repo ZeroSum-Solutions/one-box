@@ -152,6 +152,10 @@ async function renderTokensCss(tokens: DesignTokens): Promise<string> {
   for (const color of tokens.colors) {
     lines.push(`  ${normalizeCssVarName(color.cssVar)}: ${color.value};`);
   }
+  lines.push(`  --color-primary-text: ${derivePrimaryText(tokens)};`);
+  const onAlt = deriveOnSurfaceAlt(tokens);
+  lines.push(`  --color-on-surface-alt: ${onAlt.strong};`);
+  lines.push(`  --color-on-surface-alt-muted: ${onAlt.muted};`);
   for (const font of tokens.fonts) {
     lines.push(`  ${normalizeCssVarName(font.cssVar)}: ${fontFamilyValue(font.family)};`);
   }
@@ -176,6 +180,67 @@ async function renderTokensCss(tokens: DesignTokens): Promise<string> {
 
 function normalizeCssVarName(name: string): string {
   return name.startsWith("--") ? name : `--${name}`;
+}
+
+/**
+ * The template uses --color-primary-text wherever the PRIMARY color renders
+ * as text on light surfaces (eyebrows, stat values, ghost hover). A brand
+ * primary picked for buttons is often too light for that (live axe failure:
+ * amber on cream, 1.5:1) — so the derived var keeps the primary only when it
+ * meets WCAG AA (4.5:1) against both bg and surface, else falls back to the
+ * text color. Non-hex values (gradients) fall back conservatively.
+ */
+function derivePrimaryText(tokens: DesignTokens): string {
+  const byVar = (v: string) => tokens.colors.find((c) => normalizeCssVarName(c.cssVar) === v)?.value;
+  const primary = byVar("--color-primary");
+  const text = byVar("--color-text") ?? "#111111";
+  const bg = byVar("--color-bg");
+  const surface = byVar("--color-surface") ?? bg;
+  if (!primary || !bg) return text;
+  const ok =
+    (contrastRatio(primary, bg) ?? 0) >= 4.5 &&
+    (contrastRatio(primary, surface ?? bg) ?? 0) >= 4.5;
+  return ok ? primary : text;
+}
+
+/**
+ * surface-alt is the one token a reference can legitimately make light OR
+ * dark (a pale paper tone or a near-black band). The footer sits on it, so
+ * its text colors are derived: pick whichever of text/bg reads against it,
+ * and a muted companion that still clears AA.
+ */
+function deriveOnSurfaceAlt(tokens: DesignTokens): { strong: string; muted: string } {
+  const byVar = (v: string) => tokens.colors.find((c) => normalizeCssVarName(c.cssVar) === v)?.value;
+  const alt = byVar("--color-surface-alt");
+  const text = byVar("--color-text") ?? "#111111";
+  const bg = byVar("--color-bg") ?? "#ffffff";
+  const muted = byVar("--color-text-muted") ?? text;
+  if (!alt) return { strong: text, muted };
+  const textOk = (contrastRatio(text, alt) ?? 0) >= 4.5;
+  const strong = textOk ? text : bg;
+  // keep the muted tone only when it still clears AA on this surface
+  const mutedOk = (contrastRatio(muted, alt) ?? 0) >= 4.5;
+  return { strong, muted: mutedOk ? muted : strong };
+}
+
+function contrastRatio(a: string, b: string): number | undefined {
+  const la = relativeLuminance(a);
+  const lb = relativeLuminance(b);
+  if (la === undefined || lb === undefined) return undefined;
+  const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+function relativeLuminance(hex: string): number | undefined {
+  const m = hex.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return undefined;
+  let h = m[1];
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  const chan = (i: number) => {
+    const v = parseInt(h.slice(i, i + 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * chan(0) + 0.7152 * chan(2) + 0.0722 * chan(4);
 }
 
 function fontFamilyValue(family: string): string {
@@ -218,18 +283,28 @@ async function renderHeroMedia(opts: {
  * in place. Best-effort: a failure leaves the original, never breaks a build.
  */
 async function compressHeroInPlace(filePath: string): Promise<void> {
+  // Step down until the hero fits the perf budget's image allowance (500KB);
+  // a 5MB generated hero needs more than one pass at a single quality.
+  const BUDGET_BYTES = 460 * 1024;
+  const steps: Array<[string, string]> = [
+    ["1920", "70"],
+    ["1600", "60"],
+    ["1400", "50"],
+  ];
   try {
-    const { size } = await stat(filePath);
-    if (size <= 600 * 1024) return;
-    await execFileAsync("sips", [
-      "--resampleHeightWidthMax", "1920",
-      "-s", "format", "jpeg",
-      "-s", "formatOptions", "72",
-      filePath,
-      "--out", filePath,
-    ]);
+    for (const [maxDim, quality] of steps) {
+      const { size } = await stat(filePath);
+      if (size <= BUDGET_BYTES) return;
+      await execFileAsync("sips", [
+        "--resampleHeightWidthMax", maxDim,
+        "-s", "format", "jpeg",
+        "-s", "formatOptions", quality,
+        filePath,
+        "--out", filePath,
+      ]);
+    }
   } catch {
-    // keep the original — the perf-budget gate reports it honestly
+    // keep whatever we have — the perf-budget gate reports it honestly
   }
 }
 

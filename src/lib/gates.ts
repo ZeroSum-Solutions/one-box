@@ -54,8 +54,8 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   // afterEdit re-checks only the two invariants amendment B8 calls out by
   // name (token lint + axe) — the full suite still runs on a fresh build.
   const gateNames = opts.afterEdit
-    ? (["token-drift", "axe"] as const)
-    : (["token-drift", "axe", "console-errors", "assets", "no-js", "perf-budget"] as const);
+    ? (["token-drift", "axe", "mobile-layout"] as const)
+    : (["token-drift", "axe", "console-errors", "assets", "no-js", "mobile-layout", "perf-budget"] as const);
 
   const browser = await chromium.launch();
   const reports: GateReport[] = [];
@@ -90,6 +90,8 @@ async function runOne(
       return withPage(browser, (page) => gateAssets(page, url, ctx.phone));
     case "no-js":
       return gateNoJs(browser, url);
+    case "mobile-layout":
+      return gateMobileLayout(browser, url);
     case "perf-budget":
       return withPage(browser, (page) => gatePerfBudget(page, url));
     default:
@@ -346,7 +348,79 @@ async function gateNoJs(browser: import("playwright").Browser, url: string): Pro
   };
 }
 
-// ---------- (f) perf-budget (advisory) ----------
+// ---------- (f) mobile-layout ----------
+
+/**
+ * 390px invariants. Two failure modes that desktop review never catches and
+ * that both shipped live before this gate existed:
+ *
+ * (1) horizontal overflow — anything wider than the viewport;
+ * (2) word-stacking — a short label squeezed so narrow that each word wraps
+ *     to its own line (a 14-char phone number rendered over 3 lines). Any
+ *     leaf element with a short string across ≥3 lines is a squeeze, since
+ *     no deliberate design breaks a 40-character label that way.
+ */
+async function gateMobileLayout(
+  browser: import("playwright").Browser,
+  url: string
+): Promise<GateReport> {
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    reducedMotion: "reduce",
+  });
+  let details: string[] = [];
+  try {
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "load" });
+    details = await page.evaluate(() => {
+      const out: string[] = [];
+      const vw = window.innerWidth;
+      if (document.documentElement.scrollWidth > vw + 1) {
+        out.push(
+          `page scrolls horizontally: content ${document.documentElement.scrollWidth}px wide in a ${vw}px viewport`
+        );
+      }
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
+        const rect = el.getBoundingClientRect();
+        if (rect.right > vw + 1) {
+          out.push(
+            `<${el.tagName.toLowerCase()}${el.className ? ` class="${el.className}"` : ""}> overflows the viewport (right edge ${Math.round(rect.right)}px)`
+          );
+        }
+        const text = (el.textContent ?? "").trim();
+        if (!text || text.length > 40) continue;
+        if (el.children.length > 0) continue; // leaf text nodes only
+        // Count real line boxes via a Range — height/line-height overcounts
+        // on padded elements (a one-line button reads as three).
+        const node = el.firstChild;
+        if (!node || node.nodeType !== Node.TEXT_NODE) continue;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const lines = range.getClientRects().length;
+        // A long headline wrapping to 4 lines is design; a 14-character phone
+        // number over 3 lines is a squeeze. Characters-per-line separates
+        // them — word-stacking always lands far below a normal line's worth.
+        if (lines >= 3 && text.length / lines < 8) {
+          out.push(
+            `"${text}" wraps to ${lines} lines at 390px (element only ${Math.round(rect.width)}px wide)`
+          );
+        }
+      }
+      return out.slice(0, 20);
+    });
+  } finally {
+    await context.close();
+  }
+  return {
+    gate: "mobile-layout",
+    pass: details.length === 0,
+    blocking: true,
+    details,
+    ranAt: new Date().toISOString(),
+  };
+}
+
+// ---------- (g) perf-budget (advisory) ----------
 
 async function gatePerfBudget(page: Page, url: string): Promise<GateReport> {
   let totalBytes = 0;

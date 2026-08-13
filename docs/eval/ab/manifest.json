@@ -1,0 +1,49 @@
+{
+  "results": [
+    {
+      "prompt": "fiber",
+      "ok": true,
+      "arms": {
+        "r": true,
+        "l": true,
+        "n": true
+      }
+    },
+    {
+      "prompt": "medspa",
+      "ok": true,
+      "arms": {
+        "r": true,
+        "l": true,
+        "n": true
+      }
+    },
+    {
+      "prompt": "roofing",
+      "ok": true,
+      "arms": {
+        "r": true,
+        "l": true,
+        "n": true
+      }
+    }
+  ],
+  "generatedAt": "2026-08-13T17:31:43.465Z",
+  "prompts": {
+    "fiber": {
+      "A": "ab-fiber-r",
+      "B": "ab-fiber-l",
+      "C": "ab-fiber-n"
+    },
+    "medspa": {
+      "B": "ab-medspa-r",
+      "C": "ab-medspa-l",
+      "A": "ab-medspa-n"
+    },
+    "roofing": {
+      "A": "ab-roofing-r",
+      "C": "ab-roofing-l",
+      "B": "ab-roofing-n"
+    }
+  }
+}
