@@ -195,13 +195,52 @@ export async function generateJson<T>(
   model: string,
   schema: ZodType<T>,
   prompt: string,
-  opts: { timeoutMs?: number } = {}
+  opts: {
+    timeoutMs?: number;
+    /**
+     * Images shown to the model alongside the prompt, as RAW BYTES with an
+     * explicit media type. Only meaningful on a vision model —
+     * MODELS.orchestrator is one. Used by the reference lock so a design
+     * decision is made from PIXELS, not from a prose description of pixels.
+     *
+     * Bytes, not URLs, deliberately. Probed live 2026-08-13 against
+     * google/gemini-3.1-pro-preview via OpenRouter: a remote https image URL
+     * (as a string OR a URL object) fails with "[Google] The document has no
+     * pages" — the provider does not fetch it. Inline bytes and data: URLs
+     * both work. Callers fetch the pixels themselves; see pipeline.fetchImage.
+     */
+    images?: Array<{ data: Uint8Array; mediaType: string }>;
+  } = {}
 ): Promise<T> {
   const apiKey = requireApiKey();
   const languageModel = openrouter.chat(model, { usage: { include: true } });
   // Providers occasionally hang mid-generation (observed live on the gate
   // repair call) — a per-attempt deadline turns that into an honest failure.
   const timeoutMs = opts.timeoutMs ?? 300_000;
+  const images = opts.images?.filter(Boolean) ?? [];
+
+  // A prompt-only call and a multimodal call are the same request with a
+  // different content shape; keep one code path so retry/repair still applies.
+  // "file" parts, not the "image" part type — the AI SDK deprecates the latter
+  // in favour of a file part carrying an explicit image/* mediaType.
+  const inputFor = (text: string) =>
+    images.length
+      ? {
+          messages: [
+            {
+              role: "user" as const,
+              content: [
+                { type: "text" as const, text },
+                ...images.map((img) => ({
+                  type: "file" as const,
+                  data: img.data,
+                  mediaType: img.mediaType,
+                })),
+              ],
+            },
+          ],
+        }
+      : { prompt: text };
 
   let attemptPrompt = prompt;
   let lastError: unknown;
@@ -210,11 +249,11 @@ export async function generateJson<T>(
       const result = await generateObject({
         model: languageModel,
         schema,
-        prompt: attemptPrompt,
+        ...inputFor(attemptPrompt),
         abortSignal: AbortSignal.timeout(timeoutMs),
-      });
+      } as Parameters<typeof generateObject>[0]);
       await trackCost(runId, result, apiKey);
-      return result.object;
+      return result.object as T;
     } catch (err) {
       // provider hangs/timeouts are transient — retry with the same prompt
       // (observed live: Kimi stalls under load). Cost of the cut call may

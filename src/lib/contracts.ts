@@ -59,10 +59,35 @@ export type Intake = z.infer<typeof IntakeSchema>;
 
 // ---------- Stage 2: competitive scan ----------
 
+/** A competitor resolved against Google Maps Platform. Present only when the
+ * Maps lane is configured (GOOGLE_MAPS_API_KEY); its absence is a normal
+ * degraded state, never a scan failure — see tools/places.ts. */
+export const PlaceSchema = z.object({
+  placeId: z.string(),
+  name: z.string(),
+  address: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  rating: z.number().optional(),
+  userRatingCount: z.number().optional(),
+  mapsUri: z.string(), // canonical Google Maps deep link for this place
+  websiteUri: z.string().optional(),
+});
+export type Place = z.infer<typeof PlaceSchema>;
+
 export const CompetitorSchema = z.object({
   name: z.string(),
   url: z.string(),
   source: z.string(), // where we found it (search result provenance)
+  /** business = a real local operator. editorial = listicle/guide/media page.
+   * ONLY "business" entries carry market-structure signal; an editorial page
+   * teaches us blog structure, not competitor structure (see maps.ts). */
+  kind: z.enum(["business", "editorial", "unknown"]).default("unknown"),
+  /** Why the classifier landed where it did — auditable, not a black box. */
+  kindReason: z.string().optional(),
+  place: PlaceSchema.optional(),
+  /** Key-free Google Maps search link — always present, works with no API key. */
+  mapsSearchUrl: z.string().optional(),
   markdownPath: z.string().optional(), // crawl artifact
   screenshotPaths: z.array(z.string()).default([]), // 1440 + 390
   structure: z.array(z.string()).default([]), // observed section inventory
@@ -74,10 +99,40 @@ export const ScanResultSchema = z.object({
   competitors: z.array(CompetitorSchema).max(4),
   commonSections: z.array(z.string()), // structure signal, NOT style input
   gaps: z.array(z.string()), // what nobody in the market does well
+  /** Discovery results dropped before the crawl, kept so the scan is
+   * auditable — a filter that silently eats real competitors is invisible
+   * otherwise. */
+  excluded: z
+    .array(z.object({ url: z.string(), title: z.string(), why: z.string() }))
+    .default([]),
 });
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 
 // ---------- Stage 3: Refero reference lock ----------
+
+/** One candidate as Refero returned it — id, human name, and the two links
+ * that make a lock auditable. Kept for EVERY candidate, not just the winner,
+ * so a rejected reference can still be looked at. */
+export const ReferenceCandidateSchema = z.object({
+  referoId: z.string(),
+  kind: z.enum(["style", "screen"]),
+  name: z.string(),
+  sourceUrl: z.string().optional(), // the real site the style was extracted from
+  previewImageUrl: z.string().optional(),
+  /** Which of the generated search angles surfaced this candidate. */
+  foundVia: z.string().optional(),
+});
+export type ReferenceCandidate = z.infer<typeof ReferenceCandidateSchema>;
+
+export const ReferenceProvenanceSchema = z.object({
+  primary: ReferenceCandidateSchema.optional(),
+  candidates: z.array(ReferenceCandidateSchema).default([]),
+  /** Screens whose pixels were actually fetched and shown to the vision model
+   * (refero_get_screen_image), as run-root-relative paths. Empty means the
+   * lock was decided on prose alone. */
+  imagesViewed: z.array(z.string()).default([]),
+});
+export type ReferenceProvenance = z.infer<typeof ReferenceProvenanceSchema>;
 
 export const ReferenceLockSchema = z.object({
   searchAngles: z.array(z.string()).min(3).max(5),
@@ -102,8 +157,20 @@ export const ReferenceLockSchema = z.object({
   decisionLedger: z.array(
     z.object({ decision: z.string(), source: z.string() }) // every choice traces
   ),
+  /** Clickable provenance, filled DETERMINISTICALLY after generation — never
+   * by the model, which would invent URLs. Refero's search results carry a
+   * sourceUrl and previewImageUrl per candidate; without this the lock records
+   * only an opaque UUID and "reference-locked to X" can't be verified. */
+  provenance: ReferenceProvenanceSchema.optional(),
 });
 export type ReferenceLock = z.infer<typeof ReferenceLockSchema>;
+
+/** The generation-time shape: the model authors judgement, never provenance
+ * or the search angles it was handed. */
+export const ReferenceLockDraftSchema = ReferenceLockSchema.omit({
+  searchAngles: true,
+  provenance: true,
+});
 
 // ---------- Stage 4: synthesis ----------
 
@@ -222,9 +289,48 @@ export type EditRequest = z.infer<typeof EditRequestSchema>;
 
 // ---------- Pipeline progress events (SSE to the chat UI) ----------
 
+/** A thumbnail on a card. `path` is run-root-relative (the /api/sites route
+ * serves research/* and the built site); `label` becomes the alt text, so it
+ * must describe THIS image, not the card. `href` makes it click-to-open. */
+export interface CardImage {
+  path: string;
+  label: string;
+  href?: string;
+}
+
+/** An outbound or artifact link rendered as a real anchor on a card.
+ * external → opens in a new tab. artifact → served by /api/sites/<runId>/… */
+export interface CardLink {
+  label: string;
+  href: string;
+  kind: "site" | "maps" | "artifact" | "reference";
+  /** secondary line: address + rating, byte size, provenance note */
+  sub?: string;
+  external?: boolean;
+}
+
+/** Map payload for the competitive-scan card. `embedUrl` is present only when
+ * the Maps lane is configured; `note` explains its absence so a missing map
+ * reads as "not wired" rather than "broken". */
+export interface CardMap {
+  embedUrl?: string;
+  /** Key-free Google Maps link — always usable. */
+  fallbackUrl: string;
+  pins: Array<{ name: string; lat: number; lng: number }>;
+  note?: string;
+}
+
 export type PipelineEvent =
   | { type: "stage"; stage: Stage; status: "running" | "done" | "failed"; note?: string }
-  | { type: "card"; stage: Stage; title: string; body: string; images?: string[] }
+  | {
+      type: "card";
+      stage: Stage;
+      title: string;
+      body: string;
+      images?: CardImage[];
+      links?: CardLink[];
+      map?: CardMap;
+    }
   | { type: "cost"; usd: number }
   | { type: "complete"; runId: string; previewUrl: string }
   | { type: "error"; message: string };
@@ -233,6 +339,11 @@ export type PipelineEvent =
 
 export const SITES_DIR = "sites"; // repo-root relative; each run = sites/<id>/
 export const RUN_FILE = "run.json";
+/** Append-only log of every PipelineEvent the run emitted. run.json checkpoints
+ * stage STATUS; this preserves the narrative — cards, links, artifacts,
+ * screenshots — so reopening a finished run shows what actually happened
+ * instead of four bare "done" rows. */
+export const EVENTS_FILE = "events.jsonl";
 export const RESEARCH_DIR = "research";
 export const SITE_DIR = "site"; // the built artifact lives here
 export const ARTIFACTS = {

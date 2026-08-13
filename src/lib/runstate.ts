@@ -12,12 +12,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   ARTIFACTS,
+  EVENTS_FILE,
   MODELS,
   RESEARCH_DIR,
   RunStateSchema,
   SITE_DIR,
   SITES_DIR,
   STAGES,
+  type PipelineEvent,
   type RunState,
   type Stage,
 } from "./contracts";
@@ -192,52 +194,138 @@ export async function loadArtifact<T = unknown>(
   return JSON.parse(raw) as T;
 }
 
-// ---------- stage transitions ----------
+// ---------- event log ----------
 
-export async function startStage(runId: string, stage: Stage): Promise<RunState> {
-  const state = await loadRun(runId);
-  const prior = state.stages[stage];
-  state.stages[stage] = {
-    status: "running",
-    startedAt: new Date().toISOString(),
-    retries: prior?.retries ?? 0,
-  };
-  await saveRun(state);
-  return state;
+function eventsFilePath(runId: string): string {
+  return path.join(sitePaths(runId).root, EVENTS_FILE);
 }
 
-export async function finishStage(runId: string, stage: Stage): Promise<RunState> {
-  const state = await loadRun(runId);
-  const prior = state.stages[stage];
-  state.stages[stage] = {
-    ...prior,
-    status: "done",
-    finishedAt: new Date().toISOString(),
-    error: undefined,
-  };
-  await saveRun(state);
-  return state;
+/**
+ * Append one emitted event to the run's log. Best-effort by design: a run
+ * must never fail because its own progress log could not be written, so this
+ * swallows write errors after warning. Line-delimited JSON with appendFile —
+ * single-writer, small lines, so no tmp+rename dance is needed here.
+ */
+export async function appendEvent(runId: string, event: PipelineEvent): Promise<void> {
+  try {
+    await fs.mkdir(sitePaths(runId).root, { recursive: true });
+    await fs.appendFile(eventsFilePath(runId), `${JSON.stringify(event)}\n`, "utf8");
+  } catch (err) {
+    console.warn(`[runstate] run ${runId}: could not append event —`, err);
+  }
+}
+
+/**
+ * Every event the run has emitted, oldest first. A malformed trailing line
+ * (crash mid-append) is skipped rather than failing the whole replay.
+ * Returns [] when the run predates the log.
+ */
+export async function readEvents(runId: string): Promise<PipelineEvent[]> {
+  let raw: string;
+  try {
+    raw = await fs.readFile(eventsFilePath(runId), "utf8");
+  } catch (err) {
+    if (isEnoent(err)) return [];
+    throw err;
+  }
+  const events: PipelineEvent[] = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      events.push(JSON.parse(line) as PipelineEvent);
+    } catch {
+      // truncated final line — everything before it is still good history
+    }
+  }
+  return events;
+}
+
+// ---------- per-run write serialization ----------
+
+/**
+ * Every mutator below is a read-modify-write over the SAME run.json. Two of
+ * them interleaving loses an update: both load the file, both mutate their own
+ * copy, the later write clobbers the earlier one.
+ *
+ * That stopped being theoretical when the scan's four structure calls were
+ * parallelized — four concurrent generateJson calls means four concurrent
+ * addCost calls, and costUsd is what the spend cap is enforced against.
+ * Observed live in run HOmEC9VCJ9Ri: a stage recorded "failed" by failStage
+ * came back as "running" because a slower writer saved a stale snapshot on
+ * top of it.
+ *
+ * Single dev process, so a per-run promise chain is the whole fix: mutations
+ * queue instead of racing. Reads (loadRun/loadArtifact) stay unlocked — they
+ * never write, and a slightly stale read is harmless.
+ */
+const runLocks = new Map<string, Promise<unknown>>();
+
+async function withRunLock<T>(runId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = runLocks.get(runId) ?? Promise.resolve();
+  // run regardless of whether the previous holder resolved or threw
+  const next = prev.then(fn, fn);
+  const guarded = next.catch(() => undefined);
+  runLocks.set(runId, guarded);
+  try {
+    return await next;
+  } finally {
+    // drop the entry once this is the tail, so the map does not grow forever
+    if (runLocks.get(runId) === guarded) runLocks.delete(runId);
+  }
+}
+
+// ---------- stage transitions ----------
+
+export function startStage(runId: string, stage: Stage): Promise<RunState> {
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    const prior = state.stages[stage];
+    state.stages[stage] = {
+      status: "running",
+      startedAt: new Date().toISOString(),
+      retries: prior?.retries ?? 0,
+    };
+    await saveRun(state);
+    return state;
+  });
+}
+
+export function finishStage(runId: string, stage: Stage): Promise<RunState> {
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    const prior = state.stages[stage];
+    state.stages[stage] = {
+      ...prior,
+      status: "done",
+      finishedAt: new Date().toISOString(),
+      error: undefined,
+    };
+    await saveRun(state);
+    return state;
+  });
 }
 
 /** Marks the stage failed and bumps its persisted retry counter — the
  * caller (pipeline.ts) decides whether/when to re-run the stage; this just
  * keeps an honest, durable record of how many times it has failed. */
-export async function failStage(
+export function failStage(
   runId: string,
   stage: Stage,
   error: string
 ): Promise<RunState> {
-  const state = await loadRun(runId);
-  const prior = state.stages[stage];
-  state.stages[stage] = {
-    ...prior,
-    status: "failed",
-    finishedAt: new Date().toISOString(),
-    error,
-    retries: (prior?.retries ?? 0) + 1,
-  };
-  await saveRun(state);
-  return state;
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    const prior = state.stages[stage];
+    state.stages[stage] = {
+      ...prior,
+      status: "failed",
+      finishedAt: new Date().toISOString(),
+      error,
+      retries: (prior?.retries ?? 0) + 1,
+    };
+    await saveRun(state);
+    return state;
+  });
 }
 
 export async function stageDone(runId: string, stage: Stage): Promise<boolean> {
@@ -256,10 +344,16 @@ export async function addCost(runId: string, usd: number): Promise<RunState> {
   if (!Number.isFinite(usd) || usd < 0) {
     throw new Error(`addCost: invalid amount ${usd} for run ${runId}`);
   }
-  const state = await loadRun(runId);
-  // round to a hundredth of a cent — avoids float grime accumulating across calls
-  state.costUsd = Math.round((state.costUsd + usd) * 1e6) / 1e6;
-  await saveRun(state);
+  // Serialized: concurrent callers would otherwise each read the same costUsd
+  // and the last write would erase the others' spend — an undercount in the
+  // one number the cap is enforced against.
+  const state = await withRunLock(runId, async () => {
+    const s = await loadRun(runId);
+    // round to a hundredth of a cent — avoids float grime accumulating across calls
+    s.costUsd = Math.round((s.costUsd + usd) * 1e6) / 1e6;
+    await saveRun(s);
+    return s;
+  });
   if (state.costUsd > state.costCapUsd) {
     throw new CostCapExceeded(runId, state.costUsd, state.costCapUsd);
   }

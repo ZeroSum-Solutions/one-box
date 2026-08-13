@@ -115,10 +115,13 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
 }
 
 // ---------- asset path resolution ----------
-// Pipeline card.images are filesystem paths under sites/<runId>/… (see
-// pipeline.ts). The site-serving route only accepts /api/sites/<runId>/<rel>,
-// so strip everything up to and including "sites/<runId>/".
+// Pipeline card.images are usually filesystem paths under sites/<runId>/…
+// (see pipeline.ts); the site-serving route only accepts
+// /api/sites/<runId>/<rel>, so strip everything up to and including
+// "sites/<runId>/". Reference-lock cards instead carry remote Refero preview
+// URLs and inline data: URLs — those are already resolvable, pass them through.
 function resolveSiteAsset(runId: string, rawPath: string): string {
+  if (/^(https?:|data:)/i.test(rawPath)) return rawPath;
   const normalized = rawPath.replace(/\\/g, "/");
   const marker = `sites/${runId}/`;
   const idx = normalized.indexOf(marker);
@@ -153,7 +156,15 @@ function timelineNode(item: TimelineItem, runId: string): ReactNode {
           stage={event.stage}
           title={event.title}
           body={event.body}
-          images={event.images?.map((p) => ({ src: resolveSiteAsset(runId, p), alt: event.title }))}
+          images={event.images?.map((img) => ({
+            src: resolveSiteAsset(runId, img.path),
+            // per-image label, not the card title — four screenshots all
+            // reading "Market structure" is useless to a screen reader
+            alt: img.label,
+            href: img.href,
+          }))}
+          links={event.links}
+          map={event.map}
         />
       );
     case "error":

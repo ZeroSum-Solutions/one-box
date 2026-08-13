@@ -7,7 +7,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { sitePaths } from "@/lib/runstate";
-import { SiteManifestSchema } from "@/lib/contracts";
+import { ARTIFACTS, SiteManifestSchema } from "@/lib/contracts";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -37,8 +37,23 @@ export async function GET(
   // research/* serves scan artifacts to the chat UI; gates.json and DESIGN.md
   // live at the run root; everything else is the built site.
   const isResearch = parts[0] === "research";
+  // Every stage artifact is openable from its chat card — the run is only
+  // auditable if you can read what each stage actually produced. Explicit
+  // allowlist, never a prefix match: sites/<id>/site/ stays behind the
+  // build-complete check below.
   const isRootArtifact =
-    parts.length === 1 && ["gates.json", "DESIGN.md", "run.json"].includes(parts[0]);
+    parts.length === 1 &&
+    [
+      "gates.json",
+      "DESIGN.md",
+      "run.json",
+      ARTIFACTS.intake,
+      ARTIFACTS.scan,
+      ARTIFACTS.lock,
+      ARTIFACTS.tokens,
+      ARTIFACTS.skeleton,
+      ARTIFACTS.copy,
+    ].includes(parts[0]);
   const base = isResearch || isRootArtifact ? roots.root : roots.site;
   const rel = parts.join("/");
   const resolved = path.resolve(base, rel);
