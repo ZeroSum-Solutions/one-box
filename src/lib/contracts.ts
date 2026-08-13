@@ -32,8 +32,12 @@ export const RunStateSchema = z.object({
   costUsd: z.number().default(0), // OpenRouter + Firecrawl spend tally
   costCapUsd: z.number().default(3), // hard per-run cap; stop, never silently retry
   modelSlugs: z.record(z.string(), z.string()),
+  /** Phase 4 A/B arm: refero (R, default) | local (L, catalog-index lock) |
+   * none (N, control — identity invented from intake + vibe alone). */
+  referenceMode: z.enum(["refero", "local", "none"]).default("refero"),
 });
 export type RunState = z.infer<typeof RunStateSchema>;
+export type ReferenceMode = RunState["referenceMode"];
 
 // ---------- Stage 1: intake ----------
 

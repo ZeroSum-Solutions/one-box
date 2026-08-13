@@ -20,6 +20,7 @@ import {
   type ScanResult,
   type SkeletonSpec,
   type CopyDoc,
+  type ReferenceMode,
   MODELS,
 } from "./contracts";
 import {
@@ -44,6 +45,7 @@ import {
   getScreen,
 } from "./tools/refero";
 import { generateImage } from "./tools/higgsfield";
+import { localLibraryCandidates, localLibraryRecord } from "./tools/locallib";
 import { buildSite } from "./builder";
 import { runGates } from "./gates";
 import { z } from "zod";
@@ -114,16 +116,17 @@ async function executePipeline(runId: string, emit: Emit) {
   const paths = sitePaths(runId);
   const intake = (await loadArtifact(runId, ARTIFACTS.intake)) as Intake;
   if (!intake) throw new Error("intake artifact missing — run /api/chat first");
+  const mode = (await loadRun(runId)).referenceMode;
 
   try {
     const scan = await stage(runId, "scanned", emit, () =>
       stageScan(runId, intake, emit)
     );
     const lock = await stage(runId, "locked", emit, () =>
-      stageLock(runId, intake, scan, emit)
+      stageLock(runId, intake, scan, emit, mode)
     );
     const synth = await stage(runId, "synthesized", emit, () =>
-      stageSynthesize(runId, intake, scan, lock, emit)
+      stageSynthesize(runId, intake, scan, lock, emit, mode)
     );
     await stage(runId, "built", emit, () =>
       stageBuild(runId, intake, synth, emit)
@@ -266,8 +269,36 @@ async function stageLock(
   runId: string,
   intake: Intake,
   scan: ScanResult,
-  emit: Emit
+  emit: Emit,
+  mode: ReferenceMode = "refero"
 ): Promise<ReferenceLock> {
+  // Control arm (N): no references consulted anywhere — identity is invented
+  // downstream from intake + vibe alone. The lock artifact records that
+  // honestly so every arm's DESIGN.md still traces its provenance.
+  if (mode === "none") {
+    const lock = ReferenceLockSchema.parse({
+      searchAngles: [
+        "control arm — no style search performed",
+        "control arm — no screen search performed",
+        "control arm — tokens invented from intake + vibe",
+      ],
+      primary: {
+        referoId: "control-none",
+        kind: "style",
+        name: "No reference (control arm)",
+        why: `Phase 4 control: identity invented directly from intake facts and vibe words (${intake.vibeWords.join(", ") || "none given"}).`,
+      },
+      borrowedDetails: [],
+      rejected: [],
+      decisionLedger: [
+        { decision: "No external references consulted (pre-registered control arm).", source: "intake" },
+      ],
+    });
+    await saveArtifact(runId, ARTIFACTS.lock, lock);
+    emit({ type: "card", stage: "locked", title: "Control arm: no references", body: lock.primary.why });
+    return lock;
+  }
+
   const angles = await generateJson(
     runId,
     MODELS.orchestrator,
@@ -276,18 +307,27 @@ async function stageLock(
   );
 
   const candidates: { id: string; kind: "style" | "screen"; name: string; summary: string }[] = [];
-  for (const angle of angles.angles) {
-    const styles = await searchStyles(angle, 4);
+  if (mode === "local") {
+    // L arm: the entire candidate pool is the local library's written index
+    // (rights: text-only per RIGHTS.md — see locallib.ts). No Refero calls.
+    const local = await localLibraryCandidates();
     candidates.push(
-      ...styles.map((s) => ({ id: s.id, kind: "style" as const, name: s.name, summary: s.summary }))
+      ...local.map((c) => ({ id: c.id, kind: "style" as const, name: c.name, summary: c.summary }))
     );
-  }
-  // two screen searches for section patterns
-  for (const q of [`${intake.category} hero section`, `local service contact conversion section`]) {
-    const screens = await searchScreens(q, 3);
-    candidates.push(
-      ...screens.map((s) => ({ id: s.id, kind: "screen" as const, name: s.name, summary: s.summary }))
-    );
+  } else {
+    for (const angle of angles.angles) {
+      const styles = await searchStyles(angle, 4);
+      candidates.push(
+        ...styles.map((s) => ({ id: s.id, kind: "style" as const, name: s.name, summary: s.summary }))
+      );
+    }
+    // two screen searches for section patterns
+    for (const q of [`${intake.category} hero section`, `local service contact conversion section`]) {
+      const screens = await searchScreens(q, 3);
+      candidates.push(
+        ...screens.map((s) => ({ id: s.id, kind: "screen" as const, name: s.name, summary: s.summary }))
+      );
+    }
   }
 
   emit({
@@ -473,16 +513,22 @@ async function stageSynthesize(
   intake: Intake,
   scan: ScanResult,
   lock: ReferenceLock,
-  emit: Emit
+  emit: Emit,
+  mode: ReferenceMode = "refero"
 ): Promise<Synth> {
   // Each sub-step checkpoints its artifact, so a mid-stage crash (e.g. a
   // schema miss on copy) resumes here without re-buying tokens/skeleton.
   let tokens = await loadArtifact<DesignTokens>(runId, ARTIFACTS.tokens);
   if (!tokens) {
-    const primaryRecord = await (lock.primary.kind === "screen"
-      ? getScreen(lock.primary.referoId)
-      : getStyle(lock.primary.referoId)
-    ).catch(() => null);
+    const primaryRecord =
+      mode === "none"
+        ? null
+        : mode === "local"
+          ? await localLibraryRecord(lock.primary.referoId).catch(() => null)
+          : await (lock.primary.kind === "screen"
+              ? getScreen(lock.primary.referoId)
+              : getStyle(lock.primary.referoId)
+            ).catch(() => null);
     const transport = await generateJson(
       runId,
       MODELS.orchestrator,
