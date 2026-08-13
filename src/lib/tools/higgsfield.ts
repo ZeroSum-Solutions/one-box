@@ -18,8 +18,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 const JOB_TYPE = "gpt_image_2";
-const WAIT_TIMEOUT = "5m";
-const EXEC_TIMEOUT_MS = 6 * 60_000;
+const WAIT_TIMEOUT = "10m"; // observed live: healthy jobs can queue >5m under load
+const EXEC_TIMEOUT_MS = 11 * 60_000;
 // higgsfield model get gpt_image_2 → aspect_ratio: 1:1,4:3,3:4,16:9,9:16,3:2,2:3
 const VALID_ASPECT_RATIOS = new Set(["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"]);
 

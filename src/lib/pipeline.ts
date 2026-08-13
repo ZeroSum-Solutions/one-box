@@ -614,11 +614,17 @@ async function stageSynthesize(
   let heroImagePath: string | undefined = await findHero(runId);
   if (heroImagePath) return { tokens, skeleton, copy: copyDoc, heroImagePath };
   const b = tokens.imageryBrief;
-  const hero = await generateImage({
+  const heroOpts = {
     prompt: `${b.subject}. Lighting: ${b.lighting}. Color grade: ${b.grade}. Framing: ${b.framing}. Avoid: ${b.avoid.join(", ")}. Photorealistic marketing hero image for a ${intake.category} website, no text, no logos.`,
     aspectRatio: "16:9",
     outPath: path.join(sitePaths(runId).root, "assets", "hero.jpg"),
-  });
+  };
+  let hero = await generateImage(heroOpts);
+  if ("error" in hero) {
+    // observed live: one transient CLI/network failure on an otherwise
+    // healthy account — a single retry rescues the hero cheaply
+    hero = await generateImage(heroOpts);
+  }
   if ("path" in hero) {
     heroImagePath = hero.path;
     // copy into research/ so the chat card can display it (research/* is servable)

@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-13T13:05:08.996Z",
+  "at": "2026-08-13T13:30:52.000Z",
   "runId": "DUfT88Vsv1TY",
   "results": [
     {
@@ -93,9 +93,19 @@
       "detail": ""
     },
     {
+      "name": "image edit swaps hero via Higgsfield",
+      "pass": true,
+      "detail": "assets/hero.jpg → assets/edit-msrk0ink.jpg"
+    },
+    {
+      "name": "generated image asset exists on disk",
+      "pass": true,
+      "detail": "assets/edit-msrk0ink.jpg"
+    },
+    {
       "name": "preview reflects the edit",
       "pass": true,
-      "detail": "Fiber that just works v668w"
+      "detail": "Fiber that just works v0cit"
     },
     {
       "name": "no page errors in preview shell",

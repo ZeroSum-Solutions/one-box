@@ -140,6 +140,13 @@ try {
       events.some((e) => e.type === "stage" && e.stage === s && e.status === "done")
     );
     ok("pipeline completes all stages", !!complete, `done: ${stagesDone.join(",")}`);
+
+    // reconnect: a second stream replays the checkpointed run without
+    // re-executing paid stages (should settle in seconds, not minutes)
+    const t0 = Date.now();
+    const replay = await runPipeline(runId);
+    const replayComplete = replay.some((e) => e.type === "complete");
+    ok("reconnect replays checkpointed run", replayComplete && Date.now() - t0 < 60_000, `${Math.round((Date.now() - t0) / 1000)}s`);
   }
 
   const runDir = path.join(ROOT, "sites", runId);
@@ -215,6 +222,25 @@ try {
   const idsBefore = [...beforeHtml.matchAll(/data-edit-id="([^"]+)"/g)].map((m) => m[1]);
   const idsAfter = [...afterHtml.matchAll(/data-edit-id="([^"]+)"/g)].map((m) => m[1]);
   ok("edit preserves all other data-edit-ids", idsBefore.every((id) => idsAfter.includes(id)));
+
+  // image edit: the same chat box drives a Higgsfield regeneration constrained
+  // by the run's locked imagery brief (real spend: one image credit)
+  const heroSrc = (html) =>
+    /data-edit-id="hero\.image"[\s\S]{0,400}?src="([^"]+)"/.exec(html)?.[1];
+  const imgBefore = heroSrc(afterHtml);
+  const imgRes = await fetch(`${BASE}/api/edit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ runId, editId: "hero.image", instruction: "A close-up of gloved hands splicing a glowing fiber optic cable at dusk", imageIntent: true }),
+  }).then((r) => r.json());
+  const afterImgHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
+  const imgAfter = heroSrc(afterImgHtml);
+  ok("image edit swaps hero via Higgsfield", imgRes.ok === true && !!imgAfter && imgAfter !== imgBefore, imgRes.error ?? `${imgBefore} → ${imgAfter}`);
+  const imgSwapOk = imgRes.ok === true && !!imgAfter && imgAfter !== imgBefore;
+  const assetOnDisk = imgSwapOk
+    ? await fs.access(path.join(runDir, "site", imgAfter)).then(() => true).catch(() => false)
+    : false;
+  ok("generated image asset exists on disk", assetOnDisk, imgAfter ?? "no src");
 
   // reload iframe shows the change
   await page.reload({ waitUntil: "domcontentloaded" });
