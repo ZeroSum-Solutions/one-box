@@ -5,15 +5,17 @@
  * pipeline skips that competitor instead of failing the whole scan.
  */
 import { execFile } from "node:child_process";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { addCost, CostCapExceeded } from "../runstate";
 
 const execFileAsync = promisify(execFile);
 
-const CRAWL4AI_SCRIPT =
-  "/Users/zero-suminc./projects/tools/zs-skills/skills/research/deep-dive/scripts/crawl4ai-scrape.sh";
+const CRAWL4AI_SCRIPT_RELATIVE_PATH =
+  "projects/tools/zs-skills/skills/research/deep-dive/scripts/crawl4ai-scrape.sh";
 const CRAWL4AI_TIMEOUT_MS = 100_000;
 const FIRECRAWL_BASE = "https://api.firecrawl.dev";
 /** Firecrawl credit cost per fallback scrape, billed to the run (audit P1:
@@ -26,19 +28,33 @@ export interface CrawlResult {
   error?: string;
 }
 
+interface Crawl4aiAttempt {
+  result?: CrawlResult;
+  fallbackReason?: string;
+}
+
+export function resolveCrawl4aiScriptPath(): string {
+  const override = process.env.CRAWL4AI_SCRIPT_PATH?.trim();
+  return override
+    ? path.resolve(override)
+    : path.join(os.homedir(), CRAWL4AI_SCRIPT_RELATIVE_PATH);
+}
+
 export async function crawlSite(
   url: string,
   outDir: string,
   runId?: string
 ): Promise<CrawlResult> {
+  let fallbackReason: string;
   try {
-    const viaScript = await runCrawl4aiScript(url, outDir);
-    if (viaScript) return viaScript;
-  } catch {
-    // fall through to Firecrawl
+    const attempt = await runCrawl4aiScript(url, outDir);
+    if (attempt.result) return attempt.result;
+    fallbackReason = attempt.fallbackReason!;
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
   }
   try {
-    const result = await firecrawlScrapeFallback(url, outDir);
+    const result = await firecrawlScrapeFallback(url, outDir, fallbackReason);
     if (result.provenance === "firecrawl" && runId) {
       await addCost(runId, FIRECRAWL_SCRAPE_COST_USD);
     }
@@ -50,21 +66,37 @@ export async function crawlSite(
   }
 }
 
-/** Returns null (not an error) when the script signals ERR / a nonzero exit
- * — that's the documented "fall back to Firecrawl" contract, not a failure
- * of this function. */
-async function runCrawl4aiScript(url: string, outDir: string): Promise<CrawlResult | null> {
+/** Only an explicit ERR status enters the paid fallback. Configuration errors,
+ * malformed output, and unexpected process failures remain local errors. */
+async function runCrawl4aiScript(url: string, outDir: string): Promise<Crawl4aiAttempt> {
+  const scriptPath = resolveCrawl4aiScriptPath();
+  try {
+    await fs.access(scriptPath, fsConstants.X_OK);
+  } catch {
+    throw new Error(
+      `crawl4ai wrapper was not found or is not executable at "${scriptPath}". ` +
+        "Set CRAWL4AI_SCRIPT_PATH to the executable crawl4ai-scrape.sh path."
+    );
+  }
+
   const { code, stdout } = await execFileCapture(
-    CRAWL4AI_SCRIPT,
+    scriptPath,
     [url, outDir],
     CRAWL4AI_TIMEOUT_MS
   );
   const lastLine = stdout.trim().split("\n").pop() ?? "";
-  const [status, markdownPath] = lastLine.split("\t");
-  if (code === 0 && status === "OK" && markdownPath) {
-    return { markdownPath, provenance: "crawl4ai" };
+  const [status, detail] = lastLine.split("\t");
+  if (status === "ERR") {
+    return { fallbackReason: detail?.trim() || "crawl4ai returned ERR" };
   }
-  return null;
+  const markdownPath = detail;
+  if (code === 0 && status === "OK" && markdownPath) {
+    return { result: { markdownPath, provenance: "crawl4ai" } };
+  }
+  throw new Error(
+    `crawl4ai wrapper at "${scriptPath}" did not return the documented OK or ERR status ` +
+      `(exit ${code}). Check the wrapper installation or set CRAWL4AI_SCRIPT_PATH correctly.`
+  );
 }
 
 async function execFileCapture(
@@ -88,9 +120,19 @@ async function execFileCapture(
   }
 }
 
-async function firecrawlScrapeFallback(url: string, outDir: string): Promise<CrawlResult> {
+async function firecrawlScrapeFallback(
+  url: string,
+  outDir: string,
+  fallbackReason: string
+): Promise<CrawlResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
-  if (!apiKey) return { error: "crawl4ai failed and FIRECRAWL_API_KEY is not set" };
+  if (!apiKey) {
+    return {
+      error:
+        `crawl4ai requested Firecrawl fallback (${fallbackReason}), but ` +
+        "FIRECRAWL_API_KEY is not set",
+    };
+  }
 
   const headers = { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" };
   const body = JSON.stringify({ url, formats: ["markdown"] });
