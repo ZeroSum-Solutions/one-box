@@ -349,7 +349,23 @@ describe("evidence artifact derivation", () => {
       temporaryDirectories.push(directory);
       const contractPath = path.join(directory, "DESIGN.md");
       const exportPath = path.join(directory, "design-tailwind.css");
-      await fs.writeFile(contractPath, renderDesignContract(intake, tokens, lock));
+      const productionColorTokens = {
+        ...tokens,
+        colors: [
+          { name: "Background", value: "#ffffff", cssVar: "--color-bg", role: "Page background" },
+          { name: "Surface", value: "#f7f5f2", cssVar: "--color-surface", role: "Primary surface" },
+          { name: "Surface alt", value: "#ebe8e2", cssVar: "--color-surface-alt", role: "Alternate surface" },
+          { name: "Text", value: "#151719", cssVar: "--color-text", role: "Body text" },
+          { name: "Text muted", value: "#555b61", cssVar: "--color-text-muted", role: "Secondary text" },
+          { name: "Primary", value: "#174ea6", cssVar: "--color-primary", role: "Actions and headings" },
+          { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary" },
+          { name: "Border", value: "#c8c4bc", cssVar: "--color-border", role: "Dividers" },
+        ],
+      };
+      await fs.writeFile(
+        contractPath,
+        renderDesignContract(intake, productionColorTokens, lock),
+      );
 
       const verification = await verifyAndExportDesignContract(
         contractPath,

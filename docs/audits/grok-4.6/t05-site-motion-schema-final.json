@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-14T02:41:04.242Z",
+  "request": {
+    "task": "T05-site-motion-schema",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "5076f9e",
+    "head": "e1a64719425b6ec8d53c12f4fabdf3f89f402a81",
+    "files": [
+      "src/lib/siteMotion.ts"
+    ],
+    "proofs": [],
+    "diffBytes": 12157
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4236,
+      "completion_tokens": 4491,
+      "total_tokens": 8727,
+      "cost": 0.035226,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.035226,
+        "upstream_inference_prompt_cost": 0.00828,
+        "upstream_inference_completions_cost": 0.026946
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 3869,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/lib/siteMotion.ts",
+        "line": "MotionDraftSchema / manifestScript / mutateSiteMotion",
+        "scenario": "Criterion requires reduced-motion safety in the typed persistence contract. Drafts persist durationMs 50–5000, replay once|repeat, and opacity/transform properties with no reduced-motion policy, skip/scale alternative, or 0ms variant. The emitted motion-manifest.js only assigns window.__ONEBOX_MOTION_MANIFEST__. A user with prefers-reduced-motion: reduce still receives full motion data and any consumer that applies properties as the resting style can hide or keep animating content.",
+        "remediation": "Add a strict reduced-motion field (e.g. skip | fade | none) with refinements that forbid replay=repeat and opacity 0 when skip/fade is required; persist that in the manifest so players must no-op or substitute a non-motion rest state."
+      },
+      {
+        "severity": "HIGH",
+        "file": "src/lib/siteMotion.ts",
+        "line": "mutateSiteMotion remove filter",
+        "scenario": "Apply upserts by (editId, kind, timelineId), so one node can have multiple timeline entries. Remove filters only (editId, kind), so removing one timeline group deletes every timeline row for that node. Concrete: two timeline drafts on hero with timelineId a and b → remove(hero, timeline) leaves neither and history records a multi-entry drop.",
+        "remediation": "Require timelineId on remove when kind is timeline (or accept it optionally) and match the same identity key as apply."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/siteMotion.ts",
+        "line": "refineMotion / MotionPropertiesSchema / exit trigger rule",
+        "scenario": "Lifecycle comment only forces exit+manual. Entrance/scroll/timeline/hover may persist opacity:0 (or scale 0.1) with trigger load|viewport. If the player applies properties as the pre-animation or failed-JS end state, the target stays hidden with no rest-state or cancel contract in the schema.",
+        "remediation": "Disallow opacity below a visible floor except on manual exit, or persist explicit from/to plus a visible rest state that must be restored when motion is skipped, cancelled, or JS does not run."
+      }
+    ],
+    "proof_assessment": "No proof artifacts were supplied. Schema bounds, upsert/remove identity, history cursor truncation, revert, and reduced-motion behavior are unverified; the empty proof cannot authorize acceptance.",
+    "residual_risks": [
+      "Corrupt motion.json/history throws raw ZodError/SyntaxError instead of MotionValidationError",
+      "HTML is validated at mutate time but not snapshotted; target can disappear after persist",
+      "Breakpoint is not part of the upsert key, so distinct mobile/desktop configs cannot coexist for the same kind",
+      "No tests shown for 50-entry history wrap, gate rollback, or manifest-script XSS escaping"
+    ]
+  }
+}

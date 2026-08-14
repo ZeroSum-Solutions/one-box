@@ -58,6 +58,15 @@ describe("motion schema", () => {
     expect(MotionDraftSchema.safeParse({ ...draft, trigger: "hover" }).success).toBe(false);
     expect(MotionDraftSchema.safeParse({ ...draft, kind: "timeline", trigger: "hover", timelineId: "hero", order: 1 }).success).toBe(false);
     expect(MotionManifestSchema.safeParse({ version: 1, entries: [{ ...draft, id: "00000000-0000-0000-0000-000000000000" }] }).success).toBe(false);
+    const validEntry = { ...draft, id: "00000000-0000-4000-8000-000000000001" };
+    expect(MotionManifestSchema.safeParse({ version: 1, entries: [validEntry, validEntry] }).success).toBe(false);
+    expect(MotionManifestSchema.safeParse({
+      version: 1,
+      entries: [
+        validEntry,
+        { ...validEntry, id: "00000000-0000-4000-8000-000000000002" },
+      ],
+    }).success).toBe(false);
   });
 });
 
@@ -67,6 +76,15 @@ describe("motion persistence", () => {
     await mutateSiteMotion("test-run", { action: "apply", draft }, { sitesRoot, gateRunner: passGate });
     let inspected = await inspectSiteMotion("test-run", "hero.headline", { sitesRoot });
     expect(inspected.entries).toHaveLength(1);
+    const manifestScript = await fs.readFile(
+      path.join(sitesRoot, "test-run", "site", "motion-manifest.js"),
+      "utf8",
+    );
+    expect(manifestScript).toMatch(/^window\.__ONEBOX_MOTION_MANIFEST__=/);
+    expect(manifestScript).not.toContain("</script");
+    expect(JSON.parse(manifestScript.slice(manifestScript.indexOf("=") + 1, -2))).toEqual(
+      inspected.manifest,
+    );
     await mutateSiteMotion("test-run", { action: "apply", draft: { ...draft, durationMs: 900 } }, { sitesRoot, gateRunner: passGate });
     inspected = await inspectSiteMotion("test-run", "hero.headline", { sitesRoot });
     expect(inspected.entries).toHaveLength(1);
@@ -75,6 +93,30 @@ describe("motion persistence", () => {
     expect((await inspectSiteMotion("test-run", "hero.headline", { sitesRoot })).entries).toHaveLength(0);
     await revertSiteMotion("test-run", { sitesRoot, gateRunner: passGate });
     expect((await inspectSiteMotion("test-run", "hero.headline", { sitesRoot })).entries[0].durationMs).toBe(900);
+  });
+
+  it("keeps one timeline configuration per target when its group changes", async () => {
+    const { sitesRoot } = await fixture();
+    const firstTimeline = {
+      ...draft,
+      kind: "timeline" as const,
+      timelineId: "hero-primary",
+      order: 1,
+    };
+    await mutateSiteMotion("test-run", { action: "apply", draft: firstTimeline }, { sitesRoot, gateRunner: passGate });
+    await mutateSiteMotion(
+      "test-run",
+      { action: "apply", draft: { ...firstTimeline, timelineId: "hero-secondary", order: 2 } },
+      { sitesRoot, gateRunner: passGate },
+    );
+
+    const inspected = await inspectSiteMotion("test-run", "hero.headline", { sitesRoot });
+    expect(inspected.entries).toHaveLength(1);
+    expect(inspected.entries[0]).toMatchObject({
+      kind: "timeline",
+      timelineId: "hero-secondary",
+      order: 2,
+    });
   });
 
   it("rejects unknown and WebGL-owning targets", async () => {

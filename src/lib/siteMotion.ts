@@ -90,7 +90,30 @@ export const MotionEntrySchema = z
   .superRefine(refineMotion);
 export const MotionManifestSchema = z
   .object({ version: z.literal(1), entries: z.array(MotionEntrySchema).max(100) })
-  .strict();
+  .strict()
+  .superRefine((manifest, context) => {
+    const ids = new Set<string>();
+    const identities = new Set<string>();
+    for (const [index, entry] of manifest.entries.entries()) {
+      if (ids.has(entry.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["entries", index, "id"],
+          message: "motion entry ids must be unique",
+        });
+      }
+      ids.add(entry.id);
+      const identity = `${entry.editId}\0${entry.kind}`;
+      if (identities.has(identity)) {
+        context.addIssue({
+          code: "custom",
+          path: ["entries", index],
+          message: "each motion target may have one configuration per kind",
+        });
+      }
+      identities.add(identity);
+    }
+  });
 
 const MotionHistorySchema = z
   .object({
@@ -251,8 +274,7 @@ export async function mutateSiteMotion(
         const existing = manifest.entries.find(
           (entry) =>
             entry.editId === draft.editId &&
-            entry.kind === draft.kind &&
-            (entry.timelineId ?? "") === (draft.timelineId ?? ""),
+            entry.kind === draft.kind,
         );
         const entry = MotionEntrySchema.parse({ ...draft, id: existing?.id ?? randomUUID() });
         next = MotionManifestSchema.parse({
