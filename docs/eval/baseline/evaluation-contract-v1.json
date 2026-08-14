@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "contractId": "one-box-path-a-vs-direct-refero-v1",
+  "status": "frozen",
+  "purpose": "Controlled identical-input comparison of the current One-Box pipeline (Path A) and direct Refero research handoff (Path B).",
+  "hashAlgorithm": "sha256",
+  "inputs": [
+    {
+      "path": "docs/eval/baseline/brief-v1.json",
+      "sha256": "149220484abbe6f466fafcfc40bf20806af04090bc5f61a8fe99c7f74cb48541"
+    },
+    {
+      "path": "docs/eval/baseline/rubric-v1.md",
+      "sha256": "8407fa537545d2ff2a1d193777d33f91b8827933e189670a38f02000374ee208"
+    }
+  ],
+  "paths": [
+    {
+      "id": "path-a",
+      "label": "Current One-Box pipeline",
+      "variable": "current-pipeline research and synthesis handoff"
+    },
+    {
+      "id": "path-b",
+      "label": "Direct Refero MCP research workflow",
+      "variable": "direct Refero research and synthesis handoff"
+    }
+  ],
+  "constants": [
+    "client/business brief",
+    "project target",
+    "required pages and functionality",
+    "brand constraints",
+    "reference-selection criteria",
+    "output artifact contract",
+    "evaluation rubric",
+    "downstream builder configuration",
+    "copy facts, imagery policy, viewport checks, and quality gates"
+  ],
+  "requiredArtifacts": [
+    "research.json",
+    "design-contract.md",
+    "token-proposal.json",
+    "tailwind-plan.json",
+    "css-architecture.json",
+    "site-manifest.json",
+    "visual-qa.json",
+    "provenance.json"
+  ],
+  "requiredRubricAreas": [
+    "Reference relevance",
+    "Structural usefulness",
+    "Source credibility",
+    "Design contract",
+    "Token and Tailwind plan",
+    "Visual quality",
+    "Responsiveness",
+    "Brand specificity",
+    "Accessibility and performance",
+    "Unsupported output",
+    "Efficiency"
+  ],
+  "liveExecution": {
+    "permittedByThisHarness": false,
+    "reason": "The harness never authenticates, reads credentials, invokes Refero, invokes OpenRouter, or spends money. A separately approved live runner must record provenance before this harness will present or unblind results."
+  },
+  "humanGate": {
+    "required": true,
+    "rule": "A named human evaluator must submit complete blind scores with evidence for every rubric area before unblinding."
+  },
+  "blinding": {
+    "presentationRule": "Presentation copies exclude provenance.json. Producer/model/provider, path identity, timing, and cost metadata must remain in coordinator-only provenance, not the evaluator-facing artifact content.",
+    "blockedTerms": ["path-a", "path-b", "openrouter", "refero mcp", "x-ai/", "grok-4", "gemini-3", "kimi-k3", "deepseek-"]
+  }
+}

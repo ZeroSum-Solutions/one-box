@@ -265,16 +265,29 @@ export const TailwindPlanSchema = z.object({
       rationale: z.string(),
     })
   ).min(1),
+  runtimeOnlyVariables: z.array(
+    z.object({
+      cssVariable: z.string(),
+      rationale: z.string(),
+    })
+  ).default([]),
   componentVariants: z.array(z.string()).default([]),
   responsiveRules: z.array(z.string()).default([]),
 }).superRefine((plan, ctx) => {
   const cssVariables = plan.themeMappings.map((mapping) => mapping.cssVariable);
   const tailwindNames = plan.themeMappings.map((mapping) => mapping.tailwindName);
+  const runtimeVariables = plan.runtimeOnlyVariables.map((mapping) => mapping.cssVariable);
   if (new Set(cssVariables).size !== cssVariables.length) {
     ctx.addIssue({ code: "custom", path: ["themeMappings"], message: "Tailwind CSS variable mappings must be unique" });
   }
   if (new Set(tailwindNames).size !== tailwindNames.length) {
     ctx.addIssue({ code: "custom", path: ["themeMappings"], message: "Tailwind theme names must be unique" });
+  }
+  if (new Set(runtimeVariables).size !== runtimeVariables.length) {
+    ctx.addIssue({ code: "custom", path: ["runtimeOnlyVariables"], message: "Runtime-only CSS variables must be unique" });
+  }
+  if (runtimeVariables.some((variable) => cssVariables.includes(variable))) {
+    ctx.addIssue({ code: "custom", path: ["runtimeOnlyVariables"], message: "A CSS variable cannot be both a Tailwind theme mapping and runtime-only" });
   }
 });
 export type TailwindPlan = z.infer<typeof TailwindPlanSchema>;

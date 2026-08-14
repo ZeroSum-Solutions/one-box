@@ -501,13 +501,13 @@ h1, h2, h3 {
 /* ---------- Scroll reveal (CSS-only; gated behind .js + reduced-motion) ---------- */
 
 @media (prefers-reduced-motion: no-preference) {
-  .js:not(.no-motion) [data-reveal] {
+  .js:not(.no-motion) [data-reveal]:not([data-onebox-motion-active]) {
     opacity: 0;
     transform: translateY(16px);
     transition: opacity var(--motion-duration-reveal) var(--motion-ease),
       transform var(--motion-duration-reveal) var(--motion-ease);
   }
-  .js:not(.no-motion) [data-reveal].is-visible {
+  .js:not(.no-motion) [data-reveal].is-visible:not([data-onebox-motion-active]) {
     opacity: 1;
     transform: translateY(0);
   }

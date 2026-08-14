@@ -84,6 +84,7 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   await copyFile(path.join(process.cwd(), "node_modules", "gsap", "dist", "gsap.min.js"), path.join(siteDir, "gsap.min.js"));
   await copyFile(path.join(process.cwd(), "node_modules", "gsap", "dist", "ScrollTrigger.min.js"), path.join(siteDir, "ScrollTrigger.min.js"));
   await writeFile(path.join(siteDir, "motion.json"), '{"version":1,"entries":[]}\n', "utf8");
+  await writeFile(path.join(siteDir, "motion-manifest.js"), 'window.__ONEBOX_MOTION_MANIFEST__={"version":1,"entries":[]};\n', "utf8");
 
   const assetEntries: SiteManifest["assets"] = [
     { path: "tokens.css", kind: "css", generatedBy: "builder:tokens" },
@@ -92,8 +93,9 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     { path: "gsap.min.js", kind: "js" },
     { path: "ScrollTrigger.min.js", kind: "js" },
     { path: "motion-runtime.js", kind: "js" },
+    { path: "motion-manifest.js", kind: "js", generatedBy: "builder:motion-manifest" },
   ];
-  const files = ["index.html", "tokens.css", "site.css", "reveal.js", "gsap.min.js", "ScrollTrigger.min.js", "motion-runtime.js", "motion.json"];
+  const files = ["index.html", "tokens.css", "site.css", "reveal.js", "gsap.min.js", "ScrollTrigger.min.js", "motion-manifest.js", "motion-runtime.js", "motion.json"];
   if (input.tailwindThemeCss) {
     assetEntries.push({
       path: "tailwind-theme.css",

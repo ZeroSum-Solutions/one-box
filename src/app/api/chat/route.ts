@@ -102,7 +102,7 @@ Rules:
 - When you have the required facts, confirm the summary in one compact block, then call start_pipeline.`;
 
 function systemForContext(context: IntakeContextRequest): string {
-  return `${SYSTEM}\n\nServer-selected intake context (authoritative):\n- Project target: ${context.projectTarget}\n- Design Research: ${context.research.enabled ? "enabled" : "disabled"}\n- Business context research: ${context.research.businessIntelligence ? "enabled" : "disabled"}\n- Design-reference evidence: ${context.research.referoDesignEvidence ? "enabled" : "disabled"}\n- Metered Firecrawl fallback after local failure only: ${context.research.allowPaidFirecrawlFallback ? "allowed" : "not allowed"}\n- Staged uploads: ${context.uploads.length}`;
+  return `${SYSTEM}\n\nServer-selected intake context (authoritative):\n- Project target: ${context.projectTarget}\n- Design Research: ${context.research.enabled ? "enabled" : "disabled"}\n- Business context research: ${context.research.businessIntelligence ? "enabled" : "disabled"}\n- Design-reference evidence: ${context.research.referoDesignEvidence ? "enabled" : "disabled"}\n- Metered Firecrawl competitor discovery and local-crawler fallback: ${context.research.allowPaidFirecrawlFallback ? "allowed" : "not allowed"}\n- Staged uploads: ${context.uploads.length}`;
 }
 
 /** The model supplies business facts; server-owned controls always win. */

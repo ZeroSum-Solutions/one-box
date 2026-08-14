@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { chromium, type Page } from "playwright";
+import { withSiteAuthorityLock } from "./siteMutation";
 import {
   CssArchitectureSchema,
   DesignResearchLedgerSchema,
@@ -410,25 +411,36 @@ export function buildTailwindPlan(
   inventory: TokenInventory,
   sourceTokenInventoryVersion: number
 ): TailwindPlan {
-  const namespace = {
-    color: "color",
-    typography: "text",
-    spacing: "spacing",
-    radius: "radius",
-    border: "border",
-    shadow: "shadow",
-    breakpoint: "breakpoint",
-    motion: "ease",
-    layer: "z",
-    "component-state": "state",
-  } as const;
+  const tailwindName = (token: TokenInventory["tokens"][number]): string | undefined => {
+    const name = token.semanticName.startsWith("--")
+      ? token.semanticName
+      : `--${token.semanticName}`;
+    if (name.startsWith("--font-") || name.startsWith("--text-")) return name;
+    if (name.startsWith("--color-") || name.startsWith("--radius-") || name.startsWith("--shadow-")) return name;
+    if (name.startsWith("--space-")) return name.replace("--space-", "--spacing-");
+    if (name === "--layout-max-width") return "--container-content";
+    if (name.startsWith("--layout-")) return name.replace("--layout-", "--spacing-");
+    if (name === "--motion-ease") return "--ease-standard";
+    return undefined;
+  };
+  const mapped = inventory.tokens.flatMap((token) => {
+    const name = tailwindName(token);
+    return name ? [{
+      cssVariable: cssVariable(token.semanticName),
+      tailwindName: name,
+      rationale: `${token.usage}; mapped from the approved semantic ${token.category} token.`,
+    }] : [];
+  });
+  const runtimeOnlyVariables = inventory.tokens.flatMap((token) =>
+    tailwindName(token) ? [] : [{
+      cssVariable: cssVariable(token.semanticName),
+      rationale: `${token.usage}; retained as a runtime CSS variable because Tailwind v4 has no value-compatible utility namespace.`,
+    }]
+  );
   return TailwindPlanSchema.parse({
     sourceTokenInventoryVersion,
-    themeMappings: inventory.tokens.map((token) => ({
-      cssVariable: cssVariable(token.semanticName),
-      tailwindName: `--${namespace[token.category]}-${slug(token.semanticName)}`,
-      rationale: `${token.usage}; mapped from the approved semantic ${token.category} token.`,
-    })),
+    themeMappings: mapped,
+    runtimeOnlyVariables,
     componentVariants: ["hover", "focus-visible", "disabled"],
     responsiveRules: [
       "Mobile-first base styles",
@@ -458,7 +470,8 @@ export function assertTailwindPlanMatchesInventory(
       ({ cssVariable, tailwindName }) =>
         !/^--[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(cssVariable) ||
         !/^--[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(tailwindName)
-    )
+    ) ||
+    JSON.stringify(plan.runtimeOnlyVariables) !== JSON.stringify(canonical.runtimeOnlyVariables)
   ) {
     throw new Error(
       "Tailwind theme mappings must use every canonical variable/name pair exactly once"
@@ -540,7 +553,7 @@ async function boundedVisibleQaTarget(page: Page) {
   }
 }
 
-export async function runThreeWidthVisualQa(
+async function runThreeWidthVisualQaUnlocked(
   siteDirectory: string,
   sourceCssArchitectureVersion: number
 ): Promise<VisualQa> {
@@ -698,6 +711,20 @@ export async function runThreeWidthVisualQa(
     await browser.close();
   }
   return VisualQaSchema.parse({ sourceCssArchitectureVersion, buildSha256, checks });
+}
+
+/** QA generation shares the exact authority lock used by all editor writes.
+ * The pre-capture build hash and every browser observation therefore describe
+ * one stable site generation. Approval later reacquires this same lock before
+ * comparing the hash and transitioning workflow state. */
+export function runThreeWidthVisualQa(
+  runId: string,
+  siteDirectory: string,
+  sourceCssArchitectureVersion: number
+): Promise<VisualQa> {
+  return withSiteAuthorityLock(runId, () =>
+    runThreeWidthVisualQaUnlocked(siteDirectory, sourceCssArchitectureVersion)
+  );
 }
 
 export async function computeSiteBuildSha256(

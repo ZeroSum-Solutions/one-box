@@ -222,9 +222,23 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     );
   }
 
-  function previewSelectedMotion() {
+  function previewSelectedMotion(draft: Record<string, unknown>) {
     iframeRef.current?.contentWindow?.postMessage(
-      { type: "onebox-editor-command", action: "preview-motion", editId: selection?.editId },
+      { type: "onebox-editor-command", action: "preview-motion", editId: selection?.editId, draft },
+      "*",
+    );
+  }
+
+  function resetMotionPreview() {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "onebox-editor-command", action: "reset-motion" },
+      "*",
+    );
+  }
+
+  function previewToken(token: string, value: string) {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "onebox-editor-command", action: "preview-token", token, value },
       "*",
     );
   }
@@ -419,6 +433,8 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         onEditorCommand={sendEditorCommand}
         onStructuredMutationComplete={handleStructuredMutationComplete}
         onMotionPreview={previewSelectedMotion}
+        onMotionReset={resetMotionPreview}
+        onTokenPreview={previewToken}
       />
     </main>
   );

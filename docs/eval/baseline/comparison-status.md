@@ -24,9 +24,10 @@ Path A versus a direct Refero MCP research workflow in Path B.
 |---|---|---|
 | Versioned identical brief | ready | `brief-v1.json` |
 | Frozen rubric | ready | `rubric-v1.md` |
+| Immutable evaluation contract and offline verifier | ready | `evaluation-contract-v1.json`, lock, and `scripts/eval/baseline-harness.mjs` |
 | Path A prompts and artifacts | pending | OpenRouter key is in locked ZS Vault |
 | Path B direct Refero research | pending | Refero OAuth is not authorized in Codex |
-| Randomized blind labels | pending | generated only after both paths finish |
+| Randomized blind labels | ready when a run is prepared | reproducible seed and coordinator-only unblinding key; presentation is blocked until both provenanced paths finish |
 | Independent scores | pending | inputs do not exist yet |
 | Root-cause decision | pending | cannot precede comparison evidence |
 

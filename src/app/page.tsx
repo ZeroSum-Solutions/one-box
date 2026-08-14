@@ -11,7 +11,7 @@ import {
   type IntakeChatContext,
 } from "@/components/intakeRequest";
 import { readSSE } from "@/components/sse";
-import { resumedRunId } from "@/components/resumeRun";
+import { consumePipelineRunStream, resumedRunId } from "@/components/resumeRun";
 import type {
   PipelineEvent,
   ProjectTarget,
@@ -120,7 +120,7 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
       return { ...state, timeline, costUsd, previewUrl, evidenceUrl, settled };
     }
     case "PIPELINE_STREAM_ERROR": {
-      if (state.settled) return state; // EventSource fires "error" on a clean close too
+      if (state.settled) return state;
       const ev: PipelineEvent = {
         type: "error",
         message: "Lost connection to the build. Refresh — the run resumes from its last checkpoint.",
@@ -326,24 +326,31 @@ export default function Home() {
     }
   }, [state.phase, state.runId]);
 
-  // Pipeline SSE: opens once per run, closes itself on complete/error.
+  // Pipeline SSE: authorized POST starts/resumes once per run. Native
+  // EventSource is GET-only, so use the shared bounded frame reader.
   useEffect(() => {
     if (state.phase !== "pipeline" || !state.runId) return;
-    const es = new EventSource(`/api/run?runId=${encodeURIComponent(state.runId)}`);
-    es.onmessage = (e) => {
+    const controller = new AbortController();
+    void (async () => {
       try {
-        const parsed = JSON.parse(e.data) as PipelineEvent;
-        dispatch({ type: "PIPELINE_EVENT", event: parsed });
-        if (parsed.type === "complete" || parsed.type === "paused" || parsed.type === "error") es.close();
+        const response = await fetch("/api/run", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ runId: state.runId }),
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) throw new Error(`Pipeline request failed (${response.status})`);
+        const terminal = await consumePipelineRunStream(response, (event) =>
+          dispatch({ type: "PIPELINE_EVENT", event })
+        );
+        if (!terminal && !controller.signal.aborted) {
+          dispatch({ type: "PIPELINE_STREAM_ERROR" });
+        }
       } catch {
-        // ignore malformed frame
+        if (!controller.signal.aborted) dispatch({ type: "PIPELINE_STREAM_ERROR" });
       }
-    };
-    es.onerror = () => {
-      dispatch({ type: "PIPELINE_STREAM_ERROR" });
-      es.close();
-    };
-    return () => es.close();
+    })();
+    return () => controller.abort();
   }, [state.phase, state.runId]);
 
   function handleSend() {

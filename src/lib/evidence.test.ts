@@ -2,8 +2,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { compile } from "tailwindcss";
+import { chromium } from "playwright";
 import { buildSite } from "./builder";
 import { createRun, sitePaths } from "./runstate";
+import { withSiteAuthorityLock } from "./siteMutation";
 import {
   assertCanonicalTokenInventory,
   buildCssArchitecture,
@@ -12,6 +15,7 @@ import {
   buildTailwindPlan,
   buildTokenInventory,
   buildVisualQa,
+  computeSiteBuildSha256,
   renderDesignContract,
   renderTailwindThemeCss,
   runThreeWidthVisualQa,
@@ -231,7 +235,7 @@ describe("evidence artifact derivation", () => {
     const css = renderTailwindThemeCss(inventory, plan);
 
     expect(inventory.tokens.every((token) => token.usage.length > 0)).toBe(true);
-    expect(plan.themeMappings).toHaveLength(inventory.tokens.length);
+    expect(plan.themeMappings.length + plan.runtimeOnlyVariables.length).toBe(inventory.tokens.length);
     expect(new Set(inventory.tokens.map((token) => token.category))).toEqual(
       new Set([
         "color",
@@ -284,6 +288,45 @@ describe("evidence artifact derivation", () => {
     );
     expect(() => renderTailwindThemeCss(inventory, { ...plan, themeMappings: swapped })).toThrow(/canonical variable\/name pair/);
     expect(() => renderTailwindThemeCss(inventory, { ...plan, themeMappings: plan.themeMappings.map((mapping, index) => index === 0 ? { ...mapping, tailwindName: "--arbitrary-invention" } : mapping) })).toThrow(/canonical variable\/name pair/);
+    const names = new Map(plan.themeMappings.map((mapping) => [mapping.cssVariable, mapping.tailwindName]));
+    expect(names.get("--ds-font-sans")).toBe("--font-sans");
+    expect(names.get("--ds-text-body")).toBe("--text-body");
+    expect(names.get("--ds-motion-ease")).toBe("--ease-standard");
+    expect(names.has("--ds-motion-duration-micro")).toBe(false);
+    expect(plan.runtimeOnlyVariables.map((entry) => entry.cssVariable)).toContain("--ds-motion-duration-micro");
+    expect(plan.runtimeOnlyVariables.map((entry) => entry.cssVariable)).toContain("--ds-border-subtle");
+    expect(plan.runtimeOnlyVariables.map((entry) => entry.cssVariable)).toContain("--ds-layer-base");
+    expect(names.get("--ds-layout-max-width")).toBe("--container-content");
+  });
+
+  it("compiles documented Tailwind v4 namespaces into working computed utilities", async () => {
+    const inventory = buildTokenInventory(tokens, 1, ["refero-1"]);
+    const plan = buildTailwindPlan(inventory, 1);
+    const compiler = await compile(`${renderTailwindThemeCss(inventory, plan)}\n@tailwind utilities;`);
+    const css = compiler.build(["font-sans", "text-body", "max-w-content", "ease-standard"]);
+    expect(css).toContain(".font-sans");
+    expect(css).toContain(".text-body");
+    expect(css).toContain(".max-w-content");
+    expect(css).toContain(".ease-standard");
+    expect(css).not.toContain(".duration-micro");
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-tailwind-utility-"));
+    temporaryDirectories.push(directory);
+    await fs.writeFile(path.join(directory, "index.html"), `<style>${css}</style><div id="probe" class="font-sans text-body max-w-content ease-standard">Probe</div>`);
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const page = await browser.newPage();
+      await page.goto(`file://${path.join(directory, "index.html")}`);
+      const computed = await page.locator("#probe").evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { fontFamily: style.fontFamily, fontSize: style.fontSize, maxWidth: style.maxWidth, easing: style.transitionTimingFunction };
+      });
+      expect(computed.fontFamily).toContain("Public Sans");
+      expect(computed.fontSize).toBe("16px");
+      expect(computed.maxWidth).toBe("1200px");
+      expect(computed.easing).toBe("cubic-bezier(0.2, 0.8, 0.2, 1)");
+    } finally {
+      await browser.close();
+    }
   });
 
   it("renders a machine-readable design.md contract in canonical section order", () => {
@@ -358,7 +401,7 @@ describe("evidence artifact derivation", () => {
       assets: {},
     });
 
-    const qa = await runThreeWidthVisualQa(site, 1);
+    const qa = await runThreeWidthVisualQa(runId, site, 1);
     for (const area of ["desktop", "tablet", "mobile"] as const) {
       expect(qa.checks.find((check) => check.area === area)).toMatchObject({
         status: "pass",
@@ -413,13 +456,40 @@ describe("evidence artifact derivation", () => {
     await fs.writeFile(path.join(site, "index.html"), `<!doctype html><style>
       body{margin:0}.surface{background:#111;color:#fff;padding:2rem}.hero__cta{background:transparent;color:rgba(255,255,255,.9);display:inline-block;padding:1rem;transition:transform .1s}.hero__cta:hover{transform:scale(1.02)}.hero__cta:focus-visible{outline:3px solid #fff}@media(prefers-reduced-motion:reduce){*{transition:none!important}}
     </style><main class="surface"><a class="hero__cta" href="#">Start</a></main>`);
-    const transparent = await runThreeWidthVisualQa(site, 1);
+    const transparent = await runThreeWidthVisualQa("qa-target-test", site, 1);
     expect(transparent.checks.find((check) => check.area === "color-scheme")?.status).toBe("pass");
 
     await fs.writeFile(path.join(site, "index.html"), "<!doctype html><main>No call to action</main>");
-    const missing = await runThreeWidthVisualQa(site, 1);
+    const missing = await runThreeWidthVisualQa("qa-target-test", site, 1);
     expect(missing.checks.find((check) => check.area === "hover")?.status).toBe("fail");
     expect(missing.checks.find((check) => check.area === "focus")?.status).toBe("fail");
     expect(missing.checks.find((check) => check.area === "color-scheme")?.status).toBe("fail");
+  }, 30_000);
+
+  it("waits for a transient site edit rollback before hashing and capturing QA", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-qa-lock-"));
+    temporaryDirectories.push(root);
+    const site = path.join(root, "site");
+    const index = path.join(site, "index.html");
+    await fs.mkdir(site, { recursive: true });
+    const stable = '<!doctype html><style>.hero__cta{display:inline-block;background:#111;color:#fff}.hero__cta:hover{transform:scale(1.1)}.hero__cta:focus-visible{outline:3px solid #fff}</style><main><a class="hero__cta" href="#">Start</a></main>';
+    await fs.writeFile(index, stable);
+    let editStarted!: () => void;
+    let releaseEdit!: () => void;
+    const started = new Promise<void>((resolve) => { editStarted = resolve; });
+    const release = new Promise<void>((resolve) => { releaseEdit = resolve; });
+    const transientEdit = withSiteAuthorityLock("qa-lock-test", async () => {
+      await fs.writeFile(index, "<!doctype html><main>transient candidate</main>");
+      editStarted();
+      await release;
+      await fs.writeFile(index, stable);
+    });
+    await started;
+    const qaPromise = runThreeWidthVisualQa("qa-lock-test", site, 1);
+    releaseEdit();
+    await transientEdit;
+    const qa = await qaPromise;
+    expect(qa.buildSha256).toBe(await computeSiteBuildSha256(site));
+    expect(qa.checks.find((check) => check.area === "hover")?.status).toBe("pass");
   }, 30_000);
 });

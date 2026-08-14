@@ -45,7 +45,9 @@ interface WorkbenchProps {
   onSizeChange: (size: WorkbenchSize) => void;
   onEditorCommand: (action: "cancel" | "clear") => void;
   onStructuredMutationComplete: () => void;
-  onMotionPreview: () => void;
+  onMotionPreview: (draft: Record<string, unknown>) => void;
+  onMotionReset: () => void;
+  onTokenPreview: (token: string, value: string) => void;
 }
 
 function ToolState({
@@ -241,6 +243,7 @@ export function Workbench(props: WorkbenchProps) {
         <TokenControls
           runId={props.runId}
           onMutationComplete={props.onStructuredMutationComplete}
+          onPreview={props.onTokenPreview}
         />
       );
     }
@@ -257,7 +260,7 @@ export function Workbench(props: WorkbenchProps) {
           Custom interactive content cannot receive declarative motion safely.
         </ToolState>
       );
-    return <MotionControls runId={props.runId} selection={props.selection} onMutationComplete={props.onStructuredMutationComplete} onPreview={props.onMotionPreview} />;
+    return <MotionControls runId={props.runId} selection={props.selection} onMutationComplete={props.onStructuredMutationComplete} onPreview={props.onMotionPreview} onReset={props.onMotionReset} />;
   }
 
   return (

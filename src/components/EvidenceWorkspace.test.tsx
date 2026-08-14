@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { WorkflowArtifactVersion } from "@/lib/contracts";
+import type { WorkflowArtifactVersion } from "../lib/contracts";
 import { ArtifactPreview } from "./EvidenceWorkspace";
 
 const base = {

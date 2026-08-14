@@ -6,6 +6,10 @@ import type {
   UploadMetadata,
 } from "@/lib/contracts";
 import { UploadPanel } from "./UploadPanel";
+import {
+  FIRECRAWL_CONSENT_HELP,
+  FIRECRAWL_CONSENT_LABEL,
+} from "./researchConsent";
 
 interface IntakeControlsProps {
   projectTarget: ProjectTarget;
@@ -121,11 +125,8 @@ export function IntakeControls({
               disabled={disabled || !research.enabled}
             />
             <span>
-              Allow paid Firecrawl fallback
-              <small>
-                May incur metered cost. Used only after the local crawler fails,
-                hits a bot wall, or cannot provide the required format.
-              </small>
+              {FIRECRAWL_CONSENT_LABEL}
+              <small>{FIRECRAWL_CONSENT_HELP}</small>
             </span>
           </label>
         </div>

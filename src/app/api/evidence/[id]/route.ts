@@ -76,7 +76,8 @@ function responsePayload(run: Awaited<ReturnType<typeof loadRun>>) {
     currentApprovalState: currentArtifact
       ? artifactApprovalState(currentArtifact)
       : null,
-    resumeUrl: `/api/run?runId=${encodeURIComponent(run.id)}`,
+    resumeUrl: "/api/run",
+    resumeMethod: "POST",
     previewUrl:
       run.stages.built.status === "done" ? `/preview/${run.id}` : null,
   };

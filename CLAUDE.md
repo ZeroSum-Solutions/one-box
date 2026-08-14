@@ -4,9 +4,11 @@ Chat-to-website prototype for the ZS acquisition engine. One chat box in, a
 reference-locked local-service website out, with a click-to-select natural-language
 editor on the preview.
 
-Plan of record: `docs/plans/2026-08-12-one-box-prototype.md` (read the Audit
-amendments §A–E — they are binding). Contracts: `src/lib/contracts.ts` — every
-stage artifact shape lives there; never invent fields outside it.
+Plan of record: `docs/plans/2026-08-13-refero-editor-evidence-workspace.md`.
+Atomic acceptance requirements live in
+`docs/specs/2026-08-13-refero-editor-requirements.md`. Contracts:
+`src/lib/contracts.ts` — every stage artifact shape lives there; never invent
+fields outside it.
 
 ## Hard lanes (Devin, 2026-08-12)
 
@@ -25,8 +27,9 @@ state machine) → `/preview/<id>` iframe (sandboxed, overlay-injected) → `/ap
 patches pristine source by `data-edit-id` and re-runs gates.
 
 - The generated site comes from the FROZEN template `templates/local-service/` —
-  builders parameterize tokens/copy, they don't invent structure. CSS-only motion,
-  reduced-motion safe, no GSAP/Lenis in generated sites.
+  builders parameterize approved tokens/copy rather than inventing structure.
+  Motion uses a constrained, versioned schema and the pinned local GSAP runtime;
+  arbitrary JavaScript/selectors are forbidden and reduced-motion is mandatory.
 - Gates (`src/lib/gates.ts`) are invariants: token-drift, axe, console, assets,
   no-JS visibility (blocking) + perf budget (advisory). They re-run after every edit.
 - The app's own chrome wears the GSAP style record (`DESIGN.md` + `variables.css`
@@ -36,6 +39,6 @@ patches pristine source by `data-edit-id` and re-runs gates.
 ## Commands
 
 - `./scripts/dev.sh` — dev server with vault-sourced env.
-- `node scripts/smoke/tools-smoke.mjs` — external-tool smoke tests (tiny spend).
-- `node scripts/smoke/gates-smoke.mjs` — template+builder+gates offline proof.
-- `npx vitest run` / `npx tsc --noEmit` — tests and types.
+- `npm run test:smoke` — template, builder, and gates offline proof.
+- `npm run test:e2e:intake` / `npm run test:e2e:preview` — rendered acceptance.
+- `npm test` / `npm run typecheck` / `npm run lint` / `npm run build` — primary gates.

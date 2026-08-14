@@ -8,7 +8,7 @@ import {
   workflowArtifactApprovalState,
   type RunState,
   type WorkflowArtifactVersion,
-} from "@/lib/contracts";
+} from "../lib/contracts";
 
 function latestCurrentArtifact(run: RunState): WorkflowArtifactVersion | undefined {
   const expected = EVIDENCE_STAGE_ARTIFACT[run.evidenceWorkflow.currentStage];
@@ -38,27 +38,28 @@ function versionJsonUrl(runId: string, artifact: WorkflowArtifactVersion): strin
 }
 
 function ArtifactTextPreview({ runId, artifactPath, label }: { runId: string; artifactPath: string; label: string }) {
-  const [text, setText] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
   const href = artifactUrl(runId, artifactPath);
+  const [result, setResult] = useState<{
+    href: string;
+    text: string | null;
+    failed: boolean;
+  }>({ href: "", text: null, failed: false });
   useEffect(() => {
     let active = true;
-    setText(null);
-    setFailed(false);
     fetch(href)
       .then((response) => {
         if (!response.ok) throw new Error(`artifact returned ${response.status}`);
         return response.text();
       })
-      .then((value) => { if (active) setText(value); })
-      .catch(() => { if (active) setFailed(true); });
+      .then((value) => { if (active) setResult({ href, text: value, failed: false }); })
+      .catch(() => { if (active) setResult({ href, text: null, failed: true }); });
     return () => { active = false; };
   }, [href]);
   return (
     <section aria-label={`${label} preview`}>
       <h4>{label}</h4>
       <p><a href={href}>Open {label}</a></p>
-      {failed ? <p role="alert">Preview unavailable; open the versioned artifact directly.</p> : text === null ? <p role="status">Loading preview…</p> : <pre tabIndex={0}>{text}</pre>}
+      {result.href !== href ? <p role="status">Loading preview…</p> : result.failed ? <p role="alert">Preview unavailable; open the versioned artifact directly.</p> : <pre tabIndex={0}>{result.text}</pre>}
     </section>
   );
 }

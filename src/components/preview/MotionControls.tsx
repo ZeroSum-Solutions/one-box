@@ -18,27 +18,33 @@ const defaults = {
   opacity: 0,
 };
 
-export function MotionControls({ runId, selection, onMutationComplete, onPreview }: { runId: string; selection: PreviewSelection; onMutationComplete: () => void; onPreview: () => void }) {
+export function MotionControls({ runId, selection, onMutationComplete, onPreview, onReset }: { runId: string; selection: PreviewSelection; onMutationComplete: () => void; onPreview: (draft: Record<string, unknown>) => void; onReset: () => void }) {
   const [form, setForm] = useState(defaults);
   const [entries, setEntries] = useState<Array<{ kind: string }>>([]);
   const [canRevert, setCanRevert] = useState(false);
   const [pending, setPending] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    setPending(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/motion?runId=${encodeURIComponent(runId)}&editId=${encodeURIComponent(selection.editId)}`, { cache: "no-store" });
-      const result = await response.json();
-      if (!response.ok || result.error) throw new Error(result.error || "motion inspection failed");
-      setEntries(result.entries);
-      setCanRevert(result.canRevert);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "motion inspection failed");
-    } finally { setPending(false); }
-  }
-  useEffect(() => { void load(); }, [runId, selection.editId]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch(`/api/motion?runId=${encodeURIComponent(runId)}&editId=${encodeURIComponent(selection.editId)}`, { cache: "no-store" })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok || result.error) throw new Error(result.error || "motion inspection failed");
+        if (!cancelled) {
+          setEntries(result.entries);
+          setCanRevert(result.canRevert);
+          setPending(false);
+        }
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : "motion inspection failed");
+          setPending(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [runId, selection.editId]);
 
   function draft() {
     const kind = form.kind as "entrance" | "exit" | "hover" | "scroll" | "timeline";
@@ -64,7 +70,7 @@ export function MotionControls({ runId, selection, onMutationComplete, onPreview
       const response = await fetch("/api/motion", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const result = await response.json();
       if (!response.ok || result.error) throw new Error(result.error || "motion action failed");
-      if (action === "preview") onPreview();
+      if (action === "preview") onPreview(result.draft);
       else { setEntries(result.entries.filter((entry: { editId: string }) => entry.editId === selection.editId)); setCanRevert(result.canRevert); onMutationComplete(); }
     } catch (actionError) { setError(actionError instanceof Error ? actionError.message : "motion action failed"); }
     finally { setPending(false); }
@@ -82,7 +88,7 @@ export function MotionControls({ runId, selection, onMutationComplete, onPreview
       <label>Replay<select value={form.replay} onChange={(event) => setForm({ ...form, replay: event.target.value })}><option value="once">Once</option><option value="repeat">Repeat</option></select></label>
       {(["x", "y", "scale", "rotation", "opacity"] as const).map((key) => <label key={key}>{key}<input type="number" step={key === "scale" || key === "opacity" ? "0.1" : "1"} value={form[key]} onChange={(event) => setForm({ ...form, [key]: Number(event.target.value) })} /></label>)}
     </div>
-    <div className="motion-actions"><button type="button" disabled={pending} onClick={() => void act("preview")}>Preview motion</button><button type="button" disabled={pending} onClick={() => void act("apply")}>Apply motion</button><button type="button" disabled={pending || !entries.some((entry) => entry.kind === form.kind)} onClick={() => void act("remove")}>Remove kind</button><button type="button" disabled={pending || !canRevert} onClick={() => void act("revert")}>Revert last motion</button></div>
+    <div className="motion-actions"><button type="button" disabled={pending} onClick={() => void act("preview")}>Preview motion</button><button type="button" disabled={pending} onClick={onReset}>Reset preview</button><button type="button" disabled={pending} onClick={() => void act("apply")}>Apply motion</button><button type="button" disabled={pending || !entries.some((entry) => entry.kind === form.kind)} onClick={() => void act("remove")}>Remove kind</button><button type="button" disabled={pending || !canRevert} onClick={() => void act("revert")}>Revert last motion</button></div>
     {error && <p className="edit-error" role="alert">{error}</p>}
   </div>;
 }

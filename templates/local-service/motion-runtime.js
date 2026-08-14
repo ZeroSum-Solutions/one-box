@@ -44,12 +44,36 @@
   }
 
   function varsFor(entry) {
-    return Object.assign({}, entry.properties, {
+    var properties = {};
+    ["x", "y", "scale", "rotation", "opacity"].forEach(function (key) {
+      if (typeof entry.properties[key] === "number" && isFinite(entry.properties[key])) properties[key] = entry.properties[key];
+    });
+    return Object.assign(properties, {
       duration: entry.durationMs / 1000,
       delay: entry.delayMs / 1000,
       ease: entry.ease === "none" ? "none" : entry.ease,
       overwrite: "auto",
     });
+  }
+
+  function validEntry(entry) {
+    if (!entry || typeof entry !== "object" || typeof entry.id !== "string" || typeof entry.editId !== "string") return false;
+    if (!/^[a-z0-9][a-z0-9._-]{1,79}$/i.test(entry.editId)) return false;
+    if (["entrance", "exit", "hover", "scroll", "timeline"].indexOf(entry.kind) < 0) return false;
+    if (["load", "viewport", "hover", "manual"].indexOf(entry.trigger) < 0) return false;
+    if (["once", "repeat"].indexOf(entry.replay) < 0 || !breakpointQueries[entry.breakpoint]) return false;
+    if (["none", "power1.out", "power2.out", "power3.out", "sine.inOut"].indexOf(entry.ease) < 0) return false;
+    if (!Number.isInteger(entry.durationMs) || entry.durationMs < 50 || entry.durationMs > 5000 || !Number.isInteger(entry.delayMs) || entry.delayMs < 0 || entry.delayMs > 5000) return false;
+    if (!entry.properties || typeof entry.properties !== "object") return false;
+    var bounds = { x: [-2000, 2000], y: [-2000, 2000], scale: [0.1, 4], rotation: [-360, 360], opacity: [0, 1] };
+    if (!(Object.keys(entry.properties).length > 0 && Object.keys(entry.properties).every(function (key) {
+      return bounds[key] && typeof entry.properties[key] === "number" && isFinite(entry.properties[key]) && entry.properties[key] >= bounds[key][0] && entry.properties[key] <= bounds[key][1];
+    }))) return false;
+    if (entry.kind === "hover" && entry.trigger !== "hover") return false;
+    if (entry.kind === "scroll" && entry.trigger !== "viewport") return false;
+    if (entry.kind === "exit" && entry.trigger !== "manual") return false;
+    if (entry.kind === "timeline" && (typeof entry.timelineId !== "string" || !Number.isInteger(entry.order))) return false;
+    return true;
   }
 
   function mark(element, entry) {
@@ -98,33 +122,47 @@
       addListener(element, "onebox-motion-preview", function () { window.gsap.to(element, vars); });
       return;
     }
-    window.gsap.from(element, vars);
+    if (entry.trigger === "viewport") {
+      window.gsap.from(element, Object.assign({}, vars, {
+        scrollTrigger: {
+          id: "onebox:" + entry.id,
+          trigger: element,
+          start: "top 85%",
+          toggleActions: entry.replay === "repeat" ? "play reverse play reverse" : "play none none none",
+          invalidateOnRefresh: true,
+        },
+      }));
+    } else if (entry.trigger === "manual") {
+      addListener(element, "onebox-motion-preview", function () { window.gsap.from(element, vars); });
+    } else {
+      window.gsap.from(element, vars);
+    }
   }
 
   function applyManifest(manifest) {
     cleanup();
-    if (!manifest || manifest.version !== 1 || !Array.isArray(manifest.entries)) return;
+    if (!manifest || manifest.version !== 1 || !Array.isArray(manifest.entries) || !manifest.entries.length) {
+      document.documentElement.classList.remove("no-motion");
+      return;
+    }
     if (!window.gsap || !window.ScrollTrigger) return;
     window.gsap.registerPlugin(window.ScrollTrigger);
+    document.documentElement.classList.remove("no-motion");
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       document.documentElement.classList.add("no-motion");
       return;
     }
-    document.documentElement.classList.add("no-motion");
     state.context = window.gsap.context(function () {
       var timelines = Object.create(null);
-      manifest.entries.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).forEach(function (entry) { installEntry(entry, timelines); });
+      manifest.entries.filter(validEntry).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).forEach(function (entry) { installEntry(entry, timelines); });
       Object.keys(timelines).forEach(function (key) { if (!timelines[key].paused()) timelines[key].play(0); });
     }, document.body);
     window.ScrollTrigger.refresh();
   }
 
   function rehydrate() {
-    var generation = ++state.generation;
-    fetch("motion.json", { cache: "no-store" })
-      .then(function (response) { if (!response.ok) throw new Error("manifest unavailable"); return response.json(); })
-      .then(function (manifest) { if (!state.destroyed && generation === state.generation) applyManifest(manifest); })
-      .catch(function () { cleanup(); document.documentElement.classList.remove("no-motion"); });
+    if (state.destroyed) return;
+    applyManifest(window.__ONEBOX_MOTION_MANIFEST__ || { version: 1, entries: [] });
   }
 
   function scheduleRehydrate() {
@@ -142,6 +180,15 @@
 
   window.addEventListener("resize", scheduleRehydrate);
   window.addEventListener("beforeunload", destroy);
-  window.__ONEBOX_MOTION_RUNTIME__ = { rehydrate: rehydrate, reset: cleanup, destroy: destroy, state: state };
+  function preview(entry) {
+    if (!validEntry(entry)) return false;
+    applyManifest({ version: 1, entries: [entry] });
+    var element = exactTarget(entry.editId);
+    if (!element || !window.gsap) return false;
+    if (entry.kind === "hover" || entry.kind === "exit") window.gsap.to(element, varsFor(entry));
+    return true;
+  }
+
+  window.__ONEBOX_MOTION_RUNTIME__ = { rehydrate: rehydrate, preview: preview, reset: cleanup, destroy: destroy, state: state };
   rehydrate();
 })();

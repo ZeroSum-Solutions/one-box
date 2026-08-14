@@ -440,9 +440,25 @@
       selectedEl &&
       event.data.editId === selectedEl.getAttribute("data-edit-id")
     ) {
-      selectedEl.dispatchEvent(new CustomEvent("onebox-motion-preview"));
       var runtime = window.__ONEBOX_MOTION_RUNTIME__;
-      if (runtime && runtime.rehydrate) runtime.rehydrate();
+      if (runtime && runtime.preview) runtime.preview(
+        Object.assign({}, event.data.draft, {
+          id: "00000000-0000-4000-8000-000000000000",
+          editId: selectedEl.getAttribute("data-edit-id"),
+        }),
+      );
+    } else if (event.data.action === "reset-motion") {
+      var motionRuntime = window.__ONEBOX_MOTION_RUNTIME__;
+      if (motionRuntime && motionRuntime.rehydrate) motionRuntime.rehydrate();
+    } else if (
+      event.data.action === "preview-token" &&
+      typeof event.data.token === "string" &&
+      /^--[a-z0-9-]{2,80}$/i.test(event.data.token) &&
+      typeof event.data.value === "string" &&
+      event.data.value.length <= 100 &&
+      !/[;{}]|url\s*\(|var\s*\(/i.test(event.data.value)
+    ) {
+      document.documentElement.style.setProperty(event.data.token, event.data.value);
     }
   }
 

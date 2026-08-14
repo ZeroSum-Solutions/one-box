@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "contractPath": "docs/eval/baseline/evaluation-contract-v1.json",
+  "algorithm": "sha256",
+  "sha256": "f5803b47fe8584c189280276807176cea814027ad9a8ad29df0de38b4030490d"
+}

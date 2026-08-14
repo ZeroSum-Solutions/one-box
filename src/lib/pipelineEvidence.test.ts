@@ -13,12 +13,15 @@ import {
 } from "./pipeline";
 import { createRun, sitePaths } from "./runstate";
 import { decorateTargetMarkup } from "./builder";
+import { preflight } from "./preflight";
+import { findCompetitors } from "./tools/maps";
 
 const runIds: string[] = [];
 const emit: (event: PipelineEvent) => void = () => undefined;
 
 afterEach(async () => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   await Promise.all(
     runIds.splice(0).map((runId) =>
       fs.rm(sitePaths(runId).root, { recursive: true, force: true })
@@ -71,6 +74,54 @@ describe("evidence pipeline research controls", () => {
     expect(lock.primary.referoId).toBe("research-disabled");
     expect(shouldLoadReferenceDetails("refero", lock)).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not spend or require Firecrawl when paid discovery consent is false", async () => {
+    const runId = await createRun();
+    runIds.push(runId);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubEnv("OPENROUTER_API_KEY", "test-openrouter");
+    vi.stubEnv("FIRECRAWL_API_KEY", "");
+    const intake = IntakeSchema.parse({
+      businessName: "Consent First",
+      category: "consulting",
+      location: "Portland, OR",
+      services: ["Advisory"],
+      primaryAction: "quote",
+      research: {
+        enabled: true,
+        businessIntelligence: true,
+        referoDesignEvidence: false,
+        allowPaidFirecrawlFallback: false,
+      },
+    });
+    expect(preflight("none", {
+      businessResearch: true,
+      referenceResearch: false,
+      allowPaidFirecrawlFallback: false,
+    }).blocking.map((issue) => issue.key)).not.toContain("FIRECRAWL_API_KEY");
+    const scan = await stageScan(runId, intake, emit);
+    expect(scan.competitors).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses Firecrawl discovery only after the exact paid-consent flag is true", async () => {
+    const runId = await createRun();
+    runIds.push(runId);
+    vi.stubEnv("FIRECRAWL_API_KEY", "test-firecrawl");
+    vi.stubEnv("GOOGLE_MAPS_API_KEY", "");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      data: { web: [{ title: "Local Operator", url: "https://operator.example" }] },
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await findCompetitors(runId, {
+      category: "consulting",
+      location: "Portland, OR",
+      allowPaidFirecrawlFallback: true,
+    });
+    expect(fetchMock).toHaveBeenCalled();
+    expect(result.competitors[0]?.url).toBe("https://operator.example");
   });
 
   it("uses materially different research criteria for each project target", () => {

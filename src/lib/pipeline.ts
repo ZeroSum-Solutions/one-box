@@ -380,6 +380,7 @@ async function executeLegacyPipeline(runId: string, emit: Emit) {
   const pre = preflight(mode, {
     businessResearch: researchEnabled && intake.research.businessIntelligence,
     referenceResearch: researchEnabled && intake.research.referoDesignEvidence,
+    allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
   });
   if (!pre.ok) {
     const err = new ConfigError(pre.blocking);
@@ -461,6 +462,7 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
   const pre = preflight(mode, {
     businessResearch: researchEnabled && intake.research.businessIntelligence,
     referenceResearch: researchEnabled && intake.research.referoDesignEvidence,
+    allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
   });
   if (!pre.ok) {
     const error = new ConfigError(pre.blocking);
@@ -669,6 +671,7 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
       stageBuild(runId, intake, synth, emit, themeCss)
     );
     const qa = await runThreeWidthVisualQa(
+      runId,
       sitePaths(runId).site,
       approvedArchitecture.version
     );
@@ -756,7 +759,25 @@ export async function stageScan(
     category: `${intake.category} ${targetCriteria.marketQuerySuffix}`,
     location: intake.location,
     excludeUrl: intake.prospectUrl,
+    allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
   });
+
+  if (found.length === 0) {
+    const scan = ScanResultSchema.parse({
+      competitors: [],
+      commonSections: [],
+      gaps: [],
+      excluded,
+    });
+    await saveArtifact(runId, ARTIFACTS.scan, scan);
+    emit({
+      type: "card",
+      stage: "scanned",
+      title: "Competitor discovery unavailable",
+      body: mapsNote ?? "No eligible competitor result was found.",
+    });
+    return scan;
+  }
 
   // Every competitor is clickable from the moment it is found — its own site
   // and its Google Maps listing. This card is what proves (or disproves) that

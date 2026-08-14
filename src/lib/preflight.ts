@@ -34,6 +34,7 @@ export interface PreflightResult {
 export interface PreflightCapabilities {
   businessResearch?: boolean;
   referenceResearch?: boolean;
+  allowPaidFirecrawlFallback?: boolean;
 }
 
 const DEV_HINT = "start the server with ./scripts/dev.sh, which sources ZS Vault";
@@ -54,7 +55,11 @@ export function preflight(
       fix: DEV_HINT,
     });
   }
-  if (businessResearch && !process.env.FIRECRAWL_API_KEY) {
+  if (
+    businessResearch &&
+    capabilities.allowPaidFirecrawlFallback === true &&
+    !process.env.FIRECRAWL_API_KEY
+  ) {
     blocking.push({
       key: "FIRECRAWL_API_KEY",
       message: "competitor discovery (stage: scan)",

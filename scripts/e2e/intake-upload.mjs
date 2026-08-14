@@ -26,12 +26,12 @@ try {
     name: "Business and competitor context",
   });
   const paidFallback = page.getByRole("checkbox", {
-    name: /Allow paid Firecrawl fallback/,
+    name: /Allow paid Firecrawl discovery and fallback/,
   });
   assert.equal(await paidFallback.isChecked(), false);
   assert.match(
     await page.getByText(/May incur metered cost/).innerText(),
-    /local crawler fails.*bot wall.*required format/i
+    /competitor web search.*local crawler fails.*bot wall.*required format/i
   );
   await researchToggle.uncheck();
   assert.equal(await businessResearch.isDisabled(), true);
