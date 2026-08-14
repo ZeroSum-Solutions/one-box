@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a reproducible problem in ONE BOX
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please include the smallest reproducible case. Do not paste credentials or private client files.
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+      description: What happened? Include the route, API operation, or command involved.
+      placeholder: Describe the actual result, including any visible error.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Give the exact local steps, inputs, and relevant run ID if safe to share.
+      placeholder: |
+        1. Start with `npm run dev`.
+        2. Open `http://127.0.0.1:3000/`.
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or branch
+      description: Provide the revision where the problem is reproducible.
+  - type: textarea
+    id: checks
+    attributes:
+      label: Checks and context
+      description: List commands already run, OS/Node version, and redacted logs or screenshots.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I removed credentials, tokens, and private client data from this report.
+          required: true
