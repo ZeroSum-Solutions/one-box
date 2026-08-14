@@ -15,7 +15,15 @@ import {
 } from "../../../lib/contracts";
 import { sitePaths, loadArtifact, loadRun } from "../../../lib/runstate";
 import { generateJson } from "../../../lib/openrouter";
-import { generateImage } from "../../../lib/tools/higgsfield";
+import {
+  estimateImageCredits,
+  generateImage,
+} from "../../../lib/tools/higgsfield";
+import {
+  ImageGenerationBudgetError,
+  finishImageGeneration,
+  reserveImageGeneration,
+} from "../../../lib/imageGenerationBudget";
 import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEditor";
 import { BlockingMutationError } from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
@@ -30,7 +38,7 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: parsed.error.message }, { status: 400 });
   }
-  const { runId, editId, instruction, imageIntent } = parsed.data;
+  const { runId, editId, instruction, imageIntent, requestId } = parsed.data;
   if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) {
     return Response.json({ error: "bad runId" }, { status: 400 });
   }
@@ -38,6 +46,11 @@ export async function POST(req: Request) {
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
   const assetName = `edit-${randomUUID()}.jpg`;
   const outPath = path.join(sitePaths(runId).site, "assets", assetName);
+  const generationLedgerPath = path.join(
+    sitePaths(runId).root,
+    "image-generation-ledger.json",
+  );
+  let imageCredits: { used: number; cap: number } | undefined;
   try {
     const mutation = await applyElementHtmlEdit(
       runId,
@@ -60,18 +73,48 @@ export async function POST(req: Request) {
           if (!target.length) {
             throw new ElementEditError("no <img> under that element");
           }
+          if (!requestId) {
+            throw new ElementEditError(
+              "image generation requires an idempotency requestId",
+              400,
+            );
+          }
           const b = tokens.imageryBrief;
-          const gen = await generateImage({
+          const generationOptions = {
             prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}. No text, no logos.`,
             aspectRatio: el.attr("data-aspect") ?? "16:9",
             outPath,
-          });
+          };
+          const estimate = await estimateImageCredits(generationOptions);
+          if (typeof estimate !== "number") {
+            throw new ElementEditError(estimate.error, 502);
+          }
+          const reservation = await reserveImageGeneration(
+            generationLedgerPath,
+            { requestId, editId, instruction, credits: estimate },
+          );
+          imageCredits = {
+            used: reservation.usedCredits,
+            cap: reservation.capCredits,
+          };
+          const gen = await generateImage(generationOptions);
           if ("error" in gen) {
+            await finishImageGeneration(
+              generationLedgerPath,
+              requestId,
+              "failed",
+              gen.error,
+            );
             throw new ElementEditError(
               `image generation failed: ${gen.error}`,
               502,
             );
           }
+          await finishImageGeneration(
+            generationLedgerPath,
+            requestId,
+            "completed",
+          );
           target.attr("src", `assets/${assetName}`);
           if (!target.attr("alt"))
             target.attr("alt", instruction.slice(0, 100));
@@ -144,6 +187,7 @@ export async function POST(req: Request) {
       })),
       gatesClean: true,
       costUsd: run.costUsd,
+      imageCredits,
     });
   } catch (error) {
     if (error instanceof BlockingMutationError) {
@@ -153,6 +197,9 @@ export async function POST(req: Request) {
       );
     }
     if (error instanceof ElementEditError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof ImageGenerationBudgetError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
     throw error;
