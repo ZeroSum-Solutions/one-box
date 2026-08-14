@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "local-fiber-website-v1",
+  "createdAt": "2026-08-13T00:00:00.000Z",
+  "client": {
+    "businessName": "TrueLine Fiber",
+    "category": "Fiber Optic Installation",
+    "location": "Chattanooga, TN",
+    "targetBuyer": "homeowners and small businesses within 40 miles",
+    "positioning": "dependable local field expertise with plain communication",
+    "maturity": "established local operator"
+  },
+  "projectTarget": "website",
+  "pages": ["single-page marketing site"],
+  "functionality": ["request a quote", "tap to call", "responsive navigation"],
+  "services": [
+    "residential fiber installation",
+    "business network cabling",
+    "fiber repair"
+  ],
+  "facts": {
+    "phone": "(423) 555-0148",
+    "serviceArea": "Greater Chattanooga within 40 miles",
+    "yearsInBusiness": "12",
+    "certifications": ["BICSI certified"],
+    "claims": ["Wired over 3,000 homes"]
+  },
+  "brand": {
+    "attributes": ["dependable", "modern", "straight-talking"],
+    "mustAvoid": [
+      "generic SaaS visual language",
+      "futuristic data-center imagery unrelated to field work",
+      "invented claims"
+    ]
+  },
+  "research": {
+    "businessIntelligence": true,
+    "designResearch": true,
+    "competitorDesignContamination": false,
+    "referenceCriteria": [
+      "clear local-service conversion hierarchy",
+      "credible technical-trade imagery",
+      "responsive service and trust patterns",
+      "modern marketing-page composition"
+    ]
+  },
+  "requiredArtifacts": [
+    "business-intelligence.json",
+    "design-research-ledger.json",
+    "DESIGN.md",
+    "token-inventory.json",
+    "tailwind-plan.json",
+    "css-architecture.json",
+    "site",
+    "visual-qa.json"
+  ],
+  "evaluationRubric": "docs/eval/baseline/rubric-v1.md"
+}

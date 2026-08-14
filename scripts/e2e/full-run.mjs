@@ -96,7 +96,11 @@ async function runIntake() {
 
 // ---------- pipeline stream ----------
 async function runPipeline(runId) {
-  const res = await fetch(`${BASE}/api/run?runId=${runId}`);
+  const res = await fetch(`${BASE}/api/run`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: BASE },
+    body: JSON.stringify({ runId }),
+  });
   if (!res.ok) throw new Error(`run ${res.status}`);
   const events = [];
   const reader = res.body.getReader();

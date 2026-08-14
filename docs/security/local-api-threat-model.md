@@ -1,0 +1,11 @@
+# Local API threat model
+
+one-box is a local-first, single-user workspace. Evidence records can include client-provided facts, source links, and run-relative screenshot paths, so its API boundary is intentionally narrower than a public web service.
+
+- Browser mutations require an exact same-origin `Origin`, an accepted non-simple content type, and (when present) `Sec-Fetch-Site: same-origin`. Cross-origin and missing-Origin mutations are denied before their bodies are consumed.
+- `ONE_BOX_API_TOKEN`, when set, is an additional bearer capability for non-browser clients. It is never written into a URL, artifact, export, or model prompt.
+- A safe GET/top-level browser navigation may omit `Origin`. This is accepted so local evidence pages and downloads work. Mutating non-browser clients must use the configured bearer. Access still requires a valid high-entropy run identifier and a listener on the local one-box origin. This is appropriate for the loopback-only threat model; deployment on a shared or public interface requires mandatory authentication at the reverse proxy or application layer.
+- Exports contain versioned JSON payloads, hashes, source links, and run-relative artifact paths. They do not embed Refero media bytes or uploaded file bytes.
+- Refero images are accepted only as PNG, JPEG, or WebP when the declared MIME exactly matches the file signature. Remote responses are streamed through a 1.5 MB per-image cap even without `Content-Length`; MCP base64 is size-checked before decode; and one run may retain at most 4 MB of Refero image evidence. Rejected bytes never reach disk or a model prompt.
+- Evidence version creation, contract lint/export, workflow mutation, and approved-alias promotion share one per-run transaction lock. A failed multi-file promotion restores prior aliases and removes newly written version files before releasing the lock.
+- Uploaded text sent to a model is type-gated, UTF-8 decoded, control-character stripped, credential-pattern redacted, capped per file and per run, and excludes original names, IDs, hashes, storage paths, and upload-session handles. Binary and unsupported uploads are recorded as unsupported rather than silently parsed or represented as consumed assets.

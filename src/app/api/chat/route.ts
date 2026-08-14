@@ -5,45 +5,212 @@
  */
 import { streamText, tool, convertToModelMessages, type UIMessage } from "ai";
 import { z } from "zod";
-import { IntakeSchema, ARTIFACTS, MODELS } from "@/lib/contracts";
-import { createRun, saveArtifact, startStage, finishStage } from "@/lib/runstate";
-import { openrouter } from "@/lib/openrouter";
+import {
+  IntakeSchema,
+  ProjectTargetSchema,
+  ResearchConfigurationSchema,
+  UploadMetadataSchema,
+  ARTIFACTS,
+  MODELS,
+  type Intake,
+  type ResearchConfiguration,
+  type UploadMetadata,
+} from "../../../lib/contracts";
+import {
+  createRun,
+  finishStage,
+  removeRun,
+  saveArtifact,
+  startStage,
+} from "../../../lib/runstate";
+import { openrouter } from "../../../lib/openrouter";
+import { claimUploadSession, UploadError } from "../../../lib/uploads";
+import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
 
 export const maxDuration = 120;
 
-const SYSTEM = `You are the intake assistant for one-box, a studio tool that builds a complete local-service website from one conversation.
+const UIMessageRequestSchema = z
+  .object({
+    id: z.string().min(1),
+    role: z.enum(["user", "assistant"]),
+    parts: z
+      .array(
+        z
+          .object({
+            type: z.literal("text"),
+            text: z.string().max(20_000),
+          })
+          .strict()
+      )
+      .length(1),
+  })
+  .passthrough();
+
+export const IntakeContextRequestSchema = z
+  .object({
+    projectTarget: ProjectTargetSchema,
+    research: ResearchConfigurationSchema.transform(enforceResearchInvariant),
+    uploads: z.array(UploadMetadataSchema).max(5),
+    uploadSession: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{43}$/)
+      .nullable()
+      .default(null),
+  })
+  .superRefine((context, ctx) => {
+    if (context.uploads.length > 0 && !context.uploadSession) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["uploadSession"],
+        message: "uploaded files require an upload session",
+      });
+    }
+  })
+  .strict();
+
+export type IntakeContextRequest = z.infer<typeof IntakeContextRequestSchema>;
+
+export function enforceResearchInvariant(
+  research: ResearchConfiguration
+): ResearchConfiguration {
+  return research.enabled
+    ? research
+    : {
+        enabled: false,
+        businessIntelligence: false,
+        referoDesignEvidence: false,
+        allowPaidFirecrawlFallback: false,
+      };
+}
+
+export const ChatRequestSchema = z
+  .object({
+    messages: z.array(UIMessageRequestSchema).min(1).max(100),
+    intakeContext: IntakeContextRequestSchema,
+  })
+  .strict();
+
+const SYSTEM = `You are the intake assistant for one-box, a studio tool that builds a complete digital project from one conversation.
 
 Your job: gather REAL facts, then call start_pipeline. Required before you may call it: business name, category, city+state location, at least one service, and the primary action (call | book | quote). Strongly ask for (but don't block on): phone, service area, years in business, certifications, true claims worth featuring, existing website URL, and 2-3 vibe words for how the site should feel.
 
 Rules:
 - Never invent a fact. If the user doesn't provide it, it stays empty.
 - Ask at most 2-3 focused questions per turn; keep the voice warm and plain.
-- This pilot builds single-page local-service sites (brochure tier). If asked for e-commerce, portals, or app-like builds, say honestly that this prototype doesn't do that yet.
+- Treat the server-provided project target and Design Research settings as fixed user choices. Do not ask the user to repeat them.
+- This remains a thin local-service prototype. Gather target-appropriate requirements without promising unsupported production capabilities.
 - When you have the required facts, confirm the summary in one compact block, then call start_pipeline.`;
 
-export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+function systemForContext(context: IntakeContextRequest): string {
+  return `${SYSTEM}\n\nServer-selected intake context (authoritative):\n- Project target: ${context.projectTarget}\n- Design Research: ${context.research.enabled ? "enabled" : "disabled"}\n- Business context research: ${context.research.businessIntelligence ? "enabled" : "disabled"}\n- Design-reference evidence: ${context.research.referoDesignEvidence ? "enabled" : "disabled"}\n- Metered Firecrawl competitor discovery and local-crawler fallback: ${context.research.allowPaidFirecrawlFallback ? "allowed" : "not allowed"}\n- Staged uploads: ${context.uploads.length}`;
+}
 
-  const result = streamText({
+/** The model supplies business facts; server-owned controls always win. */
+export function forceIntakeContext(
+  modelIntake: Intake,
+  context: IntakeContextRequest,
+  authoritativeUploads: UploadMetadata[] = []
+): Intake {
+  return IntakeSchema.parse({
+    ...modelIntake,
+    projectTarget: context.projectTarget,
+    research: context.research,
+    uploads: authoritativeUploads,
+  });
+}
+
+export type StartPipelineResult =
+  | { runId: string; started: true }
+  | {
+      started: false;
+      code: "upload-session-expired";
+      message: string;
+    };
+
+interface StartPipelineDependencies {
+  createRun: typeof createRun;
+  claimUploadSession: typeof claimUploadSession;
+  removeRun: typeof removeRun;
+}
+
+export async function startPipelineFromIntake(
+  intake: Intake,
+  intakeContext: IntakeContextRequest,
+  dependencies: StartPipelineDependencies = {
+    createRun,
+    claimUploadSession,
+    removeRun,
+  }
+): Promise<StartPipelineResult> {
+  const runId = await dependencies.createRun();
+  let authoritativeUploads: UploadMetadata[];
+  try {
+    authoritativeUploads = await dependencies.claimUploadSession(
+      intakeContext.uploadSession,
+      intakeContext.uploads.map((upload) => upload.id),
+      runId
+    );
+  } catch (error) {
+    await dependencies.removeRun(runId).catch(() => undefined);
+    if (error instanceof UploadError && [401, 409].includes(error.status)) {
+      return {
+        started: false,
+        code: "upload-session-expired",
+        message: "Your private upload session expired. Choose the files again.",
+      };
+    }
+    throw error;
+  }
+  const parsed = forceIntakeContext(intake, intakeContext, authoritativeUploads);
+  await startStage(runId, "intake");
+  await saveArtifact(runId, ARTIFACTS.intake, parsed);
+  await finishStage(runId, "intake");
+  return { runId, started: true };
+}
+
+interface ChatRouteDependencies {
+  streamText: typeof streamText;
+}
+
+export async function handleChat(
+  req: Request,
+  dependencies: ChatRouteDependencies = { streamText }
+) {
+  if (!isLocalApiAuthorized(req)) {
+    return Response.json({ error: "Unauthorized local API request" }, { status: 403 });
+  }
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return Response.json({ error: "Invalid JSON request" }, { status: 400 });
+  }
+  const parsedRequest = ChatRequestSchema.safeParse(body);
+  if (!parsedRequest.success) {
+    return Response.json(
+      { error: "Invalid chat request", issues: parsedRequest.error.issues },
+      { status: 400 }
+    );
+  }
+  const { messages, intakeContext } = parsedRequest.data;
+
+  const result = dependencies.streamText({
     model: openrouter(MODELS.orchestrator),
-    system: SYSTEM,
-    messages: await convertToModelMessages(messages),
+    system: systemForContext(intakeContext),
+    messages: await convertToModelMessages(messages as UIMessage[]),
     tools: {
       start_pipeline: tool({
         description:
           "Start the build pipeline once required intake facts are gathered and confirmed.",
         inputSchema: IntakeSchema,
-        execute: async (intake) => {
-          const parsed = IntakeSchema.parse(intake);
-          const runId = await createRun();
-          await startStage(runId, "intake");
-          await saveArtifact(runId, ARTIFACTS.intake, parsed);
-          await finishStage(runId, "intake");
-          return { runId, started: true };
-        },
+        execute: (intake) => startPipelineFromIntake(intake, intakeContext),
       }),
     },
   });
 
   return result.toUIMessageStreamResponse();
+}
+
+export async function POST(req: Request) {
+  return handleChat(req);
 }

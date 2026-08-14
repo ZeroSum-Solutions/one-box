@@ -18,7 +18,7 @@
  */
 import { addCost, CostCapExceeded } from "../runstate";
 import { findPlace, mapsConfigured, mapsSearchUrl } from "./places";
-import type { Place } from "../contracts";
+import type { CrawlProvenance, Place } from "../contracts";
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev";
 const RESULTS_PER_QUERY = 10;
@@ -136,6 +136,9 @@ export interface FindCompetitorsOptions {
   location: string;
   /** the prospect's own site, if any — excluded from results */
   excludeUrl?: string;
+  /** Explicit intake consent. Firecrawl search is metered and must never run
+   * merely because business research is enabled. */
+  allowPaidFirecrawlFallback?: boolean;
 }
 
 // Mirrors contracts.ts CompetitorSchema (name/url/source required, the rest
@@ -154,6 +157,8 @@ export interface CompetitorLead {
   screenshotPaths?: string[];
   structure?: string[];
   notes?: string;
+  crawl?: CrawlProvenance;
+  crawlAttempts?: CrawlProvenance[];
 }
 
 export interface ExcludedLead {
@@ -286,6 +291,14 @@ export async function findCompetitors(
   runId: string,
   opts: FindCompetitorsOptions
 ): Promise<FindCompetitorsResult> {
+  if (opts.allowPaidFirecrawlFallback !== true) {
+    return {
+      competitors: [],
+      excluded: [],
+      mapsNote:
+        "Competitor web search was not run because paid Firecrawl discovery was not approved.",
+    };
+  }
   // Three angles. "best <category>" pulls the roundups the classifier then
   // drops, but those pages still rank the real operators, so the query earns
   // its place; the third angle targets operator sites directly.

@@ -1,3 +1,88 @@
+---
+version: alpha
+name: One-Box GSAP Studio
+description: A dark motion-studio interface with warm cream type and discipline-coded accents.
+colors:
+  primary: "#0ae448"
+  canvas: "#0e100f"
+  text-primary: "#fffce1"
+  text-muted: "#7c7c6f"
+  border-subtle: "#42433d"
+  surface-raised: "#191919"
+  accent-green-light: "#abff84"
+  accent-orange: "#ff8709"
+  accent-pink: "#fec5fb"
+  accent-violet: "#9d95ff"
+  accent-blue: "#00bae2"
+  surface-green: "#dfffd1"
+  accent-magenta: "#f100cb"
+typography:
+  caption:
+    fontFamily: Inter Tight
+    fontSize: 14px
+    fontWeight: 400
+    lineHeight: 1.4
+    letterSpacing: -0.01em
+  body:
+    fontFamily: Inter Tight
+    fontSize: 19px
+    fontWeight: 400
+    lineHeight: 1.15
+  heading:
+    fontFamily: Inter Tight
+    fontSize: 66px
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: -0.01em
+  display:
+    fontFamily: Inter Tight
+    fontSize: 224px
+    fontWeight: 600
+    lineHeight: 0.9
+    letterSpacing: -0.02em
+rounded:
+  hairline: 1px
+  card: 8px
+  pill: 100px
+  full: 9999px
+spacing:
+  xs: 8px
+  sm: 12px
+  md: 16px
+  lg: 24px
+  xl: 32px
+  section: 80px
+components:
+  page:
+    backgroundColor: "{colors.canvas}"
+    textColor: "{colors.text-primary}"
+    typography: "{typography.body}"
+  button-primary:
+    backgroundColor: "{colors.primary}"
+    textColor: "{colors.canvas}"
+    rounded: "{rounded.pill}"
+  text-muted:
+    textColor: "{colors.text-muted}"
+  divider:
+    backgroundColor: "{colors.border-subtle}"
+  panel:
+    backgroundColor: "{colors.surface-raised}"
+  accent-green-light:
+    backgroundColor: "{colors.accent-green-light}"
+  accent-orange:
+    backgroundColor: "{colors.accent-orange}"
+  accent-pink:
+    backgroundColor: "{colors.accent-pink}"
+  accent-violet:
+    backgroundColor: "{colors.accent-violet}"
+  accent-blue:
+    backgroundColor: "{colors.accent-blue}"
+  surface-green:
+    backgroundColor: "{colors.surface-green}"
+  accent-magenta:
+    backgroundColor: "{colors.accent-magenta}"
+---
+
 # Gsap — Style Reference
 > animated chalkboard in a design studio. A near-black wall, warm cream chalk, and five color-coded highlighters — one for each animation discipline.
 
@@ -5,7 +90,14 @@
 
 GSAP is a dark-canvas design language built for a motion library: a near-black stage where massive cream type, thin outlined pill buttons, and individually color-coded category labels create a typographic showcase rather than a traditional marketing site. The system runs on a single warm cream surface color (#fffce1) against an almost-black background, with category words each wearing their own vivid hue (green for the brand mark, orange for SVG, pink for Scroll, violet for Text, blue for UI) — color functions as taxonomy, not decoration. Typography is the hero: a single sans-serif (Mori) at six weights, pushing to 224px for the main headline with aggressive negative tracking and near-1.0 line-height, so words feel carved rather than laid out. Buttons are almost exclusively ghost-pills with 100px radius and hairline cream borders; there are no filled CTAs, which lets the gradient hero flourish and keeps every interactive element weightless.
 
-## Tokens — Colors
+## Overview
+
+One-Box uses the GSAP reference's dark motion-studio language: warm cream
+typography on an almost-black canvas, with five disciplined accent hues used as
+taxonomy rather than decoration. The interface should feel like a precise,
+animated design workbench rather than a generic dashboard.
+
+## Colors
 
 | Name | Value | Token | Role |
 |------|-------|-------|------|
@@ -23,7 +115,7 @@ GSAP is a dark-canvas design language built for a motion library: a near-black s
 | Core Green | `#dfffd1` | `--color-core-green` | Subtle brand-tinted background washes for feature cards tied to the GSAP core |
 | Lipstick Pink | `#f100cb` | `--color-lipstick-pink` | Deep gradient stop for expressive decorative gradients, not used for text or UI |
 
-## Tokens — Typography
+## Typography
 
 ### Mori — Single-family system. Mori weight 600 at 224px with lh 0.9 and -0.02em tracking is the hero display; the same family at weight 400 body sizes carries every paragraph, label, and nav item. The custom face carries a slightly humanist warmth in the cream rendering that a geometric grotesque (Inter, Manrope) cannot replicate, so substitute with a humanist sans (e.g. Inter Tight or Söhne) and accept a tighter, colder fallback. · `--font-mori`
 - **Substitute:** Inter Tight, Söhne, or DM Sans
@@ -47,7 +139,7 @@ GSAP is a dark-canvas design language built for a motion library: a near-black s
 | heading-lg | 101px | 1 | -1.11px | `--text-heading-lg` |
 | display | 224px | 0.9 | -4.48px | `--text-display` |
 
-## Tokens — Spacing & Shapes
+## Layout
 
 **Base unit:** 4px
 
@@ -82,6 +174,18 @@ GSAP is a dark-canvas design language built for a motion library: a near-black s
 - **Section gap:** 80px
 - **Card padding:** 24px
 - **Element gap:** 16px
+
+## Elevation & Depth
+
+Depth comes from surface steps, borders, gradients, and overlapping motion
+illustration—not drop shadows. The canvas and nested-panel tokens define the only
+default elevation levels.
+
+## Shapes
+
+Controls use outlined pills, cards use restrained 8px corners, and hairline
+dividers carry most structural separation. Organic shapes belong to motion
+illustration, not routine controls.
 
 ## Components
 
@@ -164,7 +268,7 @@ Near-black surface with 8px corner radius, cream heading at 24–33px, no visibl
 - Don't break the cream-on-black pairing with reversed (cream background, black text) cards unless the design calls for a deliberate callout; the dark canvas should remain unbroken across the scroll.
 - Don't use Inter, Roboto, or system sans defaults; the Mori humanist warmth is load-bearing, and a geometric substitute collapses the editorial tone.
 
-## Surfaces
+### Surfaces
 
 | Level | Name | Value | Purpose |
 |-------|------|-------|---------|
@@ -172,23 +276,23 @@ Near-black surface with 8px corner radius, cream heading at 24–33px, no visibl
 | 1 | Nested Panel | `#191919` | Footer and code-block backgrounds, one step lifted from the canvas |
 | 2 | Cream Surface | `#fffce1` | Light surface used sparingly for callout cards or promotional panels |
 
-## Elevation
+### Elevation details
 
 - **Tool Feature Illustration:** `none — depth comes from internal multi-stop gradients, not box-shadow`
 - **Showcase Card:** `none — separation is achieved with 8px radius and 24px gap, not elevation`
 - **CTA Pill:** `none — the gradient border is the only 'lift' indicator`
 
-## Imagery
+### Imagery
 
 Imagery is dominated by soft 3D-rendered organic shapes — pills, domes, liquid blobs, abstract splashes — rendered with multi-stop gradients in the discipline accent colors (e.g. pink-to-blue for Scroll, orange-to-amber for SVG). No photography of people or places appears. The shapes are loosely contained and intentionally overlap adjacent type to suggest motion, which aligns with the product's purpose. Icons in the nav are monochrome cream and stroked at roughly 1.5px. Backgrounds are always the flat dark canvas; visual richness comes from foreground shapes and gradient typography, not from photographic content.
 
-## Layout
+### Layout details
 
 The page is full-bleed against a single dark canvas, with content generally respecting a ~1280px max-width and generous 80–120px section gaps. The hero is intentionally edge-bleeding: a 224px headline wraps across two lines, decorative 3D shapes overlap the type, and a curly-bracket annotation plus a single outlined CTA sit in the lower third. Subsequent sections follow a repeating pattern: a curly-bracket eyebrow, then either a centered two-to-three-line headline or a two-column row (large organic illustration left, category label + subhead + body + pill button right). Sections are separated by 1px #42433d hairlines that span the full content width. The Tools section stacks four such two-column blocks vertically. The Showcase section introduces a 2–3 column card grid with 24px gaps. Navigation is a single top bar with tight 6–16px link spacing, cream 16px Mori 400 text, and the wordmark on the far left. The footer shifts to a slightly lighter #191916 surface with multi-column link lists and 60–80px vertical padding.
 
-## Agent Prompt Guide
+### Agent Prompt Guide
 
-## Quick Color Reference
+### Quick Color Reference
 - Background: #0e100f
 - Text: #fffce1 (primary), #7c7c6f (muted)
 - Border: #42433d (hairline dividers), #fffce1 (outlined buttons)
@@ -196,7 +300,7 @@ The page is full-bleed against a single dark canvas, with content generally resp
 - Accent (discipline labels): #fec5fb Scroll, #ff8709 SVG, #9d95ff Text, #00bae2 UI
 - primary action: no distinct CTA color
 
-## Example Component Prompts
+### Example Component Prompts
 1. **Hero Headline**: Create a full-bleed section on #0e100f with a two-line headline at 224px Mori weight 600, line-height 0.9, letter-spacing -4.48px, color #fffce1. A soft pink-to-blue gradient 3D blob overlaps the right edge of the second line. No max-width container; let the type breathe to the viewport edge.
 
 2. **Outlined Explore Button**: A pill button with 100px border-radius, 1px solid #fffce1 border, transparent fill, text 'Explore Scroll' at 18px Mori 600 lh 1.05 in #fffce1, padding 15px vertical / 24px horizontal. No hover fill — only a 1px shift to opacity 0.8 on the border.
@@ -207,7 +311,7 @@ No distinct primary action color was observed; use the extracted neutral button 
 
 5. **Category Label Pill**: A single word 'SVG' at 34px Mori 600 lh 1.0 in #ff8709, no background, no border. Functions as the section anchor — appears identically sized in both the section header and the corresponding nav item.
 
-## Similar Brands
+### Similar Brands
 
 - **Framer** — Same single-dark-canvas treatment with massive display headlines and outlined ghost controls; both lean on typographic scale rather than color to create hierarchy.
 - **Linear** — Dark UI with a single chromatic accent reserved for the primary action, and category-level color coding for navigation items.
@@ -215,7 +319,7 @@ No distinct primary action color was observed; use the extracted neutral button 
 - **Webflow** — Shares the editorial-display headline scale (100–200px) and the warm cream-on-dark palette, plus the sponsor-bys relationship GSAP has with Webflow.
 - **Spline** — Both feature soft 3D organic shapes as primary imagery, rendered with internal multi-stop gradients that simulate ambient lighting rather than drop shadows.
 
-## Quick Start
+### Quick Start
 
 ### CSS Custom Properties
 

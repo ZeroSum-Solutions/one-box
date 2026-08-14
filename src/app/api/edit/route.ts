@@ -3,20 +3,30 @@
  * (audit B8) — never live-DOM outerHTML. Re-runs blocking gates after every
  * edit (audit finding: gates are invariants, not build-time stamps).
  */
-import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import * as cheerio from "cheerio";
 import { z } from "zod";
-import { EditRequestSchema, ARTIFACTS, MODELS, type DesignTokens } from "@/lib/contracts";
-import { sitePaths, loadArtifact, loadRun } from "@/lib/runstate";
-import { generateJson } from "@/lib/openrouter";
-import { generateImage } from "@/lib/tools/higgsfield";
-import { runGates } from "@/lib/gates";
+import {
+  EditRequestSchema,
+  ARTIFACTS,
+  MODELS,
+  type DesignTokens,
+} from "../../../lib/contracts";
+import { sitePaths, loadArtifact, loadRun } from "../../../lib/runstate";
+import { generateJson } from "../../../lib/openrouter";
+import { generateImage } from "../../../lib/tools/higgsfield";
+import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEditor";
+import { BlockingMutationError } from "../../../lib/siteMutation";
+import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
 
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
-  const parsed = EditRequestSchema.safeParse(await req.json());
+  if (!isLocalApiAuthorized(req)) {
+    return Response.json({ error: "Unauthorized local API request" }, { status: 403 });
+  }
+  const parsed = EditRequestSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
     return Response.json({ error: parsed.error.message }, { status: 400 });
   }
@@ -25,111 +35,126 @@ export async function POST(req: Request) {
     return Response.json({ error: "bad runId" }, { status: 400 });
   }
 
-  const indexPath = path.join(sitePaths(runId).site, "index.html");
-  let html: string;
-  try {
-    html = await fs.readFile(indexPath, "utf8");
-  } catch {
-    return Response.json({ error: "site not built" }, { status: 404 });
-  }
-
-  const $ = cheerio.load(html);
-  const el = $(`[data-edit-id="${editId.replace(/"/g, "")}"]`);
-  if (el.length !== 1) {
-    return Response.json(
-      { error: `edit id not found or ambiguous: ${editId}` },
-      { status: 404 }
-    );
-  }
-
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
-
-  if (imageIntent || el.is("img")) {
-    // Image swap: resolve + validate the target BEFORE the paid generation
-    // (audit P2: a bad selection must cost nothing and write nothing).
-    const target = el.is("img") ? el : el.find("img").first();
-    if (!target.length) {
-      return Response.json({ error: "no <img> under that element" }, { status: 400 });
-    }
-    const b = tokens.imageryBrief;
-    const assetName = `edit-${Date.now().toString(36)}.jpg`;
-    const outPath = path.join(sitePaths(runId).site, "assets", assetName);
-    const gen = await generateImage({
-      prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}. No text, no logos.`,
-      aspectRatio: el.attr("data-aspect") ?? "16:9",
-      outPath,
-    });
-    if ("error" in gen) {
-      return Response.json({ error: `image generation failed: ${gen.error}` }, { status: 502 });
-    }
-    target.attr("src", `assets/${assetName}`);
-    if (!target.attr("alt")) target.attr("alt", instruction.slice(0, 100));
-  } else {
-    // Text/structure edit: model rewrites the fragment's inner content only.
-    const fragment = $.html(el);
-    const idsBefore = el
-      .find("[data-edit-id]")
-      .map((_, d) => $(d).attr("data-edit-id") ?? "")
-      .get()
-      .filter(Boolean);
-    const out = await generateJson(
+  const assetName = `edit-${randomUUID()}.jpg`;
+  const outPath = path.join(sitePaths(runId).site, "assets", assetName);
+  try {
+    const mutation = await applyElementHtmlEdit(
       runId,
-      MODELS.builder,
-      z.object({ innerHtml: z.string() }),
-      `Rewrite ONLY the inner content of this element per the instruction. Hard rules: keep every data-edit-id attribute on descendants; do not add classes, ids, inline styles, scripts, or new colors — styling comes from the site's token sheet; keep the same tag structure unless the instruction requires otherwise; return innerHtml only (no outer tag).\n\nINSTRUCTION: ${instruction}\n\nELEMENT (outer HTML for context):\n${fragment}\n\nAVAILABLE TOKENS (for reference, do not inline them): ${tokens.colors.map((c) => c.cssVar).join(", ")}`
+      editId,
+      async (html) => {
+        const $ = cheerio.load(html);
+        const el = $("[data-edit-id]").filter(
+          (_, element) => $(element).attr("data-edit-id") === editId,
+        );
+        if (el.length !== 1)
+          throw new ElementEditError(
+            `edit id not found or ambiguous: ${editId}`,
+            404,
+          );
+
+        if (imageIntent || el.is("img")) {
+          // Image swap: resolve + validate the target BEFORE the paid generation
+          // (audit P2: a bad selection must cost nothing and write nothing).
+          const target = el.is("img") ? el : el.find("img").first();
+          if (!target.length) {
+            throw new ElementEditError("no <img> under that element");
+          }
+          const b = tokens.imageryBrief;
+          const gen = await generateImage({
+            prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}. No text, no logos.`,
+            aspectRatio: el.attr("data-aspect") ?? "16:9",
+            outPath,
+          });
+          if ("error" in gen) {
+            throw new ElementEditError(
+              `image generation failed: ${gen.error}`,
+              502,
+            );
+          }
+          target.attr("src", `assets/${assetName}`);
+          if (!target.attr("alt"))
+            target.attr("alt", instruction.slice(0, 100));
+        } else {
+          // Text/structure edit: model rewrites the fragment's inner content only.
+          const fragment = $.html(el);
+          const idsBefore = el
+            .find("[data-edit-id]")
+            .map((_, d) => $(d).attr("data-edit-id") ?? "")
+            .get()
+            .filter(Boolean);
+          const out = await generateJson(
+            runId,
+            MODELS.builder,
+            z.object({ innerHtml: z.string() }),
+            `Rewrite ONLY the inner content of this element per the instruction. Hard rules: keep every data-edit-id attribute on descendants; do not add classes, ids, inline styles, scripts, or new colors — styling comes from the site's token sheet; keep the same tag structure unless the instruction requires otherwise; return innerHtml only (no outer tag).\n\nINSTRUCTION: ${instruction}\n\nELEMENT (outer HTML for context):\n${fragment}\n\nAVAILABLE TOKENS (for reference, do not inline them): ${tokens.colors.map((c) => c.cssVar).join(", ")}`,
+          );
+          el.html(out.innerHtml);
+          // Descendant edit-ids are the editor's address space — losing one makes
+          // that node permanently uneditable (audit P2). Reject any loss.
+          const idsAfter = new Set(
+            el
+              .find("[data-edit-id]")
+              .map((_, d) => $(d).attr("data-edit-id") ?? "")
+              .get(),
+          );
+          const lost = idsBefore.filter((id) => !idsAfter.has(id));
+          if (lost.length) {
+            throw new ElementEditError(
+              `edit would remove editable elements (${lost.join(", ")}) — rejected; try a narrower instruction`,
+              409,
+            );
+          }
+        }
+
+        // Verify every script selector still resolves (audit B8) before writing.
+        const scripts = $("script")
+          .map((_, s) => $(s).html() ?? "")
+          .get()
+          .join("\n");
+        const selectorRefs = [
+          ...scripts.matchAll(/querySelector(?:All)?\(\s*['"]([^'"]+)['"]/g),
+        ].map((m) => m[1]);
+        const broken = selectorRefs.filter((sel) => {
+          try {
+            return $(sel).length === 0;
+          } catch {
+            return false;
+          }
+        });
+        if (broken.length) {
+          throw new ElementEditError(
+            `edit would orphan script selectors: ${broken.join(", ")} — rejected`,
+            409,
+          );
+        }
+        return $.html();
+      },
+      { snapshotPaths: [outPath] },
     );
-    el.html(out.innerHtml);
-    // Descendant edit-ids are the editor's address space — losing one makes
-    // that node permanently uneditable (audit P2). Reject any loss.
-    const idsAfter = new Set(
-      el
-        .find("[data-edit-id]")
-        .map((_, d) => $(d).attr("data-edit-id") ?? "")
-        .get()
-    );
-    const lost = idsBefore.filter((id) => !idsAfter.has(id));
-    if (lost.length) {
+    const run = await loadRun(runId);
+
+    return Response.json({
+      ok: true,
+      editId,
+      gates: mutation.gates.map((r) => ({
+        gate: r.gate,
+        pass: r.pass,
+        blocking: r.blocking,
+      })),
+      gatesClean: true,
+      costUsd: run.costUsd,
+    });
+  } catch (error) {
+    if (error instanceof BlockingMutationError) {
       return Response.json(
-        { error: `edit would remove editable elements (${lost.join(", ")}) — rejected; try a narrower instruction` },
-        { status: 409 }
+        { error: error.message, gates: error.reports },
+        { status: 409 },
       );
     }
-  }
-
-  // Verify every script selector still resolves (audit B8) before writing.
-  const scripts = $("script")
-    .map((_, s) => $(s).html() ?? "")
-    .get()
-    .join("\n");
-  const selectorRefs = [...scripts.matchAll(/querySelector(?:All)?\(\s*['"]([^'"]+)['"]/g)].map(
-    (m) => m[1]
-  );
-  const broken = selectorRefs.filter((sel) => {
-    try {
-      return $(sel).length === 0;
-    } catch {
-      return false;
+    if (error instanceof ElementEditError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
-  });
-  if (broken.length) {
-    return Response.json(
-      { error: `edit would orphan script selectors: ${broken.join(", ")} — rejected` },
-      { status: 409 }
-    );
+    throw error;
   }
-
-  await fs.writeFile(indexPath, $.html());
-
-  // Re-run blocking gates; report but never silently un-edit.
-  const reports = await runGates(runId, { afterEdit: true });
-  const failing = reports.filter((r) => r.blocking && !r.pass);
-  const run = await loadRun(runId);
-
-  return Response.json({
-    ok: true,
-    editId,
-    gates: reports.map((r) => ({ gate: r.gate, pass: r.pass, blocking: r.blocking })),
-    gatesClean: failing.length === 0,
-    costUsd: run.costUsd,
-  });
 }

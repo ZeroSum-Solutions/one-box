@@ -31,9 +31,20 @@ export interface PreflightResult {
   advisory: PreflightIssue[];
 }
 
+export interface PreflightCapabilities {
+  businessResearch?: boolean;
+  referenceResearch?: boolean;
+  allowPaidFirecrawlFallback?: boolean;
+}
+
 const DEV_HINT = "start the server with ./scripts/dev.sh, which sources ZS Vault";
 
-export function preflight(mode: ReferenceMode = "refero"): PreflightResult {
+export function preflight(
+  mode: ReferenceMode = "refero",
+  capabilities: PreflightCapabilities = {}
+): PreflightResult {
+  const businessResearch = capabilities.businessResearch ?? true;
+  const referenceResearch = capabilities.referenceResearch ?? true;
   const blocking: PreflightIssue[] = [];
   const advisory: PreflightIssue[] = [];
 
@@ -44,7 +55,11 @@ export function preflight(mode: ReferenceMode = "refero"): PreflightResult {
       fix: DEV_HINT,
     });
   }
-  if (!process.env.FIRECRAWL_API_KEY) {
+  if (
+    businessResearch &&
+    capabilities.allowPaidFirecrawlFallback === true &&
+    !process.env.FIRECRAWL_API_KEY
+  ) {
     blocking.push({
       key: "FIRECRAWL_API_KEY",
       message: "competitor discovery (stage: scan)",
@@ -53,7 +68,7 @@ export function preflight(mode: ReferenceMode = "refero"): PreflightResult {
   }
   // Only the Refero arm needs the MCP token. The local/none A/B arms must
   // still run on a machine that has never had one.
-  if (mode === "refero" && !process.env.REFERO_MCP_TOKEN) {
+  if (referenceResearch && mode === "refero" && !process.env.REFERO_MCP_TOKEN) {
     blocking.push({
       key: "REFERO_MCP_TOKEN",
       message: "the Refero reference lock (stage: locked)",

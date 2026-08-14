@@ -11,6 +11,9 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    // Generated static-site output (including vendored GSAP) is linted at its
+    // source/template boundary, not after copying into ignored run folders.
+    "sites/**",
     "next-env.d.ts",
   ]),
 ]);

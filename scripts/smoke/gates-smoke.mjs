@@ -14,6 +14,7 @@ import { registerHooks } from "node:module";
 import { writeFile, mkdir, readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
+import { chromium } from "playwright";
 
 // --- extension-resolution shim ---------------------------------------------
 // builder.ts and gates.ts import sibling src/lib/*.ts files WITHOUT a file
@@ -63,6 +64,7 @@ const intake = {
   certifications: ["BICSI certified", "Licensed low-voltage contractor"],
   claims: ["Same-week installation", "12 years serving Central Texas"],
   primaryAction: "call",
+  projectTarget: "website",
   vibeWords: ["reliable", "fast", "no-nonsense"],
 };
 
@@ -95,6 +97,9 @@ const tokens = {
   ],
   radii: { sm: "6px", md: "12px", lg: "20px", pill: "999px" },
   spacing: { xs: "8px", sm: "12px", md: "20px", lg: "32px", xl: "56px", "2xl": "88px", "3xl": "128px" },
+  borders: { subtle: "1px solid #2b3238", strong: "2px solid #3aa0ff" },
+  shadows: { raised: "0 8px 30px rgb(0 0 0 / 0.2)", overlay: "0 18px 50px rgb(0 0 0 / 0.3)" },
+  layers: { base: "0", sticky: "20", overlay: "40" },
   layout: { maxWidthPx: 1180, sectionGapPx: 96, cardPaddingPx: 28 },
   motion: {
     easing: "cubic-bezier(0.4, 0, 0.2, 1)",
@@ -211,6 +216,7 @@ async function main() {
     skeleton,
     copy,
     assets: { heroImagePath },
+    tailwindThemeCss: ":root { --ds-smoke: 1; }\n@theme inline { --spacing-smoke: var(--ds-smoke); }\n",
   });
   console.log(
     `[gates-smoke] built ${manifest.files.length} file(s), complete=${manifest.complete}: ${manifest.files.join(", ")}`
@@ -221,9 +227,29 @@ async function main() {
   await writeFile(path.join(runRoot, "intake.json"), JSON.stringify(intake, null, 2));
 
   const siteDir = path.join(runRoot, "site");
+  const builtHtml = await readFile(path.join(siteDir, "index.html"), "utf8");
+  if (!builtHtml.includes('data-project-target="website"')) {
+    throw new Error("built output did not preserve the project target");
+  }
+  if (!builtHtml.includes('href="tailwind-theme.css"')) {
+    throw new Error("built output did not link the approved Tailwind mapping");
+  }
   const { server, baseUrl } = await serveStatic(siteDir);
 
   try {
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto(`${baseUrl}index.html`, { waitUntil: "load" });
+      const computedPrimary = await page.locator("html").evaluate((element) =>
+        getComputedStyle(element).getPropertyValue("--color-primary").trim()
+      );
+      if (computedPrimary.toLowerCase() !== "#3aa0ff") {
+        throw new Error(`approved runtime token did not reach computed style: ${computedPrimary}`);
+      }
+    } finally {
+      await browser.close();
+    }
     console.log(`[gates-smoke] running gates against ${baseUrl}...`);
     const reports = await runGates(RUN_ID, { baseUrl: `${baseUrl}index.html` });
     printReports(reports);
