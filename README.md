@@ -63,9 +63,12 @@ zsvault unlock
 ./scripts/dev.sh
 ```
 
-Open [http://localhost:3000](http://localhost:3000). `scripts/dev.sh` sources the
-approved vault-backed environment and fails before startup if required keys are
-missing. Refero MCP authentication is separate:
+Open [http://localhost:3000](http://localhost:3000). `scripts/dev.sh` checks its
+environment first, then reads the three named credentials from an unlocked ZS
+Vault. It requires `OPENROUTER_API_KEY` and warns when optional Firecrawl or
+Refero credentials are unavailable. Without `REFERO_MCP_TOKEN`, turn off
+**Design-reference evidence** under Research settings before submitting the
+project. Refero MCP authentication is separate:
 
 ```bash
 codex mcp login refero
