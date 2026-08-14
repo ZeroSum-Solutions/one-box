@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Live end-to-end proof: real dev server, real chat intake, real pipeline
- * (Firecrawl + crawl4ai + Refero + OpenRouter + Higgsfield), real preview,
- * real edit. Spends real (small) money — run deliberately, not in CI loops.
+ * (crawl4ai + Refero + OpenRouter + Higgsfield), real preview, real edit.
+ * Paid Firecrawl fallback remains disabled unless separately authorized in the
+ * product intake. Spends real (small) money — run deliberately, not in CI loops.
  *
  * Usage: node scripts/e2e/full-run.mjs --allow-metered
  *        node scripts/e2e/full-run.mjs --allow-metered --resume <runId>
@@ -20,6 +21,7 @@ import { chromium } from "playwright";
 import {
   classifyPipelineEvents,
   computeSiteBuildSha256,
+  fullRunIntakeRequest,
   localJsonMutationHeaders,
   parseFullRunArguments,
   shouldPreserveFinalizeCheckpoint,
@@ -69,7 +71,7 @@ async function chatTurn(messages) {
   const res = await fetch(`${BASE}/api/chat`, {
     method: "POST",
     headers: JSON_MUTATION_HEADERS,
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify(fullRunIntakeRequest(messages, randomUUID())),
   });
   if (!res.ok) throw new Error(`chat ${res.status}`);
   const text = await res.text();

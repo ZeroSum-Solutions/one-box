@@ -146,3 +146,21 @@ export function localJsonMutationHeaders(base) {
     "Sec-Fetch-Site": "same-origin",
   };
 }
+
+export function fullRunIntakeRequest(messages, attemptId) {
+  return {
+    attemptId,
+    messages,
+    intakeContext: {
+      projectTarget: "website",
+      research: {
+        enabled: true,
+        businessIntelligence: true,
+        referoDesignEvidence: true,
+        allowPaidFirecrawlFallback: false,
+      },
+      uploads: [],
+      uploadSession: null,
+    },
+  };
+}

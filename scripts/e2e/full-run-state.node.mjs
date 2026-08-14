@@ -6,12 +6,34 @@ import test from "node:test";
 import {
   classifyPipelineEvents,
   computeSiteBuildSha256,
+  fullRunIntakeRequest,
   localJsonMutationHeaders,
   parseFullRunArguments,
   REQUIRED_POST_EDIT_CHECKS,
   shouldPreserveFinalizeCheckpoint,
   validateFinalizeCheckpoint,
 } from "./full-run-state.mjs";
+
+test("builds the current idempotent chat intake contract", () => {
+  const messages = [
+    { id: "message-1", role: "user", parts: [{ type: "text", text: "Build it" }] },
+  ];
+  assert.deepEqual(fullRunIntakeRequest(messages, "attempt-uuid"), {
+    attemptId: "attempt-uuid",
+    messages,
+    intakeContext: {
+      projectTarget: "website",
+      research: {
+        enabled: true,
+        businessIntelligence: true,
+        referoDesignEvidence: true,
+        allowPaidFirecrawlFallback: false,
+      },
+      uploads: [],
+      uploadSession: null,
+    },
+  });
+});
 
 test("hashes the complete generated site tree", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "one-box-full-run-"));
