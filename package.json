@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "next typegen && tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "eval:baseline:verify": "node scripts/eval/baseline-harness.mjs verify",
     "eval:baseline:prepare": "node scripts/eval/baseline-harness.mjs prepare",
