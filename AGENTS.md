@@ -20,6 +20,9 @@ engine. Intake starts at `/`; generated sites are edited at `/preview/<id>`.
 - Runtime contracts and model routes: `src/lib/contracts.ts`
 - Client-facing design contract: `DESIGN.md`
 - Local API exposure boundary: `docs/security/local-api-threat-model.md`
+- Module boundaries and ownership: `docs/architecture/README.md`
+- Contribution workflow: `CONTRIBUTING.md`
+- Project-specific bounded loops: `docs/loops/README.md`
 
 Do not invent artifact fields outside `src/lib/contracts.ts`. The generated-site
 structure comes from the frozen `templates/local-service/` template.
@@ -53,8 +56,10 @@ loopback without reviewing the local API threat model.
 
 - Use `project-setup` to audit baseline repository files.
 - Use `project-documentation` when shipped behavior or entry points change.
+- Use `loop-library` to adapt or audit bounded repeatable workflows.
 - Use `design-contract` for `DESIGN.md` and `refero-design` for UI work.
 - Use `security-review` for auth, endpoints, untrusted input, or external exports.
+- Use `conventional-commits` and `github:yeet` for authorized publish flows.
 - Use `verifier` for independent acceptance checks before declaring completion.
 - Work on a feature branch and integrate through review; do not commit to `main`.
 - Keep changes surgical. Do not commit `sites/`, `.one-box/`, `.next/`, or secrets.

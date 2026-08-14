@@ -54,6 +54,22 @@ then `git fetch` and `git pull --ff-only` on the second. Generated `sites/`,
 private `.one-box/` staging data, `.next/`, and environment files are deliberately
 local and are not synchronized through Git.
 
+## Project workflow
+
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) defines branch, verification, safety, and
+  pull-request expectations.
+- [`docs/architecture/README.md`](docs/architecture/README.md) owns the modular
+  monolith boundary and incremental extraction path.
+- [`docs/adr/0001-modular-monolith.md`](docs/adr/0001-modular-monolith.md) records
+  why ONE BOX remains one deployable application.
+- [`docs/loops/README.md`](docs/loops/README.md) indexes the bounded engineering
+  loops for ticket delivery, repository hygiene, and architecture-preserving
+  refactors.
+
+GitHub requires pull requests, the `verify` CI check, and resolved review
+conversations on `main`. The repository uses squash merges and automatically
+deletes newly merged remote branches.
+
 ## Credentials and live development
 
 Credential names are documented without values in [`.env.example`](.env.example).
