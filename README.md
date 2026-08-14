@@ -26,7 +26,8 @@ not require model or research credentials.
 ```bash
 git clone https://github.com/wiggdevin/one-box.git
 cd one-box
-git switch codex/refero-editor-goal
+git switch main
+git pull --ff-only
 npm ci
 npm test
 npm run typecheck
@@ -34,13 +35,13 @@ npm run lint
 npm run build
 ```
 
-The integration branch is the shared checkpoint for the current goal. For
-concurrent work, create one branch per machine or task instead of committing to
-the same branch from both Macs:
+`main` is the shared, reviewed checkpoint. For concurrent work, create one
+branch per machine or task instead of committing to the same branch from both
+Macs:
 
 ```bash
 git fetch origin
-git switch codex/refero-editor-goal
+git switch main
 git pull --ff-only
 git switch -c macbook/<task>   # use macmini/<task> on the other Mac
 ```

@@ -1,19 +1,20 @@
 # One-Box Refero editor and evidence workspace
 
-Status: implementation in progress on `codex/refero-editor-goal-finalize`.
+Status: implementation in progress on `codex/refero-editor-goal-complete`, based on merged `main` at `92cb2a1`.
 
 ## 2026-08-13 branch-specific current-state record
 
-This record was refreshed on `codex/refero-editor-goal-finalize` while
-implementation remediation was still active. It is an implementation and
-documentation inventory, not a release declaration. The direct test run on this
-branch was `npm test`: **22 files / 152 tests passed**. Rendered intake,
-workbench, token/motion, live Refero, authenticated OpenRouter, and controlled
-baseline proofs have not been rerun for this record; their requirements remain
-partial or blocked in the acceptance matrix.
+This record was refreshed on `codex/refero-editor-goal-complete` after the
+checkpoint PR merged to `main`. It is an implementation and documentation
+inventory, not a release declaration. The current direct test run is `npm test`:
+**26 files / 170 tests passed**. Preview, motion, token/motion, intake, smoke,
+typecheck, lint, and build have passing checkpoint evidence; the current preview
+slice additionally proves live WebGL, scroll parallax, and hover behavior. Live
+Refero, a genuine retained v2 project, and the controlled baseline/model
+benchmark remain incomplete.
 
-Protected active areas—do not overwrite, reformat, or fold them into a broad
-refactor while their owners are remediating them—are:
+Current protected areas—do not overwrite, reformat, or fold them into a broad
+refactor while this goal continues—are:
 
 - `scripts/e2e/token-motion-workbench.mjs` and `scripts/eval/grok-audit.mjs`;
 - `src/app/api/evidence/[id]/route.ts` and its test;
@@ -22,11 +23,9 @@ refactor while their owners are remediating them—are:
 - `src/lib/builder.ts`, `src/lib/evidence.ts`, `src/lib/evidence.test.ts`,
   `src/lib/pipeline.ts`, and the untracked `src/lib/fixtures/` area.
 
-The working tree was intentionally non-clean at this point. Those paths are
-implementation-owner territory; this plan and
-`docs/verification/2026-08-13-refero-editor-acceptance.md` are documentation
-owner territory. Re-read both the working tree and acceptance record immediately
-before handoff because an in-flight remediation can invalidate a row's evidence.
+The working tree contains the active workbench/fidelity continuation slice. Re-read
+both the worktree and acceptance record before every handoff because a new audit or
+live-provider result can invalidate a row's evidence.
 
 External and human gates remain unresolved:
 

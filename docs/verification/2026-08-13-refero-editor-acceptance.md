@@ -2,14 +2,15 @@
 
 **Record date:** 2026-08-13
 
-**Branch inspected:** `codex/refero-editor-goal-finalize`
+**Branch inspected:** `codex/refero-editor-goal-complete` from merged `main`
 
 **Scope:** current in-progress implementation only; this is not a release verdict.
 
 ## Evidence rules
 
-`npm test` was run on this branch on 2026-08-13 and passed: **22 test files,
-152 tests**. A row is **PROVEN** only where that direct check or a saved
+`npm test` was rerun on this branch on 2026-08-13 and passed: **26 test files,
+170 tests**. Rendered preview and motion checks also passed after the current
+workbench/fidelity slice. A row is **PROVEN** only where that direct check or a saved
 authoritative artifact proves the whole stated requirement. **PARTIAL** means
 there is focused implementation or unit coverage but no complete rendered,
 persisted-project, or live-provider proof. **BLOCKED** requires an external
@@ -29,27 +30,27 @@ the direct assertion family included in the passing `npm test` run. Commands in
 |---|---|---|---|
 | IMP-001 | PROVEN | This record; plan current-state record; `git status --short` inspected 2026-08-13 | Re-inspect and refresh both records before any architecture-changing slice. |
 | IMP-002 | PROVEN | Plan protected-active-areas record and branch status inventory | Independent verifier confirms no protected active file was overwritten. |
-| IMP-003 | PARTIAL | `src/app/preview/[id]/page.tsx`; `src/components/preview/previewState.test.ts` | Start local app, then run `npm run test:e2e:preview`. |
-| IMP-004 | PARTIAL | View/Edit iframe source selection in `src/app/preview/[id]/page.tsx` | `npm run test:e2e:preview` must exercise navigation, buttons, hover, scroll, parallax, and any WebGL fixture in View mode. |
-| IMP-005 | PARTIAL | `src/lib/elementEditor.test.ts` direct-text assertions | `npm run test:e2e:preview` with a real generated run. |
+| IMP-003 | PROVEN | View/Edit iframe implementation plus passing `npm run test:e2e:preview` | Re-run after any preview trust-boundary change. |
+| IMP-004 | PROVEN | Passing preview E2E exercises navigation, forms, popups, hover, scroll parallax, and a live WebGL render loop in both modes | Re-run after generated-runtime or sandbox changes. |
+| IMP-005 | PROVEN | Passing preview E2E directly edits, cancels, persists, undoes, and redoes ordinary text | Re-run after overlay or element-history changes. |
 | IMP-006 | PARTIAL | `src/lib/elementEditor.test.ts` escaped text persistence assertions | Rendered add/delete/replace coverage at desktop, tablet, and mobile. |
 | IMP-007 | PARTIAL | `src/lib/elementEditor.test.ts` bounded href/native button action assertions | Render and persist label and every supported destination/action type. |
 | IMP-008 | PARTIAL | `src/lib/elementEditor.test.ts` allowlisted typography assertions | Workbench browser proof for family, size, weight, color, alignment, and supported spacing. |
-| IMP-009 | PARTIAL | `src/components/preview/previewState.test.ts` protocol state assertions | Browser screenshots/assertions for selection, text-editing, and dragging states. |
-| IMP-010 | PARTIAL | `src/lib/elementEditor.test.ts` undo/redo/rollback; preview state tests | `npm run test:e2e:preview` must prove Escape, focus restoration, keyboard access, undo, and redo. |
-| IMP-011 | PARTIAL | `src/lib/siteMotion.test.ts` rejects WebGL-owning target; `src/app/preview/[id]/page.tsx` tool boundary | Inventory actual interactive content and record chosen Edit behavior per type in a saved project artifact. |
-| IMP-012 | PARTIAL | WebGL target rejection in `src/lib/siteMotion.test.ts` | Render a complex-content fixture and verify its user-visible fallback. |
-| IMP-013 | PARTIAL | Opaque-frame message guard in `src/components/preview/previewState.test.ts` | Browser proof that Edit controls prevent unsafe navigation/transient interaction without globally disabling safe live behavior. |
-| IMP-014 | PARTIAL | Actual iframe width calculations in `src/components/preview/previewState.test.ts` | `npm run test:e2e:preview` at all required widths with interaction timing evidence. |
+| IMP-009 | PROVEN | Preview E2E asserts selection, text-editing, drag-preview, Escape, and parent-confirmed move states | Re-run after overlay protocol changes. |
+| IMP-010 | PROVEN | Preview E2E proves Escape cancel, focus restoration, keyboard selection, undo, and redo | Re-run after element-history changes. |
+| IMP-011 | PROVEN | Live WebGL/parallax fixture remains active in Edit behind the documented `safe-overlay`; declarative motion rejects the owning target | Re-run after complex-content policy changes. |
+| IMP-012 | PROVEN | Preview E2E selects the live canvas through the visible safe-overlay fallback; motion E2E rejects it | Re-run after overlay behavior changes. |
+| IMP-013 | PROVEN | Preview E2E proves navigation/form suppression and zero generated capture-handler execution while WebGL/parallax/hover remain live | Re-run after overlay or sandbox changes. |
+| IMP-014 | PROVEN | Preview E2E asserts actual iframe `window.innerWidth`, breakpoint behavior, and live interactions | Re-run after responsive-layout changes. |
 | IMP-015 | PARTIAL | `src/app/preview/[id]/page.tsx` split layout; preview state tests | Rendered desktop workbench screenshot/assertion. |
 | IMP-016 | PARTIAL | Panel bound/clamp tests in `src/components/preview/previewState.test.ts` | `npm run test:e2e:preview` drag proof in both directions. |
-| IMP-017 | PARTIAL | Preview-state width tests; iframe implementation | E2E assertion that `window.innerWidth` equals the rendered iframe width. |
-| IMP-018 | PARTIAL | `breakpointForWidth` assertions in `src/components/preview/previewState.test.ts` | E2E resize across configured thresholds with non-jumpy indicator evidence. |
-| IMP-019 | PARTIAL | Persisted workbench parser in `src/components/preview/previewState.test.ts` | Reload after divider release in rendered preview test. |
-| IMP-020 | PARTIAL | Workbench state model in `src/components/preview/previewState.test.ts` | E2E expanded/normal/collapsed/reopen state sequence. |
+| IMP-017 | PROVEN | Preview E2E asserts iframe `window.innerWidth` equals rendered width across six boundary cases | Re-run after split-layout changes. |
+| IMP-018 | PROVEN | Preview E2E crosses exact 479/480 and 767/768 boundaries with visible stable labels | Re-run after breakpoint-token changes. |
+| IMP-019 | PROVEN | Preview E2E reloads after divider release and asserts retained width/size | Re-run after persistence-key changes. |
+| IMP-020 | PROVEN | Preview E2E exercises expanded, collapsed, reopened, and reloaded state | Normal-size transition remains covered by state tests. |
 | IMP-021 | PARTIAL | Accessible control implementation in `src/app/preview/[id]/page.tsx` | Keyboard and screen-reader-name checks on collapsed rail in E2E. |
-| IMP-022 | PARTIAL | Workbench collapse implementation | E2E measured iframe width while collapsed. |
-| IMP-023 | PARTIAL | Tool registry in `src/app/preview/[id]/page.tsx` | Rendered availability and target-selection checks for each listed tool. |
+| IMP-022 | PROVEN | Preview E2E measures a near-full-workspace iframe while collapsed | Re-run after rail width changes. |
+| IMP-023 | PROVEN | Workbench registry plus preview/token-motion E2Es cover Selection, Text, Assets, Research, Tokens, and Motion targeting | Re-run after adding or removing a tool. |
 | IMP-024 | PARTIAL | `parseWorkbenchState` and local persistence tests | E2E proves per-project/session persistence and selected-element targeting. |
 | IMP-025 | PARTIAL | Component implementation only | Rendered empty, loading, error, and unsupported states for every tool. |
 | IMP-026 | PARTIAL | Tool registry implementation only | Document and test overflow/scaling behavior with more tools than the rail viewport. |
@@ -67,11 +68,11 @@ the direct assertion family included in the passing `npm test` run. Commands in
 | IMP-038 | PARTIAL | Refero evidence contracts; `src/lib/pipelineEvidence.test.ts` | Authenticated Refero run covering all required query inputs. |
 | IMP-039 | PARTIAL | Reference-lock/ledger tests in `src/lib/evidence.test.ts` | Human review of a live Refero record: reusable patterns and a rationale per reference, without copying. |
 | IMP-040 | PARTIAL | `src/lib/contracts.test.ts` and `src/lib/evidence.test.ts` separation checks | Rendered evidence-workspace proof of separate workflow and presentation. |
-| IMP-041 | PARTIAL | `src/lib/tools/crawl.test.ts` Crawl4AI-success path | Run known public URL with local Crawl4AI and retain run provenance. |
+| IMP-041 | PROVEN | `docs/verification/live-crawl4ai-2026-08-14.json` retains URL, timestamp, HTTP result, bytes, and SHA-256 from the canonical local wrapper | Repeat if the wrapper/version changes. |
 | IMP-042 | PARTIAL | `src/lib/tools/crawl.test.ts` provider fallback seams | Integration test using both provider implementations behind the same interface. |
 | IMP-043 | PARTIAL | `src/lib/tools/crawl.test.ts` ERR-only fallback and consent checks | Live approved fallback run for each allowed reason, with provenance. |
-| IMP-044 | PARTIAL | `src/lib/tools/crawl.test.ts`; `src/components/researchConsent.test.ts` | Rendered consent interaction and an attempted fallback showing no silent spend. |
-| IMP-045 | PARTIAL | Crawl provenance schema in `src/lib/contracts.test.ts` | Persisted live crawl event with provider, reason, URL, timestamp, and confidence. |
+| IMP-044 | PROVEN | Intake E2E verifies explicit paid consent; live fallback record shows consent and local failure before Firecrawl | Re-run after consent or provider routing changes. |
+| IMP-045 | PROVEN | Both retained live crawl records include provider, reason, URL, timestamp, confidence, bytes, and body hash | Repeat if provenance schema changes. |
 | IMP-046 | PARTIAL | Pipeline/evidence contracts | User-visible run timeline/workspace proof for research and fallback decisions. |
 | IMP-047 | PARTIAL | `src/lib/evidence.test.ts` contract rendering; `src/lib/runstate.test.ts` gate order | Complete a persisted project through approved design contract before build. |
 | IMP-048 | PARTIAL | Token/ledger fixtures in `src/lib/evidence.test.ts` | Approved project evidence capturing every named design dimension from live/approved findings. |
