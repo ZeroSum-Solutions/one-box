@@ -1,0 +1,110 @@
+{
+  "fixtures": [
+    {
+      "id": "task-04-tailwind-tokens",
+      "version": "1.0.0",
+      "path": "docs/eval/model-routing/fixtures/task-04-tailwind-tokens-v1.md",
+      "taskClass": "tailwind-component-system",
+      "evaluationKind": "mechanical"
+    },
+    {
+      "id": "task-05-resizable-workbench",
+      "version": "1.0.0",
+      "path": "docs/eval/model-routing/fixtures/task-05-resizable-workbench-v1.md",
+      "taskClass": "editor-workbench-interaction",
+      "evaluationKind": "mechanical"
+    },
+    {
+      "id": "task-08-competitive-report",
+      "version": "1.0.0",
+      "path": "docs/eval/model-routing/fixtures/task-08-competitive-report-v1.md",
+      "taskClass": "competitive-business-report",
+      "evaluationKind": "strategic"
+    },
+    {
+      "id": "task-09-seeded-code-review",
+      "version": "1.0.0",
+      "path": "docs/eval/model-routing/fixtures/task-09-seeded-code-review-v1.md",
+      "taskClass": "seeded-code-review",
+      "evaluationKind": "code-review"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "sol-high",
+      "displayName": "GPT-5.6 Sol",
+      "modelSlug": "gpt-5.6-sol",
+      "provider": "Codex OAuth",
+      "modelFamily": "openai",
+      "effort": "high",
+      "pricingSnapshot": "Subscription; marginal API cost N/A",
+      "contextLimit": 400000,
+      "toolSupport": [],
+      "blindAliases": ["Sol", "GPT Sol"],
+      "accessLane": "subscription"
+    },
+    {
+      "id": "luna-xhigh",
+      "displayName": "GPT-5.6 Luna",
+      "modelSlug": "gpt-5.6-luna",
+      "provider": "Codex OAuth",
+      "modelFamily": "openai",
+      "effort": "xhigh",
+      "pricingSnapshot": "Subscription; marginal API cost N/A; availability unverified",
+      "contextLimit": 400000,
+      "toolSupport": [],
+      "blindAliases": ["Luna", "GPT Luna"],
+      "accessLane": "subscription"
+    },
+    {
+      "id": "terra-xhigh",
+      "displayName": "GPT-5.6 Terra",
+      "modelSlug": "gpt-5.6-terra",
+      "provider": "Codex OAuth",
+      "modelFamily": "openai",
+      "effort": "xhigh",
+      "pricingSnapshot": "Subscription; marginal API cost N/A",
+      "contextLimit": 400000,
+      "toolSupport": [],
+      "blindAliases": ["Terra", "GPT Terra"],
+      "accessLane": "subscription"
+    },
+    {
+      "id": "grok-4.6-high",
+      "displayName": "Grok 4.6",
+      "modelSlug": "x-ai/grok-4.6",
+      "provider": "OpenRouter",
+      "modelFamily": "xai",
+      "effort": "high",
+      "pricingSnapshot": "OpenRouter catalog snapshot 2026-08-13: $2/M input and $6/M output below 200k tokens",
+      "contextLimit": 500000,
+      "toolSupport": [],
+      "blindAliases": ["Grok", "Grok 4.6"],
+      "accessLane": "metered"
+    }
+  ],
+  "protocol": {
+    "timeLimitMs": 600000,
+    "toolPolicy": {
+      "network": false,
+      "allowedTools": []
+    },
+    "perTaskCapUsd": 0.5,
+    "maxRepairRounds": 0,
+    "meteredAuthorization": {
+      "approvedBy": "repository-owner",
+      "approvedAt": "2026-08-13T00:00:00.000-07:00",
+      "provider": "OpenRouter",
+      "candidateIds": ["grok-4.6-high"],
+      "fixtureIds": [
+        "task-04-tailwind-tokens",
+        "task-05-resizable-workbench",
+        "task-08-competitive-report",
+        "task-09-seeded-code-review"
+      ],
+      "maxRepairRound": 0,
+      "aggregateCapUsd": 2,
+      "authorizationRef": "Repository owner approved paid OpenRouter models and Grok 4.6 audits for this goal on 2026-08-13. Each metered run still requires --allow-metered."
+    }
+  }
+}

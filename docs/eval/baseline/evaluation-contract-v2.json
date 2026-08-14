@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 2,
+  "contractId": "one-box-path-a-vs-direct-refero-v2",
+  "status": "frozen",
+  "purpose": "Controlled identical-input comparison with evaluator-visible built site files and approved responsive screenshots.",
+  "hashAlgorithm": "sha256",
+  "inputs": [
+    { "path": "docs/eval/baseline/brief-v2.json", "sha256": "97bcc0bf50e59f089a2553d8a1dbdc7058c7e8c46f6a62ab72bba553059d2e30" },
+    { "path": "docs/eval/baseline/rubric-v2.md", "sha256": "c0a4950012a32546c920ecbb78b40d27d995b61c6ee0578f6c4441620397747b" }
+  ],
+  "paths": [
+    { "id": "path-a", "label": "Current One-Box pipeline", "variable": "current-pipeline research and synthesis handoff" },
+    { "id": "path-b", "label": "Direct design-research workflow", "variable": "direct design-research and synthesis handoff" }
+  ],
+  "constants": ["client/business brief", "project target", "required pages and functionality", "brand constraints", "reference-selection criteria", "output artifact contract", "evaluation rubric", "downstream builder configuration at producing commit", "copy facts, imagery policy, viewport checks, and quality gates"],
+  "requiredArtifacts": ["business-intelligence.json", "design-research-ledger.json", "DESIGN.md", "token-inventory.json", "tailwind-plan.json", "css-architecture.json", "site-manifest.json", "visual-qa.json", "site/index.html", "site/styles.css", "screenshots/desktop.png", "screenshots/tablet.png", "screenshots/mobile.png", "provenance.json"],
+  "requiredPresentationArtifacts": ["business-intelligence.json", "design-research-ledger.json", "DESIGN.md", "token-inventory.json", "tailwind-plan.json", "css-architecture.json", "site-manifest.json", "visual-qa.json", "site/index.html", "site/styles.css", "screenshots/desktop.png", "screenshots/tablet.png", "screenshots/mobile.png"],
+  "requiredRubricAreas": ["Reference relevance", "Structural usefulness", "Source credibility", "Design contract", "Token and Tailwind plan", "Visual quality", "Responsiveness", "Brand specificity", "Accessibility and performance", "Unsupported output", "Efficiency"],
+  "responsiveEvidence": { "desktop": { "artifact": "screenshots/desktop.png", "width": 1440, "minimumHeight": 900 }, "tablet": { "artifact": "screenshots/tablet.png", "width": 768, "minimumHeight": 1024 }, "mobile": { "artifact": "screenshots/mobile.png", "width": 390, "minimumHeight": 844 } },
+  "liveExecution": { "permittedByThisHarness": false, "reason": "The harness is offline-only; a separately approved runner records complete provenance without credential access." },
+  "humanGate": { "required": true, "minimumEvaluators": 2, "rule": "Two distinct named human evaluators must independently submit complete blind scores with evidence for every rubric area, each bound to the immutable v2 presentation packet, before unblinding." },
+  "blinding": { "normalization": "Unicode NFKC, lowercase, then remove non-letter and non-number characters before matching", "presentationRule": "Only requiredPresentationArtifacts are copied. Text must be valid UTF-8 and leak-scanned; screenshots must be PNG without textual or EXIF metadata. Full-set validation completes before atomic immutable publish. provenance.json stays coordinator-only.", "neutralizationRule": "Replace producer/provider/model/path identity, timestamps, latency, token use, cost, URLs, and local paths with neutral evidence identifiers. Full values remain in provenance.json for post-score audit.", "blockedTerms": ["path a", "path b", "path-a", "path-b", "path_a", "path_b", "current one-box pipeline", "one-box pipeline", "direct refero", "refero", "openrouter", "openai", "anthropic", "x-ai", "grok", "gemini", "moonshot", "kimi", "deepseek", "gpt-", "claude-", "providerId", "modelId", "modelSlug", "models", "toolCalls", "createdAt", "capturedAt", "startedAt", "finishedAt", "latencyMs", "durationMs", "costUsd", "inputTokens", "outputTokens", "meteredCalls", "sourceCommit", "gitCommit", "runId", "pathId"] }
+}

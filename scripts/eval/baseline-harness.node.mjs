@@ -14,12 +14,12 @@ import {
 } from "./baseline-harness.mjs";
 
 const REPOSITORY = path.resolve(import.meta.dirname, "../..");
-const CONTRACT_PATH = "docs/eval/baseline/evaluation-contract-v1.json";
+const CONTRACT_PATH = "docs/eval/baseline/evaluation-contract-v2.json";
 const BASELINE_FILES = [
   CONTRACT_PATH,
-  "docs/eval/baseline/evaluation-contract-v1.lock.json",
-  "docs/eval/baseline/brief-v1.json",
-  "docs/eval/baseline/rubric-v1.md",
+  "docs/eval/baseline/evaluation-contract-v2.lock.json",
+  "docs/eval/baseline/brief-v2.json",
+  "docs/eval/baseline/rubric-v2.md",
 ];
 
 async function temporaryRepository() {
@@ -39,7 +39,8 @@ async function writeCompletedArtifacts(root, runId, manifestHash) {
     await fs.mkdir(output, { recursive: true });
     const outputHashes = [];
     for (const artifact of contract.requiredPresentationArtifacts) {
-      const bytes = Buffer.from(`${artifact}\n`);
+      const bytes = artifact.endsWith(".png") ? pngFixture(artifact) : Buffer.from(`${artifact}\n`);
+      await fs.mkdir(path.dirname(path.join(output, artifact)), { recursive: true });
       await fs.writeFile(path.join(output, artifact), bytes);
       outputHashes.push({ path: artifact, sha256: sha256(bytes) });
     }
@@ -57,11 +58,29 @@ async function writeCompletedArtifacts(root, runId, manifestHash) {
   }
 }
 
+function pngFixture(name) {
+  const [width, height] = name.includes("desktop") ? [1440, 900] : name.includes("tablet") ? [768, 1024] : [390, 844];
+  const ihdr = Buffer.alloc(17);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from([0, 0, 0, 13]), Buffer.from("IHDR"), ihdr, Buffer.from([0, 0, 0, 0]), Buffer.from("IEND"), Buffer.alloc(4)]);
+}
+
 async function readyRun(root, runId = "fixture-v1") {
   const run = await prepareRun({ root, runId, seed: "coordinator-seed", createdAt: "2026-08-13T00:00:00.000Z" });
   await writeCompletedArtifacts(root, runId, run.manifestHash);
   const packet = await assembleBlindPacket({ root, runId });
   return { run, packet };
+}
+
+async function listedFiles(directory, relative = "") {
+  const listed = [];
+  for (const entry of await fs.readdir(path.join(directory, relative), { withFileTypes: true })) {
+    const next = path.join(relative, entry.name);
+    if (entry.isDirectory()) listed.push(...await listedFiles(directory, next));
+    else listed.push(next.replaceAll(path.sep, "/"));
+  }
+  return listed.sort();
 }
 
 function completedScores({ run, packet, evaluatorId, evaluatorName, contract, slot }) {
@@ -96,12 +115,12 @@ test("prepare is atomic under a race and keeps the seed coordinator-side", async
   const root = await temporaryRepository();
   context.after(() => fs.rm(root, { recursive: true, force: true }));
   const settled = await Promise.allSettled([
-    prepareRun({ root, runId: "race-v1", seed: "secret-seed", createdAt: "2026-08-13T00:00:00.000Z" }),
-    prepareRun({ root, runId: "race-v1", seed: "secret-seed", createdAt: "2026-08-13T00:00:00.000Z" }),
+    prepareRun({ root, runId: "race-v2", seed: "secret-seed", createdAt: "2026-08-13T00:00:00.000Z" }),
+    prepareRun({ root, runId: "race-v2", seed: "secret-seed", createdAt: "2026-08-13T00:00:00.000Z" }),
   ]);
   assert.equal(settled.filter((entry) => entry.status === "fulfilled").length, 1);
   assert.equal(settled.filter((entry) => entry.status === "rejected").length, 1);
-  const manifest = await fs.readFile(path.join(root, "docs/eval/baseline/runs/race-v1/run-manifest.json"), "utf8");
+  const manifest = await fs.readFile(path.join(root, "docs/eval/baseline/runs/race-v2/run-manifest.json"), "utf8");
   assert.doesNotMatch(manifest, /secret-seed/);
   assert.match(manifest, new RegExp(sha256("secret-seed")));
   await fs.mkdir(path.join(root, "docs/eval/baseline/runs/preexisting"));
@@ -117,6 +136,20 @@ test("provenance rejects missing and mismatched artifact hashes", async (context
   await fs.writeFile(file, "changed\n");
   const checked = await validateCompletedArtifacts({ root, runId: "hash-v1" });
   assert.ok(checked.errors.some((error) => error.includes("output hash mismatch: DESIGN.md")));
+});
+
+test("v2 requires evaluator-visible built site files and all three screenshots", async (context) => {
+  const root = await temporaryRepository();
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const run = await prepareRun({ root, runId: "missing-v2", seed: "seed" });
+  await writeCompletedArtifacts(root, "missing-v2", run.manifestHash);
+  await fs.rm(path.join(root, "docs/eval/baseline/runs/missing-v2/artifacts/path-a/screenshots/mobile.png"));
+  const checked = await validateCompletedArtifacts({ root, runId: "missing-v2" });
+  assert.ok(checked.errors.some((error) => error.includes("mobile.png is unreadable")));
+  await writeCompletedArtifacts(root, "missing-v2", run.manifestHash);
+  await fs.rm(path.join(root, "docs/eval/baseline/runs/missing-v2/artifacts/path-b/site/index.html"));
+  const missingSite = await validateCompletedArtifacts({ root, runId: "missing-v2" });
+  assert.ok(missingSite.errors.some((error) => error.includes("site/index.html is unreadable")));
 });
 
 test("blind assembly rejects leaks and symlinks and copies no extra files", async (context) => {
@@ -150,8 +183,8 @@ test("blind assembly copies exactly the required allowlist", async (context) => 
   await fs.writeFile(path.join(root, "docs/eval/baseline/runs/allowlist-v1/artifacts/path-a/extra.txt"), "not presented");
   const packet = await assembleBlindPacket({ root, runId: "allowlist-v1" });
   for (const artifact of packet.artifacts) {
-    const entries = await fs.readdir(path.join(root, "docs/eval/baseline/runs/allowlist-v1/presentation", artifact.blindId));
-    assert.deepEqual(entries.sort(), artifact.files.map((entry) => entry.path).sort());
+    const entries = await listedFiles(path.join(root, "docs/eval/baseline/runs/allowlist-v1/presentation", artifact.blindId));
+    assert.deepEqual(entries, artifact.files.map((entry) => entry.path).sort());
     assert.ok(!entries.includes("extra.txt"));
   }
 });

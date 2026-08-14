@@ -2,14 +2,15 @@
 
 **Record date:** 2026-08-13
 
-**Branch inspected:** `codex/refero-editor-goal-complete` from merged `main`
+**Branch inspected:** `codex/refero-goal-final-evidence` from merged `main`
 
 **Scope:** current in-progress implementation only; this is not a release verdict.
 
 ## Evidence rules
 
 `npm test` was rerun on this branch on 2026-08-13 and passed: **26 test files,
-170 tests**. Rendered preview and motion checks also passed after the current
+171 tests**. The evaluation harness suite also passed **43 tests**. Production build,
+smoke gates, and rendered motion checks passed after the current
 workbench/fidelity slice. A row is **PROVEN** only where that direct check or a saved
 authoritative artifact proves the whole stated requirement. **PARTIAL** means
 there is focused implementation or unit coverage but no complete rendered,
@@ -18,6 +19,12 @@ credential, human decision, or controlled run that has not occurred. **MISSING**
 means this branch has no located implementation or authoritative artifact for the
 requirement. Existing Wave notes are context only, not a passing result for this
 branch.
+
+The Refero/editor implementation is safe to checkpoint. Live model-routing promotion
+and the Path A/Path B comparison remain blocked on externally isolated blind scoring
+by two named humans; the coordinator and baseline harness must not be treated as
+measured results. Baseline contract v2 adds frozen three-width screenshots and source
+site evidence, but its two copied site files are not a standalone runnable bundle.
 
 The acceptance source is
 `docs/specs/2026-08-13-refero-editor-requirements.md`. Test paths below identify
