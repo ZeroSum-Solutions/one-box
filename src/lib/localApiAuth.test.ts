@@ -162,7 +162,9 @@ describe("local API authorization", () => {
         fs.readFile(new URL("../../package.json", import.meta.url), "utf8")
       )
     ) as { scripts: Record<string, string> };
-    expect(scripts.dev).toContain("--hostname 127.0.0.1");
+    expect(scripts.dev).toBe("./scripts/dev.sh");
+    expect(scripts["dev:next"]).toContain("--hostname 127.0.0.1");
+    expect(scripts["dev:next"]).toContain("--port 3000");
     expect(scripts.start).toContain("--hostname 127.0.0.1");
   });
 });

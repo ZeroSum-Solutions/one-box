@@ -42,6 +42,7 @@ interface AttemptFailure {
 
 interface RuntimeCapabilities {
   referoDesignEvidence: boolean;
+  referoConnectUrl: string;
 }
 
 interface SubmissionAttempt {
@@ -466,7 +467,10 @@ export default function Home() {
     allowPaidFirecrawlFallback: false,
   });
   const [runtimeCapabilities, setRuntimeCapabilities] =
-    useState<RuntimeCapabilities>({ referoDesignEvidence: false });
+    useState<RuntimeCapabilities>({
+      referoDesignEvidence: false,
+      referoConnectUrl: "/api/refero/connect",
+    });
   const [uploads, setUploads] = useState<UploadMetadata[]>([]);
   const [uploadSession, setUploadSession] = useState<string | null>(null);
   const [uploadRecoveryMessage, setUploadRecoveryMessage] = useState<string | null>(null);
@@ -480,8 +484,12 @@ export default function Home() {
       .then(async (response) => {
         if (!response.ok) return null;
         const body = (await response.json()) as Partial<RuntimeCapabilities>;
-        return typeof body.referoDesignEvidence === "boolean"
-          ? { referoDesignEvidence: body.referoDesignEvidence }
+        return typeof body.referoDesignEvidence === "boolean" &&
+          typeof body.referoConnectUrl === "string"
+          ? {
+              referoDesignEvidence: body.referoDesignEvidence,
+              referoConnectUrl: body.referoConnectUrl,
+            }
           : null;
       })
       .then((capabilities) => {
@@ -752,6 +760,7 @@ export default function Home() {
               referoDesignEvidenceAvailable={
                 runtimeCapabilities.referoDesignEvidence
               }
+              referoConnectUrl={runtimeCapabilities.referoConnectUrl}
               uploadRecoveryMessage={uploadRecoveryMessage}
               onUploadRecoveryClear={() => setUploadRecoveryMessage(null)}
               disabled={state.isStreaming}

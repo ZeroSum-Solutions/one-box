@@ -73,35 +73,41 @@ deletes newly merged remote branches.
 ## Credentials and live development
 
 Credential names are documented without values in [`.env.example`](.env.example).
-Do not copy secrets into the repository. On a configured ZS machine:
+Do not copy secrets into the repository. `npm run dev` always uses the
+vault-backed launcher, so OpenRouter and the optional Firecrawl fallback do not
+depend on which terminal started the app. On a configured ZS machine:
 
 ```bash
 zsvault unlock
-./scripts/dev.sh
+npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). `scripts/dev.sh` checks its
-environment first, then reads the three named credentials from an unlocked ZS
-Vault. It requires `OPENROUTER_API_KEY` and warns when optional Firecrawl or
-Refero credentials are unavailable. Without `REFERO_MCP_TOKEN`, ONE BOX leaves
-**Design-reference evidence** off and marks that control unavailable before a
-prompt can start. Refero MCP authentication is separate:
+Open [http://127.0.0.1:3000](http://127.0.0.1:3000). `scripts/dev.sh` checks its
+environment first, then reads OpenRouter and Firecrawl from an unlocked ZS
+Vault. It requires `OPENROUTER_API_KEY` and warns when optional Firecrawl is
+unavailable. Refero uses the vendor-supported browser OAuth flow: open Research
+settings and choose **Connect Refero** once. ONE BOX stores the refreshable OAuth
+session under the `.one-box/oauth/` directory, which is private local state and already
+excluded from Git. A legacy `REFERO_MCP_TOKEN` remains an optional non-interactive
+fallback, not the normal setup path.
+
+Codex's own Refero connection is a separate OAuth client and cannot securely
+share its private session with the Next.js process:
 
 ```bash
 codex mcp login refero
 codex mcp list
 ```
 
-Complete the browser OAuth approval yourself. A ready connection reports Refero
-as enabled and authenticated. Paid Firecrawl fallback is never inferred from the
-presence of a key; the intake control must explicitly opt in after local crawl
-failure.
+Complete browser OAuth approvals yourself. Paid Firecrawl fallback is never
+inferred from the presence of a key; the intake control must explicitly opt in
+after local crawl failure.
 
 ## Commands
 
 ```bash
-npm run dev                 # credential-free UI development where possible
-./scripts/dev.sh            # live pipeline with vault-backed credentials
+npm run dev                 # live local app with vault-backed credentials
+npm run dev:next            # raw Next.js server; bypasses vault loading
 npm test                    # Vitest suite
 npm run typecheck           # TypeScript
 npm run lint                # ESLint

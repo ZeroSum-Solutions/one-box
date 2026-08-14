@@ -22,6 +22,7 @@ interface IntakeControlsProps {
   onUploadsChange: (uploads: UploadMetadata[]) => void;
   onUploadSessionChange: (handle: string | null) => void;
   referoDesignEvidenceAvailable: boolean;
+  referoConnectUrl: string;
   uploadRecoveryMessage?: string | null;
   onUploadRecoveryClear?: () => void;
   disabled?: boolean;
@@ -76,6 +77,7 @@ export function IntakeControls({
   onUploadsChange,
   onUploadSessionChange,
   referoDesignEvidenceAvailable,
+  referoConnectUrl,
   uploadRecoveryMessage,
   onUploadRecoveryClear,
   disabled = false,
@@ -202,8 +204,9 @@ export function IntakeControls({
                     Design-reference evidence
                     {!referoDesignEvidenceAvailable && (
                       <small>
-                        Unavailable in this session. Leave this off, or add the
-                        Refero runtime token and restart ONE BOX.
+                        Not connected in this project.{" "}
+                        <a href={referoConnectUrl}>Connect Refero</a> once; ONE BOX
+                        stores the refreshable OAuth session locally and outside Git.
                       </small>
                     )}
                   </span>

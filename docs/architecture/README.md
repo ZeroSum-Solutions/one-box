@@ -86,6 +86,12 @@ event writes before closing. Evidence truth is derived from persisted artifacts;
 the intake artifact owns the user's research choice, while `run.json` owns the
 current stage and approval state.
 
+Refero authentication follows the MCP server's browser OAuth flow. The Next.js
+process persists its own refreshable OAuth client state under the ignored
+`.one-box/oauth/` boundary; it does not copy Codex's separate OAuth session or
+require a static project bearer token. `src/lib/referoAuth.ts` owns OAuth state,
+callback validation, refresh persistence, and the local connect flow.
+
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the
 supporting runtime files. The builder and contracts define what can be emitted;
