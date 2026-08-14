@@ -2,17 +2,18 @@
  * Credential preflight — run BEFORE stage 1 spends anything.
  *
  * Live failure this exists to prevent (run 2KJ9KwYM4SeA, 2026-08-13): the dev
- * server was started without REFERO_MCP_TOKEN in its environment. The token is
- * read lazily on first use, which is stage 3, so the run bought a full
+ * server was started without Refero authorization. Authentication was checked
+ * lazily on first use, which is stage 3, so the run bought a full
  * competitive scan — 147 seconds and ~$0.05 of Firecrawl + OpenRouter — and
  * only THEN discovered it could never finish. Re-running just repeated the
- * spend: a missing environment variable does not heal on retry.
+ * spend: missing authorization does not heal on retry.
  *
  * Everything a run will need is therefore checked up front, against the
  * reference mode it will actually use. Missing = fail immediately, before the
  * first paid call. Advisory = degraded feature, run proceeds.
  */
 import type { ReferenceMode } from "./contracts";
+import { referoCredentialsAvailable } from "./referoAuth";
 
 export interface PreflightIssue {
   /** env var name */
@@ -37,7 +38,7 @@ export interface PreflightCapabilities {
   allowPaidFirecrawlFallback?: boolean;
 }
 
-const DEV_HINT = "start the server with ./scripts/dev.sh, which sources ZS Vault";
+const DEV_HINT = "start the server with npm run dev, which sources ZS Vault";
 
 export function preflight(
   mode: ReferenceMode = "refero",
@@ -66,13 +67,13 @@ export function preflight(
       fix: DEV_HINT,
     });
   }
-  // Only the Refero arm needs the MCP token. The local/none A/B arms must
+  // Only the Refero arm needs an OAuth session (or legacy bearer token). The local/none A/B arms must
   // still run on a machine that has never had one.
-  if (referenceResearch && mode === "refero" && !process.env.REFERO_MCP_TOKEN) {
+  if (referenceResearch && mode === "refero" && !referoCredentialsAvailable()) {
     blocking.push({
-      key: "REFERO_MCP_TOKEN",
+      key: "REFERO_OAUTH",
       message: "the Refero reference lock (stage: locked)",
-      fix: `${DEV_HINT} — or zsvault get refero_mcp_token`,
+      fix: "open /api/refero/connect in ONE BOX and complete browser authorization",
     });
   }
   if (!process.env.GOOGLE_MAPS_API_KEY) {

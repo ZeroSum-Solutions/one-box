@@ -99,8 +99,12 @@ try {
   assert.equal(await referoEvidence.isChecked(), false);
   assert.equal(await referoEvidence.isDisabled(), true);
   assert.match(
-    await page.getByText(/Unavailable in this session/).innerText(),
-    /add the Refero runtime token and restart ONE BOX/i
+    await page.getByText(/Not connected in this project/).innerText(),
+    /Connect Refero once.*refreshable OAuth session locally and outside Git/i
+  );
+  assert.equal(
+    await page.getByRole("link", { name: "Connect Refero" }).getAttribute("href"),
+    "/api/refero/connect"
   );
   assert.equal(await paidFallback.isChecked(), false);
   assert.match(

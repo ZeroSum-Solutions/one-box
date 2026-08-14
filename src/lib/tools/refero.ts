@@ -1,7 +1,8 @@
 /**
  * Refero MCP client — the style-research engine this whole prototype is
  * proving out (plan §What this proves). Streamable-HTTP client to
- * api.refero.design/mcp, bearer-authed via REFERO_MCP_TOKEN.
+ * api.refero.design/mcp, authenticated with persistent browser OAuth. A static
+ * REFERO_MCP_TOKEN remains available only as a legacy non-interactive fallback.
  *
  * Singleton on globalThis (Prisma pattern) so Next.js HMR reconnects reuse
  * one session instead of leaking a new one per reload — the budget is a
@@ -15,7 +16,14 @@
  * advertised list.
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  PersistentReferoOAuthProvider,
+  referoCallbackUrl,
+  referoFetch,
+  referoOAuthStorePath,
+} from "../referoAuth";
 
 const REFERO_MCP_URL = "https://api.refero.design/mcp";
 
@@ -66,23 +74,26 @@ declare global {
   var referoExitHandlerRegistered: boolean | undefined;
 }
 
-function requireToken(): string {
-  const token = process.env.REFERO_MCP_TOKEN;
-  if (!token) {
-    throw new Error(
-      "REFERO_MCP_TOKEN is not set — zsvault get refero_mcp_token (see scripts/dev.sh)"
-    );
-  }
-  return token;
-}
-
 function getState(): ReferoClientState {
   if (!globalThis.referoClient) {
-    const token = requireToken();
+    const token = process.env.REFERO_MCP_TOKEN;
     const client = new Client({ name: "one-box", version: "0.1.0" });
-    const transport = new StreamableHTTPClientTransport(new URL(REFERO_MCP_URL), {
-      requestInit: { headers: { Authorization: `Bearer ${token}` } },
-    });
+    const callbackUrl = referoCallbackUrl();
+    const transport = new StreamableHTTPClientTransport(
+      new URL(REFERO_MCP_URL),
+      token
+        ? {
+            requestInit: { headers: { Authorization: `Bearer ${token}` } },
+            fetch: referoFetch,
+          }
+        : {
+            authProvider: new PersistentReferoOAuthProvider(
+              callbackUrl,
+              referoOAuthStorePath()
+            ),
+            fetch: referoFetch,
+          }
+    );
     globalThis.referoClient = { client, transport, connecting: null, toolNames: null, callCount: 0 };
     registerExitHandler();
   }
@@ -95,6 +106,11 @@ async function ensureConnected(): Promise<Client> {
     state.connecting = state.client.connect(state.transport).catch((err) => {
       // allow a fresh singleton + retry on the next call after a failed connect
       globalThis.referoClient = undefined;
+      if (err instanceof UnauthorizedError) {
+        throw new Error(
+          "Refero authorization is required — open /api/refero/connect in ONE BOX."
+        );
+      }
       throw err;
     });
   }

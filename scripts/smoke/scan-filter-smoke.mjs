@@ -109,14 +109,16 @@ const saved = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY,
   REFERO_MCP_TOKEN: process.env.REFERO_MCP_TOKEN,
+  ONE_BOX_REFERO_OAUTH_STORE: process.env.ONE_BOX_REFERO_OAUTH_STORE,
 };
 process.env.OPENROUTER_API_KEY = "x";
 process.env.FIRECRAWL_API_KEY = "x";
 delete process.env.REFERO_MCP_TOKEN;
+process.env.ONE_BOX_REFERO_OAUTH_STORE = `/tmp/one-box-no-refero-oauth-${process.pid}.json`;
 
 const refero = preflight("refero");
-check("refero arm without token → blocked", refero.ok, false);
-check("blocking issue names the token", refero.blocking[0]?.key, "REFERO_MCP_TOKEN");
+check("refero arm without OAuth → blocked", refero.ok, false);
+check("blocking issue names OAuth", refero.blocking[0]?.key, "REFERO_OAUTH");
 // The A/B control arms must still run on a machine that never had a token.
 check("none arm without token → ok", preflight("none").ok, true);
 check("local arm without token → ok", preflight("local").ok, true);

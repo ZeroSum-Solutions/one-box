@@ -1,4 +1,5 @@
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
+import { referoCredentialsAvailable } from "../../../lib/referoAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,10 @@ export async function GET(request: Request) {
   }
 
   return Response.json(
-    { referoDesignEvidence: Boolean(process.env.REFERO_MCP_TOKEN) },
+    {
+      referoDesignEvidence: referoCredentialsAvailable(),
+      referoConnectUrl: "/api/refero/connect",
+    },
     { headers: { "Cache-Control": "no-store" } }
   );
 }

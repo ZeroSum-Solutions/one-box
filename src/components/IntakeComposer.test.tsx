@@ -28,6 +28,7 @@ function renderComposer(referoDesignEvidenceAvailable = true) {
       onUploadsChange={() => undefined}
       onUploadSessionChange={() => undefined}
       referoDesignEvidenceAvailable={referoDesignEvidenceAvailable}
+      referoConnectUrl="/api/refero/connect"
     />
   );
 }
@@ -59,7 +60,8 @@ describe("IntakeComposer", () => {
   it("disables unavailable Refero evidence before a prompt can create a blocked run", () => {
     const html = renderComposer(false);
     expect(html).toContain("Design-reference evidence");
-    expect(html).toContain("Unavailable in this session");
+    expect(html).toContain("Connect Refero");
+    expect(html).toContain('href="/api/refero/connect"');
     expect(html).toMatch(/<input[^>]*disabled=""[^>]*name="refero-design-evidence"/);
   });
 

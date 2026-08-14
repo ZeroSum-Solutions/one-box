@@ -146,7 +146,7 @@ describe("chat intake request", () => {
           ok: false,
           blocking: [
             {
-              key: "REFERO_MCP_TOKEN",
+              key: "REFERO_OAUTH",
               message: "the Refero reference lock (stage: locked)",
               fix: "turn off Design-reference evidence",
             },
@@ -159,7 +159,7 @@ describe("chat intake request", () => {
     expect(response.status).toBe(422);
     await expect(response.json()).resolves.toMatchObject({
       code: "missing-configuration",
-      issues: [{ key: "REFERO_MCP_TOKEN" }],
+      issues: [{ key: "REFERO_OAUTH" }],
     });
     expect(reserveIntakeAttempt).not.toHaveBeenCalled();
     expect(model).not.toHaveBeenCalled();
