@@ -10,10 +10,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const CONTRACT_PATH = "docs/eval/baseline/evaluation-contract-v1.json";
-const LOCK_PATH = "docs/eval/baseline/evaluation-contract-v1.lock.json";
+const CONTRACT_PATH = "docs/eval/baseline/evaluation-contract-v2.json";
+const LOCK_PATH = "docs/eval/baseline/evaluation-contract-v2.lock.json";
 const RUNS_PATH = "docs/eval/baseline/runs";
 const PROVENANCE_FILE = "provenance.json";
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export const REQUIRED_PROVENANCE_FIELDS = [
   "pathId",
@@ -143,6 +144,44 @@ function sameStrings(left, right) {
   return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function isScreenshot(name) {
+  return /^screenshots\/(desktop|tablet|mobile)\.png$/.test(name);
+}
+
+function validateScreenshot(name, bytes, responsiveEvidence) {
+  if (bytes.length < PNG_SIGNATURE.length || !bytes.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) return `${name} must be a PNG screenshot`;
+  let offset = PNG_SIGNATURE.length;
+  while (offset < bytes.length) {
+    if (offset + 12 > bytes.length) return `${name} has a truncated PNG chunk`;
+    const length = bytes.readUInt32BE(offset);
+    const type = bytes.subarray(offset + 4, offset + 8).toString("ascii");
+    const end = offset + length + 12;
+    if (end > bytes.length) return `${name} has an invalid PNG chunk length`;
+    if (type === "IHDR") {
+      const area = name.match(/^screenshots\/(desktop|tablet|mobile)\.png$/)?.[1];
+      const policy = area && responsiveEvidence?.[area];
+      if (length !== 13 || !policy || bytes.readUInt32BE(offset + 8) !== policy.width || bytes.readUInt32BE(offset + 12) < policy.minimumHeight) return `${name} does not match the frozen responsive viewport`;
+    }
+    if (["tEXt", "zTXt", "iTXt", "eXIf"].includes(type)) return `${name} contains prohibited screenshot metadata`;
+    if (type === "IEND") return length === 0 && end === bytes.length ? undefined : `${name} has trailing bytes after IEND`;
+    offset = end;
+  }
+  return `${name} is missing PNG IEND`;
+}
+
+async function listFilesRecursively(directory, relative = "") {
+  const entries = await fs.readdir(path.join(directory, relative), { withFileTypes: true });
+  const result = [];
+  for (const entry of entries) {
+    const next = path.join(relative, entry.name);
+    if (entry.isSymbolicLink()) fail(`${next} must not be a symlink`);
+    if (entry.isDirectory()) result.push(...await listFilesRecursively(directory, next));
+    else if (entry.isFile()) result.push(next.replaceAll(path.sep, "/"));
+    else fail(`${next} must be a regular file`);
+  }
+  return result.sort();
+}
+
 export function validateRubric(rubric, requiredAreas, minimumEvaluators) {
   const errors = [];
   if (!rubric.includes("Status: frozen before the controlled comparison run.")) {
@@ -178,14 +217,14 @@ export async function verifyContract(root = SCRIPT_ROOT) {
     const actual = await readFileHash(rootPath(root, input.path));
     if (actual !== input.sha256) errors.push(`input hash mismatch: ${input.path}`);
   }
-  const rubricInput = (contract.inputs ?? []).find((input) => input.path.endsWith("rubric-v1.md"));
+  const rubricInput = (contract.inputs ?? []).find((input) => input.path.endsWith("rubric-v2.md"));
   if (!rubricInput) {
     errors.push("contract must include a rubric input");
   } else {
     const rubric = (await readRegularFile(rootPath(root, rubricInput.path), rubricInput.path)).toString("utf8");
     errors.push(...validateRubric(rubric, contract.requiredRubricAreas ?? [], contract.humanGate?.minimumEvaluators));
   }
-  const briefInput = (contract.inputs ?? []).find((input) => input.path.endsWith("brief-v1.json"));
+  const briefInput = (contract.inputs ?? []).find((input) => input.path.endsWith("brief-v2.json"));
   if (!briefInput) {
     errors.push("contract must include a brief input");
   } else {
@@ -387,9 +426,14 @@ function normalizedLeakText(value) {
   return value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-export function scanForIdentityLeaks(files, blockedTerms) {
+export function scanForIdentityLeaks(files, blockedTerms, responsiveEvidence) {
   const errors = [];
   for (const [name, bytes] of files) {
+    if (isScreenshot(name)) {
+      const error = validateScreenshot(name, bytes, responsiveEvidence);
+      if (error) errors.push(error);
+      continue;
+    }
     let text;
     try {
       text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
@@ -431,7 +475,7 @@ async function validateCurrentPacket(checked) {
     try {
       const directoryStat = await fs.lstat(directory);
       if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) errors.push(`${artifact.blindId} must be a regular directory`);
-      entries = (await fs.readdir(directory)).sort();
+      entries = await listFilesRecursively(directory);
     } catch (error) {
       errors.push(`${artifact.blindId} is unreadable: ${error instanceof Error ? error.message : String(error)}`);
       continue;
@@ -451,7 +495,7 @@ async function validateCurrentPacket(checked) {
       }
     }
     if (!sameStrings((artifact.files ?? []).map((entry) => entry.path).sort(), expectedNames)) errors.push(`${artifact.blindId} packet file list is incomplete`);
-    errors.push(...scanForIdentityLeaks(files, checked.contract.blinding.blockedTerms).map((error) => `${artifact.blindId} ${error}`));
+    errors.push(...scanForIdentityLeaks(files, checked.contract.blinding.blockedTerms, checked.contract.responsiveEvidence).map((error) => `${artifact.blindId} ${error}`));
   }
   return { errors, packet, packetHash, presentation };
 }
@@ -463,7 +507,7 @@ export async function assembleBlindPacket({ root = SCRIPT_ROOT, runId }) {
   const snapshots = new Map();
   for (const entry of checked.unblinding.mapping) {
     const files = presentationFiles(checked.snapshots.get(entry.pathId), checked.contract);
-    const leakErrors = scanForIdentityLeaks(files, checked.contract.blinding.blockedTerms);
+    const leakErrors = scanForIdentityLeaks(files, checked.contract.blinding.blockedTerms, checked.contract.responsiveEvidence);
     if (leakErrors.length) fail(`cannot assemble blind packet:\n- ${entry.pathId} ${leakErrors.join(`\n- ${entry.pathId} `)}`);
     snapshots.set(entry.blindId, files);
     artifactRecords.push({
@@ -487,7 +531,11 @@ export async function assembleBlindPacket({ root = SCRIPT_ROOT, runId }) {
     for (const artifact of artifactRecords) {
       const directory = path.join(temporary, artifact.blindId);
       await fs.mkdir(directory, { mode: 0o700 });
-      for (const record of artifact.files) await writeFileExclusive(path.join(directory, record.path), snapshots.get(artifact.blindId).get(record.path));
+      for (const record of artifact.files) {
+        const target = path.join(directory, record.path);
+        await fs.mkdir(path.dirname(target), { recursive: true, mode: 0o700 });
+        await writeFileExclusive(target, snapshots.get(artifact.blindId).get(record.path));
+      }
     }
     await writeFileExclusive(path.join(temporary, "packet.json"), packetBytes);
     await writeJsonExclusive(path.join(temporary, "packet-binding.json"), {

@@ -6,7 +6,19 @@
   var runtime = window.__ONEBOX_MOTION_RUNTIME__;
   if (runtime && runtime.destroy) runtime.destroy();
 
-  var state = { generation: 0, context: null, listeners: [], timer: null, destroyed: false };
+  var state = {
+    generation: 0,
+    context: null,
+    listeners: [],
+    mediaRemovers: [],
+    timer: null,
+    destroyed: false,
+    applied: false,
+    signature: "",
+    manifestSignature: "",
+    previewContext: null,
+    played: Object.create(null),
+  };
   var breakpointQueries = {
     all: "all",
     mobile: "(max-width: 479px)",
@@ -29,6 +41,8 @@
     state.listeners.splice(0).forEach(function (remove) { remove(); });
     if (state.context) state.context.revert();
     state.context = null;
+    if (state.previewContext) state.previewContext.revert();
+    state.previewContext = null;
     if (window.ScrollTrigger) {
       window.ScrollTrigger.getAll().forEach(function (trigger) {
         if (trigger.vars && trigger.vars.id && String(trigger.vars.id).indexOf("onebox:") === 0) trigger.kill(true);
@@ -41,6 +55,40 @@
 
   function matchesBreakpoint(name) {
     return name === "all" || !window.matchMedia || window.matchMedia(breakpointQueries[name]).matches;
+  }
+
+  function reducedMotionActive() {
+    return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  function mediaSignature() {
+    if (!window.matchMedia) return "no-match-media";
+    return [
+      reducedMotionActive() ? "reduce" : "motion",
+      window.matchMedia(breakpointQueries.mobile).matches ? "mobile" : "",
+      window.matchMedia(breakpointQueries.tablet).matches ? "tablet" : "",
+      window.matchMedia(breakpointQueries.desktop).matches ? "desktop" : "",
+    ].join(":");
+  }
+
+  function entryPlayKey(entry) {
+    return [
+      entry.id,
+      entry.kind,
+      entry.trigger,
+      entry.breakpoint,
+      entry.durationMs,
+      entry.delayMs,
+      JSON.stringify(entry.properties),
+    ].join(":");
+  }
+
+  function wasPlayed(entry) {
+    return entry.replay === "once" && state.played[entryPlayKey(entry)] === true;
+  }
+
+  function markPlayed(entry) {
+    if (entry.replay === "once") state.played[entryPlayKey(entry)] = true;
   }
 
   function varsFor(entry) {
@@ -94,12 +142,21 @@
   }
 
   function validManifest(manifest) {
+    var seenIds = Object.create(null);
+    var seenTargets = Object.create(null);
     return isObject(manifest) &&
       hasOnlyKeys(manifest, ["version", "entries"]) &&
       manifest.version === 1 &&
       Array.isArray(manifest.entries) &&
       manifest.entries.length <= 100 &&
-      manifest.entries.every(validEntry);
+      manifest.entries.every(function (entry) {
+        if (!validEntry(entry) || seenIds[entry.id]) return false;
+        var targetKey = entry.editId + "\u0000" + entry.kind;
+        if (seenTargets[targetKey]) return false;
+        seenIds[entry.id] = true;
+        seenTargets[targetKey] = true;
+        return true;
+      });
   }
 
   function mark(element, entry) {
@@ -112,10 +169,9 @@
   }
 
   function addReplayListener(element, eventName, entry, handler) {
-    var played = false;
     addListener(element, eventName, function () {
-      if (entry.replay === "once" && played) return;
-      played = true;
+      if (wasPlayed(entry)) return;
+      markPlayed(entry);
       handler();
     });
   }
@@ -124,14 +180,14 @@
     if (!matchesBreakpoint(entry.breakpoint)) return;
     var element = exactTarget(entry.editId);
     if (!element || element.matches("canvas,iframe") || element.querySelector("canvas,iframe")) return;
+    if (entry.kind !== "timeline" && wasPlayed(entry)) return;
     mark(element, entry);
     var vars = varsFor(entry);
     if (entry.kind === "hover") {
-      var played = false;
       var hoverTween = window.gsap.to(element, Object.assign({}, vars, { paused: true }));
       var play = function () {
-        if (entry.replay === "once" && played) return;
-        played = true;
+        if (wasPlayed(entry)) return;
+        markPlayed(entry);
         hoverTween.restart();
       };
       var reset = function () { hoverTween.reverse(); };
@@ -143,6 +199,7 @@
     }
     if (entry.kind === "scroll") {
       window.gsap.from(element, Object.assign({}, vars, {
+        onStart: function () { markPlayed(entry); },
         scrollTrigger: {
           id: "onebox:" + entry.id,
           trigger: element,
@@ -159,6 +216,7 @@
       var group = timelines[timelineKey];
       if (!group) {
         group = timelines[timelineKey] = {
+          key: "timeline:" + timelineKey,
           entry: entry,
           element: element,
           timeline: window.gsap.timeline({ paused: true }),
@@ -167,8 +225,9 @@
       }
       group.timeline.from(element, Object.assign({}, vars, { immediateRender: false }));
       if (entry.trigger === "manual") addListener(element, "onebox-motion-preview", function () {
-        if (entry.replay === "once" && group.played) return;
+        if (entry.replay === "once" && (group.played || state.played[group.key])) return;
         group.played = true;
+        if (entry.replay === "once") state.played[group.key] = true;
         group.timeline.restart();
       });
       return;
@@ -179,6 +238,7 @@
     }
     if (entry.trigger === "viewport") {
       window.gsap.from(element, Object.assign({}, vars, {
+        onStart: function () { markPlayed(entry); },
         scrollTrigger: {
           id: "onebox:" + entry.id,
           trigger: element,
@@ -190,13 +250,17 @@
     } else if (entry.trigger === "manual") {
       addReplayListener(element, "onebox-motion-preview", entry, function () { window.gsap.from(element, vars); });
     } else {
-      window.gsap.from(element, vars);
+      window.gsap.from(element, Object.assign({}, vars, { onStart: function () { markPlayed(entry); } }));
     }
   }
 
   function startTimelines(timelines) {
     Object.keys(timelines).forEach(function (key) {
       var group = timelines[key];
+      if (group.entry.replay === "once" && state.played[group.key]) return;
+      group.timeline.eventCallback("onStart", function () {
+        if (group.entry.replay === "once") state.played[group.key] = true;
+      });
       if (group.entry.trigger === "load") {
         group.timeline.play(0);
       } else if (group.entry.trigger === "viewport") {
@@ -218,13 +282,13 @@
       document.documentElement.classList.remove("no-motion");
       return;
     }
-    if (!window.gsap || !window.ScrollTrigger) return;
-    window.gsap.registerPlugin(window.ScrollTrigger);
     document.documentElement.classList.remove("no-motion");
-    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reducedMotionActive()) {
       document.documentElement.classList.add("no-motion");
       return;
     }
+    if (!window.gsap || !window.ScrollTrigger) return;
+    window.gsap.registerPlugin(window.ScrollTrigger);
     state.context = window.gsap.context(function () {
       var timelines = Object.create(null);
       manifest.entries.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).forEach(function (entry) { installEntry(entry, timelines); });
@@ -235,31 +299,74 @@
 
   function rehydrate() {
     if (state.destroyed) return;
-    applyManifest(window.__ONEBOX_MOTION_MANIFEST__ || { version: 1, entries: [] });
+    var manifest = window.__ONEBOX_MOTION_MANIFEST__ || { version: 1, entries: [] };
+    var nextSignature = mediaSignature();
+    var nextManifestSignature = validManifest(manifest) ? JSON.stringify(manifest) : "invalid";
+    if (state.applied && nextSignature === state.signature && nextManifestSignature === state.manifestSignature) return;
+    state.applied = true;
+    state.signature = nextSignature;
+    state.manifestSignature = nextManifestSignature;
+    applyManifest(manifest);
   }
 
   function scheduleRehydrate() {
+    if (state.destroyed || mediaSignature() === state.signature) return;
     if (state.timer) clearTimeout(state.timer);
     state.timer = setTimeout(rehydrate, 120);
+  }
+
+  function watchMedia(query) {
+    if (!window.matchMedia) return;
+    var media = window.matchMedia(query);
+    var handler = function () { scheduleRehydrate(); };
+    if (media.addEventListener) {
+      media.addEventListener("change", handler);
+      state.mediaRemovers.push(function () { media.removeEventListener("change", handler); });
+    } else if (media.addListener) {
+      media.addListener(handler);
+      state.mediaRemovers.push(function () { media.removeListener(handler); });
+    }
   }
 
   function destroy() {
     state.destroyed = true;
     window.removeEventListener("resize", scheduleRehydrate);
     window.removeEventListener("beforeunload", destroy);
+    state.mediaRemovers.splice(0).forEach(function (remove) { remove(); });
     cleanup();
-    document.documentElement.classList.remove("no-motion");
+    document.documentElement.classList.toggle("no-motion", reducedMotionActive());
   }
 
   window.addEventListener("resize", scheduleRehydrate);
   window.addEventListener("beforeunload", destroy);
+  watchMedia("(prefers-reduced-motion: reduce)");
+  watchMedia(breakpointQueries.mobile);
+  watchMedia(breakpointQueries.tablet);
+  watchMedia(breakpointQueries.desktop);
   function preview(entry) {
-    if (!validEntry(entry)) return false;
-    applyManifest({ version: 1, entries: [entry] });
+    if (
+      state.destroyed ||
+      !validEntry(entry) ||
+      !matchesBreakpoint(entry.breakpoint) ||
+      reducedMotionActive() ||
+      !window.gsap ||
+      !window.ScrollTrigger
+    ) return false;
     var element = exactTarget(entry.editId);
-    if (!element || !window.gsap) return false;
-    if (entry.kind === "hover") element.dispatchEvent(new Event("pointerenter"));
-    else if (entry.trigger === "manual") element.dispatchEvent(new Event("onebox-motion-preview"));
+    if (!element || element.matches("canvas,iframe") || element.querySelector("canvas,iframe")) return false;
+    if (state.previewContext) state.previewContext.revert();
+    state.previewContext = null;
+    window.gsap.registerPlugin(window.ScrollTrigger);
+    state.previewContext = window.gsap.context(function () {
+      var vars = varsFor(entry);
+      if (entry.kind === "timeline") {
+        window.gsap.timeline({ paused: true }).from(element, Object.assign({}, vars, { immediateRender: false })).restart();
+      } else if (entry.kind === "hover" || entry.kind === "exit") {
+        window.gsap.to(element, vars);
+      } else {
+        window.gsap.from(element, vars);
+      }
+    }, document.body);
     return true;
   }
 

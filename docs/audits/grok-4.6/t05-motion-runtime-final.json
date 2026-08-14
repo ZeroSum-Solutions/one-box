@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-14T02:46:33.228Z",
+  "request": {
+    "task": "T05-motion-runtime",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "5076f9e",
+    "head": "e1a64719425b6ec8d53c12f4fabdf3f89f402a81",
+    "files": [
+      "templates/local-service/motion-runtime.js"
+    ],
+    "proofs": [],
+    "diffBytes": 11856
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4111,
+      "completion_tokens": 15366,
+      "total_tokens": 19477,
+      "cost": 0.100226,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.100226,
+        "upstream_inference_prompt_cost": 0.00803,
+        "upstream_inference_completions_cost": 0.092196
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 14496,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "templates/local-service/motion-runtime.js",
+        "line": "scheduleRehydrate / applyManifest / window resize listener",
+        "scenario": "Any window resize (including mobile browser chrome show/hide) debounces into cleanup()+full remount. Load/timeline-load tweens replay from their FROM state, ScrollTriggers are recreated, and in-memory replay==='once' flags/listeners are reset, so once animations can play again and rest-state elements jump.",
+        "remediation": "Do not remount on raw resize. Subscribe to breakpoint and prefers-reduced-motion MediaQueryList change events and re-apply only when that signature changes; keep once-played ids across breakpoint-stable refreshes."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "templates/local-service/motion-runtime.js",
+        "line": "applyManifest gsap/ScrollTrigger guard",
+        "scenario": "Script runs before window.gsap or window.ScrollTrigger exist, or ScrollTrigger is absent. Valid hover/exit/load/entrance entries are dropped with no retry and no no-motion fallback. Motion stays dead until something else calls rehydrate (resize is the only automatic path).",
+        "remediation": "Apply non-scroll kinds when only gsap is present; queue/retry rehydrate until both libs exist or emit a hard failure; do not silently return after cleanup."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "templates/local-service/motion-runtime.js",
+        "line": "applyManifest reduced-motion branch",
+        "scenario": "prefers-reduced-motion is sampled only inside applyManifest. Toggling the OS setting after load leaves JS tweens running (or no-motion stuck) until a remount. destroy() also classList.remove('no-motion'), so teardown re-enables CSS motion for reduced-motion users.",
+        "remediation": "Bind matchMedia('(prefers-reduced-motion: reduce)') change to rehydrate; on reduce, cleanup and keep html.no-motion; never strip that class while the MQ still matches, including in destroy()."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "templates/local-service/motion-runtime.js",
+        "line": "preview",
+        "scenario": "preview() ignores state.destroyed, always applyManifest({entries:[entry]}) (wiping the live manifest), then returns true whenever the node exists and gsap exists—even if install skipped (reduced motion, breakpoint miss, canvas/iframe, missing ScrollTrigger). Callers treat preview as played; a later resize rehydrate restores __ONEBOX_MOTION_MANIFEST__ only if that timer was not cleared by cleanup.",
+        "remediation": "No-op preview when destroyed or when install will not attach; return false unless the matching tween/listener actually started; preview into a child context instead of replacing the full manifest."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "templates/local-service/motion-runtime.js",
+        "line": "validManifest / ScrollTrigger id: onebox:+entry.id",
+        "scenario": "entries are not required to have unique id values. Two viewport/scroll/timeline-viewport items with the same UUID register the same ScrollTrigger id; the second registration collides and the first trigger/animation is killed or overwritten.",
+        "remediation": "Reject manifests whose entry.id (and, for a given timelineId, conflicting trigger/replay tuples) are not unique before install."
+      }
+    ],
+    "proof_assessment": "No proof artifacts were supplied. Coverage of IMP-066-073 was judged only from templates/local-service/motion-runtime.js; nothing demonstrates replay, reduced-motion, breakpoint, cleanup, or timeline behavior under the failing states above.",
+    "residual_risks": [
+      "load/manual timeline replay==='repeat' has no repeat signal beyond remount",
+      "scroll scrub:true ignores toggleActions, so replay once/repeat is not honored",
+      "equal timeline order values still chain sequentially rather than overlapping",
+      "no MutationObserver; swapped [data-edit-id] nodes stay inert until an external rehydrate",
+      "without matchMedia, every named breakpoint matches at once and can stack tweens on one node"
+    ]
+  }
+}

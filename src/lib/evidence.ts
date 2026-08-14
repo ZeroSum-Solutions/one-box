@@ -930,6 +930,7 @@ export async function verifyAndExportDesignContract(
   );
   const parsed = JSON.parse(lintResult.stdout) as {
     summary?: { errors?: number; warnings?: number; infos?: number };
+    findings?: Array<{ severity?: string; path?: string; message?: string }>;
   };
   const lint = {
     errors: parsed.summary?.errors ?? 0,
@@ -937,8 +938,12 @@ export async function verifyAndExportDesignContract(
     infos: parsed.summary?.infos ?? 0,
   };
   if (lint.errors > 0 || lint.warnings > 0) {
+    const details = (parsed.findings ?? [])
+      .filter((finding) => finding.severity === "error" || finding.severity === "warning")
+      .map((finding) => `${finding.path ? `${finding.path}: ` : ""}${finding.message ?? "lint finding"}`)
+      .join(" | ");
     throw new Error(
-      `DESIGN.md lint failed: ${lint.errors} error(s), ${lint.warnings} warning(s)`
+      `DESIGN.md lint failed: ${lint.errors} error(s), ${lint.warnings} warning(s)${details ? ` — ${details}` : ""}`
     );
   }
 
@@ -1029,6 +1034,8 @@ export function renderDesignContract(
     colorEntries.find((color) => /background|surface|canvas/i.test(color.role)) ??
     colorEntries[1] ??
     primary;
+  const primaryContrast =
+    colorEntries.find((color) => color.key === "primary-contrast") ?? neutral;
 
   const lines = [
     "---",
@@ -1069,13 +1076,17 @@ export function renderDesignContract(
     "components:",
     "  button-primary:",
     `    backgroundColor: ${yamlString(`{colors.${primary?.key ?? "primary"}}`)}`,
-    `    textColor: ${yamlString(`{colors.${neutral?.key ?? primary?.key ?? "primary"}}`)}`,
+    `    textColor: ${yamlString(`{colors.${primaryContrast?.key ?? primary?.key ?? "primary"}}`)}`,
     ...(bodyType
       ? [`    typography: ${yamlString(`{typography.${bodyType.key}}`)}`]
       : []),
     ...(Object.keys(tokens.radii).length > 0
       ? [`    rounded: ${yamlString(`{rounded.${slug(Object.keys(tokens.radii)[0])}}`)}`]
       : []),
+    ...colorEntries.flatMap((color) => [
+      `  token-color-${color.key}:`,
+      `    backgroundColor: ${yamlString(`{colors.${color.key}}`)}`,
+    ]),
     "---",
     "",
     "## Overview",

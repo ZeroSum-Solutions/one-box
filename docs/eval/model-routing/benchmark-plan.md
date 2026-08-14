@@ -130,3 +130,8 @@ Each round saves `manifest.json`, `producer-events.jsonl`, anonymized artifacts,
 `scores/*.json`, `unblinding.json`, `results.md`, and updates the decision log. Missing,
 timed-out, skipped, or unauthenticated calls remain failures or unverified rows. They
 never become zero-cost wins.
+
+The executable coordinator and adapter contract are documented in
+[`benchmark-harness.md`](./benchmark-harness.md). Its `prepare`, `run`, `accept`,
+`assemble`, `score-template`, `unblind`, and `verify` modes implement this pre-registered plan;
+the harness does not alter the thresholds above.

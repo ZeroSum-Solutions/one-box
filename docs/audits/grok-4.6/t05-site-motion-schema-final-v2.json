@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-14T02:56:35.060Z",
+  "request": {
+    "task": "T05-site-motion-schema-final",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "5076f9e",
+    "head": "e1a64719425b6ec8d53c12f4fabdf3f89f402a81",
+    "files": [
+      "src/lib/siteMotion.test.ts",
+      "src/lib/siteMotion.ts"
+    ],
+    "proofs": [],
+    "diffBytes": 20424
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 6761,
+      "completion_tokens": 10122,
+      "total_tokens": 16883,
+      "cost": 0.074062,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.074062,
+        "upstream_inference_prompt_cost": 0.01333,
+        "upstream_inference_completions_cost": 0.060732
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 9263,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/lib/siteMotion.ts",
+        "line": "MotionDraftSchema / refineMotion",
+        "scenario": "Criterion IMP-066-073 requires reduced-motion and lifecycle safety as part of the typed motion contract. The persisted schema accepts any allowed kind/trigger/replay (including load+repeat and large x/y/rotation) with no reduced-motion policy, degrade mode, or never-hide invariant, and nothing in siteMotion.test.ts exercises prefers-reduced-motion. A player that faithfully runs the manifest will keep animating for reduced-motion users; entrance/hover opacity 0 can still hide content when JS only half-applies. Exit-is-manual is the only related guard.",
+        "remediation": "Add an explicit schema-level reduced-motion contract (e.g. required policy skip|opacity-only, forbid repeat/large translation unless skip, keep content visible without JS) and assert it in parse + persist tests."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/siteMotion.ts",
+        "line": "mutateSiteMotion existing find (editId+kind)",
+        "scenario": "Breakpoint is a first-class field (all|mobile|tablet|desktop) but identity for apply/replace/remove is only (editId, kind). Applying entrance/mobile then entrance/desktop silently replaces the first entry, so distinct responsive variants cannot be persisted and last write wins.",
+        "remediation": "Include breakpoint in the replace/remove key (and unique-identity refine), or drop breakpoint from the schema if only one config per kind is allowed."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/siteMotion.ts",
+        "line": "MotionManifestSchema.superRefine",
+        "scenario": "Unique identity is enforced only on entry.id. A manifest with two different UUIDs and the same editId+kind parses successfully. inspectSiteMotion then returns duplicates; a later apply updates only the first match and leaves the other.",
+        "remediation": "Reject duplicate (editId, kind[, breakpoint]) in MotionManifestSchema and add a test that the composite key is unique."
+      },
+      {
+        "severity": "LOW",
+        "file": "src/lib/siteMotion.test.ts",
+        "line": "motion persistence describe",
+        "scenario": "mutateSiteMotion writes site/motion-manifest.js via manifestScript(), which is the no-arbitrary-JS sink, but no test reads that file or checks </script> escaping. A regression that interpolates unsanitized JSON would still pass.",
+        "remediation": "After apply, read motion-manifest.js and assert it is only the escaped JSON assignment."
+      },
+      {
+        "severity": "LOW",
+        "file": "src/lib/siteMotion.ts",
+        "line": "inspectSiteMotion availableEditIds",
+        "scenario": "availableEditIds is every data-edit-id, including canvas/iframe owners that assertMotionTarget rejects. Callers can present WebGL nodes as motion-editable and only fail on mutate.",
+        "remediation": "Filter availableEditIds with the same WebGL/iframe ownership rule as assertMotionTarget."
+      }
+    ],
+    "proof_assessment": "Proof artifacts are empty; only test source is available. Those tests do evidence constrained Zod kinds, rejection of selector/onComplete/unknown props/out-of-range values, apply-replace-remove-revert, one timeline per target, WebGL/unknown target rejection, blocking-gate rollback, and serialized concurrent applies. They do not evidence reduced-motion, composite unique identity, breakpoint variants, stable ids on replace, or the generated JS manifest.",
+    "residual_risks": [
+      "Correctness of locking, snapshots, and gate rollback is entirely delegated to runGuardedMutation (not in this slice).",
+      "inspectSiteMotion is unlocked and can observe torn manifest/history/html.",
+      "History cursor is not bounded to entries.length; a hand-edited cursor can throw on revert.",
+      "MotionManifestSchema.parse / MotionEntrySchema.parse throw raw ZodError once past parseDraft.",
+      "Player-side listener/observer teardown is out of this module; schema gaps make unsafe playback more likely."
+    ]
+  }
+}

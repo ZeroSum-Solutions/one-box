@@ -46,3 +46,7 @@ next-env.d.ts
 
 # private local intake staging; uploads are claimed into ignored run data
 /.one-box/
+
+# local evaluation runs contain sealed blind mappings and coordinator-only state
+/docs/eval/baseline/runs/
+/docs/eval/model-routing/runs/
