@@ -13,7 +13,7 @@ const research = {
   allowPaidFirecrawlFallback: false,
 };
 
-function renderComposer() {
+function renderComposer(referoDesignEvidenceAvailable = true) {
   return renderToStaticMarkup(
     <IntakeComposer
       value=""
@@ -27,6 +27,7 @@ function renderComposer() {
       onResearchChange={() => undefined}
       onUploadsChange={() => undefined}
       onUploadSessionChange={() => undefined}
+      referoDesignEvidenceAvailable={referoDesignEvidenceAvailable}
     />
   );
 }
@@ -53,6 +54,13 @@ describe("IntakeComposer", () => {
     expect(html).toContain("Research settings");
     expect(html).toContain("Allow paid Firecrawl discovery and fallback");
     expect(html).toContain("Website selected. Describe the company, audience, pages, and action you want visitors to take.");
+  });
+
+  it("disables unavailable Refero evidence before a prompt can create a blocked run", () => {
+    const html = renderComposer(false);
+    expect(html).toContain("Design-reference evidence");
+    expect(html).toContain("Unavailable in this session");
+    expect(html).toMatch(/<input[^>]*disabled=""[^>]*name="refero-design-evidence"/);
   });
 
   it("uses the approved guidance set and bounds textarea growth to the viewport", () => {

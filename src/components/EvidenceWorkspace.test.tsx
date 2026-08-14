@@ -148,6 +148,8 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(html).toContain("Business specificity (not a generic template)");
     expect(html).toContain("DESIGN.md and reference alignment");
     expect(html).toContain("No external reference was selected");
+    expect(html).not.toContain('value="design-and-references"');
+    expect(html).toContain("Open build preview");
     expect(html).toContain("I attest that I am the human reviewer");
     expect(html).not.toContain(">Approve<");
   });

@@ -26,8 +26,10 @@ import {
 import { openrouter } from "../../../lib/openrouter";
 import { claimUploadSession, UploadError } from "../../../lib/uploads";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
+import { ConfigError, preflight } from "../../../lib/preflight";
 import {
   canonicalRequestFingerprint,
+  inspectIntakeAttempt,
   IntakeAttemptConflict,
   reserveIntakeAttempt,
   runIntakeAttempt,
@@ -184,7 +186,9 @@ export async function startPipelineFromIntake(
 
 interface ChatRouteDependencies {
   streamText: typeof streamText;
+  inspectIntakeAttempt?: typeof inspectIntakeAttempt;
   reserveIntakeAttempt?: typeof reserveIntakeAttempt;
+  preflight?: typeof preflight;
 }
 
 export async function handleChat(
@@ -209,6 +213,51 @@ export async function handleChat(
   }
   const { attemptId, messages, intakeContext } = parsedRequest.data;
   const requestFingerprint = canonicalRequestFingerprint({ messages, intakeContext });
+  let existingAttempt;
+  try {
+    existingAttempt = await (
+      dependencies.inspectIntakeAttempt ?? inspectIntakeAttempt
+    )(
+      attemptId,
+      requestFingerprint
+    );
+  } catch (error) {
+    if (error instanceof IntakeAttemptConflict) {
+      return Response.json(
+        { error: error.message },
+        { status: 409, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    throw error;
+  }
+  if (existingAttempt?.state === "completed") {
+    return Response.json(
+      { runId: existingAttempt.runId, started: true, replayed: true },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  const configuration = (dependencies.preflight ?? preflight)("refero", {
+    businessResearch:
+      intakeContext.research.enabled &&
+      intakeContext.research.businessIntelligence,
+    referenceResearch:
+      intakeContext.research.enabled &&
+      intakeContext.research.referoDesignEvidence,
+    allowPaidFirecrawlFallback:
+      intakeContext.research.allowPaidFirecrawlFallback,
+  });
+  if (!configuration.ok) {
+    return Response.json(
+      {
+        code: "missing-configuration",
+        error: new ConfigError(configuration.blocking).message,
+        issues: configuration.blocking,
+      },
+      { status: 422, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   let attempt;
   try {
     attempt = await (dependencies.reserveIntakeAttempt ?? reserveIntakeAttempt)(

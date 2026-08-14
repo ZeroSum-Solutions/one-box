@@ -21,6 +21,7 @@ interface IntakeControlsProps {
   onResearchChange: (research: ResearchConfiguration) => void;
   onUploadsChange: (uploads: UploadMetadata[]) => void;
   onUploadSessionChange: (handle: string | null) => void;
+  referoDesignEvidenceAvailable: boolean;
   uploadRecoveryMessage?: string | null;
   onUploadRecoveryClear?: () => void;
   disabled?: boolean;
@@ -74,6 +75,7 @@ export function IntakeControls({
   onResearchChange,
   onUploadsChange,
   onUploadSessionChange,
+  referoDesignEvidenceAvailable,
   uploadRecoveryMessage,
   onUploadRecoveryClear,
   disabled = false,
@@ -182,6 +184,7 @@ export function IntakeControls({
                 <label>
                   <input
                     type="checkbox"
+                    name="refero-design-evidence"
                     checked={research.referoDesignEvidence}
                     onChange={(event) =>
                       onResearchChange({
@@ -189,9 +192,21 @@ export function IntakeControls({
                         referoDesignEvidence: event.target.checked,
                       })
                     }
-                    disabled={disabled || !research.enabled}
+                    disabled={
+                      disabled ||
+                      !research.enabled ||
+                      !referoDesignEvidenceAvailable
+                    }
                   />
-                  Design-reference evidence
+                  <span>
+                    Design-reference evidence
+                    {!referoDesignEvidenceAvailable && (
+                      <small>
+                        Unavailable in this session. Leave this off, or add the
+                        Refero runtime token and restart ONE BOX.
+                      </small>
+                    )}
+                  </span>
                 </label>
                 <label>
                   <input

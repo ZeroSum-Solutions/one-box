@@ -122,6 +122,22 @@ export async function reserveIntakeAttempt(
   });
 }
 
+/** Read an existing attempt without creating durable state. Used before
+ * configuration preflight so a completed response can replay while a new
+ * blocked submission does not leave an orphan reservation behind. */
+export async function inspectIntakeAttempt(
+  attemptId: string,
+  requestFingerprint: string,
+  root = DEFAULT_INTAKE_ATTEMPT_ROOT
+): Promise<IntakeAttemptRecord | undefined> {
+  if (!ATTEMPT_ID_PATTERN.test(attemptId) || !HASH_PATTERN.test(requestFingerprint)) {
+    throw new Error("Invalid intake attempt lookup.");
+  }
+  const existing = await readRecord(paths(root, attemptId).record);
+  if (existing) assertFingerprint(existing, requestFingerprint);
+  return existing;
+}
+
 /** Reserve runId before any run/upload side effect, then complete atomically. */
 export async function runIntakeAttempt(
   attemptId: string,

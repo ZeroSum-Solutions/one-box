@@ -40,6 +40,7 @@ import {
   failStage,
   stageDone,
   appendEvent,
+  claimBuildGateRepair,
   readEvents,
   saveEvidenceArtifactVersion,
   withRunTransaction,
@@ -264,44 +265,209 @@ async function fetchImage(
 // get a state snapshot, and share the same completion.
 interface ActiveRun {
   emitters: Set<Emit>;
+  history: PipelineEvent[];
+  events: PipelineEvent[];
   done: Promise<void>;
 }
 const activeRuns = new Map<string, ActiveRun>();
+const runStartTails = new Map<string, Promise<void>>();
+
+async function acquireRunStart(runId: string): Promise<() => void> {
+  const previous = runStartTails.get(runId) ?? Promise.resolve();
+  let releaseCurrent!: () => void;
+  const current = new Promise<void>((resolve) => {
+    releaseCurrent = resolve;
+  });
+  const tail = previous.then(() => current);
+  runStartTails.set(runId, tail);
+  await previous;
+  return () => {
+    releaseCurrent();
+    void tail.finally(() => {
+      if (runStartTails.get(runId) === tail) runStartTails.delete(runId);
+    });
+  };
+}
 
 const PIPELINE_STAGES = ["scanned", "locked", "synthesized", "built"] as const;
+
+function replayEventKey(event: PipelineEvent): string {
+  return JSON.stringify(event);
+}
+
+/** events.jsonl remains the complete audit record. Reconnect consumers need a
+ * current journey instead: one copy of each narrative card and only the latest
+ * terminal outcome, so an old repaired error never masquerades as current. */
+export function projectPipelineReplayEvents(
+  events: PipelineEvent[]
+): PipelineEvent[] {
+  let latestTerminalIndex = -1;
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (
+      event.type === "paused" ||
+      event.type === "complete" ||
+      event.type === "error"
+    ) {
+      latestTerminalIndex = index;
+      break;
+    }
+  }
+  if (latestTerminalIndex !== events.length - 1) {
+    latestTerminalIndex = -1;
+  }
+  const seenCards = new Set<string>();
+  return events.filter((event, index) => {
+    if (
+      event.type === "paused" ||
+      event.type === "complete" ||
+      event.type === "error"
+    ) {
+      return index === latestTerminalIndex;
+    }
+    if (event.type !== "card") return true;
+    const key = replayEventKey(event);
+    if (seenCards.has(key)) return false;
+    seenCards.add(key);
+    return true;
+  });
+}
+
+interface ReplayCheckpoint {
+  id: string;
+  pipelineVersion: string;
+  currentStage: string;
+}
+
+/** A reconnect at an unchanged human approval gate is replay-only. Once the
+ * workspace advances currentStage, the same run is eligible to execute again. */
+export function replayedPauseIsCurrent(
+  history: PipelineEvent[],
+  checkpoint: ReplayCheckpoint
+): boolean {
+  if (checkpoint.pipelineVersion !== "evidence-gated-v2") return false;
+  const latestTerminal = history
+    .slice()
+    .reverse()
+    .find(
+      (event) =>
+        event.type === "paused" ||
+        event.type === "complete" ||
+        event.type === "error"
+    );
+  return (
+    latestTerminal?.type === "paused" &&
+    latestTerminal.runId === checkpoint.id &&
+    latestTerminal.workflowStage === checkpoint.currentStage
+  );
+}
+
+export function replayedConfigurationErrorIsCurrent(
+  history: PipelineEvent[],
+  currentConfigurationError: string | null
+): boolean {
+  if (!currentConfigurationError) return false;
+  const latestTerminal = history
+    .slice()
+    .reverse()
+    .find(
+      (event) =>
+        event.type === "paused" ||
+        event.type === "complete" ||
+        event.type === "error"
+    );
+  return (
+    latestTerminal?.type === "error" &&
+    latestTerminal.message === currentConfigurationError
+  );
+}
+
+function pipelinePreflight(mode: ReferenceMode, intake: Intake) {
+  const researchEnabled = intake.research.enabled;
+  return preflight(mode, {
+    businessResearch:
+      researchEnabled && intake.research.businessIntelligence,
+    referenceResearch:
+      researchEnabled && intake.research.referoDesignEvidence,
+    allowPaidFirecrawlFallback:
+      intake.research.allowPaidFirecrawlFallback,
+  });
+}
 
 /** Transport-only note: a stage the controller skipped because it was already
  * checkpointed. Never logged — otherwise every reload of a partially-finished
  * run appends another set of them and the history grows without new work. */
 const RESUMED_NOTE = "resumed from checkpoint";
 
-export async function runPipeline(runId: string, emit: Emit) {
-  // Replay this run's history to the NEW listener before anything else, so a
-  // reload shows the cards, links and screenshots the run produced instead of
-  // four bare "done" rows. Sent only to this emitter — never broadcast.
-  const history = await readEvents(runId);
-  let sawComplete = false;
-  for (const ev of history) {
-    if (ev.type === "complete") sawComplete = true;
-    emit(ev);
-  }
+interface RunPipelineDependencies {
+  readEvents: typeof readEvents;
+  loadRun: typeof loadRun;
+  loadArtifact: typeof loadArtifact;
+  appendEvent: typeof appendEvent;
+  executePipeline: typeof executePipeline;
+}
 
-  const existing = activeRuns.get(runId);
-  if (existing) {
-    existing.emitters.add(emit);
-    try {
-      const run = await loadRun(runId);
-      emit({ type: "cost", usd: run.costUsd });
-      await existing.done;
-    } finally {
-      existing.emitters.delete(emit);
+const defaultRunPipelineDependencies: RunPipelineDependencies = {
+  readEvents,
+  loadRun,
+  loadArtifact,
+  appendEvent,
+  executePipeline,
+};
+
+export async function runPipeline(
+  runId: string,
+  emit: Emit,
+  dependencies: RunPipelineDependencies = defaultRunPipelineDependencies
+) {
+  const releaseStart = await acquireRunStart(runId);
+  let startReleased = false;
+  const release = () => {
+    if (startReleased) return;
+    startReleased = true;
+    releaseStart();
+  };
+
+  try {
+    const existing = activeRuns.get(runId);
+    if (existing) {
+      existing.emitters.add(emit);
+      release();
+      try {
+        for (const event of projectPipelineReplayEvents([
+          ...existing.history,
+          ...existing.events,
+        ])) {
+          emit(event);
+        }
+        const run = await dependencies.loadRun(runId);
+        emit({ type: "cost", usd: run.costUsd });
+        await existing.done;
+      } finally {
+        existing.emitters.delete(emit);
+      }
+      return;
     }
-    return;
-  }
+
+    const persistedHistory = await dependencies.readEvents(runId);
+    const history = projectPipelineReplayEvents(persistedHistory);
+    const replayHistory = (includeTerminal: boolean) => {
+      for (const event of history) {
+        if (
+          !includeTerminal &&
+          (event.type === "paused" ||
+            event.type === "complete" ||
+            event.type === "error")
+        ) {
+          continue;
+        }
+        emit(event);
+      }
+    };
 
   // Nothing left to execute: replaying the log IS the response. Re-running the
   // controller here would only re-emit "resumed from checkpoint" noise.
-  const run = await loadRun(runId);
+  const run = await dependencies.loadRun(runId);
   const gatedComplete =
     run.pipelineVersion === "evidence-gated-v2" &&
     run.stages.built.status === "done" &&
@@ -316,11 +482,47 @@ export async function runPipeline(runId: string, emit: Emit) {
     (run.pipelineVersion === "legacy-v1" &&
       PIPELINE_STAGES.every((name) => run.stages[name]?.status === "done"))
   ) {
+    replayHistory(true);
     emit({ type: "cost", usd: run.costUsd });
-    if (!sawComplete) {
+    if (!history.some((event) => event.type === "complete")) {
       // pre-log run: no history to replay, so synthesize the terminal event
-      emit({ type: "complete", runId, previewUrl: `/preview/${runId}` });
+      const complete: PipelineEvent = {
+        type: "complete",
+        runId,
+        previewUrl: `/preview/${runId}`,
+      };
+      await dependencies.appendEvent(runId, complete);
+      emit(complete);
     }
+    return;
+  }
+
+  if (
+    replayedPauseIsCurrent(history, {
+      id: run.id,
+      pipelineVersion: run.pipelineVersion,
+      currentStage: run.evidenceWorkflow.currentStage,
+    })
+  ) {
+    replayHistory(true);
+    emit({ type: "cost", usd: run.costUsd });
+    return;
+  }
+
+  const intake = await dependencies.loadArtifact<Intake>(
+    runId,
+    ARTIFACTS.intake
+  );
+  const configuration = intake
+    ? pipelinePreflight(run.referenceMode, intake)
+    : null;
+  const configurationError =
+    configuration && !configuration.ok
+      ? new ConfigError(configuration.blocking).message
+      : null;
+  if (replayedConfigurationErrorIsCurrent(history, configurationError)) {
+    replayHistory(true);
+    emit({ type: "cost", usd: run.costUsd });
     return;
   }
 
@@ -329,22 +531,52 @@ export async function runPipeline(runId: string, emit: Emit) {
   // over-cap run would re-run the failing stage and spend MORE on every
   // reload. Observed live in HOmEC9VCJ9Ri: $0.232 → $0.264 on one reconnect.
   if (run.costUsd > run.costCapUsd) {
+    replayHistory(false);
     emit({ type: "cost", usd: run.costUsd });
-    emit({
+    const error: PipelineEvent = {
       type: "error",
       message: `This run stopped at its $${run.costCapUsd.toFixed(2)} spend cap ($${run.costUsd.toFixed(3)} spent) and will not resume — reloading would only spend more. Its artifacts so far are on disk; raise costCapUsd in run.json to continue it, or start a new run.`,
-    });
+    };
+    await dependencies.appendEvent(runId, error);
+    emit(error);
     return;
   }
 
+  replayHistory(false);
   const emitters = new Set<Emit>([emit]);
+  const active: ActiveRun = {
+    emitters,
+    // The full audit stays on disk. Listeners that attach to this resumed
+    // execution must receive the same current projection as the first caller,
+    // never the stale terminal that triggered the retry.
+    history: history.filter(
+      (event) =>
+        event.type !== "paused" &&
+        event.type !== "complete" &&
+        event.type !== "error"
+    ),
+    events: [],
+    done: Promise.resolve(),
+  };
+  let eventWriteTail = Promise.resolve();
+  const replayedCards = new Set(
+    history
+      .filter((event) => event.type === "card")
+      .map(replayEventKey)
+  );
   const broadcast: Emit = (ev) => {
     // Persist before fan-out: the log is the durable record, listeners are not.
     // "cost" is skipped — it is a running total replayed from run.json, and
     // logging every tick would bury the narrative.
     const isResumeNoise = ev.type === "stage" && ev.note === RESUMED_NOTE;
+    active.events.push(ev);
     if (ev.type !== "cost" && !isResumeNoise) {
-      void appendEvent(runId, ev);
+      eventWriteTail = eventWriteTail.then(() =>
+        dependencies.appendEvent(runId, ev)
+      );
+    }
+    if (ev.type === "card" && replayedCards.has(replayEventKey(ev))) {
+      return;
     }
     for (const e of emitters) {
       try {
@@ -354,11 +586,16 @@ export async function runPipeline(runId: string, emit: Emit) {
       }
     }
   };
-  const done = executePipeline(runId, broadcast).finally(() => {
+  active.done = dependencies.executePipeline(runId, broadcast).finally(async () => {
+    await eventWriteTail;
     activeRuns.delete(runId);
   });
-  activeRuns.set(runId, { emitters, done });
-  await done;
+  activeRuns.set(runId, active);
+  release();
+  await active.done;
+  } finally {
+    release();
+  }
 }
 
 async function executePipeline(runId: string, emit: Emit) {
@@ -377,12 +614,7 @@ async function executeLegacyPipeline(runId: string, emit: Emit) {
 
   // Check credentials BEFORE the first paid call. A run that cannot finish
   // must not buy a competitive scan on the way to finding that out.
-  const researchEnabled = intake.research.enabled;
-  const pre = preflight(mode, {
-    businessResearch: researchEnabled && intake.research.businessIntelligence,
-    referenceResearch: researchEnabled && intake.research.referoDesignEvidence,
-    allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
-  });
+  const pre = pipelinePreflight(mode, intake);
   if (!pre.ok) {
     const err = new ConfigError(pre.blocking);
     emit({ type: "error", message: err.message });
@@ -459,12 +691,7 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
   const mode = (await loadRun(runId)).referenceMode;
   const uploadContext = await buildRunUploadContext(runId, intake.uploads);
 
-  const researchEnabled = intake.research.enabled;
-  const pre = preflight(mode, {
-    businessResearch: researchEnabled && intake.research.businessIntelligence,
-    referenceResearch: researchEnabled && intake.research.referoDesignEvidence,
-    allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
-  });
+  const pre = pipelinePreflight(mode, intake);
   if (!pre.ok) {
     const error = new ConfigError(pre.blocking);
     emit({ type: "error", message: error.message });
@@ -1847,8 +2074,9 @@ async function stageBuild(
 
   let reports = await runGates(runId, {});
   const failing = reports.filter((r) => r.blocking && !r.pass);
-  const pipelineVersion = (await loadRun(runId)).pipelineVersion;
-  if (failing.length && pipelineVersion === "legacy-v1") {
+  const repairClaimed =
+    failing.length > 0 && (await claimBuildGateRepair(runId));
+  if (repairClaimed) {
     // one repair cycle: builder model gets the gate report + files, patches
     emit({
       type: "card",

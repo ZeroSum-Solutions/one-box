@@ -83,9 +83,9 @@ zsvault unlock
 Open [http://localhost:3000](http://localhost:3000). `scripts/dev.sh` checks its
 environment first, then reads the three named credentials from an unlocked ZS
 Vault. It requires `OPENROUTER_API_KEY` and warns when optional Firecrawl or
-Refero credentials are unavailable. Without `REFERO_MCP_TOKEN`, turn off
-**Design-reference evidence** under Research settings before submitting the
-project. Refero MCP authentication is separate:
+Refero credentials are unavailable. Without `REFERO_MCP_TOKEN`, ONE BOX leaves
+**Design-reference evidence** off and marks that control unavailable before a
+prompt can start. Refero MCP authentication is separate:
 
 ```bash
 codex mcp login refero
@@ -162,11 +162,22 @@ or calling the provider twice, and reconciles interrupted ledger, catalog, and
 file transitions. Cross-process filesystem claims protect each of these durable
 retry boundaries.
 
+Run reconnects project the append-only event audit into the current journey:
+superseded errors and earlier approval pauses remain on disk but do not render
+as the present outcome. Event writes are flushed before a run stream closes, so
+a reconnect cannot miss the terminal checkpoint. A failed pipeline exposes a
+return-to-intake action that restores the submitted prompt and settings; claimed
+uploads must be selected again. Blocking build gates get one bounded repair
+attempt before the run fails closed instead of spending repeatedly on reload.
+
 Automated visual QA remains a mechanical render check. Final visual approval is
 a separate named human review covering brief fidelity, hierarchy, composition,
 business specificity, and alignment with the approved design/reference basis.
 The full blocking gate set and current build hash are rechecked before approval,
-and any committed site mutation invalidates the prior visual decision.
+and any committed site mutation invalidates draft, in-review, or approved visual
+QA so it can be regenerated. The review basis follows the user's persisted intake
+choice; a run with design-reference research disabled records that no external
+reference was selected even when its experiment mode retains the Refero default.
 
 Uploads are privately staged, bounded, integrity-checked, atomically claimed by
 one run, and never exposed by the public site route. Local mutation APIs require

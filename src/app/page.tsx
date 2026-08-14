@@ -37,7 +37,11 @@ interface AttemptFailure {
   message: string;
   technicalDetails: string;
   retryable: boolean;
-  kind: "authorization" | "request" | "upload-expired" | "conflict";
+  kind: "authorization" | "request" | "upload-expired" | "conflict" | "configuration";
+}
+
+interface RuntimeCapabilities {
+  referoDesignEvidence: boolean;
 }
 
 interface SubmissionAttempt {
@@ -86,7 +90,8 @@ type Action =
   | { type: "UPLOAD_SESSION_EXPIRED"; message: string }
   | { type: "PIPELINE_START"; runId: string }
   | { type: "PIPELINE_EVENT"; event: PipelineEvent }
-  | { type: "PIPELINE_STREAM_ERROR" };
+  | { type: "PIPELINE_STREAM_ERROR" }
+  | { type: "RESET_TO_INTAKE"; messages?: ChatMsg[] };
 
 function reducer(state: OneBoxState, action: Action): OneBoxState {
   switch (action.type) {
@@ -149,7 +154,9 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
         ...state,
         isStreaming: false,
         activeAttempt:
-          state.activeAttempt?.status === "failed" ? state.activeAttempt : null,
+          state.phase === "pipeline" || state.activeAttempt?.status === "failed"
+            ? state.activeAttempt
+            : null,
       };
     case "CHAT_ERROR":
       return {
@@ -186,7 +193,6 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
         phase: "pipeline",
         runId: action.runId,
         isStreaming: false,
-        activeAttempt: null,
       };
     case "PIPELINE_EVENT": {
       const ev = action.event;
@@ -222,6 +228,8 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
         timeline: [...state.timeline, { key: `${state.timeline.length}-stream-error`, event: ev }],
       };
     }
+    case "RESET_TO_INTAKE":
+      return { ...initialState, messages: action.messages ?? [] };
     default:
       return state;
   }
@@ -317,9 +325,11 @@ async function sendMessage(
     });
     if (!res.ok || !res.body) {
       let serverDetail = "";
+      let serverCode = "";
       try {
-        const body = (await res.json()) as { error?: unknown };
+        const body = (await res.json()) as { error?: unknown; code?: unknown };
         if (typeof body.error === "string") serverDetail = ` ${body.error}`;
+        if (typeof body.code === "string") serverCode = body.code;
       } catch {
         // The status is still useful technical information when no JSON body exists.
       }
@@ -329,14 +339,20 @@ async function sendMessage(
           message:
             res.status === 403
               ? "OneBox could not start this project because the local request was blocked. Your prompt and settings are still here."
+              : res.status === 422 && serverCode === "missing-configuration"
+                ? "OneBox needs a setup or research-setting change before it can start. Your prompt and settings are still here."
               : res.status === 409
                 ? "This retry no longer matches the original request. Edit the prompt to start a fresh attempt."
               : "OneBox could not start this project. Your prompt and settings are still here.",
           technicalDetails: `Chat request failed (${res.status}).${serverDetail}`,
-          retryable: res.status !== 409,
+          retryable:
+            res.status !== 409 &&
+            !(res.status === 422 && serverCode === "missing-configuration"),
           kind:
             res.status === 403
               ? "authorization"
+              : res.status === 422 && serverCode === "missing-configuration"
+                ? "configuration"
               : res.status === 409
                 ? "conflict"
                 : "request",
@@ -446,12 +462,41 @@ export default function Home() {
   const [research, setResearch] = useState<ResearchConfiguration>({
     enabled: true,
     businessIntelligence: true,
-    referoDesignEvidence: true,
+    referoDesignEvidence: false,
     allowPaidFirecrawlFallback: false,
   });
+  const [runtimeCapabilities, setRuntimeCapabilities] =
+    useState<RuntimeCapabilities>({ referoDesignEvidence: false });
   const [uploads, setUploads] = useState<UploadMetadata[]>([]);
   const [uploadSession, setUploadSession] = useState<string | null>(null);
   const [uploadRecoveryMessage, setUploadRecoveryMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/capabilities", {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const body = (await response.json()) as Partial<RuntimeCapabilities>;
+        return typeof body.referoDesignEvidence === "boolean"
+          ? { referoDesignEvidence: body.referoDesignEvidence }
+          : null;
+      })
+      .then((capabilities) => {
+        if (!capabilities) return;
+        setRuntimeCapabilities(capabilities);
+        if (!capabilities.referoDesignEvidence) {
+          setResearch((current) => ({
+            ...current,
+            referoDesignEvidence: false,
+          }));
+        }
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
 
   // Restore a run from the URL so a refresh rejoins the build instead of
   // stranding the checkpointed run (audit P1). The server attaches
@@ -569,7 +614,12 @@ export default function Home() {
     if (!attempt || state.isStreaming) return;
     setInput(attempt.prompt);
     setProjectTarget(attempt.context.projectTarget);
-    setResearch({ ...attempt.context.research });
+    setResearch({
+      ...attempt.context.research,
+      referoDesignEvidence:
+        attempt.context.research.referoDesignEvidence &&
+        runtimeCapabilities.referoDesignEvidence,
+    });
     if (attempt.failure?.kind !== "upload-expired") {
       setUploads(attempt.context.uploads.map((upload) => ({ ...upload })));
       setUploadSession(attempt.context.uploadSession);
@@ -581,6 +631,43 @@ export default function Home() {
       composer?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }
+
+  function handlePipelineRecovery() {
+    const attempt = state.activeAttempt;
+    const priorMessages = attempt
+      ? state.messages.filter(
+          (message) =>
+            message.id !== attempt.userMessageId &&
+            message.id !== attempt.assistantMessageId
+        )
+      : state.messages;
+    if (attempt) {
+      setInput(attempt.prompt);
+      setProjectTarget(attempt.context.projectTarget);
+      setResearch({
+        ...attempt.context.research,
+        referoDesignEvidence:
+          attempt.context.research.referoDesignEvidence &&
+          runtimeCapabilities.referoDesignEvidence,
+      });
+      if (attempt.context.uploads.length > 0) {
+        setUploadRecoveryMessage(
+          "Files attached to the failed run must be selected again."
+        );
+      }
+    }
+    setUploads([]);
+    setUploadSession(null);
+    dispatch({ type: "RESET_TO_INTAKE", messages: priorMessages });
+    const url = new URL(window.location.href);
+    url.searchParams.delete("run");
+    window.history.replaceState(null, "", url);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLTextAreaElement>(".composer__input")?.focus();
+    });
+  }
+
+  const latestPipelineEvent = state.timeline.at(-1)?.event;
 
   return (
     <main>
@@ -662,6 +749,9 @@ export default function Home() {
                 setUploadSession(handle);
                 if (handle) setUploadRecoveryMessage(null);
               }}
+              referoDesignEvidenceAvailable={
+                runtimeCapabilities.referoDesignEvidence
+              }
               uploadRecoveryMessage={uploadRecoveryMessage}
               onUploadRecoveryClear={() => setUploadRecoveryMessage(null)}
               disabled={state.isStreaming}
@@ -690,6 +780,19 @@ export default function Home() {
               <Link href={state.evidenceUrl} className="pill-button">
                 Review evidence
               </Link>
+            </div>
+          )}
+          {latestPipelineEvent?.type === "error" && (
+            <div className="timeline-complete">
+              <button
+                type="button"
+                className="pill-button"
+                onClick={handlePipelineRecovery}
+              >
+                {state.activeAttempt
+                  ? "Edit prompt and settings"
+                  : "Start a new project"}
+              </button>
             </div>
           )}
         </section>

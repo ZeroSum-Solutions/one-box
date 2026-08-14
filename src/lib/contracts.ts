@@ -508,7 +508,19 @@ export const ARTIFACT_APPROVAL_TRANSITIONS: Record<
 export function workflowArtifactApprovalState(
   artifact: WorkflowArtifactVersion
 ): ArtifactApprovalState {
-  return artifact.approvalTransitions.at(-1)?.state ?? "draft";
+  const latest = artifact.approvalTransitions.at(-1);
+  if (artifact.artifactType === "visual-qa" && latest?.state === "approved") {
+    const review = latest.humanVisualReview;
+    const validHumanApproval =
+      review?.reviewerKind === "human" &&
+      review.humanAttestation === true &&
+      review.buildSha256 === artifact.artifact.buildSha256 &&
+      Object.values(review.criteria).every(
+        (criterion) => criterion.status === "pass"
+      );
+    if (!validHumanApproval) return "revision-requested";
+  }
+  return latest?.state ?? "draft";
 }
 
 export function workflowArtifactSource(
@@ -673,6 +685,7 @@ export const StageStatusSchema = z.object({
   finishedAt: z.string().optional(),
   error: z.string().optional(),
   retries: z.number().default(0),
+  gateRepairAttempts: z.number().default(0),
 });
 
 export const RunStateSchema = z.object({

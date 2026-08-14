@@ -155,7 +155,10 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
   const id = opts.id ?? makeRunId();
   if (!/^[a-z0-9_-]{4,40}$/i.test(id)) throw new Error("bad runId");
   const stages = Object.fromEntries(
-    STAGES.map((s) => [s, { status: "pending" as const, retries: 0 }])
+    STAGES.map((s) => [
+      s,
+      { status: "pending" as const, retries: 0, gateRepairAttempts: 0 },
+    ])
   ) as RunState["stages"];
 
   const state = RunStateSchema.parse({
@@ -588,6 +591,21 @@ function appendEvidenceApprovalTransition(
   if (!ARTIFACT_APPROVAL_TRANSITIONS[currentState].includes(validatedState)) {
     throw new EvidenceWorkflowError(`invalid ${artifactType} approval transition: ${currentState} -> ${validatedState}`);
   }
+  if (validatedState === "approved" && artifact.artifactType === "visual-qa") {
+    const review = options.humanVisualReview;
+    const reviewPassed =
+      review?.reviewerKind === "human" &&
+      review.humanAttestation === true &&
+      review.buildSha256 === artifact.artifact.buildSha256 &&
+      Object.values(review.criteria).every(
+        (criterion) => criterion.status === "pass"
+      );
+    if (!reviewPassed) {
+      throw new EvidenceWorkflowError(
+        "visual QA approval requires an attested all-pass human review for the current build"
+      );
+    }
+  }
   if (validatedState === "approved" && artifact.artifactType === "token-inventory") {
     const contract = state.evidenceWorkflow.artifacts.find(
       (candidate) => candidate.artifactType === "design-contract" && candidate.version === artifact.artifact.sourceContractVersion
@@ -644,10 +662,9 @@ export function transitionEvidenceArtifactApproval(
   );
 }
 
-/** Mark the currently approved visual decision stale after site bytes are
- * committed. The version and its review remain readable; the alias is
- * rewritten with the invalidated state so no consumer can mistake it for a
- * still-current approval. */
+/** Mark the current visual decision stale after site bytes are committed.
+ * Draft, in-review, and approved QA all describe the previous build hash, so
+ * each must become regenerable before a reviewer can continue. */
 /** Caller must already hold the per-run site filesystem authority. Combined
  * site/run mutations always acquire locks in this order: site authority,
  * then the run-state transaction. Never acquire site authority from inside a
@@ -657,7 +674,14 @@ export function invalidateApprovedVisualQaUnderSiteAuthority(
 ): Promise<boolean> {
   return withRunTransaction(runId, async (transaction) => {
     const artifact = latestArtifact(transaction.state, "visual-qa");
-    if (!artifact || artifactApprovalState(artifact) !== "approved") return false;
+    const approval = artifact ? artifactApprovalState(artifact) : null;
+    if (
+      !artifact ||
+      !approval ||
+      !["draft", "in-review", "approved"].includes(approval)
+    ) {
+      return false;
+    }
     const invalidated = await transaction.transitionEvidenceArtifactApproval(
       "visual-qa",
       artifact.version,
@@ -731,6 +755,7 @@ export function startStage(runId: string, stage: Stage): Promise<RunState> {
       status: "running",
       startedAt: new Date().toISOString(),
       retries: prior?.retries ?? 0,
+      gateRepairAttempts: prior?.gateRepairAttempts ?? 0,
     };
     await saveRun(state);
     return state;
@@ -772,6 +797,18 @@ export function failStage(
     };
     await saveRun(state);
     return state;
+  });
+}
+
+/** Claim the single paid gate-repair allowance only after gates actually fail. */
+export function claimBuildGateRepair(runId: string): Promise<boolean> {
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    const built = state.stages.built;
+    if ((built.gateRepairAttempts ?? 0) > 0) return false;
+    built.gateRepairAttempts = 1;
+    await saveRun(state);
+    return true;
   });
 }
 

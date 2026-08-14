@@ -368,6 +368,62 @@ describe("evidence workspace routes", () => {
     });
   });
 
+  it("uses the user's disabled design-research choice as the truthful human-review basis", async () => {
+    const { runId } = await fixtureVisualQaRun();
+    await saveArtifact(
+      runId,
+      ARTIFACTS.intake,
+      IntakeSchema.parse({
+        businessName: "No Reference Co",
+        category: "service",
+        location: "Austin, TX",
+        services: ["Help"],
+        primaryAction: "quote",
+        research: {
+          enabled: true,
+          businessIntelligence: true,
+          referoDesignEvidence: false,
+          allowPaidFirecrawlFallback: false,
+        },
+      })
+    );
+    await saveArtifact(
+      runId,
+      ARTIFACTS.lock,
+      ReferenceLockSchema.parse({
+        searchAngles: ["disabled one", "disabled two", "disabled three"],
+        primary: {
+          referoId: "research-disabled",
+          kind: "style",
+          name: "No design reference (disabled)",
+          why: "The user disabled Refero design research for this run.",
+        },
+        borrowedDetails: [],
+        rejected: [],
+        decisionLedger: [],
+      })
+    );
+    await POST(request(runId, { action: "submit" }), context(runId));
+
+    const wrongBasis = await POST(
+      request(runId, humanReview()),
+      context(runId)
+    );
+    expect(wrongBasis.status).toBe(409);
+    await expect(wrongBasis.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/no external reference was selected/i),
+    });
+
+    const truthfulReview = humanReview();
+    truthfulReview.criteria.designAndReferenceAlignment.referenceContext =
+      "explicit-no-reference";
+    const accepted = await POST(
+      request(runId, truthfulReview),
+      context(runId)
+    );
+    expect(accepted.status).toBe(200);
+  });
+
   it("keeps mechanical failures separate and refuses human approval while a blocking gate fails", async () => {
     const { runId } = await fixtureVisualQaRun();
     await POST(request(runId, { action: "submit" }), context(runId));

@@ -79,6 +79,13 @@ upload area. Guarded mutations use the run/site authority and re-run blocking
 gates; a human evidence or visual approval is never replaced by a mechanical
 test result.
 
+`events.jsonl` is the append-only audit record, not the UI view model. Reconnect
+streams project it into one current journey, suppress superseded terminal events
+and repeated narrative cards, attach to in-flight emissions, and flush queued
+event writes before closing. Evidence truth is derived from persisted artifacts;
+the intake artifact owns the user's research choice, while `run.json` owns the
+current stage and approval state.
+
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the
 supporting runtime files. The builder and contracts define what can be emitted;
@@ -95,8 +102,8 @@ the first step for every seam is an in-process interface with contract tests.
 | Pipeline | `src/lib/pipeline.ts` and `src/app/api/run/route.ts` | Split stage implementations behind the stable `src/lib/pipeline.ts` facade. Keep `/api/run` as the adapter that starts or resumes a run and streams events; do not introduce a worker or service boundary as part of this move. |
 | Contracts | `src/lib/contracts.ts` | Isolate versioned schemas and compatibility tests as a package/module boundary before sharing them with another process. |
 | Run/evidence persistence | `src/lib/runstate.ts`, `src/lib/evidence.ts`, `src/lib/siteMutation.ts` | Introduce a persistence interface for run state, artifacts, locks, and approval transitions; keep filesystem storage as the first implementation. |
-| Image library | `src/lib/imageLibrary.ts`, `src/lib/imageGenerationBudget.ts`, `src/app/api/assets/[id]/route.ts` | Put catalog, generation ledger, idempotency, and placement behind an asset-service interface; preserve the per-run catalog and explicit metered consent. |
-| Composition-only pages | `src/app/page.tsx`, `src/app/preview/[id]/page.tsx`, `src/app/evidence/[id]/page.tsx`, and `src/components/**` | Separate page composition from feature calls so a future renderer can consume the same contracts without moving pipeline or persistence first. |
+| Image library | `src/lib/imageLibrary.ts`, `src/lib/imageGenerationBudget.ts`, and the `src/app/api/assets` route tree | Put catalog, generation ledger, idempotency, and placement behind an asset-service interface; preserve the per-run catalog and explicit metered consent. |
+| Composition-only pages | `src/app/page.tsx`, the `src/app/preview` and `src/app/evidence` route trees, and `src/components` | Separate page composition from feature calls so a future renderer can consume the same contracts without moving pipeline or persistence first. |
 
 An extraction is complete only when the old in-process path and the new module
 boundary share the same contract tests, run/evidence semantics, authorization

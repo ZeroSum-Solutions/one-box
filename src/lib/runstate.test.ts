@@ -13,6 +13,7 @@ import {
   EvidenceWorkflowError,
   advanceEvidenceWorkflow,
   artifactApprovalState,
+  claimBuildGateRepair,
   createRun,
   invalidateApprovedVisualQa,
   loadEvidenceWorkflow,
@@ -87,8 +88,44 @@ async function reviewAndApprove(
     runId,
     artifact.artifactType,
     artifact.version,
-    "approved"
+    "approved",
+    artifact.artifactType === "visual-qa"
+      ? {
+          humanVisualReview: {
+            reviewerName: "Test reviewer",
+            reviewerKind: "human",
+            humanAttestation: true,
+            reviewedAt: "2026-08-13T12:00:00.000Z",
+            buildSha256: artifact.artifact.buildSha256,
+            criteria: {
+              briefFidelity: { status: "pass" },
+              visualHierarchy: { status: "pass" },
+              spacingAndComposition: { status: "pass" },
+              businessSpecificity: { status: "pass" },
+              designAndReferenceAlignment: {
+                status: "pass",
+                referenceContext: "design-and-references",
+              },
+            },
+          },
+        }
+      : undefined
   );
+}
+
+async function createVisualQaDraftRun() {
+  const runId = await createTestRun();
+  const drafts = artifactDrafts();
+  for (let index = 0; index < drafts.length - 1; index += 1) {
+    const artifact = await saveEvidenceArtifactVersion(runId, drafts[index]);
+    await reviewAndApprove(runId, artifact);
+    await advanceEvidenceWorkflow(runId, EVIDENCE_WORKFLOW_STAGES[index + 1]);
+  }
+  const visualQa = await saveEvidenceArtifactVersion(
+    runId,
+    drafts[drafts.length - 1]
+  );
+  return { runId, visualQa };
 }
 
 function artifactDrafts(): WorkflowArtifactDraft[] {
@@ -233,18 +270,7 @@ describe("evidence workflow persistence", () => {
 
     for (let index = 0; index < drafts.length; index += 1) {
       const artifact = await saveEvidenceArtifactVersion(runId, drafts[index]);
-      await transitionEvidenceArtifactApproval(
-        runId,
-        artifact.artifactType,
-        artifact.version,
-        "in-review"
-      );
-      await transitionEvidenceArtifactApproval(
-        runId,
-        artifact.artifactType,
-        artifact.version,
-        "approved"
-      );
+      await reviewAndApprove(runId, artifact);
       const nextStage = EVIDENCE_WORKFLOW_STAGES[index + 1];
       if (nextStage) await advanceEvidenceWorkflow(runId, nextStage);
     }
@@ -602,6 +628,37 @@ describe("evidence workflow persistence", () => {
     );
     expect(alias.approvalTransitions.at(-1).state).toBe("revision-requested");
     expect(await invalidateApprovedVisualQa(runId)).toBe(false);
+  });
+
+  it("rejects generic visual approval and invalidates draft or in-review QA after a site mutation", async () => {
+    const draftRun = await createVisualQaDraftRun();
+    await expect(invalidateApprovedVisualQa(draftRun.runId)).resolves.toBe(true);
+
+    const reviewRun = await createVisualQaDraftRun();
+    await transitionEvidenceArtifactApproval(
+      reviewRun.runId,
+      "visual-qa",
+      reviewRun.visualQa.version,
+      "in-review"
+    );
+    await expect(
+      transitionEvidenceArtifactApproval(
+        reviewRun.runId,
+        "visual-qa",
+        reviewRun.visualQa.version,
+        "approved"
+      )
+    ).rejects.toThrow(/attested all-pass human review/i);
+    await expect(invalidateApprovedVisualQa(reviewRun.runId)).resolves.toBe(true);
+    const current = (await loadEvidenceWorkflow(reviewRun.runId)).artifacts.at(-1);
+    expect(current && artifactApprovalState(current)).toBe("revision-requested");
+  });
+
+  it("claims the build gate-repair allowance independently of stage retries", async () => {
+    const runId = await createTestRun();
+    expect(await claimBuildGateRepair(runId)).toBe(true);
+    expect(await claimBuildGateRepair(runId)).toBe(false);
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(1);
   });
 });
 
