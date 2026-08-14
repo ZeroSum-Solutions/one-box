@@ -48,4 +48,15 @@ describe("POST /api/run", () => {
     expect((await POST(bearerRequest)).status).toBe(200);
     expect(runPipeline).toHaveBeenCalledOnce();
   });
+
+  it("emits one safe terminal event when the pipeline fails before reporting progress", async () => {
+    runPipeline.mockRejectedValueOnce(new Error("private internal path"));
+    const response = await POST(
+      request('{"runId":"run-test"}', "http://localhost:3000")
+    );
+    const body = await response.text();
+    expect(body.match(/"type":"error"/g)).toHaveLength(1);
+    expect(body).toContain("before progress could be recorded");
+    expect(body).not.toContain("private internal path");
+  });
 });

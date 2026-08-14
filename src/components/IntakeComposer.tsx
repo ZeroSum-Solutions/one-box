@@ -34,6 +34,7 @@ interface IntakeComposerProps {
   onResearchChange: (research: ResearchConfiguration) => void;
   onUploadsChange: (uploads: UploadMetadata[]) => void;
   onUploadSessionChange: (handle: string | null) => void;
+  referoDesignEvidenceAvailable: boolean;
   uploadRecoveryMessage?: string | null;
   onUploadRecoveryClear?: () => void;
   disabled?: boolean;
@@ -64,6 +65,7 @@ export function IntakeComposer({
   onResearchChange,
   onUploadsChange,
   onUploadSessionChange,
+  referoDesignEvidenceAvailable,
   uploadRecoveryMessage,
   onUploadRecoveryClear,
   disabled = false,
@@ -145,6 +147,7 @@ export function IntakeComposer({
           onResearchChange={onResearchChange}
           onUploadsChange={onUploadsChange}
           onUploadSessionChange={onUploadSessionChange}
+          referoDesignEvidenceAvailable={referoDesignEvidenceAvailable}
           uploadRecoveryMessage={uploadRecoveryMessage}
           onUploadRecoveryClear={onUploadRecoveryClear}
           disabled={disabled}

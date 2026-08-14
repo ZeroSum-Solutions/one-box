@@ -95,6 +95,13 @@ try {
   const paidFallback = page.getByRole("checkbox", {
     name: /Allow paid Firecrawl discovery and fallback/,
   });
+  const referoEvidence = page.locator('input[name="refero-design-evidence"]');
+  assert.equal(await referoEvidence.isChecked(), false);
+  assert.equal(await referoEvidence.isDisabled(), true);
+  assert.match(
+    await page.getByText(/Unavailable in this session/).innerText(),
+    /add the Refero runtime token and restart ONE BOX/i
+  );
   assert.equal(await paidFallback.isChecked(), false);
   assert.match(
     await page.getByText(/May incur metered cost/).innerText(),
@@ -107,7 +114,10 @@ try {
   assert.equal(await businessResearch.isEnabled(), true);
   assert.equal(await paidFallback.isEnabled(), true);
   await paidFallback.check();
-  assert.equal(await page.locator('.intake-research input[type="checkbox"]').nth(2).isChecked(), true);
+  assert.equal(
+    await page.locator(".intake-research__options input").nth(2).isChecked(),
+    true
+  );
   await page.getByRole("button", { name: "Done" }).click();
   assert.equal(await targetGroup.isHidden(), true);
 
@@ -224,7 +234,11 @@ try {
   await attemptError.getByRole("button", { name: "Edit prompt" }).waitFor();
   await attemptError.getByRole("button", { name: "Edit prompt" }).click();
   assert.equal(await composer.inputValue(), preservedPrompt);
-  assert.equal(await page.locator('.intake-research input[type="checkbox"]').nth(2).isChecked(), true);
+  assert.equal(await referoEvidence.isChecked(), false);
+  assert.equal(
+    await page.locator(".intake-research__options input").nth(2).isChecked(),
+    true
+  );
   assert.equal(await page.locator(".intake-upload__disclosure > summary").getByText("authorization-retry.txt", { exact: true }).count(), 1);
   await page.waitForFunction(
     () => document.querySelector(".composer__input") === document.activeElement
@@ -370,6 +384,103 @@ try {
   assert.equal(await page.getByRole("button", { name: "Add files" }).isDisabled(), true);
   assert.equal(await fileInput.isDisabled(), true);
   assert.equal(await fileInput.getAttribute("tabindex"), "-1");
+
+  // A pipeline-stage failure must not strand the user on the build timeline.
+  // The original prompt and settings return to intake, while an unavailable
+  // Refero integration remains safely disabled before the next submission.
+  const recoveryPage = await browser.newPage({ viewport: { width: 900, height: 700 } });
+  const recoveryChatBodies = [];
+  await recoveryPage.route("**/api/chat", async (route) => {
+    recoveryChatBodies.push(JSON.parse(route.request().postData() ?? "{}"));
+    if (recoveryChatBodies.length === 1) {
+      const clarificationFrames = [
+        { type: "text-start", id: "clarification" },
+        {
+          type: "text-delta",
+          id: "clarification",
+          delta: "Which city should this project serve?",
+        },
+        { type: "text-end", id: "clarification" },
+      ];
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: `${clarificationFrames
+          .map((frame) => `data: ${JSON.stringify(frame)}\n\n`)
+          .join("")}data: [DONE]\n\n`,
+      });
+      return;
+    }
+    const frames = [
+      { type: "tool-input-start", toolCallId: "recovery", toolName: "start_pipeline" },
+      {
+        type: "tool-output-available",
+        toolCallId: "recovery",
+        output: { runId: "recovery-run", started: true },
+      },
+    ];
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: `${frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("")}data: [DONE]\n\n`,
+    });
+  });
+  await recoveryPage.route("**/api/run", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify({
+        type: "error",
+        message: "The build stopped at a recoverable configuration boundary.",
+      })}\n\ndata: [DONE]\n\n`,
+    });
+  });
+  await recoveryPage.goto(base, { waitUntil: "networkidle" });
+  const recoveryComposer = recoveryPage.getByRole("textbox", {
+    name: "Describe your project",
+  });
+  const recoveryRefero = recoveryPage.locator(
+    'input[name="refero-design-evidence"]'
+  );
+  assert.equal(await recoveryRefero.isDisabled(), true);
+  assert.equal(await recoveryRefero.isChecked(), false);
+  const earlierPrompt = "I need a local service website";
+  await recoveryComposer.fill(earlierPrompt);
+  await recoveryComposer.press("Enter");
+  const clarificationLine = recoveryPage
+    .locator(".transcript__line")
+    .filter({ hasText: "Which city should this project serve?" });
+  await clarificationLine.waitFor();
+  const recoveryPrompt = "Build a recoverable pipeline regression site";
+  await recoveryComposer.fill(recoveryPrompt);
+  await recoveryComposer.press("Enter");
+  await recoveryPage
+    .getByText("The build stopped at a recoverable configuration boundary.")
+    .waitFor();
+  assert.equal(
+    recoveryChatBodies[0].intakeContext.research.referoDesignEvidence,
+    false
+  );
+  assert.match(recoveryPage.url(), /[?&]run=recovery-run(?:&|$)/);
+  await recoveryPage
+    .getByRole("button", { name: "Edit prompt and settings" })
+    .click();
+  assert.equal(await recoveryComposer.inputValue(), recoveryPrompt);
+  assert.equal(
+    await recoveryPage
+      .locator(".transcript__line")
+      .filter({ hasText: earlierPrompt })
+      .count(),
+    1
+  );
+  assert.equal(
+    await clarificationLine.count(),
+    1
+  );
+  assert.equal(new URL(recoveryPage.url()).searchParams.has("run"), false);
+  assert.equal(await recoveryRefero.isChecked(), false);
+  assert.equal(await recoveryRefero.isDisabled(), true);
+  await recoveryPage.close();
 
   // Long pasted prompts consume available writing space, cap at half the
   // viewport, and scroll internally without moving the action row off-screen.

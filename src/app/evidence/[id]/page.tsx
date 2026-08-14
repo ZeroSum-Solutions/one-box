@@ -1,6 +1,8 @@
 import { notFound } from "next/navigation";
 import { EvidenceWorkspace } from "@/components/EvidenceWorkspace";
-import { loadRun, RunNotFoundError } from "@/lib/runstate";
+import { ARTIFACTS, type Intake } from "@/lib/contracts";
+import { requiredReferenceContext } from "@/lib/referenceContext";
+import { loadArtifact, loadRun, RunNotFoundError } from "@/lib/runstate";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,16 @@ export default async function EvidencePage({
   const { id } = await params;
   if (!/^[a-z0-9_-]{4,40}$/i.test(id)) notFound();
   const run = await loadEvidenceRun(id);
-  return <EvidenceWorkspace initialRun={run} />;
+  const intake = await loadArtifact<Intake>(id, ARTIFACTS.intake);
+  return (
+    <EvidenceWorkspace
+      initialRun={run}
+      requiredReferenceContext={requiredReferenceContext(
+        run.referenceMode,
+        intake
+      )}
+    />
+  );
 }
 
 async function loadEvidenceRun(id: string) {

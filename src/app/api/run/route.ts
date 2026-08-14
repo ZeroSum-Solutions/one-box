@@ -29,7 +29,9 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let errorSent = false;
       const send = (ev: PipelineEvent) => {
+        if (ev.type === "error") errorSent = true;
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
       };
       // Long model calls leave the stream silent for minutes; undici kills a
@@ -45,7 +47,13 @@ export async function POST(req: Request) {
       try {
         await runPipeline(runId, send);
       } catch {
-        // error event already emitted by the pipeline
+        if (!errorSent) {
+          send({
+            type: "error",
+            message:
+              "The build stopped before progress could be recorded. Check the local server log, then retry or start a new project.",
+          });
+        }
       } finally {
         clearInterval(heartbeat);
         controller.close();

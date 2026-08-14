@@ -30,6 +30,7 @@ import {
 } from "../../../../lib/evidence";
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
 import { runGates } from "../../../../lib/gates";
+import { requiredReferenceContext } from "../../../../lib/referenceContext";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
@@ -271,6 +272,14 @@ export async function POST(
       if (!current || current.artifactType !== "visual-qa") {
         throw new EvidenceWorkflowError("human visual review is available only for visual QA");
       }
+      const intake = await loadArtifact<Intake>(
+        id,
+        ARTIFACTS.intake
+      );
+      const expectedReferenceContext = requiredReferenceContext(
+        before.referenceMode,
+        intake
+      );
       await withSiteAuthorityLock(id, () =>
         withRunTransaction(id, async (transaction) => {
           const transactionCurrent = latestCurrentArtifact(transaction.state);
@@ -283,12 +292,9 @@ export async function POST(
             throw new EvidenceWorkflowError("visual QA must be in review before human review");
           }
           const referenceContext = input.criteria.designAndReferenceAlignment.referenceContext;
-          if (
-            (transaction.state.referenceMode === "none") !==
-            (referenceContext === "explicit-no-reference")
-          ) {
+          if (referenceContext !== expectedReferenceContext) {
             throw new EvidenceWorkflowError(
-              transaction.state.referenceMode === "none"
+              expectedReferenceContext === "explicit-no-reference"
                 ? "visual review must explicitly record that no external reference was selected"
                 : "visual review must evaluate the selected design/reference evidence"
             );

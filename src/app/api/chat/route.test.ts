@@ -118,6 +118,94 @@ describe("chat intake request", () => {
     expect(model).not.toHaveBeenCalled();
   });
 
+  it("stops missing runtime configuration before creating an attempt or calling a model", async () => {
+    const model = vi.fn();
+    const reserveIntakeAttempt = vi.fn();
+    const response = await handleChat(
+      new Request("http://localhost:3000/api/chat", {
+        method: "POST",
+        headers: {
+          Host: "localhost:3000",
+          Origin: "http://localhost:3000",
+          "Sec-Fetch-Site": "same-origin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          buildChatRequest(
+            [{ id: "message-1", role: "user", content: "Build Acme" }],
+            context,
+            ATTEMPT_ID
+          )
+        ),
+      }),
+      {
+        streamText: model as never,
+        inspectIntakeAttempt: vi.fn().mockResolvedValue(undefined) as never,
+        reserveIntakeAttempt: reserveIntakeAttempt as never,
+        preflight: vi.fn().mockReturnValue({
+          ok: false,
+          blocking: [
+            {
+              key: "REFERO_MCP_TOKEN",
+              message: "the Refero reference lock (stage: locked)",
+              fix: "turn off Design-reference evidence",
+            },
+          ],
+          advisory: [],
+        }),
+      }
+    );
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "missing-configuration",
+      issues: [{ key: "REFERO_MCP_TOKEN" }],
+    });
+    expect(reserveIntakeAttempt).not.toHaveBeenCalled();
+    expect(model).not.toHaveBeenCalled();
+  });
+
+  it("replays a completed attempt even when current runtime configuration is missing", async () => {
+    const model = vi.fn();
+    const preflight = vi.fn();
+    const response = await handleChat(
+      new Request("http://localhost:3000/api/chat", {
+        method: "POST",
+        headers: {
+          Host: "localhost:3000",
+          Origin: "http://localhost:3000",
+          "Sec-Fetch-Site": "same-origin",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(
+          buildChatRequest(
+            [{ id: "message-1", role: "user", content: "Build Acme" }],
+            context,
+            ATTEMPT_ID
+          )
+        ),
+      }),
+      {
+        streamText: model as never,
+        inspectIntakeAttempt: vi.fn().mockResolvedValue({
+          state: "completed",
+          runId: "completed-run",
+        }) as never,
+        reserveIntakeAttempt: vi.fn() as never,
+        preflight,
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      runId: "completed-run",
+      started: true,
+      replayed: true,
+    });
+    expect(preflight).not.toHaveBeenCalled();
+    expect(model).not.toHaveBeenCalled();
+  });
+
   it("returns typed claim expiry and removes the orphan run", async () => {
     const removeRun = vi.fn().mockResolvedValue(undefined);
     const result = await startPipelineFromIntake(
@@ -378,10 +466,16 @@ describe("chat intake request", () => {
       }),
       {
         streamText: model as never,
-        reserveIntakeAttempt: vi.fn().mockResolvedValue({
+        preflight: vi.fn().mockReturnValue({
+          ok: true,
+          blocking: [],
+          advisory: [],
+        }),
+        inspectIntakeAttempt: vi.fn().mockResolvedValue({
           state: "completed",
           runId: "original-run",
         }) as never,
+        reserveIntakeAttempt: vi.fn() as never,
       }
     );
 
@@ -414,6 +508,12 @@ describe("chat intake request", () => {
       }),
       {
         streamText: model as never,
+        preflight: vi.fn().mockReturnValue({
+          ok: true,
+          blocking: [],
+          advisory: [],
+        }),
+        inspectIntakeAttempt: vi.fn().mockResolvedValue(undefined) as never,
         reserveIntakeAttempt: vi.fn().mockRejectedValue(
           new IntakeAttemptConflict()
         ) as never,

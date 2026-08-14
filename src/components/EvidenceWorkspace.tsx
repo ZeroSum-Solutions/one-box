@@ -11,6 +11,7 @@ import {
   type HumanVisualReviewCriteria,
   type WorkflowArtifactVersion,
 } from "../lib/contracts";
+import type { RequiredReferenceContext } from "../lib/referenceContext";
 
 type HumanReviewCriterionKey = Exclude<
   keyof HumanVisualReviewCriteria,
@@ -168,7 +169,15 @@ export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifac
   }
 }
 
-export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
+export function EvidenceWorkspace({
+  initialRun,
+  requiredReferenceContext = initialRun.referenceMode === "none"
+    ? "explicit-no-reference"
+    : "design-and-references",
+}: {
+  initialRun: RunState;
+  requiredReferenceContext?: RequiredReferenceContext;
+}) {
   const [run, setRun] = useState(initialRun);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -359,8 +368,11 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
                   <label>Reference basis
                     <select value={referenceContext} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, referenceContext: event.target.value as HumanReviewReferenceContext })}>
                       <option value="">Choose reference basis…</option>
-                      <option value="design-and-references">DESIGN.md and selected references</option>
-                      <option value="explicit-no-reference">No external reference was selected</option>
+                      {requiredReferenceContext === "design-and-references" ? (
+                        <option value="design-and-references">DESIGN.md and selected references</option>
+                      ) : (
+                        <option value="explicit-no-reference">No external reference was selected</option>
+                      )}
                     </select>
                   </label>
                 )}
@@ -375,6 +387,11 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
         {error && <p className="chat-error">{error}</p>}
 
         <div className="evidence-actions">
+          {current?.artifactType === "visual-qa" && approval !== "approved" && (
+            <Link className="pill-button" href={`/preview/${run.id}`}>
+              Open build preview
+            </Link>
+          )}
           {!current && (
             <Link className="pill-button" href={`/?run=${run.id}`}>
               Resume generation

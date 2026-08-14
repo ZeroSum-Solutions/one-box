@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   IntakeAttemptConflict,
   canonicalRequestFingerprint,
+  inspectIntakeAttempt,
   reserveIntakeAttempt,
   runIntakeAttempt,
 } from "./intakeAttempts";
@@ -35,6 +36,17 @@ describe("intake attempt state machine", () => {
     await expect(
       reserveIntakeAttempt(ATTEMPT_ID, "b".repeat(64), root)
     ).rejects.toBeInstanceOf(IntakeAttemptConflict);
+  });
+
+  it("inspects without creating an orphan reservation", async () => {
+    const root = await attemptRoot();
+    const fingerprint = "a".repeat(64);
+    await expect(
+      inspectIntakeAttempt(ATTEMPT_ID, fingerprint, root)
+    ).resolves.toBeUndefined();
+    await expect(
+      reserveIntakeAttempt(ATTEMPT_ID, fingerprint, root)
+    ).resolves.toMatchObject({ state: "reserved" });
   });
 
   it("persists the run id before work and resumes it after an interrupted attempt", async () => {
