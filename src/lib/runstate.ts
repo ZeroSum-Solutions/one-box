@@ -27,6 +27,7 @@ import {
   V2DesignContractMetadataSchema,
   type ArtifactApprovalState,
   type EvidenceWorkflowStage,
+  type HumanVisualReview,
   type PipelineEvent,
   type RunState,
   type Stage,
@@ -39,6 +40,7 @@ import {
   assertCanonicalTokenInventory,
   assertTailwindPlanMatchesInventory,
 } from "./evidence";
+import { withFileLock } from "./fileLock";
 
 // Statically scoped subfolder (Turbopack fs-tracing requirement).
 const SITES_ROOT = path.join(process.cwd(), "sites");
@@ -139,6 +141,8 @@ function isEnoent(err: unknown): boolean {
 // ---------- run.json create/load/save ----------
 
 export interface CreateRunOptions {
+  /** Pre-reserved id used by the crash-resumable intake attempt state machine. */
+  id?: string;
   costCapUsd?: number;
   pipelineVersion?: RunState["pipelineVersion"];
   /** defaults to the pinned MODELS from contracts.ts (audit #3: record the
@@ -148,7 +152,8 @@ export interface CreateRunOptions {
 
 /** Create a new run directory + run.json. Returns the new run's id. */
 export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
-  const id = makeRunId();
+  const id = opts.id ?? makeRunId();
+  if (!/^[a-z0-9_-]{4,40}$/i.test(id)) throw new Error("bad runId");
   const stages = Object.fromEntries(
     STAGES.map((s) => [s, { status: "pending" as const, retries: 0 }])
   ) as RunState["stages"];
@@ -164,6 +169,17 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
 
   await saveRun(state);
   return id;
+}
+
+/** Create a pre-reserved run exactly once, or resume its existing state. */
+export async function ensureRun(runId: string): Promise<string> {
+  try {
+    await loadRun(runId);
+    return runId;
+  } catch (error) {
+    if (!(error instanceof RunNotFoundError)) throw error;
+  }
+  return createRun({ id: runId });
 }
 
 /** Remove only a validated run root. Used when setup fails before a run can be
@@ -282,16 +298,25 @@ export async function readEvents(runId: string): Promise<PipelineEvent[]> {
  * came back as "running" because a slower writer saved a stale snapshot on
  * top of it.
  *
- * Single dev process, so a per-run promise chain is the whole fix: mutations
- * queue instead of racing. Reads (loadRun/loadArtifact) stay unlocked — they
- * never write, and a slightly stale read is harmless.
+ * Writers can run in separate Next/pipeline processes, so the in-process
+ * promise chain is only the first layer. Every queued operation also takes a
+ * hard-link filesystem lock rooted beside run.json. Combined site/run
+ * mutations must acquire the site authority first, then this run-state lock;
+ * a run transaction must never acquire site authority from inside its callback.
+ * Reads (loadRun/loadArtifact) stay unlocked — they never write, and a slightly
+ * stale read is harmless.
  */
 const runLocks = new Map<string, Promise<unknown>>();
 
 async function withRunLock<T>(runId: string, fn: () => Promise<T>): Promise<T> {
   const prev = runLocks.get(runId) ?? Promise.resolve();
+  const coordinationDirectory = path.join(
+    sitePaths(runId).root,
+    ".run-state-lock",
+  );
+  const crossProcessOperation = () => withFileLock(coordinationDirectory, fn);
   // run regardless of whether the previous holder resolved or threw
-  const next = prev.then(fn, fn);
+  const next = prev.then(crossProcessOperation, crossProcessOperation);
   const guarded = next.catch(() => undefined);
   runLocks.set(runId, guarded);
   try {
@@ -544,6 +569,7 @@ export function saveEvidenceArtifactVersion(
 export interface EvidenceApprovalOptions {
   actor?: string;
   note?: string;
+  humanVisualReview?: HumanVisualReview;
 }
 
 function appendEvidenceApprovalTransition(
@@ -584,7 +610,13 @@ function appendEvidenceApprovalTransition(
     }
     assertTailwindPlanMatchesInventory(inventory.artifact, artifact.artifact);
   }
-  artifact.approvalTransitions.push({ state: validatedState, at: new Date().toISOString(), actor: options.actor, note: options.note });
+  artifact.approvalTransitions.push({
+    state: validatedState,
+    at: new Date().toISOString(),
+    actor: options.actor,
+    note: options.note,
+    humanVisualReview: options.humanVisualReview,
+  });
   return artifact;
 }
 
@@ -597,13 +629,59 @@ export function transitionEvidenceArtifactApproval(
   options: EvidenceApprovalOptions = {}
 ): Promise<WorkflowArtifactVersion> {
   const validatedState = ArtifactApprovalStateSchema.parse(nextState);
-  return withRunTransaction(runId, (transaction) =>
+  const transition = () => withRunTransaction(runId, (transaction) =>
     transaction.transitionEvidenceArtifactApproval(
       artifactType,
       version,
       validatedState,
       options
     )
+  );
+  if (artifactType !== "visual-qa") return transition();
+  return withFileLock(
+    path.join(sitePaths(runId).root, ".site-authority-lock"),
+    transition,
+  );
+}
+
+/** Mark the currently approved visual decision stale after site bytes are
+ * committed. The version and its review remain readable; the alias is
+ * rewritten with the invalidated state so no consumer can mistake it for a
+ * still-current approval. */
+/** Caller must already hold the per-run site filesystem authority. Combined
+ * site/run mutations always acquire locks in this order: site authority,
+ * then the run-state transaction. Never acquire site authority from inside a
+ * run transaction. */
+export function invalidateApprovedVisualQaUnderSiteAuthority(
+  runId: string,
+): Promise<boolean> {
+  return withRunTransaction(runId, async (transaction) => {
+    const artifact = latestArtifact(transaction.state, "visual-qa");
+    if (!artifact || artifactApprovalState(artifact) !== "approved") return false;
+    const invalidated = await transaction.transitionEvidenceArtifactApproval(
+      "visual-qa",
+      artifact.version,
+      "revision-requested",
+      {
+        actor: "site-mutation",
+        note: "Approved visual QA invalidated because the committed site changed.",
+      }
+    );
+    await transaction.writeArtifact(
+      workflowArtifactAliasPath("visual-qa"),
+      JSON.stringify(invalidated, null, 2)
+    );
+    return true;
+  });
+}
+
+export function invalidateApprovedVisualQa(runId: string): Promise<boolean> {
+  const coordinationDirectory = path.join(
+    sitePaths(runId).root,
+    ".site-authority-lock",
+  );
+  return withFileLock(coordinationDirectory, () =>
+    invalidateApprovedVisualQaUnderSiteAuthority(runId),
   );
 }
 

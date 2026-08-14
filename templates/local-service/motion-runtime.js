@@ -180,8 +180,8 @@
     if (!matchesBreakpoint(entry.breakpoint)) return;
     var element = exactTarget(entry.editId);
     if (!element || element.matches("canvas,iframe") || element.querySelector("canvas,iframe")) return;
-    if (entry.kind !== "timeline" && wasPlayed(entry)) return;
     mark(element, entry);
+    if (entry.kind !== "timeline" && wasPlayed(entry)) return;
     var vars = varsFor(entry);
     if (entry.kind === "hover") {
       var hoverTween = window.gsap.to(element, Object.assign({}, vars, { paused: true }));
@@ -328,6 +328,12 @@
     }
   }
 
+  function reset() {
+    if (state.destroyed) return;
+    state.applied = false;
+    rehydrate();
+  }
+
   function destroy() {
     state.destroyed = true;
     window.removeEventListener("resize", scheduleRehydrate);
@@ -354,8 +360,8 @@
     ) return false;
     var element = exactTarget(entry.editId);
     if (!element || element.matches("canvas,iframe") || element.querySelector("canvas,iframe")) return false;
-    if (state.previewContext) state.previewContext.revert();
-    state.previewContext = null;
+    if (state.previewContext) reset();
+    mark(element, entry);
     window.gsap.registerPlugin(window.ScrollTrigger);
     state.previewContext = window.gsap.context(function () {
       var vars = varsFor(entry);
@@ -370,6 +376,6 @@
     return true;
   }
 
-  window.__ONEBOX_MOTION_RUNTIME__ = { rehydrate: rehydrate, preview: preview, reset: cleanup, destroy: destroy, state: state };
+  window.__ONEBOX_MOTION_RUNTIME__ = { rehydrate: rehydrate, preview: preview, reset: reset, destroy: destroy, state: state };
   rehydrate();
 })();

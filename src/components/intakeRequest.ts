@@ -19,9 +19,11 @@ export interface IntakeChatContext {
 
 export function buildChatRequest(
   history: IntakeChatMessage[],
-  intakeContext: IntakeChatContext
+  intakeContext: IntakeChatContext,
+  attemptId: string
 ) {
   return {
+    attemptId,
     messages: history.map((message) => ({
       id: message.id,
       role: message.role,
@@ -29,4 +31,18 @@ export function buildChatRequest(
     })),
     intakeContext,
   };
+}
+
+/** AI stream retries may receive a pre-model completed-attempt response. */
+export async function completedChatReplayRunId(
+  response: Response
+): Promise<string | null> {
+  if (!response.headers.get("content-type")?.includes("application/json")) {
+    return null;
+  }
+  const replay = (await response.json()) as { runId?: unknown };
+  if (typeof replay.runId !== "string") {
+    throw new Error("Chat replay response did not include a run id.");
+  }
+  return replay.runId;
 }

@@ -4,6 +4,7 @@ import {
   DesignResearchLedgerSchema,
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
+  HumanVisualReviewSchema,
   IntakeSchema,
   RunStateSchema,
   STAGES,
@@ -56,6 +57,43 @@ describe("additive project contracts", () => {
 });
 
 describe("evidence contracts", () => {
+  it("requires a named, attested human review with findings for every failed visual criterion", () => {
+    const valid = {
+      reviewerName: "Devin",
+      reviewerKind: "human" as const,
+      humanAttestation: true as const,
+      reviewedAt: "2026-08-13T12:00:00.000Z",
+      buildSha256: "a".repeat(64),
+      criteria: {
+        briefFidelity: { status: "pass" as const },
+        visualHierarchy: { status: "pass" as const },
+        spacingAndComposition: { status: "pass" as const },
+        businessSpecificity: { status: "fail" as const, findings: "The service proof is generic." },
+        designAndReferenceAlignment: {
+          status: "pass" as const,
+          referenceContext: "explicit-no-reference" as const,
+        },
+      },
+    };
+
+    expect(HumanVisualReviewSchema.parse(valid).reviewerName).toBe("Devin");
+    expect(
+      HumanVisualReviewSchema.safeParse({
+        ...valid,
+        reviewerKind: "model",
+      }).success
+    ).toBe(false);
+    expect(
+      HumanVisualReviewSchema.safeParse({
+        ...valid,
+        criteria: {
+          ...valid.criteria,
+          businessSpecificity: { status: "fail" },
+        },
+      }).success
+    ).toBe(false);
+  });
+
   it("keeps business intelligence and Refero design evidence separated", () => {
     const ledger = DesignResearchLedgerSchema.parse({
       projectTarget: "web-app",

@@ -14,6 +14,7 @@ import {
   type UploadMetadata,
 } from "./contracts";
 import { sitePaths } from "./runstate";
+import { withFileLock } from "./fileLock";
 import {
   ACCEPTED_UPLOADS,
   MAX_UPLOAD_BYTES,
@@ -33,6 +34,7 @@ const MAX_ZIP_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
 const HANDLE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{4,40}$/;
+const REQUEST_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const DEFAULT_STAGING_ROOT = path.join(
   os.tmpdir(),
@@ -71,6 +73,14 @@ const StagedFileSchema = UploadMetadataSchema.omit({ storagePath: true }).extend
   storedName: z.string().regex(/^[a-f0-9-]{36}\.[a-z0-9]+$/),
 });
 
+const UploadRequestRecordSchema = z
+  .object({
+    requestIdHash: z.string().regex(HASH_PATTERN),
+    fingerprint: z.string().regex(HASH_PATTERN),
+    uploadIds: z.array(z.string().uuid()).min(1).max(MAX_UPLOAD_FILES),
+  })
+  .strict();
+
 const UploadSessionManifestSchema = z
   .object({
     version: z.literal(1),
@@ -82,6 +92,7 @@ const UploadSessionManifestSchema = z
     expiresAt: z.string(),
     totalBytes: z.number().int().nonnegative(),
     files: z.array(StagedFileSchema).max(MAX_UPLOAD_FILES),
+    requests: z.array(UploadRequestRecordSchema).max(MAX_UPLOAD_FILES).default([]),
   })
   .strict();
 
@@ -91,6 +102,7 @@ const RunUploadManifestSchema = z
     sessionId: z.string().uuid(),
     state: z.literal("claimed"),
     claimedAt: z.string(),
+    handleHash: z.string().regex(HASH_PATTERN).optional(),
     files: z.array(
       UploadMetadataSchema.extend({
         sha256: z.string().regex(HASH_PATTERN),
@@ -113,11 +125,14 @@ interface InspectedUpload {
 
 export interface StageUploadOptions {
   handle?: string;
+  requestId?: string;
   stagingRoot?: string;
   nowMs?: number;
   ttlMs?: number;
   /** Test seam; production always uses the exported 200 MiB global cap. */
   maxStagingBytes?: number;
+  /** Test seam; post-commit transaction cleanup is production fs.rm. */
+  cleanupTransactionDirectory?: (directory: string) => Promise<unknown>;
 }
 
 export interface StageUploadResult {
@@ -126,12 +141,11 @@ export interface StageUploadResult {
   uploads: UploadMetadata[];
 }
 
-let stagingTail: Promise<unknown> = Promise.resolve();
-
-async function withStagingLock<T>(fn: () => Promise<T>): Promise<T> {
-  const next = stagingTail.then(fn, fn);
-  stagingTail = next.catch(() => undefined);
-  return next;
+async function withStagingLock<T>(
+  stagingRoot: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  return withFileLock(`${stagingRoot}.lock`, fn);
 }
 
 function hasPrefix(bytes: Uint8Array, prefix: number[]): boolean {
@@ -405,6 +419,34 @@ function newUploadHandle(): string {
   return randomBytes(32).toString("base64url");
 }
 
+function requestIdHash(requestId: string): string {
+  if (!REQUEST_ID_PATTERN.test(requestId)) {
+    throw new UploadError("The upload request id is invalid.");
+  }
+  return createHash("sha256").update(requestId).digest("hex");
+}
+
+function initialHandleForRequest(requestId: string): string {
+  return createHash("sha256")
+    .update(`one-box-upload:${requestId}`)
+    .digest("base64url");
+}
+
+function batchFingerprint(inspected: InspectedUpload[]): string {
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        inspected.map(({ staged }) => ({
+          fileName: staged.fileName,
+          mediaType: staged.mediaType,
+          sizeBytes: staged.sizeBytes,
+          sha256: staged.sha256,
+        }))
+      )
+    )
+    .digest("hex");
+}
+
 function handleHash(handle: string): string {
   if (!HANDLE_PATTERN.test(handle)) {
     throw new UploadError("The upload session is invalid or expired.", 401);
@@ -468,7 +510,7 @@ async function directoryBytes(directory: string): Promise<number> {
 }
 
 /** Remove abandoned sessions and return bytes still occupying staging. */
-export async function cleanupUploadSessions(
+async function cleanupUploadSessionsUnlocked(
   stagingRoot = DEFAULT_STAGING_ROOT,
   nowMs = Date.now()
 ): Promise<number> {
@@ -477,6 +519,10 @@ export async function cleanupUploadSessions(
   for (const entry of await fs.readdir(stagingRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const directory = path.join(stagingRoot, entry.name);
+    if (entry.name.startsWith(".upload-txn-")) {
+      await fs.rm(directory, { recursive: true, force: true });
+      continue;
+    }
     let remove = entry.name.startsWith(".claiming-");
     try {
       const stat = await fs.stat(directory);
@@ -487,15 +533,34 @@ export async function cleanupUploadSessions(
       const manifest = UploadSessionManifestSchema.parse(
         JSON.parse(await fs.readFile(path.join(directory, "manifest.json"), "utf8"))
       );
+      const referenced = new Set([
+        "manifest.json",
+        ...manifest.files.map((file) => file.storedName),
+      ]);
+      for (const child of await fs.readdir(directory, { withFileTypes: true })) {
+        if (child.isFile() && !referenced.has(child.name)) {
+          await fs.rm(path.join(directory, child.name), { force: true });
+        }
+      }
       remove = remove || Date.parse(manifest.expiresAt) <= nowMs;
     } catch {
-      const stat = await fs.stat(directory).catch(() => undefined);
-      remove = !stat || stat.mtimeMs <= nowMs - UPLOAD_SESSION_TTL_MS;
+      // A canonical session is committed only when its manifest exists.
+      // Manifest-less directories are interrupted pre-commit transactions.
+      remove = !entry.name.startsWith(".claiming-");
     }
     if (remove) await fs.rm(directory, { recursive: true, force: true });
     else activeBytes += await directoryBytes(directory);
   }
   return activeBytes;
+}
+
+export async function cleanupUploadSessions(
+  stagingRoot = DEFAULT_STAGING_ROOT,
+  nowMs = Date.now()
+): Promise<number> {
+  return withStagingLock(stagingRoot, () =>
+    cleanupUploadSessionsUnlocked(stagingRoot, nowMs)
+  );
 }
 
 export async function stageUploads(
@@ -511,8 +576,49 @@ export async function stageUploads(
   const nowMs = options.nowMs ?? Date.now();
   const ttlMs = options.ttlMs ?? UPLOAD_SESSION_TTL_MS;
 
-  return withStagingLock(async () => {
-    const activeBytes = await cleanupUploadSessions(stagingRoot, nowMs);
+  return withStagingLock(stagingRoot, async () => {
+    const activeBytes = await cleanupUploadSessionsUnlocked(stagingRoot, nowMs);
+    const handle =
+      options.handle ??
+      (options.requestId
+        ? initialHandleForRequest(options.requestId)
+        : newUploadHandle());
+    const directory = sessionPath(stagingRoot, handle);
+    const directoryExists = await fs
+      .stat(directory)
+      .then((stat) => stat.isDirectory())
+      .catch(() => false);
+    const existing =
+      options.handle || directoryExists
+        ? await readSessionManifest(directory, handle, nowMs)
+        : undefined;
+    const currentRequestHash = options.requestId
+      ? requestIdHash(options.requestId)
+      : undefined;
+    const fingerprint = options.requestId
+      ? batchFingerprint(inspected)
+      : undefined;
+    const replay = currentRequestHash
+      ? existing?.requests.find(
+          (request) => request.requestIdHash === currentRequestHash
+        )
+      : undefined;
+    if (replay) {
+      if (replay.fingerprint !== fingerprint) {
+        throw new UploadError(
+          "The upload request id was already used for different files.",
+          409
+        );
+      }
+      const byId = new Map(existing!.files.map((file) => [file.id, file]));
+      return {
+        uploadSession: handle,
+        expiresAt: existing!.expiresAt,
+        uploads: replay.uploadIds.map((id) =>
+          UploadMetadataSchema.parse(byId.get(id))
+        ),
+      };
+    }
     if (
       activeBytes + incomingBytes >
       (options.maxStagingBytes ?? MAX_STAGING_BYTES)
@@ -523,11 +629,6 @@ export async function stageUploads(
       );
     }
 
-    const handle = options.handle ?? newUploadHandle();
-    const directory = sessionPath(stagingRoot, handle);
-    const existing = options.handle
-      ? await readSessionManifest(directory, handle, nowMs)
-      : undefined;
     const currentFiles = existing?.files ?? [];
     const totalBytes = (existing?.totalBytes ?? 0) + incomingBytes;
     if (
@@ -540,13 +641,17 @@ export async function stageUploads(
       );
     }
 
-    if (!existing) await fs.mkdir(directory, { recursive: false, mode: 0o700 });
-    const written: string[] = [];
+    const transactionDirectory = path.join(
+      stagingRoot,
+      `.upload-txn-${handleHash(handle)}-${randomBytes(4).toString("hex")}`
+    );
+    await fs.mkdir(transactionDirectory, { recursive: false, mode: 0o700 });
+    const committedBlobs: string[] = [];
+    let committed = false;
     try {
       for (const upload of inspected) {
-        const blobPath = path.join(directory, upload.staged.storedName);
+        const blobPath = path.join(transactionDirectory, upload.staged.storedName);
         await fs.writeFile(blobPath, upload.bytes, { mode: 0o600, flag: "wx" });
-        written.push(blobPath);
       }
       const timestamp = new Date(nowMs).toISOString();
       const expiresAt = new Date(nowMs + ttlMs).toISOString();
@@ -560,8 +665,42 @@ export async function stageUploads(
         expiresAt,
         totalBytes,
         files: [...currentFiles, ...inspected.map((upload) => upload.staged)],
+        requests: [
+          ...(existing?.requests ?? []),
+          ...(currentRequestHash && fingerprint
+            ? [
+                {
+                  requestIdHash: currentRequestHash,
+                  fingerprint,
+                  uploadIds: inspected.map(({ staged }) => staged.id),
+                },
+              ]
+            : []),
+        ],
       });
-      await writeJsonAtomic(path.join(directory, "manifest.json"), manifest);
+      await writeJsonAtomic(path.join(transactionDirectory, "manifest.json"), manifest);
+      if (!existing) {
+        await fs.rename(transactionDirectory, directory);
+        committed = true;
+      } else {
+        for (const upload of inspected) {
+          const destination = path.join(directory, upload.staged.storedName);
+          await fs.rename(
+            path.join(transactionDirectory, upload.staged.storedName),
+            destination
+          );
+          committedBlobs.push(destination);
+        }
+        await fs.rename(
+          path.join(transactionDirectory, "manifest.json"),
+          path.join(directory, "manifest.json")
+        );
+        committed = true;
+        await (
+          options.cleanupTransactionDirectory ??
+          ((target: string) => fs.rm(target, { recursive: true, force: true }))
+        )(transactionDirectory).catch(() => undefined);
+      }
       return {
         uploadSession: handle,
         expiresAt,
@@ -570,8 +709,12 @@ export async function stageUploads(
         ),
       };
     } catch (error) {
-      await Promise.all(written.map((filePath) => fs.rm(filePath, { force: true })));
-      if (!existing) await fs.rm(directory, { recursive: true, force: true });
+      if (!committed) {
+        await Promise.all(
+          committedBlobs.map((filePath) => fs.rm(filePath, { force: true }))
+        );
+        await fs.rm(transactionDirectory, { recursive: true, force: true });
+      }
       throw error;
     }
   });
@@ -614,9 +757,36 @@ export async function claimUploadSession(
     throw new UploadError("Duplicate uploaded files are not accepted.");
   }
 
-  return withStagingLock(async () => {
-    await cleanupUploadSessions(stagingRoot, nowMs);
+  return withStagingLock(stagingRoot, async () => {
+    const runManifestPath = path.join(sitePaths(runId).uploads, "manifest.json");
+    try {
+      const committed = RunUploadManifestSchema.parse(
+        JSON.parse(await fs.readFile(runManifestPath, "utf8"))
+      );
+      if (
+        committed.handleHash !== handleHash(handle) ||
+        committed.files.map((file) => file.id).join("\0") !== selectedIds.join("\0")
+      ) {
+        throw new UploadError("The upload session was claimed by a different run request.", 409);
+      }
+      return committed.files.map((file) => UploadMetadataSchema.parse(file));
+    } catch (error) {
+      if (error instanceof UploadError) throw error;
+      if (!(typeof error === "object" && error !== null && "code" in error &&
+        (error as { code?: unknown }).code === "ENOENT")) throw error;
+    }
+
+    await cleanupUploadSessionsUnlocked(stagingRoot, nowMs);
     const originalDirectory = sessionPath(stagingRoot, handle);
+    const originalExists = await fs.stat(originalDirectory).then(() => true).catch(() => false);
+    if (!originalExists) {
+      const prefix = `.claiming-${handleHash(handle)}-`;
+      const interrupted = (await fs.readdir(stagingRoot, { withFileTypes: true }))
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith(prefix));
+      if (interrupted.length === 1) {
+        await fs.rename(path.join(stagingRoot, interrupted[0].name), originalDirectory);
+      }
+    }
     const manifest = await readSessionManifest(originalDirectory, handle, nowMs);
     const byId = new Map(manifest.files.map((file) => [file.id, file]));
     const selected = selectedIds.map((id) => {
@@ -670,6 +840,7 @@ export async function claimUploadSession(
         sessionId: manifest.sessionId,
         state: "claimed",
         claimedAt: new Date(nowMs).toISOString(),
+        handleHash: handleHash(handle),
         files: authoritative,
       });
       await writeJsonAtomic(

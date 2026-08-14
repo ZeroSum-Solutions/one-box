@@ -176,7 +176,41 @@ try {
     const after = window.ScrollTrigger.getAll().filter((trigger) => String(trigger.vars.id || "").startsWith("onebox:")).length;
     return { result, before, after };
   }, manualEntrance), { result: true, before: 1, after: 1 });
+  assert.equal(
+    await previewIsolation.evaluate(
+      (value) => window.__ONEBOX_MOTION_RUNTIME__.preview(value),
+      { ...manualEntrance, editId: "hero.sub" },
+    ),
+    true,
+  );
+  assert.deepEqual(
+    await previewIsolation.locator("[data-onebox-motion-active]").evaluateAll(
+      (elements) => elements.map((element) => element.getAttribute("data-edit-id")),
+    ),
+    ["hero.headline", "hero.sub"],
+  );
+  await previewIsolation.evaluate(() => window.__ONEBOX_MOTION_RUNTIME__.reset());
+  assert.deepEqual(
+    await previewIsolation.locator("[data-onebox-motion-active]").evaluateAll(
+      (elements) => elements.map((element) => element.getAttribute("data-edit-id")),
+    ),
+    ["hero.headline"],
+  );
   await previewIsolation.close();
+
+  const playedReset = await browser.newPage();
+  await boot(playedReset, { version: 1, entries: [manualEntrance] });
+  await playedReset.locator('[data-edit-id="hero.headline"]').evaluate(
+    (element) => element.dispatchEvent(new Event("onebox-motion-preview")),
+  );
+  await playedReset.evaluate(() => window.__ONEBOX_MOTION_RUNTIME__.reset());
+  assert.deepEqual(
+    await playedReset.locator("[data-onebox-motion-active]").evaluateAll(
+      (elements) => elements.map((element) => element.getAttribute("data-edit-id")),
+    ),
+    ["hero.headline"],
+  );
+  await playedReset.close();
 
   const manualVisual = await browser.newPage();
   await boot(manualVisual, { version: 1, entries: [manualTimeline] });

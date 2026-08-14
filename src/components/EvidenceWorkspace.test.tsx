@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { WorkflowArtifactVersion } from "../lib/contracts";
-import { ArtifactPreview, EvidenceWorkspace } from "./EvidenceWorkspace";
+import {
+  ArtifactPreview,
+  EvidenceWorkspace,
+  syncHumanVisualReviewDraft,
+} from "./EvidenceWorkspace";
 import type { RunState } from "../lib/contracts";
 
 const base = {
@@ -17,6 +21,39 @@ function render(artifact: unknown): string {
 }
 
 describe("EvidenceWorkspace artifact previews", () => {
+  it("resets the entire human-review draft when visual-QA version or build hash changes", () => {
+    const firstIdentity = `1:${"a".repeat(64)}`;
+    const dirty = syncHumanVisualReviewDraft(undefined, firstIdentity);
+    dirty.reviewerName = "Devin";
+    dirty.humanAttestation = true;
+    dirty.referenceContext = "explicit-no-reference";
+    dirty.criteria.briefFidelity = { status: "fail", findings: "Revise the hero" };
+
+    expect(syncHumanVisualReviewDraft(dirty, firstIdentity)).toBe(dirty);
+
+    const nextVersion = syncHumanVisualReviewDraft(dirty, `2:${"a".repeat(64)}`);
+    expect(nextVersion).toMatchObject({
+      identity: `2:${"a".repeat(64)}`,
+      reviewerName: "",
+      humanAttestation: false,
+      referenceContext: "",
+      criteria: {
+        briefFidelity: { status: "", findings: "" },
+      },
+    });
+
+    const nextBuild = syncHumanVisualReviewDraft(dirty, `1:${"b".repeat(64)}`);
+    expect(nextBuild).toMatchObject({
+      identity: `1:${"b".repeat(64)}`,
+      reviewerName: "",
+      humanAttestation: false,
+      referenceContext: "",
+      criteria: {
+        briefFidelity: { status: "", findings: "" },
+      },
+    });
+  });
+
   it("links and exposes readable previews for every gated artifact", () => {
     const contract = render({ ...base, artifactType: "design-contract", artifact: { title: "Contract", contractPath: "evidence/versions/design-contract/v2.DESIGN.md", sourceLedgerVersion: 1, approvedEvidenceIds: ["claim-1"], exportPaths: ["evidence/versions/design-contract/v2.tailwind.css"], contractSha256: "a".repeat(64), exportSha256: "b".repeat(64) } });
     expect(contract).toContain("/api/sites/run-test/evidence/versions/design-contract/v2.json");
@@ -74,5 +111,80 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(html).toContain("Regenerate visual QA from current build");
     expect(html).not.toContain("Edit current artifact JSON");
     expect(html).not.toContain("Save new version");
+  });
+
+  it("collects an attested named human review for every visual criterion instead of showing generic approval", () => {
+    const qa = {
+      ...base,
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        ...base.approvalTransitions,
+        { state: "in-review", at: "2026-08-13T12:01:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "c".repeat(64),
+        checks: [{ area: "desktop", status: "pass", notes: "ok", evidencePath: "evidence/qa/v2/desktop.png" }],
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "build", artifacts: [qa] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    expect(html).toContain("Human visual review");
+    expect(html).toContain("Reviewer name");
+    expect(html).toContain("Brief fidelity");
+    expect(html).toContain("Visual hierarchy");
+    expect(html).toContain("Intentional spacing and composition");
+    expect(html).toContain("Business specificity (not a generic template)");
+    expect(html).toContain("DESIGN.md and reference alignment");
+    expect(html).toContain("No external reference was selected");
+    expect(html).toContain("I attest that I am the human reviewer");
+    expect(html).not.toContain(">Approve<");
+  });
+
+  it("keeps a completed human review readable in visual-QA history", () => {
+    const qa = render({
+      ...base,
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        ...base.approvalTransitions,
+        {
+          state: "revision-requested",
+          at: "2026-08-13T12:01:00.000Z",
+          actor: "human-reviewer",
+          humanVisualReview: {
+            reviewerName: "Devin",
+            reviewerKind: "human",
+            humanAttestation: true,
+            reviewedAt: "2026-08-13T12:01:00.000Z",
+            buildSha256: "c".repeat(64),
+            criteria: {
+              briefFidelity: { status: "pass" },
+              visualHierarchy: { status: "pass" },
+              spacingAndComposition: { status: "pass" },
+              businessSpecificity: { status: "fail", findings: "Too generic" },
+              designAndReferenceAlignment: { status: "pass", referenceContext: "explicit-no-reference" },
+            },
+          },
+        },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "c".repeat(64),
+        checks: [{ area: "desktop", status: "pass", evidencePath: "evidence/qa/v1/desktop.png" }],
+      },
+    });
+    expect(qa).toContain("Reviewed by Devin");
+    expect(qa).toContain("Too generic");
   });
 });

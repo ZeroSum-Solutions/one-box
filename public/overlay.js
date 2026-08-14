@@ -451,7 +451,7 @@
       );
     } else if (event.data.action === "reset-motion") {
       var motionRuntime = window.__ONEBOX_MOTION_RUNTIME__;
-      if (motionRuntime && motionRuntime.rehydrate) motionRuntime.rehydrate();
+      if (motionRuntime && motionRuntime.reset) motionRuntime.reset();
     } else if (
       event.data.action === "preview-token" &&
       typeof event.data.token === "string" &&

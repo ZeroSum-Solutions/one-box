@@ -9,10 +9,12 @@ function mutation(
   url: string,
   headers: Record<string, string> = {}
 ): Request {
+  const requestUrl = new URL(url);
   return new Request(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Host: requestUrl.host,
       ...headers,
     },
     body: "{}",
@@ -55,6 +57,45 @@ describe("local API authorization", () => {
     ).toBe(false);
   });
 
+  it("uses the validated Host authority when Next rebases the request URL hostname", () => {
+    expect(
+      isLocalApiAuthorized(
+        mutation("http://localhost:3000/api/chat", {
+          Host: "127.0.0.1:3000",
+          Origin: "http://127.0.0.1:3000",
+          "Sec-Fetch-Site": "same-origin",
+        })
+      )
+    ).toBe(true);
+  });
+
+  it("rejects hostile, lookalike, missing, and port-mismatched effective hosts", () => {
+    for (const host of [
+      "attacker.example:3000",
+      "localhost.evil.example:3000",
+      "127.0.0.1.example:3000",
+      "",
+    ]) {
+      const request = mutation("http://localhost:3000/api/chat", {
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+      });
+      if (host) request.headers.set("Host", host);
+      else request.headers.delete("Host");
+      expect(isLocalApiAuthorized(request)).toBe(false);
+    }
+
+    expect(
+      isLocalApiAuthorized(
+        mutation("http://localhost:3000/api/chat", {
+          Host: "127.0.0.1:3000",
+          Origin: "http://127.0.0.1:3001",
+          "Sec-Fetch-Site": "same-origin",
+        })
+      )
+    ).toBe(false);
+  });
+
   it("accepts exact loopback variants and a configured bearer automation client", () => {
     for (const origin of [
       "http://localhost:3000",
@@ -90,17 +131,26 @@ describe("local API authorization", () => {
 
   it("preserves no-Origin safe GETs while rejecting cross-origin GETs", () => {
     expect(
-      isLocalApiAuthorized(new Request("http://localhost:3000/api/evidence/run1"))
+      isLocalApiAuthorized(
+        new Request("http://localhost:3000/api/evidence/run1", {
+          headers: { Host: "localhost:3000" },
+        })
+      )
     ).toBe(true);
     expect(
       isLocalApiAuthorized(
-        new Request("http://attacker.example/api/evidence/run1")
+        new Request("http://attacker.example/api/evidence/run1", {
+          headers: { Host: "localhost" },
+        })
       )
     ).toBe(false);
     expect(
       isLocalApiAuthorized(
         new Request("http://localhost:3000/api/evidence/run1", {
-          headers: { Origin: "https://attacker.example" },
+          headers: {
+            Host: "localhost:3000",
+            Origin: "https://attacker.example",
+          },
         })
       )
     ).toBe(false);

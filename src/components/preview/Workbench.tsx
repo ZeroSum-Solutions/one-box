@@ -1,5 +1,6 @@
 "use client";
 
+import type { PointerEvent } from "react";
 import { ChatComposer } from "@/components/ChatComposer";
 import { GateStrip } from "@/components/GateStrip";
 import { AssetControls } from "./AssetControls";
@@ -10,6 +11,7 @@ import { TokenControls } from "./TokenControls";
 import type {
   EditorInteractionState,
   PreviewMode,
+  PreviewBreakpoint,
   PreviewSelection,
   WorkbenchSize,
 } from "./previewState";
@@ -17,19 +19,125 @@ import type {
 export type WorkbenchTool =
   "selection" | "text" | "assets" | "research" | "tokens" | "motion";
 
-const TOOLS: Array<{ id: WorkbenchTool; icon: string; label: string }> = [
-  { id: "selection", icon: "▣", label: "Selection and layout" },
-  { id: "text", icon: "Aa", label: "Text and button" },
-  { id: "assets", icon: "◇", label: "Assets" },
-  { id: "research", icon: "?", label: "Research" },
-  { id: "tokens", icon: "◉", label: "Tokens" },
-  { id: "motion", icon: "~", label: "Motion" },
+const TOOLS: Array<{ id: WorkbenchTool; label: string }> = [
+  { id: "selection", label: "Selection and layout" },
+  { id: "text", label: "Text and button" },
+  { id: "assets", label: "Assets" },
+  { id: "research", label: "Research" },
+  { id: "tokens", label: "Tokens" },
+  { id: "motion", label: "Motion" },
 ];
+
+const BREAKPOINTS: Array<{
+  id: PreviewBreakpoint;
+  label: string;
+}> = [
+  { id: "desktop", label: "Desktop" },
+  { id: "tablet", label: "Tablet" },
+  { id: "mobile", label: "Mobile" },
+];
+
+function ToolIcon({ tool }: { tool: WorkbenchTool }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+    focusable: false,
+  };
+
+  if (tool === "selection")
+    return (
+      <svg {...common}>
+        <path d="M8 3H4a1 1 0 0 0-1 1v4M16 3h4a1 1 0 0 1 1 1v4M21 16v4a1 1 0 0 1-1 1h-4M8 21H4a1 1 0 0 1-1-1v-4" />
+        <rect x="8" y="8" width="8" height="8" rx="1.5" />
+      </svg>
+    );
+  if (tool === "text")
+    return (
+      <svg {...common}>
+        <path d="M5 5h14M12 5v14M8.5 19h7" />
+      </svg>
+    );
+  if (tool === "assets")
+    return (
+      <svg {...common}>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <circle cx="8.5" cy="9" r="1.5" />
+        <path d="m5 17 4-4 3 3 2.5-2.5L19 18" />
+      </svg>
+    );
+  if (tool === "research")
+    return (
+      <svg {...common}>
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m15.5 15.5 4.5 4.5M8.5 10.5h4M10.5 8.5v4" />
+      </svg>
+    );
+  if (tool === "tokens")
+    return (
+      <svg {...common}>
+        <path d="M4 7h10M18 7h2M4 17h2M10 17h10M4 12h4M12 12h8" />
+        <circle cx="16" cy="7" r="2" />
+        <circle cx="8" cy="17" r="2" />
+        <circle cx="10" cy="12" r="2" />
+      </svg>
+    );
+  return (
+    <svg {...common}>
+      <path d="M3 14c2.3 0 2.3-5 4.6-5s2.3 7 4.6 7 2.3-9 4.6-9S19.1 12 21 12" />
+    </svg>
+  );
+}
+
+function ViewportIcon({ breakpoint }: { breakpoint: PreviewBreakpoint }) {
+  const width = breakpoint === "desktop" ? 20 : breakpoint === "tablet" ? 15 : 10;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x={(24 - width) / 2} y="4" width={width} height="16" rx="2" />
+      {breakpoint === "desktop" && <path d="M9 20v2M15 20v2M7 22h10" />}
+      {breakpoint !== "desktop" && <circle cx="12" cy="17.5" r="0.6" fill="currentColor" stroke="none" />}
+    </svg>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg viewBox="0 0 12 18" aria-hidden="true" focusable="false">
+      {[3, 9].flatMap((x) =>
+        [3, 9, 15].map((y) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1" />),
+      )}
+    </svg>
+  );
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d={direction === "left" ? "m14 7-5 5 5 5" : "m10 7 5 5-5 5"} />
+    </svg>
+  );
+}
 
 interface WorkbenchProps {
   runId: string;
   mode: PreviewMode;
   size: WorkbenchSize;
+  previewBreakpoint: PreviewBreakpoint;
+  widthMenuOpen: boolean;
+  widthAnnouncement: string | null;
   activeTool: WorkbenchTool;
   selection: PreviewSelection | null;
   editorState: EditorInteractionState;
@@ -45,6 +153,13 @@ interface WorkbenchProps {
   onImageIntentChange: (value: boolean) => void;
   onSubmitEdit: () => void;
   onSizeChange: (size: WorkbenchSize) => void;
+  onWidthMenuToggle: () => void;
+  onWidthMenuClose: () => void;
+  onPreviewBreakpointChange: (breakpoint: PreviewBreakpoint) => void;
+  onPreviewBreakpointCycle: () => void;
+  onGrabTabPointerDown: (event: PointerEvent<HTMLButtonElement>) => void;
+  onGrabTabPointerMove: (event: PointerEvent<HTMLButtonElement>) => void;
+  onGrabTabPointerUp: (event: PointerEvent<HTMLButtonElement>) => void;
   onEditorCommand: (action: "cancel" | "clear") => void;
   onStructuredMutationComplete: (message?: string) => void;
   onMotionPreview: (draft: Record<string, unknown>) => void;
@@ -213,23 +328,9 @@ export function Workbench(props: WorkbenchProps) {
     }
 
     if (props.activeTool === "assets") {
-      if (!props.selection && props.editResult)
-        return (
-          <div className="workbench-state" role="status">
-            <span className="workbench-state__label">complete</span>
-            <strong>Image replaced</strong>
-            <p>{props.editResult}</p>
-          </div>
-        );
-      if (!props.selection)
-        return (
-          <ToolState kind="empty" title="No asset target">
-            Select an image or media region to target this tool.
-          </ToolState>
-        );
       return (
         <AssetControls
-          key={props.selection.editId}
+          key={`${props.runId}:${props.selection?.editId ?? "library"}`}
           runId={props.runId}
           selection={props.selection}
           onMutationComplete={props.onStructuredMutationComplete}
@@ -288,9 +389,66 @@ export function Workbench(props: WorkbenchProps) {
             title={tool.label}
             onClick={() => props.onActiveToolChange(tool.id)}
           >
-            <span aria-hidden="true">{tool.icon}</span>
+            <span className="workbench-tool__icon">
+              <ToolIcon tool={tool.id} />
+            </span>
           </button>
         ))}
+
+        <div className="workbench-viewport-control">
+          <button
+            type="button"
+            className="workbench-grab-tab"
+            aria-label={`Preview width: ${props.previewBreakpoint}. Choose or drag to resize`}
+            aria-expanded={props.widthMenuOpen}
+            aria-controls="preview-width-menu"
+            title="Choose or drag preview width"
+            onClick={props.onWidthMenuToggle}
+            onDoubleClick={() => {
+              props.onWidthMenuClose();
+              props.onPreviewBreakpointCycle();
+            }}
+            onPointerDown={props.onGrabTabPointerDown}
+            onPointerMove={props.onGrabTabPointerMove}
+            onPointerUp={props.onGrabTabPointerUp}
+            onPointerCancel={props.onGrabTabPointerUp}
+          >
+            <GripIcon />
+          </button>
+          {props.widthMenuOpen && (
+            <div
+              id="preview-width-menu"
+              className="workbench-width-menu"
+              role="group"
+              aria-label="Preview width"
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  props.onWidthMenuClose();
+                }
+              }}
+            >
+              {BREAKPOINTS.map((breakpoint) => (
+                <button
+                  key={breakpoint.id}
+                  type="button"
+                  aria-label={`${breakpoint.label} preview width`}
+                  aria-pressed={props.previewBreakpoint === breakpoint.id}
+                  title={breakpoint.label}
+                  onClick={() => props.onPreviewBreakpointChange(breakpoint.id)}
+                >
+                  <ViewportIcon breakpoint={breakpoint.id} />
+                  <span className="visually-hidden">{breakpoint.label}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {props.widthAnnouncement && (
+            <span className="preview-width-announcement" aria-live="polite">
+              {props.widthAnnouncement}
+            </span>
+          )}
+        </div>
+
         <button
           type="button"
           className="workbench-tool workbench-tool--collapse"
@@ -310,8 +468,10 @@ export function Workbench(props: WorkbenchProps) {
             )
           }
         >
-          <span aria-hidden="true">
-            {props.size === "collapsed" ? "‹" : "›"}
+          <span className="workbench-tool__icon">
+            <ChevronIcon
+              direction={props.size === "collapsed" ? "left" : "right"}
+            />
           </span>
         </button>
       </nav>
@@ -322,25 +482,6 @@ export function Workbench(props: WorkbenchProps) {
             <div>
               <p className="eyebrow">{"{ Workbench }"}</p>
               <h1 id="workbench-title">{active.label}</h1>
-            </div>
-            <div
-              className="workbench-size-controls"
-              aria-label="Workbench size"
-            >
-              <button
-                type="button"
-                onClick={() => props.onSizeChange("normal")}
-                aria-pressed={props.size === "normal"}
-              >
-                Normal
-              </button>
-              <button
-                type="button"
-                onClick={() => props.onSizeChange("expanded")}
-                aria-pressed={props.size === "expanded"}
-              >
-                Expand
-              </button>
             </div>
           </div>
           <div className="workbench-panel__body">{panelContent()}</div>

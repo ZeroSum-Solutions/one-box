@@ -4,6 +4,7 @@ import {
   use,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -16,11 +17,16 @@ import {
   breakpointForWidth,
   clampPanelWidth,
   isTrustedEditorMessage,
+  isRunBoundRequestCurrent,
+  isWorkbenchStateRestoredForRun,
+  nearestPreviewBreakpoint,
+  panelWidthForBreakpoint,
   panelWidthBounds,
-  parseWorkbenchState,
+  previewWidthForBreakpoint,
+  persistWorkbenchState,
   readEditorStateMessage,
+  restoreWorkbenchState,
   workbenchSizeForWidth,
-  workbenchStorageKey,
   type EditorInteractionState,
   type PersistedWorkbenchState,
   type PreviewBreakpoint,
@@ -53,8 +59,16 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const workspaceRef = useRef<HTMLDivElement>(null);
-  const previewViewportRef = useRef<HTMLElement>(null);
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const activeRunIdRef = useRef(id);
+  const pendingEditAbortRef = useRef<AbortController | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startWidth: number;
+    lastWidth: number;
+    moved: boolean;
+    source: "divider" | "tab";
+  } | null>(null);
+  const suppressGrabClickRef = useRef(false);
   const [selection, setSelection] = useState<PreviewSelection | null>(null);
   const [editorState, setEditorState] =
     useState<EditorInteractionState>("idle");
@@ -71,8 +85,17 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   const [workbench, setWorkbench] = useState<PersistedWorkbenchState>(
     DEFAULT_WORKBENCH_STATE,
   );
-  const [restored, setRestored] = useState(false);
+  const [restoredRunId, setRestoredRunId] = useState<string | null>(null);
   const [workspaceWidth, setWorkspaceWidth] = useState(1280);
+  const [widthMenuOpen, setWidthMenuOpen] = useState(false);
+  const [widthAnnouncement, setWidthAnnouncement] = useState<string | null>(
+    null,
+  );
+  const [isResizing, setIsResizing] = useState(false);
+
+  useLayoutEffect(() => {
+    activeRunIdRef.current = id;
+  }, [id]);
 
   const handleStructuredMutationComplete = useCallback((message?: string) => {
     setSelection(null);
@@ -85,12 +108,28 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
 
   useEffect(() => {
     let cancelled = false;
+    pendingEditAbortRef.current?.abort();
+    pendingEditAbortRef.current = null;
+    dragRef.current = null;
+    suppressGrabClickRef.current = false;
     queueMicrotask(() => {
       if (cancelled) return;
-      setWorkbench(
-        parseWorkbenchState(localStorage.getItem(workbenchStorageKey(id))),
-      );
-      setRestored(true);
+      setSelection(null);
+      setEditorState("idle");
+      setEditorReason(null);
+      setInstruction("");
+      setImageIntent(false);
+      setIsEditing(false);
+      setEditResult(null);
+      setEditError(null);
+      setGateRefreshToken(0);
+      setIframeVersion(0);
+      setPreviewBreakpoint("desktop");
+      setWidthMenuOpen(false);
+      setWidthAnnouncement(null);
+      setIsResizing(false);
+      setWorkbench(restoreWorkbenchState(localStorage, id));
+      setRestoredRunId(id);
     });
     return () => {
       cancelled = true;
@@ -98,12 +137,15 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   }, [id]);
 
   useEffect(() => {
-    if (!restored) return;
-    localStorage.setItem(workbenchStorageKey(id), JSON.stringify(workbench));
-  }, [id, restored, workbench]);
+    if (!isWorkbenchStateRestoredForRun(restoredRunId, id)) return;
+    persistWorkbenchState(localStorage, id, workbench);
+  }, [id, restoredRunId, workbench]);
+
+  const restored = isWorkbenchStateRestoredForRun(restoredRunId, id);
 
   useEffect(() => {
-    const viewport = previewViewportRef.current;
+    if (!restored) return;
+    const viewport = iframeRef.current;
     if (!viewport) return;
     const update = () =>
       setPreviewBreakpoint(
@@ -113,7 +155,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     const observer = new ResizeObserver(update);
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, []);
+  }, [iframeVersion, restored, workbench.mode]);
 
   useEffect(() => {
     const workspace = workspaceRef.current;
@@ -134,6 +176,12 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     observer.observe(workspace);
     return () => observer.disconnect();
   }, [restored]);
+
+  useEffect(() => {
+    if (!widthAnnouncement) return;
+    const timeout = window.setTimeout(() => setWidthAnnouncement(null), 1400);
+    return () => window.clearTimeout(timeout);
+  }, [widthAnnouncement]);
 
   // The sandbox omits allow-same-origin, so event.origin is the literal "null".
   // Exact contentWindow identity plus a strict payload guard is the trust boundary.
@@ -214,7 +262,35 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
       panelWidth,
       size: workbenchSizeForWidth(panelWidth),
       lastOpenSize: workbenchSizeForWidth(panelWidth),
+      previewPreset: null,
     }));
+  }
+
+  function setPreviewWidth(breakpoint: PreviewBreakpoint) {
+    const nextWorkspaceWidth =
+      workspaceRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+    const panelWidth = panelWidthForBreakpoint(
+      breakpoint,
+      nextWorkspaceWidth,
+    );
+    const size = workbenchSizeForWidth(panelWidth);
+    setWorkbench((current) => ({
+      ...current,
+      panelWidth,
+      size,
+      lastOpenSize: size,
+      previewPreset: breakpoint,
+    }));
+    setWidthMenuOpen(false);
+    setWidthAnnouncement(
+      `${breakpoint[0].toUpperCase()}${breakpoint.slice(1)} preview`,
+    );
+  }
+
+  function cyclePreviewWidth() {
+    const breakpoints: PreviewBreakpoint[] = ["desktop", "tablet", "mobile"];
+    const currentIndex = breakpoints.indexOf(previewBreakpoint);
+    setPreviewWidth(breakpoints[(currentIndex + 1) % breakpoints.length]);
   }
 
   function sendEditorCommand(action: "cancel" | "clear") {
@@ -245,34 +321,75 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     );
   }
 
-  function handleDividerPointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (workbench.size === "collapsed") return;
+  function handleResizePointerDown(
+    event: PointerEvent<HTMLDivElement | HTMLButtonElement>,
+    source: "divider" | "tab",
+  ) {
+    if (!restored) return;
+    if (workbench.size === "collapsed" && source === "divider") return;
+    if (source === "tab" && workbench.size === "collapsed") {
+      const size = workbenchSizeForWidth(workbench.panelWidth);
+      setWorkbench((current) => ({ ...current, size, lastOpenSize: size }));
+    }
     dragRef.current = {
       startX: event.clientX,
       startWidth: workbench.panelWidth,
+      lastWidth: workbench.panelWidth,
+      moved: false,
+      source,
     };
+    setIsResizing(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
-  function handleDividerPointerMove(event: PointerEvent<HTMLDivElement>) {
+  function handleResizePointerMove(
+    event: PointerEvent<HTMLDivElement | HTMLButtonElement>,
+  ) {
     if (
       !dragRef.current ||
       !event.currentTarget.hasPointerCapture(event.pointerId)
     )
       return;
-    resizeWorkbench(
-      dragRef.current.startWidth + dragRef.current.startX - event.clientX,
-    );
+    const delta = dragRef.current.startX - event.clientX;
+    const nextWidth = dragRef.current.startWidth + delta;
+    dragRef.current.lastWidth = nextWidth;
+    dragRef.current.moved ||= Math.abs(delta) > 3;
+    if (dragRef.current.moved) setWidthMenuOpen(false);
+    resizeWorkbench(nextWidth);
   }
 
-  function handleDividerPointerUp(event: PointerEvent<HTMLDivElement>) {
+  function handleResizePointerUp(
+    event: PointerEvent<HTMLDivElement | HTMLButtonElement>,
+  ) {
+    const drag = dragRef.current;
     dragRef.current = null;
+    setIsResizing(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
+    if (!drag) return;
+    if (drag.source === "tab" && drag.moved) suppressGrabClickRef.current = true;
+    if (!drag.moved) return;
+
+    const nextWorkspaceWidth =
+      workspaceRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+    const snappedBreakpoint = nearestPreviewBreakpoint(
+      clampPanelWidth(drag.lastWidth, nextWorkspaceWidth),
+      nextWorkspaceWidth,
+    );
+    if (snappedBreakpoint) setPreviewWidth(snappedBreakpoint);
+  }
+
+  function toggleWidthMenu() {
+    if (suppressGrabClickRef.current) {
+      suppressGrabClickRef.current = false;
+      return;
+    }
+    setWidthMenuOpen((open) => !open);
   }
 
   function handleDividerKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!restored) return;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       event.preventDefault();
       resizeWorkbench(
@@ -288,13 +405,18 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   }
 
   async function submitEdit() {
-    if (!selection || !instruction.trim() || isEditing) return;
+    if (!restored || !selection || !instruction.trim() || isEditing) return;
+    const requestRunId = id;
+    const controller = new AbortController();
+    pendingEditAbortRef.current?.abort();
+    pendingEditAbortRef.current = controller;
     setIsEditing(true);
     setEditError(null);
     setEditResult(null);
     try {
       const response = await fetch("/api/edit", {
         method: "POST",
+        signal: controller.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           runId: id,
@@ -308,6 +430,10 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         | { ok: true; gates: EditApiGate[]; gatesClean: boolean }
         | { error: string }
         | null;
+
+      if (!isRunBoundRequestCurrent(requestRunId, activeRunIdRef.current)) {
+        return;
+      }
 
       if (!response.ok || !data || "error" in data) {
         throw new Error(
@@ -325,9 +451,20 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
       setGateRefreshToken((value) => value + 1);
       setIframeVersion((value) => value + 1);
     } catch (error) {
+      if (
+        controller.signal.aborted ||
+        !isRunBoundRequestCurrent(requestRunId, activeRunIdRef.current)
+      ) {
+        return;
+      }
       setEditError(error instanceof Error ? error.message : "Edit failed.");
     } finally {
-      setIsEditing(false);
+      if (pendingEditAbortRef.current === controller) {
+        pendingEditAbortRef.current = null;
+      }
+      if (isRunBoundRequestCurrent(requestRunId, activeRunIdRef.current)) {
+        setIsEditing(false);
+      }
     }
   }
 
@@ -336,6 +473,10 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     : "selection";
   const style = {
     "--workbench-width": `${workbench.panelWidth}px`,
+    "--preview-canvas-width":
+      workbench.previewPreset && workbench.size !== "collapsed"
+        ? `${previewWidthForBreakpoint(workbench.previewPreset)}px`
+        : "100%",
   } as CSSProperties;
   const panelBounds = panelWidthBounds(workspaceWidth);
   const iframeSrc = `/api/sites/${encodeURIComponent(id)}/index.html${workbench.mode === "edit" ? "?edit=1" : ""}`;
@@ -347,7 +488,6 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
       style={style}
     >
       <section
-        ref={previewViewportRef}
         className="preview-viewport"
         aria-label="Rendered site preview"
       >
@@ -359,6 +499,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           >
             <button
               type="button"
+              disabled={!restored}
               aria-pressed={workbench.mode === "view"}
               onClick={() => setMode("view")}
             >
@@ -366,15 +507,13 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
             </button>
             <button
               type="button"
+              disabled={!restored}
               aria-pressed={workbench.mode === "edit"}
               onClick={() => setMode("edit")}
             >
               Edit
             </button>
           </div>
-          <span className="preview-breakpoint" aria-live="polite">
-            {previewBreakpoint}
-          </span>
         </div>
         {restored ? (
           <iframe
@@ -397,48 +536,68 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
       </section>
 
       <div
-        className="preview-divider"
+        className={`preview-divider ${isResizing ? "preview-divider--active" : ""}`}
         role="separator"
         aria-label="Resize preview and workbench"
         aria-orientation="vertical"
         aria-valuemin={panelBounds.min}
         aria-valuemax={panelBounds.max}
         aria-valuenow={clampPanelWidth(workbench.panelWidth, workspaceWidth)}
-        tabIndex={workbench.size === "collapsed" ? -1 : 0}
-        onPointerDown={handleDividerPointerDown}
-        onPointerMove={handleDividerPointerMove}
-        onPointerUp={handleDividerPointerUp}
-        onPointerCancel={handleDividerPointerUp}
+        aria-valuetext={`${previewBreakpoint} preview`}
+        tabIndex={!restored || workbench.size === "collapsed" ? -1 : 0}
+        onPointerDown={(event) => handleResizePointerDown(event, "divider")}
+        onPointerMove={handleResizePointerMove}
+        onPointerUp={handleResizePointerUp}
+        onPointerCancel={handleResizePointerUp}
         onKeyDown={handleDividerKeyDown}
       />
 
-      <Workbench
-        runId={id}
-        mode={workbench.mode}
-        size={workbench.size}
-        activeTool={activeTool}
-        selection={selection}
-        editorState={editorState}
-        editorReason={editorReason}
-        instruction={instruction}
-        imageIntent={imageIntent}
-        isEditing={isEditing}
-        editResult={editResult}
-        editError={editError}
-        gateRefreshToken={gateRefreshToken}
-        onActiveToolChange={(activeTool) =>
-          setWorkbench((current) => ({ ...current, activeTool }))
-        }
-        onInstructionChange={setInstruction}
-        onImageIntentChange={setImageIntent}
-        onSubmitEdit={submitEdit}
-        onSizeChange={setWorkbenchSize}
-        onEditorCommand={sendEditorCommand}
-        onStructuredMutationComplete={handleStructuredMutationComplete}
-        onMotionPreview={previewSelectedMotion}
-        onMotionReset={resetMotionPreview}
-        onTokenPreview={previewToken}
-      />
+      {restored ? (
+        <Workbench
+          key={id}
+          runId={id}
+          mode={workbench.mode}
+          size={workbench.size}
+          previewBreakpoint={previewBreakpoint}
+          widthMenuOpen={widthMenuOpen}
+          widthAnnouncement={widthAnnouncement}
+          activeTool={activeTool}
+          selection={selection}
+          editorState={editorState}
+          editorReason={editorReason}
+          instruction={instruction}
+          imageIntent={imageIntent}
+          isEditing={isEditing}
+          editResult={editResult}
+          editError={editError}
+          gateRefreshToken={gateRefreshToken}
+          onActiveToolChange={(activeTool) =>
+            setWorkbench((current) => ({ ...current, activeTool }))
+          }
+          onInstructionChange={setInstruction}
+          onImageIntentChange={setImageIntent}
+          onSubmitEdit={submitEdit}
+          onSizeChange={setWorkbenchSize}
+          onWidthMenuToggle={toggleWidthMenu}
+          onWidthMenuClose={() => setWidthMenuOpen(false)}
+          onPreviewBreakpointChange={setPreviewWidth}
+          onPreviewBreakpointCycle={cyclePreviewWidth}
+          onGrabTabPointerDown={(event) =>
+            handleResizePointerDown(event, "tab")
+          }
+          onGrabTabPointerMove={handleResizePointerMove}
+          onGrabTabPointerUp={handleResizePointerUp}
+          onEditorCommand={sendEditorCommand}
+          onStructuredMutationComplete={(message) => {
+            if (isRunBoundRequestCurrent(id, activeRunIdRef.current)) {
+              handleStructuredMutationComplete(message);
+            }
+          }}
+          onMotionPreview={previewSelectedMotion}
+          onMotionReset={resetMotionPreview}
+          onTokenPreview={previewToken}
+        />
+      ) : null}
     </main>
   );
 }
