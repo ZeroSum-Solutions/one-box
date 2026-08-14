@@ -14,7 +14,7 @@ Score each area from 0 to 4 and cite an artifact or rendered screenshot.
 |---|---|
 | Reference relevance | source IDs, rationale, page/target fit, and confidence |
 | Structural usefulness | concrete hierarchy, navigation, conversion, and mobile patterns |
-| Source credibility | source URL, capture time, provider, and fact/inference label |
+| Source credibility | neutral source ID, freshness class, confidence, and fact/inference label; full URL/provider provenance is verified only after scores are fixed |
 | Design contract | specific visual thesis, role-scoped tokens, media direction, and rejected alternatives |
 | Token and Tailwind plan | semantic variables, traceable source, responsive variants, and no raw utility sprawl |
 | Visual quality | intentional hierarchy, coherent typography, color, spacing, and composition |
@@ -28,7 +28,8 @@ Automatic rejection: invented business fact, copied reference composition withou
 synthesis, missing mobile output, broken blocking gate, hidden paid fallback, or a
 research artifact with no provenance.
 
-Two evaluators receive randomized A/B labels and no provider/model names. A finding
+2 distinct human evaluators independently receive randomized A/B labels and no
+provider/model/path identity, timing, or cost metadata. A finding
 records severity, evidence, originating stage if known, certainty, and the smallest
 safe corrective experiment. The output cannot change routing until the unblinded root
 cause log identifies a stage-level difference.

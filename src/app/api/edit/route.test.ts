@@ -63,6 +63,7 @@ describe("edit route authorization", () => {
   it("accepts exact same-origin and configured bearer requests before validation", async () => {
     const sameOrigin = request({
       Origin: "http://localhost:3000",
+      "Sec-Fetch-Site": "same-origin",
       "Content-Type": "application/json",
     });
     expect((await POST(sameOrigin.request)).status).toBe(400);

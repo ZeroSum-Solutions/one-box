@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
+  ARTIFACTS,
   workflowArtifactApprovalState,
   type RunState,
   type WorkflowArtifactVersion,
@@ -110,7 +111,7 @@ export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifac
     case "tailwind-plan":
       return <div className="evidence-readable"><h3>Tailwind v4 mapping</h3><p><a href={jsonHref}>Open versioned Tailwind plan JSON</a></p><ul>{artifact.artifact.themeMappings.map((mapping) => <li key={mapping.tailwindName}><code>{mapping.tailwindName}</code> → <code>{mapping.cssVariable}</code><br />{mapping.rationale}</li>)}</ul><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
     case "css-architecture":
-      return <div className="evidence-readable"><h3>CSS architecture</h3><p><a href={jsonHref}>Open versioned CSS architecture JSON</a></p><ol>{artifact.artifact.cssVariableHierarchy.map((layer) => <li key={layer}>{layer}</li>)}</ol><h4>Token to component usage</h4><ul>{Object.entries(artifact.artifact.tokenToComponentUsage).map(([token, uses]) => <li key={token}><code>{token}</code> — {uses.join("; ")}</li>)}</ul>{artifact.artifact.generatedCssPath ? <ArtifactTextPreview runId={runId} artifactPath={artifact.artifact.generatedCssPath} label="Generated Tailwind theme CSS" /> : <p>Generated CSS: pending</p>}<p>Exceptions: {artifact.artifact.justifiedExceptions.join(", ") || "none"}</p><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
+      return <div className="evidence-readable"><h3>CSS architecture</h3><p><a href={jsonHref}>Open versioned CSS architecture JSON</a></p><ol>{artifact.artifact.cssVariableHierarchy.map((layer) => <li key={layer}>{layer}</li>)}</ol><h4>Token to component usage</h4><ul>{Object.entries(artifact.artifact.tokenToComponentUsage).map(([token, uses]) => <li key={token}><code>{token}</code> — {uses.join("; ")}</li>)}</ul><ArtifactTextPreview runId={runId} artifactPath={ARTIFACTS.tailwindTheme} label="Generated Tailwind theme source (@theme mapping)" />{artifact.artifact.generatedCssPath ? <ArtifactTextPreview runId={runId} artifactPath={artifact.artifact.generatedCssPath} label="Compiled Tailwind utility output" /> : <p>Compiled utility output: pending until build.</p>}<p>Exceptions: {artifact.artifact.justifiedExceptions.join(", ") || "none"}</p><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
     case "visual-qa":
       return <div className="evidence-readable"><h3>Visual QA</h3><p><a href={jsonHref}>Open versioned visual QA JSON</a></p><ul>{artifact.artifact.checks.map((check) => <li key={check.area}><strong>{check.area}: {check.status}</strong> — {check.notes}{check.evidencePath && <figure><a href={artifactUrl(runId, check.evidencePath)}><EvidenceImage src={artifactUrl(runId, check.evidencePath)} alt={`${check.area} QA evidence`} /></a><figcaption>{check.evidencePath}</figcaption></figure>}</li>)}</ul><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
   }
@@ -205,7 +206,7 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
         {current ? (
           <>
             <ArtifactPreview artifact={current} runId={run.id} />
-            {approval === "revision-requested" && (
+            {approval === "revision-requested" && current.artifactType !== "visual-qa" && (
               <textarea
                 aria-label="Edit current artifact JSON"
                 value={draftText}
@@ -242,8 +243,13 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
               <button disabled={busy || !note.trim()} onClick={() => void action({ action: "request-revision", note })}>Request revision</button>
             </>
           )}
-          {approval === "revision-requested" && (
+          {approval === "revision-requested" && current?.artifactType !== "visual-qa" && (
             <button disabled={busy} onClick={() => void saveVersion()}>Save new version</button>
+          )}
+          {approval === "revision-requested" && current?.artifactType === "visual-qa" && (
+            <button disabled={busy} onClick={() => void action({ action: "regenerate-visual-qa" })}>
+              Regenerate visual QA from current build
+            </button>
           )}
           {approval === "approved" && nextStage && (
             <button disabled={busy} onClick={() => void action({ action: "advance", nextStage })}>Advance to {nextStage}</button>

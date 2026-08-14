@@ -68,6 +68,7 @@ import {
   buildTailwindPlan,
   buildTokenInventory,
   renderTailwindThemeCss,
+  tailwindComponentUtilityClasses,
   runThreeWidthVisualQa,
   materializeDesignContractArtifacts,
   preferredReferenceEvidenceImage,
@@ -668,7 +669,14 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
       stageSynthesize(runId, intake, scan, lock, emit, mode, uploadContext)
     );
     await stage(runId, "built", emit, () =>
-      stageBuild(runId, intake, synth, emit, themeCss)
+      stageBuild(
+        runId,
+        intake,
+        synth,
+        emit,
+        themeCss,
+        tailwindComponentUtilityClasses(approvedPlan.artifact)
+      )
     );
     const qa = await runThreeWidthVisualQa(
       runId,
@@ -1822,7 +1830,8 @@ async function stageBuild(
   intake: Intake,
   synth: Synth,
   emit: Emit,
-  tailwindThemeCss?: string
+  tailwindThemeCss?: string,
+  tailwindUtilityClasses?: string[]
 ) {
   await buildSite({
     runId,
@@ -1832,6 +1841,7 @@ async function stageBuild(
     copy: synth.copy,
     assets: { heroImagePath: synth.heroImagePath },
     tailwindThemeCss,
+    tailwindUtilityClasses,
   });
   emit({ type: "card", stage: "built", title: "Site assembled", body: "Running quality gates…" });
 

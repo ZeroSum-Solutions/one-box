@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-14T01:34:48.222Z",
+  "request": {
+    "task": "upload-staging-security",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "5076f9e417566d37dc676a42464a520794faf810",
+    "head": "5719511ff89ebcf61fd19a0329b1ba1002b7bcd0",
+    "files": [
+      "src/app/api/uploads/route.ts",
+      "src/components/UploadPanel.tsx",
+      "src/components/uploadPolicy.ts",
+      "src/lib/localApiAuth.ts"
+    ],
+    "proofs": [],
+    "diffBytes": 14427
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4749,
+      "completion_tokens": 13657,
+      "total_tokens": 18406,
+      "cost": 0.091248,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.091248,
+        "upstream_inference_prompt_cost": 0.009306,
+        "upstream_inference_completions_cost": 0.081942
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 12908,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/UploadPanel.tsx",
+        "line": "handleFiles / externalSessionError (52-98, 173-185)",
+        "scenario": "Parent sets externalSessionError (expired/foreign session). User then selects files via Add files, or an upload succeeds. handleFiles only clears local error/sessionExpired and never calls onExternalSessionErrorClear except from resetAndReselect. The alert stays up, still appends “Choose the files again…”, and that button wipes the just-staged uploads and session.",
+        "remediation": "Call onExternalSessionErrorClear at the start of a new selection and on a successful POST; show the expiry recovery CTA only when this attempt actually failed as expiry (401/sessionExpired) or the parent error is still the active failure."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/localApiAuth.ts",
+        "line": "isLocalApiAuthorized (12-16)",
+        "scenario": "A DNS-rebinding page (Host/Origin both attacker.com, browser treats the request as same-origin so sec-fetch-site is same-origin) reaches the local process. Origin equals new URL(request.url).origin because the URL is built from the spoofed Host. Authorization passes before any body quota, so a hostile site can still spend staging quota—the attack the route comment claims to block—without ONE_BOX_API_TOKEN.",
+        "remediation": "Allowlist Host/URL to loopback names (localhost, 127.0.0.1, [::1]) and require a non-cors Sec-Fetch-Site or the configured bearer for mutations; do not treat Origin==request.url.origin as sufficient."
+      },
+      {
+        "severity": "LOW",
+        "file": "src/components/UploadPanel.tsx",
+        "line": "response.json() then status===401 (80-88)",
+        "scenario": "A 401 with a non-JSON body (proxy/HTML) makes json() throw. The catch path never clears uploadSession/uploads or sets sessionExpired, so bearer-expiry recovery does not run and the user sees a parse error.",
+        "remediation": "Branch on response.status before parsing; on 401 always clear session+selection and set sessionExpired, then optionally parse a message."
+      },
+      {
+        "severity": "LOW",
+        "file": "src/components/UploadPanel.tsx",
+        "line": "file input disabled (137) vs Add files (117)",
+        "scenario": "Add files is disabled at MAX_UPLOAD_FILES but the visually-hidden input is not, and it stays in the tab order. Keyboard/AT users can still open the picker and hit a client-only count error.",
+        "remediation": "Disable the input with the same predicate as the button and set aria-hidden/tabIndex={-1} on the hidden control."
+      }
+    ],
+    "proof_assessment": "No proof artifacts were supplied. Review is from the git slice only; stageUploads/inspectUpload/inspectZip behavior is not visible.",
+    "residual_risks": [
+      "Type, magic-byte, and ZIP safety are not enforced in the route; they are assumed inside stageUploads. Client accept/size checks are advisory.",
+      "Per-request file cap is 5; session-total quota and staged-byte deletion on Remove are not in this slice.",
+      "readBoundedBody has no read timeout; a slow body can hold the handler until the platform kills it.",
+      "Without ONE_BOX_API_TOKEN, any local client can spoof Origin and POST."
+    ]
+  }
+}

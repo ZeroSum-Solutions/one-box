@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-14T01:40:11Z",
+  "provider": "crawl4ai",
+  "sourceUrl": "https://refero.design",
+  "title": "Refero — UI/UX Design Inspiration for Your Next Project",
+  "outcome": "succeeded",
+  "httpStatus": 200,
+  "confidence": 0.95,
+  "wrapperPath": "~/projects/tools/zs-skills/skills/research/deep-dive/scripts/crawl4ai-scrape.sh",
+  "contentBytes": 7346,
+  "contentSha256": "4f0742dc7c695ed82823222b64ded1b311fedb219c3b8b305176d003e6465873",
+  "provenanceHeader": {
+    "FETCHED_VIA": "crawl4ai-local",
+    "HTTP_STATUS": 200
+  },
+  "privacy": "The third-party page body was verified locally but is not committed; this record retains provenance and integrity evidence only.",
+  "costUsd": 0
+}

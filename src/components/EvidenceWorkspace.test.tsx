@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { WorkflowArtifactVersion } from "../lib/contracts";
-import { ArtifactPreview } from "./EvidenceWorkspace";
+import { ArtifactPreview, EvidenceWorkspace } from "./EvidenceWorkspace";
+import type { RunState } from "../lib/contracts";
 
 const base = {
   version: 2,
@@ -31,13 +32,47 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(tailwind).toContain("versioned Tailwind plan JSON");
     expect(tailwind).toContain("--color-color-primary");
 
-    const css = render({ ...base, artifactType: "css-architecture", artifact: { sourceTailwindPlanVersion: 2, cssVariableHierarchy: ["tokens"], tokenToComponentUsage: { "--color-primary": ["button"] }, justifiedExceptions: [], generatedCssPath: "site/tailwind-theme.css" } });
+    const css = render({ ...base, artifactType: "css-architecture", artifact: { sourceTailwindPlanVersion: 2, cssVariableHierarchy: ["tokens"], tokenToComponentUsage: { "--color-primary": ["button"] }, justifiedExceptions: [], generatedCssPath: "site/tailwind-utilities.css" } });
     expect(css).toContain("versioned CSS architecture JSON");
+    expect(css).toContain("Generated Tailwind theme source (@theme mapping)");
     expect(css).toContain("/api/sites/run-test/tailwind-theme.css");
+    expect(css).toContain("Compiled Tailwind utility output");
+    expect(css).toContain("/api/sites/run-test/tailwind-utilities.css");
 
     const qa = render({ ...base, artifactType: "visual-qa", artifact: { sourceCssArchitectureVersion: 2, buildSha256: "c".repeat(64), checks: [{ area: "desktop", status: "pass", notes: "ok", evidencePath: "evidence/qa/desktop.png" }] } });
     expect(qa).toContain("versioned visual QA JSON");
     expect(qa).toContain('src="/api/sites/run-test/evidence/qa/desktop.png"');
     expect(qa).toContain('alt="desktop QA evidence"');
+  });
+
+  it("offers server regeneration instead of a forgeable visual-QA JSON editor", () => {
+    const qa = {
+      ...base,
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        ...base.approvalTransitions,
+        { state: "revision-requested", at: "2026-08-13T12:01:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "c".repeat(64),
+        checks: [{ area: "desktop", status: "pass", notes: "ok", evidencePath: "evidence/qa/v2/desktop.png" }],
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "build", artifacts: [qa] },
+    } as unknown as RunState;
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    expect(html).toContain("Regenerate visual QA from current build");
+    expect(html).not.toContain("Edit current artifact JSON");
+    expect(html).not.toContain("Save new version");
   });
 });

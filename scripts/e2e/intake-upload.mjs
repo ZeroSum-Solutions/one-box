@@ -94,8 +94,8 @@ try {
     }
     await route.fulfill({
       status: 401,
-      contentType: "application/json",
-      body: JSON.stringify({ error: "The upload session is invalid or expired." }),
+      contentType: "text/plain",
+      body: "expired without JSON",
     });
   });
   const fileInput = page.locator('input[type="file"]');
@@ -173,6 +173,39 @@ try {
   assert.equal(await page.getByText(/claim-copy\.txt/).count(), 0);
   assert.equal(await page.getByRole("button", { name: "Choose files again" }).isVisible(), true);
   assert.equal(await page.locator(".timeline-view").count(), 0);
+
+  // Starting a fresh selection clears the external claim-expiry state. A
+  // successful response must leave no stale recovery CTA, and both upload
+  // controls share the same file-limit disabled predicate.
+  await page.unroute("**/api/uploads");
+  await page.route("**/api/uploads", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        uploadSession: "c".repeat(43),
+        expiresAt: "2026-08-13T23:59:59.000Z",
+        uploads: Array.from({ length: 5 }, (_, index) => ({
+          id: `fresh-upload-${index + 1}`,
+          fileName: `fresh-${index + 1}.txt`,
+          kind: "copy-document",
+          mediaType: "text/plain",
+          sizeBytes: 5,
+          uploadedAt: "2026-08-13T00:00:00.000Z",
+        })),
+      }),
+    });
+  });
+  await fileInput.setInputFiles({
+    name: "fresh.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("fresh"),
+  });
+  await page.getByText(/fresh-1\.txt/).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Choose files again" }).count(), 0);
+  assert.equal(await page.getByRole("button", { name: "Add files" }).isDisabled(), true);
+  assert.equal(await fileInput.isDisabled(), true);
+  assert.equal(await fileInput.getAttribute("tabindex"), "-1");
 
   const targetBoxes = await Promise.all(
     ["Website", "Web app", "iOS app"].map((name) =>

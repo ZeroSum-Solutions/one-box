@@ -24,6 +24,7 @@ import type { Intake, ReferenceLock, WorkflowArtifactDraft } from "../../../../l
 import {
   computeSiteBuildSha256,
   materializeDesignContractArtifacts,
+  stageThreeWidthVisualQa,
 } from "../../../../lib/evidence";
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
 
@@ -36,6 +37,7 @@ const ActionSchema = z.discriminatedUnion("action", [
     note: z.string().min(1).max(2_000),
   }),
   z.object({ action: z.literal("approve"), note: z.string().max(2_000).optional() }),
+  z.object({ action: z.literal("regenerate-visual-qa") }),
   z.object({
     action: z.literal("advance"),
     nextStage: z.enum(EVIDENCE_WORKFLOW_STAGES),
@@ -178,6 +180,60 @@ export async function POST(
           : input.draft;
         await transaction.saveEvidenceArtifactVersion(draft, { actor: "workspace-user" });
       });
+    } else if (input.action === "regenerate-visual-qa") {
+      await withSiteAuthorityLock(id, () =>
+        withRunTransaction(id, async (transaction) => {
+          const transactionCurrent = latestCurrentArtifact(transaction.state);
+          if (
+            !transactionCurrent ||
+            transactionCurrent.artifactType !== "visual-qa" ||
+            artifactApprovalState(transactionCurrent) !== "revision-requested"
+          ) {
+            throw new EvidenceWorkflowError(
+              "visual QA regeneration requires a revision-requested visual-qa artifact"
+            );
+          }
+          const nextVersion = transactionCurrent.version + 1;
+          const evidenceBasePath = `evidence/qa/v${nextVersion}`;
+          const stagingParent = path.join(sitePaths(id).root, "evidence");
+          await fs.mkdir(stagingParent, { recursive: true });
+          const stagingDirectory = await fs.mkdtemp(
+            path.join(stagingParent, ".qa-stage-")
+          );
+          try {
+            const qa = await stageThreeWidthVisualQa(
+              sitePaths(id).site,
+              transactionCurrent.artifact.sourceCssArchitectureVersion,
+              nextVersion,
+              stagingDirectory,
+              evidenceBasePath
+            );
+            for (const check of qa.checks) {
+              if (!check.evidencePath) continue;
+              if (!check.evidencePath.startsWith(`${evidenceBasePath}/`)) {
+                throw new EvidenceWorkflowError("visual QA staged an invalid evidence path");
+              }
+              await transaction.writeArtifact(
+                check.evidencePath,
+                await fs.readFile(path.join(stagingDirectory, path.basename(check.evidencePath)))
+              );
+            }
+            await transaction.writeArtifact(
+              ARTIFACTS.visualQa,
+              `${JSON.stringify(qa, null, 2)}\n`
+            );
+            await transaction.saveEvidenceArtifactVersion(
+              { artifactType: "visual-qa", artifact: qa },
+              {
+                actor: "visual-qa-runner",
+                note: `Regenerated from visual QA v${transactionCurrent.version}`,
+              }
+            );
+          } finally {
+            await fs.rm(stagingDirectory, { recursive: true, force: true });
+          }
+        })
+      );
     } else {
       if (!current) {
         return Response.json(

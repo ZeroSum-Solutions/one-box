@@ -44,6 +44,7 @@ function uploadRequest(
   files.forEach((file) => formData.append("files", file));
   const headers = new Headers(extraHeaders);
   if (!headers.has("Origin")) headers.set("Origin", "http://localhost");
+  if (!headers.has("Sec-Fetch-Site")) headers.set("Sec-Fetch-Site", "same-origin");
   if (uploadSession) headers.set("Authorization", `Bearer ${uploadSession}`);
   return new Request("http://localhost/api/uploads", {
     method: "POST",
@@ -125,11 +126,43 @@ describe("bounded multipart handling", () => {
     expect(await readdir(root)).toEqual([]);
   });
 
+  it("rejects a same-origin DNS-rebound URL before reading or staging the body", async () => {
+    const root = await stagingRoot();
+    let bodyReads = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        bodyReads += 1;
+        controller.enqueue(new Uint8Array([1, 2, 3]));
+        controller.close();
+      },
+    });
+    const request = new Request("http://rebound.example/api/uploads", {
+      method: "POST",
+      headers: {
+        Host: "localhost",
+        Origin: "http://rebound.example",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "multipart/form-data; boundary=valid-boundary",
+      },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    await Promise.resolve();
+    const readsBeforeHandler = bodyReads;
+
+    const response = await handleUpload(request, root);
+
+    expect(response.status).toBe(403);
+    expect(bodyReads).toBe(readsBeforeHandler);
+    expect(await readdir(root)).toEqual([]);
+  });
+
   it("preserves same-origin browser and bearer-authorized local upload behavior", async () => {
     const root = await stagingRoot();
     const sameOrigin = await handleUpload(
       uploadRequest([textFile("same-origin.txt")], undefined, {
         Origin: "http://localhost",
+        "Sec-Fetch-Site": "same-origin",
       }),
       root
     );
@@ -175,6 +208,7 @@ describe("bounded multipart handling", () => {
         method: "POST",
         headers: {
           Origin: "http://localhost",
+          "Sec-Fetch-Site": "same-origin",
           "Content-Type": "multipart/form-data",
         },
         body: "not multipart",
@@ -190,6 +224,7 @@ describe("bounded multipart handling", () => {
         method: "POST",
         headers: {
           Origin: "http://localhost",
+          "Sec-Fetch-Site": "same-origin",
           "Content-Type": "multipart/form-data; boundary=bad boundary",
         },
         body: "not multipart",

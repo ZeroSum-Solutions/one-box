@@ -260,7 +260,7 @@ export function Workbench(props: WorkbenchProps) {
           Custom interactive content cannot receive declarative motion safely.
         </ToolState>
       );
-    return <MotionControls runId={props.runId} selection={props.selection} onMutationComplete={props.onStructuredMutationComplete} onPreview={props.onMotionPreview} onReset={props.onMotionReset} />;
+    return <MotionControls key={props.selection.editId} runId={props.runId} selection={props.selection} onMutationComplete={props.onStructuredMutationComplete} onPreview={props.onMotionPreview} onReset={props.onMotionReset} />;
   }
 
   return (

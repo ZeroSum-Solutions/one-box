@@ -13,6 +13,7 @@ import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile, copyFile, rename, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import { compile } from "tailwindcss";
 
 const execFileAsync = promisify(execFile);
 import {
@@ -48,6 +49,21 @@ export interface BuildSiteInput {
   /** Approved Tailwind v4 source artifact. The static site does not require a
    * Tailwind runtime; this file preserves the exact semantic theme mapping. */
   tailwindThemeCss?: string;
+  /** Concrete utility candidates derived from the approved Tailwind plan and
+   * attached to the generated primary CTA. */
+  tailwindUtilityClasses?: string[];
+}
+
+export async function compileTailwindUtilities(
+  themeCss: string,
+  utilityClasses: string[]
+): Promise<string> {
+  const candidates = [...new Set(utilityClasses)];
+  if (candidates.some((candidate) => !/^[a-z0-9][a-z0-9-]*$/.test(candidate))) {
+    throw new Error("unsafe Tailwind utility candidate");
+  }
+  const compiler = await compile(`${themeCss}\n@tailwind utilities;`);
+  return compiler.build(candidates);
 }
 
 export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
@@ -77,6 +93,15 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
       input.tailwindThemeCss,
       "utf8"
     );
+    const utilities = await compileTailwindUtilities(
+      input.tailwindThemeCss,
+      input.tailwindUtilityClasses ?? []
+    );
+    await writeFile(
+      path.join(siteDir, "tailwind-utilities.css"),
+      utilities,
+      "utf8"
+    );
   }
   await copyFile(path.join(TEMPLATE_DIR, "site.css"), path.join(siteDir, "site.css"));
   await copyFile(path.join(TEMPLATE_DIR, "reveal.js"), path.join(siteDir, "reveal.js"));
@@ -102,7 +127,12 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
       kind: "css",
       generatedBy: "evidence-workflow:tailwind-v4-theme",
     });
-    files.push("tailwind-theme.css");
+    assetEntries.push({
+      path: "tailwind-utilities.css",
+      kind: "css",
+      generatedBy: "evidence-workflow:tailwind-v4-compiler",
+    });
+    files.push("tailwind-theme.css", "tailwind-utilities.css");
   }
 
   const phone = resolvePhone(input.intake, input.copy);
@@ -115,7 +145,8 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     files,
   });
 
-  const html = decorateTargetMarkup(input.intake.projectTarget, renderHtml({
+  const utilityClassText = (input.tailwindUtilityClasses ?? []).join(" ");
+  const renderedHtml = renderHtml({
     template: await readFile(path.join(TEMPLATE_DIR, "index.html.tpl"), "utf8"),
     tokens: input.tokens,
     copy: input.copy,
@@ -123,7 +154,11 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     phone,
     enabledSections,
     heroMediaHtml,
-  }));
+  }).replace(
+    'class="btn btn--primary hero__cta"',
+    `class="btn btn--primary hero__cta${utilityClassText ? ` ${utilityClassText}` : ""}"`
+  );
+  const html = decorateTargetMarkup(input.intake.projectTarget, renderedHtml);
   await writeFile(
     path.join(siteDir, "index.html"),
     html.replace(
@@ -132,7 +167,7 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     ).replace(
       '<link rel="stylesheet" href="tokens.css" />',
       input.tailwindThemeCss
-        ? '<link rel="stylesheet" href="tokens.css" />\n  <link rel="stylesheet" href="tailwind-theme.css" />'
+        ? '<link rel="stylesheet" href="tokens.css" />\n  <link rel="stylesheet" href="tailwind-theme.css" />\n  <link rel="stylesheet" href="tailwind-utilities.css" />'
         : '<link rel="stylesheet" href="tokens.css" />'
     ),
     "utf8"

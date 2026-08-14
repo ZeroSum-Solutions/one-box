@@ -479,6 +479,25 @@ export function assertTailwindPlanMatchesInventory(
   }
 }
 
+export function tailwindComponentUtilityClasses(plan: TailwindPlan): string[] {
+  const prefixes: Array<[string, string]> = [
+    ["--font-", "font-"],
+    ["--text-", "text-"],
+    ["--radius-", "rounded-"],
+    ["--shadow-", "shadow-"],
+    ["--ease-", "ease-"],
+    ["--container-", "max-w-"],
+  ];
+  const selected: string[] = [];
+  for (const [themePrefix, utilityPrefix] of prefixes) {
+    const mapping = plan.themeMappings.find(({ tailwindName }) =>
+      tailwindName.startsWith(themePrefix)
+    );
+    if (mapping) selected.push(`${utilityPrefix}${mapping.tailwindName.slice(themePrefix.length)}`);
+  }
+  return selected;
+}
+
 export function buildCssArchitecture(
   inventory: TokenInventory,
   plan: TailwindPlan,
@@ -506,7 +525,7 @@ export function buildCssArchitecture(
       page: ["page composition and responsive layout"],
       component: ["component states and deliberate variants"],
     },
-    generatedCssPath: "site/tailwind-theme.css",
+    generatedCssPath: "site/tailwind-utilities.css",
     justifiedExceptions: [],
   });
 }
@@ -555,9 +574,15 @@ async function boundedVisibleQaTarget(page: Page) {
 
 async function runThreeWidthVisualQaUnlocked(
   siteDirectory: string,
-  sourceCssArchitectureVersion: number
+  sourceCssArchitectureVersion: number,
+  visualQaVersion: number,
+  output?: { directory: string; evidenceBasePath: string }
 ): Promise<VisualQa> {
-  const qaDirectory = path.join(path.dirname(siteDirectory), "evidence", "qa");
+  const qaDirectory = output?.directory ?? path.join(
+    path.dirname(siteDirectory), "evidence", "qa", `v${visualQaVersion}`
+  );
+  const evidenceBasePath = output?.evidenceBasePath ??
+    path.relative(path.dirname(siteDirectory), qaDirectory).split(path.sep).join("/");
   await fs.mkdir(qaDirectory, { recursive: true });
   const url = `file://${path.join(siteDirectory, "index.html")}`;
   const buildSha256 = await computeSiteBuildSha256(siteDirectory);
@@ -584,7 +609,10 @@ async function runThreeWidthVisualQaUnlocked(
         area: viewport.area,
         status: overflow ? "fail" : "pass",
         notes: overflow ? "Horizontal overflow detected." : `Rendered at ${viewport.width}px without horizontal overflow.`,
-        evidencePath: path.relative(path.dirname(siteDirectory), screenshot),
+        evidencePath: path.posix.join(
+          evidenceBasePath,
+          path.basename(screenshot)
+        ),
       });
       await context.close();
     }
@@ -713,6 +741,24 @@ async function runThreeWidthVisualQaUnlocked(
   return VisualQaSchema.parse({ sourceCssArchitectureVersion, buildSha256, checks });
 }
 
+/** Writes QA screenshots only to a caller-owned staging directory. The caller
+ * must already hold the run's site-authority lock and transactionally promote
+ * the returned artifact's evidence paths. */
+export function stageThreeWidthVisualQa(
+  siteDirectory: string,
+  sourceCssArchitectureVersion: number,
+  visualQaVersion: number,
+  stagingDirectory: string,
+  finalEvidenceBasePath: string
+): Promise<VisualQa> {
+  return runThreeWidthVisualQaUnlocked(
+    siteDirectory,
+    sourceCssArchitectureVersion,
+    visualQaVersion,
+    { directory: stagingDirectory, evidenceBasePath: finalEvidenceBasePath }
+  );
+}
+
 /** QA generation shares the exact authority lock used by all editor writes.
  * The pre-capture build hash and every browser observation therefore describe
  * one stable site generation. Approval later reacquires this same lock before
@@ -720,10 +766,18 @@ async function runThreeWidthVisualQaUnlocked(
 export function runThreeWidthVisualQa(
   runId: string,
   siteDirectory: string,
-  sourceCssArchitectureVersion: number
+  sourceCssArchitectureVersion: number,
+  visualQaVersion = 1
 ): Promise<VisualQa> {
+  if (!Number.isInteger(visualQaVersion) || visualQaVersion < 1) {
+    throw new Error("visual QA version must be a positive integer");
+  }
   return withSiteAuthorityLock(runId, () =>
-    runThreeWidthVisualQaUnlocked(siteDirectory, sourceCssArchitectureVersion)
+    runThreeWidthVisualQaUnlocked(
+      siteDirectory,
+      sourceCssArchitectureVersion,
+      visualQaVersion
+    )
   );
 }
 

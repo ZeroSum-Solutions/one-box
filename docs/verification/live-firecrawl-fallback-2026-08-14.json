@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "acceptanceType": "explicit-paid-fallback",
+  "capturedAt": "2026-08-14T01:41:26.021Z",
+  "sourceUrl": "https://example.com",
+  "userApproval": {
+    "allowPaidFirecrawlFallback": true,
+    "scope": "one controlled fallback scrape"
+  },
+  "crawlAttempts": [
+    {
+      "provider": "crawl4ai",
+      "sourceUrl": "https://example.com",
+      "extractedAt": "2026-08-14T01:41:25.767Z",
+      "confidence": 0,
+      "outcome": "failed",
+      "failureReason": "bot challenge fixture for explicit paid-fallback acceptance"
+    },
+    {
+      "provider": "firecrawl",
+      "sourceUrl": "https://example.com",
+      "extractedAt": "2026-08-14T01:41:26.021Z",
+      "confidence": 0.85,
+      "outcome": "succeeded",
+      "fallbackReason": "bot-challenge",
+      "paidFallbackApproved": true
+    }
+  ],
+  "userVisibleFallbackEvent": "bot challenge fixture for explicit paid-fallback acceptance",
+  "artifact": {
+    "bytes": 167,
+    "bodyCommitted": false
+  },
+  "costUsd": 0.01,
+  "notes": "The local failure was deliberately injected to exercise the exact paid-fallback branch. The Firecrawl request and returned markdown were live; third-party body text is not committed."
+}

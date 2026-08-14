@@ -51,8 +51,9 @@
     "token-inventory.json",
     "tailwind-plan.json",
     "css-architecture.json",
-    "site",
-    "visual-qa.json"
+    "site-manifest.json",
+    "visual-qa.json",
+    "provenance.json"
   ],
   "evaluationRubric": "docs/eval/baseline/rubric-v1.md"
 }

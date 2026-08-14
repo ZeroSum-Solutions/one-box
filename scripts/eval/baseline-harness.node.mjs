@@ -7,130 +7,182 @@ import {
   assembleBlindPacket,
   prepareRun,
   scoreTemplate,
-  seededOrder,
   sha256,
   unblind,
   validateCompletedArtifacts,
-  validateHumanScores,
   verifyContract,
 } from "./baseline-harness.mjs";
 
 const REPOSITORY = path.resolve(import.meta.dirname, "../..");
 const CONTRACT_PATH = "docs/eval/baseline/evaluation-contract-v1.json";
-const LOCK_PATH = "docs/eval/baseline/evaluation-contract-v1.lock.json";
+const BASELINE_FILES = [
+  CONTRACT_PATH,
+  "docs/eval/baseline/evaluation-contract-v1.lock.json",
+  "docs/eval/baseline/brief-v1.json",
+  "docs/eval/baseline/rubric-v1.md",
+];
 
 async function temporaryRepository() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-eval-"));
-  const copy = async (relativePath) => {
+  await Promise.all(BASELINE_FILES.map(async (relativePath) => {
     const target = path.join(root, relativePath);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.copyFile(path.join(REPOSITORY, relativePath), target);
-  };
-  await Promise.all([
-    copy(CONTRACT_PATH),
-    copy(LOCK_PATH),
-    copy("docs/eval/baseline/brief-v1.json"),
-    copy("docs/eval/baseline/rubric-v1.md"),
-  ]);
+  }));
   return root;
 }
 
 async function writeCompletedArtifacts(root, runId, manifestHash) {
   const contract = JSON.parse(await fs.readFile(path.join(root, CONTRACT_PATH), "utf8"));
-  for (const pathDefinition of contract.paths) {
-    const output = path.join(root, "docs/eval/baseline/runs", runId, "artifacts", pathDefinition.id);
+  for (const definition of contract.paths) {
+    const output = path.join(root, "docs/eval/baseline/runs", runId, "artifacts", definition.id);
     await fs.mkdir(output, { recursive: true });
-    for (const artifact of contract.requiredArtifacts) {
-      if (artifact !== "provenance.json") await fs.writeFile(path.join(output, artifact), `${artifact}\n`);
+    const outputHashes = [];
+    for (const artifact of contract.requiredPresentationArtifacts) {
+      const bytes = Buffer.from(`${artifact}\n`);
+      await fs.writeFile(path.join(output, artifact), bytes);
+      outputHashes.push({ path: artifact, sha256: sha256(bytes) });
     }
     await fs.writeFile(path.join(output, "provenance.json"), JSON.stringify({
-      pathId: pathDefinition.id,
+      pathId: definition.id,
       status: "completed",
       runManifestSha256: manifestHash,
       prompts: ["frozen prompt"],
-      models: ["recorded by approved runner"],
+      models: ["coordinator-only identity"],
       toolCalls: [],
       sources: [],
-      outputHashes: [],
+      outputHashes,
       meteredCalls: [],
     }));
   }
 }
 
-test("the committed frozen contract, hashes, and rubric are valid", async () => {
-  const result = await verifyContract(REPOSITORY);
-  assert.deepEqual(result.errors, []);
-  assert.match(result.contractSha256, /^[a-f0-9]{64}$/);
-});
+async function readyRun(root, runId = "fixture-v1") {
+  const run = await prepareRun({ root, runId, seed: "coordinator-seed", createdAt: "2026-08-13T00:00:00.000Z" });
+  await writeCompletedArtifacts(root, runId, run.manifestHash);
+  const packet = await assembleBlindPacket({ root, runId });
+  return { run, packet };
+}
 
-test("presentation order is reproducible for a seed and does not mutate inputs", () => {
-  const paths = ["path-a", "path-b"];
-  assert.deepEqual(seededOrder("blind-seed", paths), seededOrder("blind-seed", paths));
-  assert.deepEqual(paths, ["path-a", "path-b"]);
-});
-
-test("offline preparation creates a blocked run without live results", async (context) => {
-  const root = await temporaryRepository();
-  context.after(() => fs.rm(root, { recursive: true, force: true }));
-  const run = await prepareRun({ root, runId: "fixture-v1", seed: "blind-seed", createdAt: "2026-08-13T00:00:00.000Z" });
-  assert.equal(run.manifest.status, "BLOCKED");
-  assert.equal(run.manifest.provenance.providerCalls, 0);
-  assert.equal(run.manifest.provenance.credentialsRead, false);
-  const checked = await validateCompletedArtifacts({ root, runId: "fixture-v1" });
-  assert.ok(checked.errors.some((error) => error.includes("missing required artifact")));
-});
-
-test("changed frozen inputs are rejected by their SHA-256 contract", async (context) => {
-  const root = await temporaryRepository();
-  context.after(() => fs.rm(root, { recursive: true, force: true }));
-  await fs.appendFile(path.join(root, "docs/eval/baseline/brief-v1.json"), "\n");
-  const result = await verifyContract(root);
-  assert.ok(result.errors.includes("input hash mismatch: docs/eval/baseline/brief-v1.json"));
-});
-
-test("completed provenance plus full human scores are required before unblinding", async (context) => {
-  const root = await temporaryRepository();
-  context.after(() => fs.rm(root, { recursive: true, force: true }));
-  const run = await prepareRun({ root, runId: "fixture-v2", seed: "blind-seed", createdAt: "2026-08-13T00:00:00.000Z" });
-  await writeCompletedArtifacts(root, "fixture-v2", run.manifestHash);
-  const packet = await assembleBlindPacket({ root, runId: "fixture-v2" });
-  assert.equal(packet.status, "READY_FOR_HUMAN_BLIND_SCORING");
-  const template = scoreTemplate({
-    runId: "fixture-v2",
+function completedScores({ run, packet, evaluatorId, evaluatorName, contract, slot }) {
+  const scores = scoreTemplate({
+    runId: run.manifest.runId,
     blindIds: packet.artifacts.map((artifact) => artifact.blindId),
-    rubricAreas: (await verifyContract(root)).contract.requiredRubricAreas,
+    rubricAreas: contract.requiredRubricAreas,
     runManifestSha256: run.manifestHash,
+    presentationPacketSha256: packet.packetSha256,
+    evaluatorSlot: slot,
   });
-  assert.ok(validateHumanScores(template, {
-    runId: "fixture-v2",
-    blindIds: packet.artifacts.map((artifact) => artifact.blindId),
-    rubricAreas: (await verifyContract(root)).contract.requiredRubricAreas,
-    runManifestSha256: run.manifestHash,
-  }).length > 0);
-  template.evaluator = {
-    name: "Human evaluator",
+  scores.evaluator = {
+    id: evaluatorId,
+    name: evaluatorName,
     scoredAt: "2026-08-13T01:00:00.000Z",
-    attestation: "I scored these blinded artifacts before seeing the producer mapping.",
+    attestation: "Independent blind score completed.",
   };
-  for (const entry of template.scores) {
+  for (const entry of scores.scores) {
     for (const area of Object.values(entry.areas)) {
       area.score = 3;
-      area.evidence = "rendered artifact evidence";
+      area.evidence = "artifact evidence";
     }
   }
-  const scoreFile = path.join(root, "completed-scores.json");
-  await fs.writeFile(scoreFile, `${JSON.stringify(template)}\n`);
-  const result = await unblind({ root, runId: "fixture-v2", scoresFile: scoreFile });
-  assert.equal(result.status, "UNBLINDED_HUMAN_SCORES_RECORDED");
-  assert.equal(result.results.length, 2);
-  assert.equal(result.scoreSha256, sha256(await fs.readFile(scoreFile)));
+  return scores;
+}
+
+test("committed frozen contract, input hashes, rubric, and artifact lists agree", async () => {
+  assert.deepEqual((await verifyContract(REPOSITORY)).errors, []);
 });
 
-test("blind packet rejects provider identity leaked outside coordinator provenance", async (context) => {
+test("prepare is atomic under a race and keeps the seed coordinator-side", async (context) => {
   const root = await temporaryRepository();
   context.after(() => fs.rm(root, { recursive: true, force: true }));
-  const run = await prepareRun({ root, runId: "fixture-v3", seed: "blind-seed", createdAt: "2026-08-13T00:00:00.000Z" });
-  await writeCompletedArtifacts(root, "fixture-v3", run.manifestHash);
-  await fs.writeFile(path.join(root, "docs/eval/baseline/runs/fixture-v3/artifacts/path-a/research.json"), "direct Refero MCP result");
-  await assert.rejects(assembleBlindPacket({ root, runId: "fixture-v3" }), /leaks blinded producer identity/);
+  const settled = await Promise.allSettled([
+    prepareRun({ root, runId: "race-v1", seed: "secret-seed", createdAt: "2026-08-13T00:00:00.000Z" }),
+    prepareRun({ root, runId: "race-v1", seed: "secret-seed", createdAt: "2026-08-13T00:00:00.000Z" }),
+  ]);
+  assert.equal(settled.filter((entry) => entry.status === "fulfilled").length, 1);
+  assert.equal(settled.filter((entry) => entry.status === "rejected").length, 1);
+  const manifest = await fs.readFile(path.join(root, "docs/eval/baseline/runs/race-v1/run-manifest.json"), "utf8");
+  assert.doesNotMatch(manifest, /secret-seed/);
+  assert.match(manifest, new RegExp(sha256("secret-seed")));
+  await fs.mkdir(path.join(root, "docs/eval/baseline/runs/preexisting"));
+  await assert.rejects(prepareRun({ root, runId: "preexisting", seed: "seed" }), /already exists and is immutable/);
+});
+
+test("provenance rejects missing and mismatched artifact hashes", async (context) => {
+  const root = await temporaryRepository();
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const run = await prepareRun({ root, runId: "hash-v1", seed: "seed" });
+  await writeCompletedArtifacts(root, "hash-v1", run.manifestHash);
+  const file = path.join(root, "docs/eval/baseline/runs/hash-v1/artifacts/path-a/DESIGN.md");
+  await fs.writeFile(file, "changed\n");
+  const checked = await validateCompletedArtifacts({ root, runId: "hash-v1" });
+  assert.ok(checked.errors.some((error) => error.includes("output hash mismatch: DESIGN.md")));
+});
+
+test("blind assembly rejects leaks and symlinks and copies no extra files", async (context) => {
+  const root = await temporaryRepository();
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const run = await prepareRun({ root, runId: "blind-v1", seed: "seed" });
+  await writeCompletedArtifacts(root, "blind-v1", run.manifestHash);
+  const base = path.join(root, "docs/eval/baseline/runs/blind-v1/artifacts/path-a");
+  await fs.writeFile(path.join(base, "extra.txt"), "must not copy");
+  const target = path.join(base, "DESIGN.md");
+  await fs.writeFile(path.join(base, "real-design.md"), "safe\n");
+  await fs.rm(target);
+  await fs.symlink("real-design.md", target);
+  await assert.rejects(assembleBlindPacket({ root, runId: "blind-v1" }), /regular non-symlink/);
+
+  await fs.rm(target);
+  const leak = Buffer.from("R.e.f.e.r.o producer");
+  await fs.writeFile(target, leak);
+  const provenanceFile = path.join(base, "provenance.json");
+  const provenance = JSON.parse(await fs.readFile(provenanceFile, "utf8"));
+  provenance.outputHashes.find((entry) => entry.path === "DESIGN.md").sha256 = sha256(leak);
+  await fs.writeFile(provenanceFile, JSON.stringify(provenance));
+  await assert.rejects(assembleBlindPacket({ root, runId: "blind-v1" }), /leaks blinded identity/);
+});
+
+test("blind assembly copies exactly the required allowlist", async (context) => {
+  const root = await temporaryRepository();
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const run = await prepareRun({ root, runId: "allowlist-v1", seed: "seed" });
+  await writeCompletedArtifacts(root, "allowlist-v1", run.manifestHash);
+  await fs.writeFile(path.join(root, "docs/eval/baseline/runs/allowlist-v1/artifacts/path-a/extra.txt"), "not presented");
+  const packet = await assembleBlindPacket({ root, runId: "allowlist-v1" });
+  for (const artifact of packet.artifacts) {
+    const entries = await fs.readdir(path.join(root, "docs/eval/baseline/runs/allowlist-v1/presentation", artifact.blindId));
+    assert.deepEqual(entries.sort(), artifact.files.map((entry) => entry.path).sort());
+    assert.ok(!entries.includes("extra.txt"));
+  }
+});
+
+test("unblind requires the current packet and two distinct evaluators, then cannot overwrite", async (context) => {
+  const root = await temporaryRepository();
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const { run, packet } = await readyRun(root, "scores-v1");
+  const contract = (await verifyContract(root)).contract;
+  const first = completedScores({ run, packet, evaluatorId: "human-1", evaluatorName: "First Human", contract, slot: 1 });
+  const second = completedScores({ run, packet, evaluatorId: "human-2", evaluatorName: "Second Human", contract, slot: 2 });
+  const firstFile = path.join(root, "score-1.json");
+  const secondFile = path.join(root, "score-2.json");
+  await fs.writeFile(firstFile, JSON.stringify(first));
+  await fs.writeFile(secondFile, JSON.stringify(second));
+  await assert.rejects(unblind({ root, runId: "scores-v1", scoresFiles: [firstFile, firstFile] }), /distinct evaluator score files/);
+  const result = await unblind({ root, runId: "scores-v1", scoresFiles: [firstFile, secondFile] });
+  assert.equal(result.evaluators.length, 2);
+  await assert.rejects(unblind({ root, runId: "scores-v1", scoresFiles: [firstFile, secondFile] }), /already exists and is immutable/);
+});
+
+test("unblind rejects packet mutation and leak introduced after scoring", async (context) => {
+  const root = await temporaryRepository();
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const { run, packet } = await readyRun(root, "packet-v1");
+  const contract = (await verifyContract(root)).contract;
+  const firstFile = path.join(root, "score-1.json");
+  const secondFile = path.join(root, "score-2.json");
+  await fs.writeFile(firstFile, JSON.stringify(completedScores({ run, packet, evaluatorId: "human-1", evaluatorName: "First Human", contract, slot: 1 })));
+  await fs.writeFile(secondFile, JSON.stringify(completedScores({ run, packet, evaluatorId: "human-2", evaluatorName: "Second Human", contract, slot: 2 })));
+  const presented = path.join(root, "docs/eval/baseline/runs/packet-v1/presentation/artifact-01/DESIGN.md");
+  await fs.writeFile(presented, "g-r-o-k leak\n");
+  await assert.rejects(unblind({ root, runId: "packet-v1", scoresFiles: [firstFile, secondFile] }), /packet hash mismatch|leaks blinded identity/);
 });

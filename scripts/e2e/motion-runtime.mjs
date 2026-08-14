@@ -19,6 +19,20 @@ const entry = {
   breakpoint: "all",
   scrub: false,
 };
+const manualEntrance = {
+  ...entry,
+  id: "00000000-0000-4000-8000-000000000002",
+  kind: "entrance",
+  trigger: "manual",
+};
+const manualTimeline = {
+  ...entry,
+  id: "00000000-0000-4000-8000-000000000003",
+  kind: "timeline",
+  trigger: "manual",
+  timelineId: "hero-sequence",
+  order: 3,
+};
 
 async function boot(page, manifest) {
   await page.setContent('<main style="min-height:200vh"><h1 data-edit-id="hero.headline">Headline</h1><div data-edit-id="hero.webgl"><canvas></canvas></div></main>');
@@ -37,6 +51,7 @@ try {
     active: document.querySelectorAll("[data-onebox-motion-active]").length,
   }));
   assert.deepEqual(await counts(), { triggers: 1, active: 1 });
+  assert.equal(await page.evaluate(() => window.ScrollTrigger.getAll()[0].vars.toggleActions), "play none none none");
 
   await page.evaluate(() => {
     window.__ONEBOX_MOTION_RUNTIME__.rehydrate();
@@ -60,6 +75,90 @@ try {
   assert.equal(await reduced.evaluate(() => document.documentElement.classList.contains("no-motion")), true);
   assert.equal(await reduced.locator('[data-edit-id="hero.headline"]').evaluate((element) => getComputedStyle(element).transform), "none");
   await reduced.close();
+
+  const viewportTimeline = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await boot(viewportTimeline, { version: 1, entries: [{ ...manualTimeline, trigger: "viewport", replay: "repeat" }] });
+  assert.equal(await viewportTimeline.evaluate(() => window.ScrollTrigger.getAll().filter((trigger) => String(trigger.vars.id || "").startsWith("onebox:")).length), 1);
+  assert.equal(await viewportTimeline.evaluate(() => window.ScrollTrigger.getAll()[0].vars.toggleActions), "play reverse play reverse");
+  assert.equal(await viewportTimeline.evaluate(() => Boolean(window.ScrollTrigger.getAll()[0].animation)), true);
+  await viewportTimeline.close();
+
+  const manual = await browser.newPage();
+  await boot(manual, { version: 1, entries: [] });
+  assert.equal(await manual.evaluate((value) => {
+    const original = window.gsap.from;
+    let calls = 0;
+    window.gsap.from = function (...args) { calls += 1; return original.apply(this, args); };
+    const result = window.__ONEBOX_MOTION_RUNTIME__.preview(value);
+    window.gsap.from = original;
+    return result && calls;
+  }, manualEntrance), 1);
+  assert.equal(await manual.evaluate((value) => {
+    const original = window.gsap.timeline;
+    let restarts = 0;
+    window.gsap.timeline = function (...args) {
+      const timeline = original.apply(this, args);
+      const restart = timeline.restart;
+      timeline.restart = function (...restartArgs) { restarts += 1; return restart.apply(this, restartArgs); };
+      return timeline;
+    };
+    const result = window.__ONEBOX_MOTION_RUNTIME__.preview(value);
+    window.gsap.timeline = original;
+    return result && restarts;
+  }, manualTimeline), 1);
+  await manual.close();
+
+  const manualVisual = await browser.newPage();
+  await boot(manualVisual, { version: 1, entries: [manualTimeline] });
+  assert.equal(await manualVisual.locator('[data-edit-id="hero.headline"]').evaluate((element) => getComputedStyle(element).transform), "none");
+  await manualVisual.locator('[data-edit-id="hero.headline"]').evaluate((element) => element.dispatchEvent(new Event("onebox-motion-preview")));
+  await manualVisual.waitForTimeout(30);
+  assert.notEqual(await manualVisual.locator('[data-edit-id="hero.headline"]').evaluate((element) => getComputedStyle(element).transform), "none");
+  await manualVisual.close();
+
+  const replay = await browser.newPage();
+  await boot(replay, { version: 1, entries: [manualEntrance] });
+  assert.deepEqual(await replay.evaluate((repeat) => {
+    const original = window.gsap.from;
+    let calls = 0;
+    window.gsap.from = function (...args) { calls += 1; return original.apply(this, args); };
+    const target = document.querySelector('[data-edit-id="hero.headline"]');
+    target.dispatchEvent(new Event("onebox-motion-preview"));
+    target.dispatchEvent(new Event("onebox-motion-preview"));
+    const onceCalls = calls;
+    window.__ONEBOX_MOTION_MANIFEST__ = { version: 1, entries: [{ ...repeat, replay: "repeat" }] };
+    window.__ONEBOX_MOTION_RUNTIME__.rehydrate();
+    target.dispatchEvent(new Event("onebox-motion-preview"));
+    target.dispatchEvent(new Event("onebox-motion-preview"));
+    window.gsap.from = original;
+    return { once: onceCalls, repeat: calls - onceCalls };
+  }, manualEntrance), { once: 1, repeat: 2 });
+  await replay.close();
+
+  const malformed = await browser.newPage();
+  await boot(malformed, { version: 1, entries: [entry] });
+  const invalidManifests = [
+    { version: 1, entries: [entry], selector: "body" },
+    { version: 1, entries: [{ ...entry, onComplete: "alert(1)" }] },
+    { version: 1, entries: [{ ...entry, id: "not-a-uuid" }] },
+    { version: 1, entries: [{ ...entry, scrub: "true" }] },
+    { version: 1, entries: [{ ...entry, durationMs: 5001 }] },
+    { version: 1, entries: [{ ...manualTimeline, timelineId: "bad group!" }] },
+    { version: 1, entries: [{ ...manualTimeline, order: 51 }] },
+    { version: 1, entries: [entry, { ...entry, properties: { filter: 1 } }] },
+    { version: 1, entries: Array.from({ length: 101 }, () => entry) },
+  ];
+  for (const manifest of invalidManifests) {
+    assert.deepEqual(await malformed.evaluate((value) => {
+      window.__ONEBOX_MOTION_MANIFEST__ = value;
+      window.__ONEBOX_MOTION_RUNTIME__.rehydrate();
+      return {
+        active: document.querySelectorAll("[data-onebox-motion-active]").length,
+        triggers: window.ScrollTrigger.getAll().filter((trigger) => String(trigger.vars.id || "").startsWith("onebox:")).length,
+      };
+    }, manifest), { active: 0, triggers: 0 });
+  }
+  await malformed.close();
 
   const fallback = await browser.newPage();
   await boot(fallback, { version: 1, entries: [] });

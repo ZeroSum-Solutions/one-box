@@ -28,7 +28,7 @@ Path A versus a direct Refero MCP research workflow in Path B.
 | Path A prompts and artifacts | pending | OpenRouter key is in locked ZS Vault |
 | Path B direct Refero research | pending | Refero OAuth is not authorized in Codex |
 | Randomized blind labels | ready when a run is prepared | reproducible seed and coordinator-only unblinding key; presentation is blocked until both provenanced paths finish |
-| Independent scores | pending | inputs do not exist yet |
+| Independent scores | pending | two distinct human score files, each bound to the current immutable presentation packet, are required |
 | Root-cause decision | pending | cannot precede comparison evidence |
 
 No revised pipeline proposal is authorized by this incomplete comparison.
