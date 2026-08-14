@@ -2,8 +2,9 @@
 
 **Record date:** 2026-08-14
 
-**Revision inspected:** `e2b41995d960eac14905c645631d3565f7ed5a54` on
-`codex/onebox-production-loop`, matching merged `main` at the start of this pass
+**Comparison inspected:** merged `main` at
+`e2b41995d960eac14905c645631d3565f7ed5a54` through the current
+`codex/onebox-production-loop` branch head
 
 **Scope:** production-like local conformance. This is not a deployment or
 live-provider verdict.
