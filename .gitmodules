@@ -1,0 +1,3 @@
+[submodule "vendor/refero_skill"]
+	path = vendor/refero_skill
+	url = https://github.com/referodesign/refero_skill.git

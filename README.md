@@ -25,10 +25,11 @@ not require model or research credentials.
 ## Install on a Mac
 
 ```bash
-git clone https://github.com/wiggdevin/one-box.git
+git clone --recurse-submodules https://github.com/wiggdevin/one-box.git
 cd one-box
 git switch main
 git pull --ff-only
+git submodule update --init --recursive
 npm ci
 npm test
 npm run typecheck
