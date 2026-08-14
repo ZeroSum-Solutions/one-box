@@ -33,9 +33,17 @@ const manualTimeline = {
   timelineId: "hero-sequence",
   order: 3,
 };
+const hoverEntry = {
+  ...entry,
+  id: "00000000-0000-4000-8000-000000000004",
+  kind: "hover",
+  trigger: "hover",
+  durationMs: 80,
+  properties: { x: 100 },
+};
 
 async function boot(page, manifest) {
-  await page.setContent('<main style="min-height:200vh"><h1 data-edit-id="hero.headline">Headline</h1><div data-edit-id="hero.webgl"><canvas></canvas></div></main>');
+  await page.setContent('<main style="min-height:200vh"><h1 data-edit-id="hero.headline">Headline</h1><p data-edit-id="hero.sub">Subhead</p><div data-edit-id="hero.webgl"><canvas></canvas></div></main>');
   await page.evaluate((value) => { window.__ONEBOX_MOTION_MANIFEST__ = value; }, manifest);
   await page.addScriptTag({ path: gsapPath });
   await page.addScriptTag({ path: scrollTriggerPath });
@@ -74,7 +82,27 @@ try {
   assert.equal(await reduced.locator("[data-onebox-motion-active]").count(), 0);
   assert.equal(await reduced.evaluate(() => document.documentElement.classList.contains("no-motion")), true);
   assert.equal(await reduced.locator('[data-edit-id="hero.headline"]').evaluate((element) => getComputedStyle(element).transform), "none");
+  assert.equal(await reduced.evaluate((value) => window.__ONEBOX_MOTION_RUNTIME__.preview(value), hoverEntry), true);
+  await reduced.waitForTimeout(100);
+  assert.equal(await reduced.locator('[data-edit-id="hero.headline"]').evaluate((element) => getComputedStyle(element).transform), "none");
   await reduced.close();
+
+  const authoredHover = await browser.newPage();
+  await boot(authoredHover, { version: 1, entries: [] });
+  await authoredHover.locator('[data-edit-id="hero.headline"]').evaluate((element, value) => {
+    element.style.transform = "translateX(40px)";
+    window.__ONEBOX_MOTION_MANIFEST__ = { version: 1, entries: [value] };
+    window.__ONEBOX_MOTION_RUNTIME__.rehydrate();
+  }, hoverEntry);
+  const authoredX = () => authoredHover.locator('[data-edit-id="hero.headline"]').evaluate((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m41);
+  assert.equal(Math.round(await authoredX()), 40);
+  await authoredHover.locator('[data-edit-id="hero.headline"]').dispatchEvent("pointerenter");
+  await authoredHover.waitForTimeout(120);
+  assert.equal(Math.round(await authoredX()), 100);
+  await authoredHover.locator('[data-edit-id="hero.headline"]').dispatchEvent("pointerleave");
+  await authoredHover.waitForTimeout(120);
+  assert.equal(Math.round(await authoredX()), 40);
+  await authoredHover.close();
 
   const viewportTimeline = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   await boot(viewportTimeline, { version: 1, entries: [{ ...manualTimeline, trigger: "viewport", replay: "repeat" }] });
@@ -116,6 +144,35 @@ try {
   assert.notEqual(await manualVisual.locator('[data-edit-id="hero.headline"]').evaluate((element) => getComputedStyle(element).transform), "none");
   await manualVisual.close();
 
+  const groupedOnce = await browser.newPage();
+  await boot(groupedOnce, { version: 1, entries: [] });
+  assert.deepEqual(await groupedOnce.evaluate((first) => {
+    const second = {
+      ...first,
+      id: "00000000-0000-4000-8000-000000000005",
+      editId: "hero.sub",
+      order: first.order + 1,
+    };
+    const original = window.gsap.timeline;
+    let restarts = 0;
+    window.gsap.timeline = function (...args) {
+      const timeline = original.apply(this, args);
+      const restart = timeline.restart;
+      timeline.restart = function (...restartArgs) {
+        restarts += 1;
+        return restart.apply(this, restartArgs);
+      };
+      return timeline;
+    };
+    window.__ONEBOX_MOTION_MANIFEST__ = { version: 1, entries: [first, second] };
+    window.__ONEBOX_MOTION_RUNTIME__.rehydrate();
+    document.querySelector('[data-edit-id="hero.headline"]').dispatchEvent(new Event("onebox-motion-preview"));
+    document.querySelector('[data-edit-id="hero.sub"]').dispatchEvent(new Event("onebox-motion-preview"));
+    window.gsap.timeline = original;
+    return { restarts, active: document.querySelectorAll('[data-onebox-motion-active="timeline"]').length };
+  }, manualTimeline), { restarts: 1, active: 2 });
+  await groupedOnce.close();
+
   const replay = await browser.newPage();
   await boot(replay, { version: 1, entries: [manualEntrance] });
   assert.deepEqual(await replay.evaluate((repeat) => {
@@ -141,6 +198,10 @@ try {
     { version: 1, entries: [entry], selector: "body" },
     { version: 1, entries: [{ ...entry, onComplete: "alert(1)" }] },
     { version: 1, entries: [{ ...entry, id: "not-a-uuid" }] },
+    { version: 1, entries: [{ ...entry, id: "00000000-0000-0000-0000-000000000000" }] },
+    { version: 1, entries: [{ ...entry, breakpoint: "toString" }] },
+    { version: 1, entries: [{ ...entry, kind: "entrance", trigger: "hover" }] },
+    { version: 1, entries: [{ ...manualTimeline, trigger: "hover" }] },
     { version: 1, entries: [{ ...entry, scrub: "true" }] },
     { version: 1, entries: [{ ...entry, durationMs: 5001 }] },
     { version: 1, entries: [{ ...manualTimeline, timelineId: "bad group!" }] },

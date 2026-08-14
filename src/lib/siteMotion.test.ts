@@ -55,6 +55,9 @@ describe("motion schema", () => {
     expect(MotionDraftSchema.safeParse({ ...draft, properties: { filter: "blur(2px)" } }).success).toBe(false);
     expect(MotionDraftSchema.safeParse({ ...draft, durationMs: 50_000 }).success).toBe(false);
     expect(MotionManifestSchema.safeParse({ version: 2, entries: [] }).success).toBe(false);
+    expect(MotionDraftSchema.safeParse({ ...draft, trigger: "hover" }).success).toBe(false);
+    expect(MotionDraftSchema.safeParse({ ...draft, kind: "timeline", trigger: "hover", timelineId: "hero", order: 1 }).success).toBe(false);
+    expect(MotionManifestSchema.safeParse({ version: 1, entries: [{ ...draft, id: "00000000-0000-0000-0000-000000000000" }] }).success).toBe(false);
   });
 });
 

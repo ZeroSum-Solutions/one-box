@@ -71,7 +71,7 @@
     if (!/^[a-z0-9][a-z0-9._-]{1,79}$/i.test(entry.editId)) return false;
     if (["entrance", "exit", "hover", "scroll", "timeline"].indexOf(entry.kind) < 0) return false;
     if (["load", "viewport", "hover", "manual"].indexOf(entry.trigger) < 0) return false;
-    if (["once", "repeat"].indexOf(entry.replay) < 0 || !breakpointQueries[entry.breakpoint]) return false;
+    if (["once", "repeat"].indexOf(entry.replay) < 0 || ["all", "mobile", "tablet", "desktop"].indexOf(entry.breakpoint) < 0) return false;
     if (["none", "power1.out", "power2.out", "power3.out", "sine.inOut"].indexOf(entry.ease) < 0) return false;
     if (!Number.isInteger(entry.durationMs) || entry.durationMs < 50 || entry.durationMs > 5000 || !Number.isInteger(entry.delayMs) || entry.delayMs < 0 || entry.delayMs > 5000) return false;
     if (!isObject(entry.properties)) return false;
@@ -82,9 +82,11 @@
     if (entry.kind === "hover" && entry.trigger !== "hover") return false;
     if (entry.kind === "scroll" && entry.trigger !== "viewport") return false;
     if (entry.kind === "exit" && entry.trigger !== "manual") return false;
+    if (entry.kind === "entrance" && ["load", "viewport", "manual"].indexOf(entry.trigger) < 0) return false;
     if (Object.prototype.hasOwnProperty.call(entry, "scrub") && typeof entry.scrub !== "boolean") return false;
     if (entry.scrub && entry.kind !== "scroll") return false;
     if (entry.kind === "timeline") {
+      if (["load", "viewport", "manual"].indexOf(entry.trigger) < 0) return false;
       if (typeof entry.timelineId !== "string" || !/^[a-z0-9][a-z0-9_-]{1,39}$/i.test(entry.timelineId)) return false;
       if (!Number.isInteger(entry.order) || entry.order < 0 || entry.order > 50) return false;
     } else if (Object.prototype.hasOwnProperty.call(entry, "timelineId") || Object.prototype.hasOwnProperty.call(entry, "order")) return false;
@@ -126,15 +128,16 @@
     var vars = varsFor(entry);
     if (entry.kind === "hover") {
       var played = false;
-      var tween = function () {
+      var hoverTween = window.gsap.to(element, Object.assign({}, vars, { paused: true }));
+      var play = function () {
         if (entry.replay === "once" && played) return;
         played = true;
-        window.gsap.to(element, vars);
+        hoverTween.restart();
       };
-      var reset = function () { window.gsap.to(element, { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, duration: Math.min(vars.duration, 0.3), overwrite: "auto" }); };
-      addListener(element, "pointerenter", tween);
+      var reset = function () { hoverTween.reverse(); };
+      addListener(element, "pointerenter", play);
       addListener(element, "pointerleave", reset);
-      addListener(element, "focus", tween);
+      addListener(element, "focus", play);
       addListener(element, "blur", reset);
       return;
     }
@@ -159,10 +162,15 @@
           entry: entry,
           element: element,
           timeline: window.gsap.timeline({ paused: true }),
+          played: false,
         };
       }
       group.timeline.from(element, Object.assign({}, vars, { immediateRender: false }));
-      if (entry.trigger === "manual") addReplayListener(element, "onebox-motion-preview", entry, function () { group.timeline.restart(); });
+      if (entry.trigger === "manual") addListener(element, "onebox-motion-preview", function () {
+        if (entry.replay === "once" && group.played) return;
+        group.played = true;
+        group.timeline.restart();
+      });
       return;
     }
     if (entry.kind === "exit") {
@@ -250,7 +258,7 @@
     applyManifest({ version: 1, entries: [entry] });
     var element = exactTarget(entry.editId);
     if (!element || !window.gsap) return false;
-    if (entry.kind === "hover") window.gsap.to(element, varsFor(entry));
+    if (entry.kind === "hover") element.dispatchEvent(new Event("pointerenter"));
     else if (entry.trigger === "manual") element.dispatchEvent(new Event("onebox-motion-preview"));
     return true;
   }
