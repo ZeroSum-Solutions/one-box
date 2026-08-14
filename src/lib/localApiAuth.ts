@@ -10,12 +10,11 @@ export function isLocalApiAuthorized(request: Request): boolean {
   } catch {
     return false;
   }
+  if (!LOOPBACK_HOSTNAMES.has(requestUrl.hostname.toLowerCase())) return false;
   const origin = request.headers.get("origin");
   if (request.method === "GET" || request.method === "HEAD") {
     return !origin || origin === requestUrl.origin;
   }
-  if (!LOOPBACK_HOSTNAMES.has(requestUrl.hostname.toLowerCase())) return false;
-
   const configuredToken = process.env.ONE_BOX_API_TOKEN;
   if (
     configuredToken &&

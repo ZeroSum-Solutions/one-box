@@ -62,6 +62,8 @@
       text: (el.innerText || el.textContent || "").slice(0, 4000),
       behavior: behaviorFor(el),
     };
+    if (el.matches("img,picture") || el.querySelector("img"))
+      state.assetKind = "image";
     if (el.matches("a")) state.href = el.getAttribute("href") || "";
     if (el.matches("button")) {
       var explicitType = el.hasAttribute("type");

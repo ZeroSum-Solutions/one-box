@@ -2,8 +2,10 @@
 
 import { ChatComposer } from "@/components/ChatComposer";
 import { GateStrip } from "@/components/GateStrip";
+import { AssetControls } from "./AssetControls";
 import { ElementControls } from "./ElementControls";
 import { MotionControls } from "./MotionControls";
+import { ResearchFindings } from "./ResearchFindings";
 import { TokenControls } from "./TokenControls";
 import type {
   EditorInteractionState,
@@ -44,7 +46,7 @@ interface WorkbenchProps {
   onSubmitEdit: () => void;
   onSizeChange: (size: WorkbenchSize) => void;
   onEditorCommand: (action: "cancel" | "clear") => void;
-  onStructuredMutationComplete: () => void;
+  onStructuredMutationComplete: (message?: string) => void;
   onMotionPreview: (draft: Record<string, unknown>) => void;
   onMotionReset: () => void;
   onTokenPreview: (token: string, value: string) => void;
@@ -211,30 +213,37 @@ export function Workbench(props: WorkbenchProps) {
     }
 
     if (props.activeTool === "assets") {
+      if (!props.selection && props.editResult)
+        return (
+          <div className="workbench-state" role="status">
+            <span className="workbench-state__label">complete</span>
+            <strong>Image replaced</strong>
+            <p>{props.editResult}</p>
+          </div>
+        );
       if (!props.selection)
         return (
           <ToolState kind="empty" title="No asset target">
             Select an image or media region to target this tool.
           </ToolState>
         );
-      if (!/image|asset|media/i.test(props.selection.editId)) {
-        return (
-          <ToolState kind="unsupported" title="Selection is not an asset">
-            This slice only routes recognized image and media targets here.
-          </ToolState>
-        );
-      }
       return (
-        <ToolState kind="empty" title="Asset target ready">
-          Use the Text and button tool’s existing image intent until the asset
-          workflow lands.
-        </ToolState>
+        <AssetControls
+          key={props.selection.editId}
+          runId={props.runId}
+          selection={props.selection}
+          onMutationComplete={props.onStructuredMutationComplete}
+        />
       );
     }
 
     if (props.activeTool === "research") {
       return (
-        <GateStrip runId={props.runId} refreshToken={props.gateRefreshToken} />
+        <>
+          <ResearchFindings runId={props.runId} />
+          <hr className="hairline" />
+          <GateStrip runId={props.runId} refreshToken={props.gateRefreshToken} />
+        </>
       );
     }
 

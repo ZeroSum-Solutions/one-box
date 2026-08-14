@@ -931,6 +931,7 @@ export const EditRequestSchema = z.object({
   editId: z.string(), // data-edit-id — the ONLY selector the editor accepts
   instruction: z.string(),
   imageIntent: z.boolean().default(false), // route to Higgsfield swap
+  requestId: z.string().uuid().optional(),
 });
 export type EditRequest = z.infer<typeof EditRequestSchema>;
 

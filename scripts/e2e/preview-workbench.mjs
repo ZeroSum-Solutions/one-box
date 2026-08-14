@@ -10,6 +10,70 @@ const runRoot = path.join(root, "sites", runId);
 const indexPath = path.join(runRoot, "site", "index.html");
 const historyPath = path.join(runRoot, "element-history.json");
 
+const fidelityFixture = `
+  <style>
+    #e2e-interactive, #e2e-parallax, #e2e-webgl {
+      color: var(--color-text);
+      font-family: var(--font-body);
+      background-color: transparent;
+    }
+    #e2e-fidelity-hover {
+      color: var(--color-text);
+      font-family: var(--font-body);
+      background: var(--color-surface);
+    }
+    #e2e-fidelity-hover:hover {
+      color: var(--color-primary-contrast);
+      background: var(--color-primary);
+    }
+  </style>
+  <section data-edit-id="fixture.interactive" id="e2e-interactive">
+    <canvas id="e2e-webgl" width="64" height="64" role="img" aria-label="WebGL fidelity fixture">WebGL preview</canvas>
+    <div id="e2e-parallax">Parallax fidelity fixture</div>
+    <button id="e2e-fidelity-hover" type="button">Hover fidelity fixture</button>
+  </section>
+  <script>
+    (function () {
+      var canvas = document.getElementById("e2e-webgl");
+      var gl = canvas.getContext("webgl");
+      var parallax = document.getElementById("e2e-parallax");
+      var hover = document.getElementById("e2e-fidelity-hover");
+      var state = window.__oneboxFidelity = {
+        webgl: Boolean(gl),
+        frames: 0,
+        draws: 0,
+        pixel: [],
+        parallaxUpdates: 0,
+        hoverEntries: 0
+      };
+      if (gl) {
+        gl.clearColor(0.05, 0.1, 0.2, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+      }
+      function renderFrame() {
+        state.frames += 1;
+        if (gl) {
+          gl.clearColor((state.frames % 10) / 10, 0.1, 0.2, 1);
+          gl.clear(gl.COLOR_BUFFER_BIT);
+          var pixel = new Uint8Array(4);
+          gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+          state.pixel = Array.prototype.slice.call(pixel);
+          state.draws += 1;
+        }
+        requestAnimationFrame(renderFrame);
+      }
+      function updateParallax() {
+        state.parallaxUpdates += 1;
+        parallax.style.transform = "translate3d(0," + Math.round(window.scrollY * 0.2) + "px,0)";
+      }
+      hover.addEventListener("pointerenter", function () { state.hoverEntries += 1; });
+      window.addEventListener("scroll", updateParallax, { passive: true });
+      updateParallax();
+      renderFrame();
+    })();
+  </script>
+`;
+
 await fs.cp(path.join(root, "sites", "smoke-fixture"), runRoot, {
   recursive: true,
   errorOnExist: true,
@@ -20,7 +84,7 @@ await fs.writeFile(
   indexPath,
   isolatedSource.replace(
     "</body>",
-    '<button type="button" data-edit-id="fixture.button" style="color: var(--color-text); background-color: var(--color-surface)">Fixture native button</button><form><button data-edit-id="fixture.submit" style="color: var(--color-text); background-color: var(--color-surface); font-family: var(--font-body)">Implicit submit</button></form><section id="fixture-order"><p data-edit-id="fixture.order.one">Order one</p><p data-edit-id="fixture.order.two">Order two</p></section></body>',
+    `${fidelityFixture}<button type="button" data-edit-id="fixture.button" style="color: var(--color-text); background-color: var(--color-surface)">Fixture native button</button><form><button data-edit-id="fixture.submit" style="color: var(--color-text); background-color: var(--color-surface); font-family: var(--font-body)">Implicit submit</button></form><section id="fixture-order"><p data-edit-id="fixture.order.one">Order one</p><p data-edit-id="fixture.order.two">Order two</p></section></body>`,
   ),
 );
 
@@ -48,6 +112,100 @@ const fixtureControls = `
     document.addEventListener("submit", function(){ location.hash = "document-submit-attacked"; }, true);
   </script>
 `;
+
+const researchFixturePayload = {
+  pipelineVersion: "evidence-gated-v2",
+  workflow: {
+    currentStage: "evidence",
+    artifacts: [
+      {
+        artifactType: "ledger",
+        version: 1,
+        createdAt: "2026-08-14T12:00:00.000Z",
+        approvalTransitions: [
+          { state: "draft", at: "2026-08-14T12:00:00.000Z" },
+        ],
+        artifact: {
+          projectTarget: "website",
+          businessIntelligence: {
+            kind: "business-intelligence",
+            sources: [
+              {
+                id: "business-source",
+                sourceUrl: "https://business.example/report",
+                title: "Saved market report",
+                capturedAt: "2026-08-14T12:00:00.000Z",
+                confidence: 0.84,
+                screenshotPaths: [],
+                extractedArtifactPaths: [],
+                crawlAttempts: [],
+              },
+            ],
+            competitors: [
+              {
+                name: "Comparable operator",
+                url: "https://competitor.example",
+                selectionRationale: "Comparable audience and offer.",
+                strengths: [],
+                gaps: [],
+              },
+            ],
+            marketExpectations: [],
+            differentiationOpportunities: [],
+            claims: [
+              {
+                id: "business-claim",
+                statement: "Visitors expect clear pricing.",
+                classification: "observed",
+                sourceIds: ["business-source"],
+                confidence: 0.78,
+              },
+            ],
+          },
+          referoDesignEvidence: {
+            kind: "refero-design-evidence",
+            sources: [
+              {
+                id: "refero-source",
+                sourceUrl: "https://refero.design/example",
+                title: "Saved Refero evidence",
+                capturedAt: "2026-08-14T12:00:00.000Z",
+                confidence: 0.93,
+                screenshotPaths: [],
+                extractedArtifactPaths: [],
+                crawlAttempts: [],
+              },
+            ],
+            references: [
+              {
+                referoId: "ref-1",
+                name: "Reference One",
+                sourceUrl: "https://refero.design/reference-one",
+                learningRationale: "Clear hierarchy.",
+                reusablePatterns: ["Contrast", "Spacing"],
+              },
+            ],
+            claims: [
+              {
+                id: "refero-claim",
+                statement: "The hero uses a clear CTA hierarchy.",
+                classification: "inferred",
+                sourceIds: ["refero-source"],
+                confidence: 0.88,
+              },
+            ],
+          },
+          clientEvidence: {
+            sources: [],
+            claims: [],
+            artifactRelationships: [],
+            unsupportedUploadIds: [],
+          },
+        },
+      },
+    ],
+  },
+};
 
 const browser = await chromium.launch();
 
@@ -82,6 +240,43 @@ async function openFixture(context, width, height = 844) {
   await waitForMode(page, "Edit");
   await page.frameLocator("iframe").locator("[data-edit-id]").first().waitFor();
   return page;
+}
+
+async function assertProductionFidelity(page, label) {
+  const child = page.frames()[1];
+  await child.waitForFunction(
+    () => window.__oneboxFidelity?.webgl && window.__oneboxFidelity.frames > 2,
+  );
+  const before = await child.evaluate(() => ({ ...window.__oneboxFidelity }));
+  await page.waitForTimeout(80);
+  const after = await child.evaluate(() => ({ ...window.__oneboxFidelity }));
+  assert.equal(after.webgl, true, `${label}: WebGL context unavailable`);
+  assert.ok(after.frames > before.frames, `${label}: WebGL render loop paused`);
+  assert.ok(after.draws > before.draws, `${label}: WebGL draw calls paused`);
+  assert.equal(after.pixel[3], 255, `${label}: WebGL framebuffer was not rendered`);
+
+  await child.evaluate(() => window.scrollTo(0, 320));
+  await page.waitForTimeout(80);
+  const parallax = await child.evaluate(() => ({
+    updates: window.__oneboxFidelity.parallaxUpdates,
+    transform: document.getElementById("e2e-parallax").style.transform,
+  }));
+  assert.ok(parallax.updates > before.parallaxUpdates, `${label}: parallax did not update`);
+  assert.match(parallax.transform, /translate3d\(0(?:px)?,\s*64px,\s*0(?:px)?\)/, `${label}: parallax transform mismatch`);
+
+  const hover = page.frameLocator("iframe").locator("#e2e-fidelity-hover");
+  const restingColor = await hover.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await hover.hover();
+  assert.notEqual(
+    await hover.evaluate((element) => getComputedStyle(element).backgroundColor),
+    restingColor,
+    `${label}: hover styling did not render`,
+  );
+  assert.ok(
+    (await child.evaluate(() => window.__oneboxFidelity.hoverEntries)) > 0,
+    `${label}: hover behavior did not execute`,
+  );
+  await child.evaluate(() => window.scrollTo(0, 0));
 }
 
 try {
@@ -176,6 +371,13 @@ try {
   assert.equal(await iframeIsOpaque(child), true);
   const sandbox = await page.locator("iframe").getAttribute("sandbox");
   assert.equal(sandbox, "allow-scripts");
+  await assertProductionFidelity(page, "Edit mode before mutations");
+  await frame.locator("#e2e-webgl").click();
+  await page.getByText("fixture.interactive", { exact: false }).waitFor();
+  assert.match(
+    await page.locator(".workbench-panel__body").innerText(),
+    /Complex content stays live behind a safe selection overlay/,
+  );
 
   // Actual iframe width and ARIA divider value track the rendered split.
   const iframeBox = await page.locator("iframe").boundingBox();
@@ -234,7 +436,10 @@ try {
   // Pointer width and expanded state persist across a full reload.
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForMode(page, "Edit");
-  await page.frameLocator("iframe").locator("[data-edit-id]").first().waitFor();
+  await page
+    .frameLocator("iframe")
+    .locator('[data-edit-id="hero.headline"][tabindex="0"]')
+    .waitFor();
   const persistedPanel = await page.locator(".preview-workbench").boundingBox();
   assert.ok(
     persistedPanel && Math.abs(persistedPanel.width - expandedWidth) <= 1,
@@ -531,6 +736,65 @@ try {
     );
   assert.deepEqual(order, ["fixture.order.one", "fixture.order.two"]);
 
+  // The durable Assets tool targets an image region, submits only the guarded
+  // image-intent payload, and refreshes without making a paid provider call in
+  // this acceptance run.
+  await page.route("**/api/edit", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        gatesClean: true,
+        gates: [{ gate: "fixture", pass: true, blocking: true }],
+      }),
+    });
+  });
+  await page
+    .frameLocator("iframe")
+    .locator('[data-edit-id="hero.image"]')
+    .click();
+  await page.getByRole("button", { name: "Assets" }).click();
+  await page.getByLabel("Image prompt").fill("Sunlit technician in a clean fiber lab");
+  const imageRequestPromise = page.waitForRequest(
+    (request) => request.url().endsWith("/api/edit") && request.method() === "POST",
+  );
+  await page.getByRole("button", { name: "Generate and replace image" }).click();
+  const imageRequest = await imageRequestPromise;
+  const imageRequestBody = imageRequest.postDataJSON();
+  assert.match(imageRequestBody.requestId, /^[0-9a-f-]{36}$/i);
+  delete imageRequestBody.requestId;
+  assert.deepEqual(imageRequestBody, {
+    runId,
+    editId: "hero.image",
+    instruction: "Sunlit technician in a clean fiber lab",
+    imageIntent: true,
+  });
+  await page.getByText("Image replaced", { exact: true }).waitFor();
+  await page.unroute("**/api/edit");
+
+  // Research is a saved-evidence reader, not a second business/design mixing
+  // path. A retained ledger renders claims, confidence, rationale, and links.
+  await page.route(`**/api/evidence/${runId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(researchFixturePayload),
+    });
+  });
+  await page.getByRole("button", { name: "Research" }).click();
+  await page.getByRole("region", { name: "Saved research findings" }).waitFor();
+  const researchPanel = page.getByRole("region", { name: "Saved research findings" });
+  assert.match(await researchPanel.innerText(), /Business intelligence/);
+  assert.match(await researchPanel.innerText(), /Refero design reference evidence/);
+  assert.match(await researchPanel.innerText(), /78% confidence/);
+  assert.match(await researchPanel.innerText(), /Rationale: Clear hierarchy/);
+  assert.equal(
+    await researchPanel.getByRole("link", { name: "Saved market report" }).getAttribute("href"),
+    "https://business.example/report",
+  );
+  await page.unroute(`**/api/evidence/${runId}`);
+
   // Add isolated fixture-only form/popup controls after mutation gates so
   // they test mode capabilities without becoming part of the product site.
   const editedHtml = await fs.readFile(indexPath, "utf8");
@@ -541,6 +805,15 @@ try {
   await page.reload({ waitUntil: "domcontentloaded" });
   await waitForMode(page, "Edit");
   await page.frameLocator("iframe").locator("#e2e-form").waitFor();
+  // Complex production behavior remains live after persisted edits in Edit
+  // mode, but the canvas itself is exposed only through a safe overlay.
+  await assertProductionFidelity(page, "Edit mode after persisted mutations");
+  await page.frameLocator("iframe").locator("#e2e-webgl").click();
+  await page.getByText("fixture.interactive", { exact: false }).waitFor();
+  assert.match(
+    await page.locator(".workbench-panel__body").innerText(),
+    /Complex content stays live behind a safe selection overlay/,
+  );
   const editUrlBeforeForm = page.frames()[1].url();
   await page
     .frameLocator("iframe")
@@ -574,6 +847,7 @@ try {
   );
   child = page.frames()[1];
   assert.equal(await iframeIsOpaque(child), true);
+  await assertProductionFidelity(page, "View mode");
   await page
     .frameLocator("iframe")
     .locator('a[href="#contact"]')
@@ -628,6 +902,9 @@ try {
   for (const item of matrix) {
     const matrixContext = await browser.newContext();
     const matrixPage = await openFixture(matrixContext, item.width);
+    if ([454, 544, 832].includes(item.width)) {
+      await assertProductionFidelity(matrixPage, `${item.expected} responsive Edit mode`);
+    }
     if (item.width === 454) {
       const mobileHeadline = matrixPage
         .frameLocator("iframe")

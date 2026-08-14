@@ -74,10 +74,11 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   const [restored, setRestored] = useState(false);
   const [workspaceWidth, setWorkspaceWidth] = useState(1280);
 
-  const handleStructuredMutationComplete = useCallback(() => {
+  const handleStructuredMutationComplete = useCallback((message?: string) => {
     setSelection(null);
     setEditorState("idle");
     setEditorReason(null);
+    setEditResult(message ?? null);
     setGateRefreshToken((value) => value + 1);
     setIframeVersion((value) => value + 1);
   }, []);
@@ -150,6 +151,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
       if (!message) return;
       setEditorState(message.state);
       setEditorReason(message.reason ?? null);
+      if (message.selection) setEditResult(null);
       setSelection(message.selection);
       if (message.state === "dragging") {
         setWorkbench((current) => ({ ...current, activeTool: "selection" }));
@@ -299,6 +301,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           editId: selection.editId,
           instruction: instruction.trim(),
           imageIntent,
+          ...(imageIntent ? { requestId: crypto.randomUUID() } : {}),
         }),
       });
       const data = (await response.json().catch(() => null)) as

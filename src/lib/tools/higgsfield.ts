@@ -39,16 +39,11 @@ export interface GenerateImageError {
   error: string;
 }
 
-export async function generateImage(
-  opts: GenerateImageOptions
-): Promise<GenerateImageResult | GenerateImageError> {
+function generationArgs(opts: GenerateImageOptions) {
   const aspectRatio = VALID_ASPECT_RATIOS.has(opts.aspectRatio ?? "")
     ? (opts.aspectRatio as string)
     : "1:1";
-
-  const args = [
-    "generate",
-    "create",
+  return [
     JOB_TYPE,
     "--prompt",
     opts.prompt,
@@ -56,6 +51,43 @@ export async function generateImage(
     aspectRatio,
     "--quality",
     opts.quality ?? "high",
+  ];
+}
+
+/** Free provider preflight used to reserve the exact current credit estimate
+ * before a paid image job is created. */
+export async function estimateImageCredits(
+  opts: GenerateImageOptions,
+): Promise<number | GenerateImageError> {
+  try {
+    const result = await execFileAsync(
+      "higgsfield",
+      ["generate", "cost", ...generationArgs(opts), "--json"],
+      { timeout: 30_000, maxBuffer: 1024 * 1024 },
+    );
+    const parsed = JSON.parse(result.stdout) as { credits?: unknown };
+    if (
+      typeof parsed.credits !== "number" ||
+      !Number.isInteger(parsed.credits) ||
+      parsed.credits <= 0
+    ) {
+      return { error: "higgsfield returned an invalid credit estimate" };
+    }
+    return parsed.credits;
+  } catch (error) {
+    return {
+      error: `higgsfield cost estimate failed: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+export async function generateImage(
+  opts: GenerateImageOptions
+): Promise<GenerateImageResult | GenerateImageError> {
+  const args = [
+    "generate",
+    "create",
+    ...generationArgs(opts),
     "--wait",
     "--wait-timeout",
     WAIT_TIMEOUT,

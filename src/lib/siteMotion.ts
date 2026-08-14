@@ -11,6 +11,8 @@ import {
 } from "./siteMutation";
 
 const SITES_ROOT = path.join(process.cwd(), "sites");
+const MOTION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const MotionPropertiesSchema = z
   .object({
@@ -51,6 +53,9 @@ function refineMotion(
   value: z.infer<z.ZodObject<typeof motionDraftShape>>,
   context: z.RefinementCtx,
 ) {
+    if (value.kind === "entrance" && !["load", "viewport", "manual"].includes(value.trigger)) {
+      context.addIssue({ code: "custom", path: ["trigger"], message: "entrance motion requires load, viewport, or manual trigger" });
+    }
     if (value.kind === "hover" && value.trigger !== "hover") {
       context.addIssue({ code: "custom", path: ["trigger"], message: "hover motion requires the hover trigger" });
     }
@@ -62,6 +67,9 @@ function refineMotion(
     }
     if (value.kind === "timeline" && (!value.timelineId || value.order === undefined)) {
       context.addIssue({ code: "custom", path: ["timelineId"], message: "timeline motion requires a group and order" });
+    }
+    if (value.kind === "timeline" && !["load", "viewport", "manual"].includes(value.trigger)) {
+      context.addIssue({ code: "custom", path: ["trigger"], message: "timeline motion requires load, viewport, or manual trigger" });
     }
     if (value.kind !== "timeline" && (value.timelineId !== undefined || value.order !== undefined)) {
       context.addIssue({ code: "custom", path: ["timelineId"], message: "timeline fields are only allowed for timeline motion" });
@@ -77,7 +85,7 @@ export const MotionDraftSchema = z
   .superRefine(refineMotion);
 
 export const MotionEntrySchema = z
-  .object({ ...motionDraftShape, id: z.string().uuid() })
+  .object({ ...motionDraftShape, id: z.string().regex(MOTION_ID_PATTERN, "invalid motion id") })
   .strict()
   .superRefine(refineMotion);
 export const MotionManifestSchema = z

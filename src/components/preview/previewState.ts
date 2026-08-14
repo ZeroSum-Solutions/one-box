@@ -16,6 +16,7 @@ export interface PreviewSelection {
   tag: string;
   text: string;
   behavior: SelectionBehavior;
+  assetKind?: "image";
   href?: string;
   originalText?: string;
   typography?: {
@@ -129,6 +130,7 @@ function isSelection(value: unknown): value is PreviewSelection {
       "tag",
       "text",
       "behavior",
+      "assetKind",
       "href",
       "originalText",
       "typography",
@@ -143,6 +145,7 @@ function isSelection(value: unknown): value is PreviewSelection {
     ["text", "interactive", "safe-overlay", "unsupported"].includes(
       String(value.behavior),
     ) &&
+    (value.assetKind === undefined || value.assetKind === "image") &&
     (value.href === undefined ||
       (typeof value.href === "string" && value.href.length <= 500)) &&
     (value.originalText === undefined ||

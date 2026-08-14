@@ -23,6 +23,18 @@ describe("preview editor message guard", () => {
 
   it("accepts the versioned editor-state payload", () => {
     expect(readEditorStateMessage(valid)).toEqual(valid);
+    expect(
+      readEditorStateMessage({
+        ...valid,
+        state: "selected",
+        selection: {
+          ...valid.selection,
+          tag: "img",
+          behavior: "safe-overlay",
+          assetKind: "image",
+        },
+      }),
+    ).toMatchObject({ selection: { assetKind: "image" } });
   });
 
   it("rejects malformed and state-inconsistent payloads", () => {
@@ -61,6 +73,12 @@ describe("preview editor message guard", () => {
           ...valid.selection,
           buttonAction: { type: "submit", explicit: false, javascript: "evil" },
         },
+      }),
+    ).toBeNull();
+    expect(
+      readEditorStateMessage({
+        ...valid,
+        selection: { ...valid.selection, assetKind: "video" },
       }),
     ).toBeNull();
   });

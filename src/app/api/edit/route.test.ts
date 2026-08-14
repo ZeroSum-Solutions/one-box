@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   applyElementHtmlEdit: vi.fn(),
   generateJson: vi.fn(),
+  estimateImageCredits: vi.fn(),
   generateImage: vi.fn(),
+  reserveImageGeneration: vi.fn(),
+  finishImageGeneration: vi.fn(),
   loadArtifact: vi.fn(),
   loadRun: vi.fn(),
 }));
@@ -14,15 +17,22 @@ vi.mock("../../../lib/elementEditor", async (importOriginal) => {
 });
 vi.mock("../../../lib/openrouter", () => ({ generateJson: mocks.generateJson }));
 vi.mock("../../../lib/tools/higgsfield", () => ({
+  estimateImageCredits: mocks.estimateImageCredits,
   generateImage: mocks.generateImage,
 }));
+vi.mock("../../../lib/imageGenerationBudget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../lib/imageGenerationBudget")>()),
+  reserveImageGeneration: mocks.reserveImageGeneration,
+  finishImageGeneration: mocks.finishImageGeneration,
+}));
 vi.mock("../../../lib/runstate", () => ({
-  sitePaths: () => ({ site: "/unused" }),
+  sitePaths: () => ({ root: "/unused", site: "/unused/site" }),
   loadArtifact: mocks.loadArtifact,
   loadRun: mocks.loadRun,
 }));
 
 import { POST } from "./route";
+import { ImageGenerationBudgetError } from "../../../lib/imageGenerationBudget";
 
 const originalToken = process.env.ONE_BOX_API_TOKEN;
 
@@ -74,5 +84,94 @@ describe("edit route authorization", () => {
     expect((await POST(bearer.request)).status).toBe(400);
     expect(bearer.json).toHaveBeenCalledOnce();
     expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
+  it("reserves provider credits before image generation and records completion", async () => {
+    mocks.loadArtifact.mockResolvedValue({
+      imageryBrief: {
+        subject: "field technician",
+        lighting: "natural",
+        grade: "neutral",
+        framing: "wide",
+        avoid: [],
+      },
+      colors: [],
+    });
+    mocks.loadRun.mockResolvedValue({ costUsd: 0.2 });
+    mocks.estimateImageCredits.mockResolvedValue(7);
+    mocks.reserveImageGeneration.mockResolvedValue({
+      usedCredits: 7,
+      capCredits: 14,
+    });
+    mocks.generateImage.mockResolvedValue({ path: "/unused", url: "https://image.example/result.jpg" });
+    mocks.applyElementHtmlEdit.mockImplementation(async (_runId, _editId, transform) => {
+      await transform('<div data-edit-id="hero.image"><img src="old.jpg" alt="Old"></div>');
+      return { gates: [] };
+    });
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.image",
+        instruction: "Field work",
+        imageIntent: true,
+        requestId: "00000000-0000-4000-8000-000000000001",
+      }),
+    }));
+    expect(response.status).toBe(200);
+    expect(mocks.reserveImageGeneration).toHaveBeenCalledBefore(mocks.generateImage);
+    expect(mocks.finishImageGeneration).toHaveBeenCalledWith(
+      "/unused/image-generation-ledger.json",
+      "00000000-0000-4000-8000-000000000001",
+      "completed",
+    );
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      imageCredits: { used: 7, cap: 14 },
+    });
+  });
+
+  it("rejects a capped image request before provider generation", async () => {
+    mocks.loadArtifact.mockResolvedValue({
+      imageryBrief: {
+        subject: "field technician",
+        lighting: "natural",
+        grade: "neutral",
+        framing: "wide",
+        avoid: [],
+      },
+      colors: [],
+    });
+    mocks.estimateImageCredits.mockResolvedValue(7);
+    mocks.reserveImageGeneration.mockRejectedValue(
+      new ImageGenerationBudgetError("image-generation credit cap reached", 429),
+    );
+    mocks.applyElementHtmlEdit.mockImplementation(async (_runId, _editId, transform) => {
+      await transform('<div data-edit-id="hero.image"><img src="old.jpg" alt="Old"></div>');
+      return { gates: [] };
+    });
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.image",
+        instruction: "Field work",
+        imageIntent: true,
+        requestId: "00000000-0000-4000-8000-000000000002",
+      }),
+    }));
+    expect(response.status).toBe(429);
+    expect(mocks.generateImage).not.toHaveBeenCalled();
   });
 });
