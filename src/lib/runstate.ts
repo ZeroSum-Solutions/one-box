@@ -11,18 +11,34 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
-  ARTIFACTS,
+  ARTIFACT_APPROVAL_TRANSITIONS,
+  ArtifactApprovalStateSchema,
+  EVIDENCE_STAGE_ARTIFACT,
+  EVIDENCE_WORKFLOW_STAGES,
   EVENTS_FILE,
   MODELS,
   RESEARCH_DIR,
   RunStateSchema,
   SITE_DIR,
-  SITES_DIR,
   STAGES,
+  UPLOADS_DIR,
+  WorkflowArtifactDraftSchema,
+  WorkflowArtifactVersionSchema,
+  V2DesignContractMetadataSchema,
+  type ArtifactApprovalState,
+  type EvidenceWorkflowStage,
   type PipelineEvent,
   type RunState,
   type Stage,
+  type WorkflowArtifactDraft,
+  type WorkflowArtifactType,
+  type WorkflowArtifactVersion,
+  workflowArtifactApprovalState,
 } from "./contracts";
+import {
+  assertCanonicalTokenInventory,
+  assertTailwindPlanMatchesInventory,
+} from "./evidence";
 
 // Statically scoped subfolder (Turbopack fs-tracing requirement).
 const SITES_ROOT = path.join(process.cwd(), "sites");
@@ -67,6 +83,8 @@ export interface SitePaths {
   research: string;
   /** sites/<id>/site/ — the built static site */
   site: string;
+  /** sites/<id>/uploads/ — server-claimed intake blobs, never publicly served */
+  uploads: string;
 }
 
 export function sitePaths(runId: string): SitePaths {
@@ -75,6 +93,7 @@ export function sitePaths(runId: string): SitePaths {
     root,
     research: path.join(root, RESEARCH_DIR),
     site: path.join(root, SITE_DIR),
+    uploads: path.join(root, UPLOADS_DIR),
   };
 }
 
@@ -97,14 +116,14 @@ export function makeRunId(): string {
 
 // ---------- atomic write ----------
 
-async function atomicWrite(filePath: string, content: string): Promise<void> {
+async function atomicWrite(filePath: string, content: string | Uint8Array): Promise<void> {
   const dir = path.dirname(filePath);
   await fs.mkdir(dir, { recursive: true });
   const tmpPath = path.join(
     dir,
     `.${path.basename(filePath)}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`
   );
-  await fs.writeFile(tmpPath, content, "utf8");
+  await fs.writeFile(tmpPath, content);
   await fs.rename(tmpPath, filePath);
 }
 
@@ -121,6 +140,7 @@ function isEnoent(err: unknown): boolean {
 
 export interface CreateRunOptions {
   costCapUsd?: number;
+  pipelineVersion?: RunState["pipelineVersion"];
   /** defaults to the pinned MODELS from contracts.ts (audit #3: record the
    * exact slugs a run used in its own manifest). */
   modelSlugs?: Record<string, string>;
@@ -136,6 +156,7 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
   const state = RunStateSchema.parse({
     id,
     createdAt: new Date().toISOString(),
+    pipelineVersion: opts.pipelineVersion ?? "evidence-gated-v2",
     stages,
     costCapUsd: opts.costCapUsd,
     modelSlugs: opts.modelSlugs ?? { ...MODELS },
@@ -143,6 +164,13 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
 
   await saveRun(state);
   return id;
+}
+
+/** Remove only a validated run root. Used when setup fails before a run can be
+ * exposed or resumed. */
+export async function removeRun(runId: string): Promise<void> {
+  if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) throw new Error("bad runId");
+  await fs.rm(sitePaths(runId).root, { recursive: true, force: true });
 }
 
 export async function loadRun(runId: string): Promise<RunState> {
@@ -272,6 +300,347 @@ async function withRunLock<T>(runId: string, fn: () => Promise<T>): Promise<T> {
     // drop the entry once this is the tail, so the map does not grow forever
     if (runLocks.get(runId) === guarded) runLocks.delete(runId);
   }
+}
+
+export interface RunTransaction {
+  state: RunState;
+  writeArtifact(artifactRelPath: string, content: string | Uint8Array): Promise<void>;
+  saveEvidenceArtifactVersion(
+    draft: WorkflowArtifactDraft,
+    options?: SaveEvidenceArtifactOptions
+  ): Promise<WorkflowArtifactVersion>;
+  transitionEvidenceArtifactApproval(
+    artifactType: WorkflowArtifactType,
+    version: number,
+    nextState: ArtifactApprovalState,
+    options?: EvidenceApprovalOptions
+  ): Promise<WorkflowArtifactVersion>;
+}
+
+/** Serialize one multi-file evidence mutation under the same per-run lock as
+ * every run.json mutator. Files are individually atomically replaced and
+ * restored on any callback/run-save failure, so no orphan version or promoted
+ * alias can survive a failed workflow transaction. */
+export function withRunTransaction<T>(
+  runId: string,
+  callback: (transaction: RunTransaction) => Promise<T>
+): Promise<T> {
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    const backups = new Map<string, Uint8Array | undefined>();
+    const writeArtifact = async (relativePath: string, content: string | Uint8Array) => {
+      const target = artifactPath(runId, relativePath);
+      if (!backups.has(target)) {
+        backups.set(target, await fs.readFile(target).catch((error: unknown) => {
+          if (isEnoent(error)) return undefined;
+          throw error;
+        }));
+      }
+      await atomicWrite(target, content);
+    };
+    const transaction: RunTransaction = {
+      state,
+      writeArtifact,
+      saveEvidenceArtifactVersion: async (draft, options = {}) => {
+        const artifact = appendEvidenceArtifactVersion(state, WorkflowArtifactDraftSchema.parse(draft), options);
+        await writeArtifact(
+          workflowArtifactVersionPath(artifact.artifactType, artifact.version),
+          JSON.stringify(artifact.artifact, null, 2)
+        );
+        return artifact;
+      },
+      transitionEvidenceArtifactApproval: async (artifactType, version, nextState, options = {}) => {
+        const artifact = appendEvidenceApprovalTransition(
+          state,
+          artifactType,
+          version,
+          ArtifactApprovalStateSchema.parse(nextState),
+          options
+        );
+        if (nextState === "approved") {
+          await writeArtifact(
+            workflowArtifactAliasPath(artifact.artifactType),
+            JSON.stringify(artifact, null, 2)
+          );
+        }
+        return artifact;
+      },
+    };
+    try {
+      const result = await callback(transaction);
+      await saveRun(state);
+      return result;
+    } catch (error) {
+      for (const [target, previous] of [...backups].reverse()) {
+        if (previous === undefined) await fs.rm(target, { force: true });
+        else await atomicWrite(target, previous);
+      }
+      throw error;
+    }
+  });
+}
+
+// ---------- evidence workflow ----------
+
+export class EvidenceWorkflowError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EvidenceWorkflowError";
+  }
+}
+
+export function artifactApprovalState(
+  artifact: WorkflowArtifactVersion
+): ArtifactApprovalState {
+  return workflowArtifactApprovalState(artifact);
+}
+
+export function workflowArtifactVersionPath(
+  artifactType: WorkflowArtifactType,
+  version: number
+): string {
+  return path.posix.join("evidence", "versions", artifactType, `v${version}.json`);
+}
+
+export function workflowArtifactAliasPath(
+  artifactType: WorkflowArtifactType
+): string {
+  return path.posix.join("evidence", "approved", `${artifactType}.json`);
+}
+
+function latestArtifact(
+  state: RunState,
+  artifactType: WorkflowArtifactType
+): WorkflowArtifactVersion | undefined {
+  return state.evidenceWorkflow.artifacts
+    .filter((artifact) => artifact.artifactType === artifactType)
+    .sort((left, right) => right.version - left.version)[0];
+}
+
+function assertArtifactMatchesCurrentStage(
+  state: RunState,
+  artifactType: WorkflowArtifactType
+): void {
+  const expected = EVIDENCE_STAGE_ARTIFACT[state.evidenceWorkflow.currentStage];
+  if (artifactType !== expected) {
+    throw new EvidenceWorkflowError(
+      `stage ${state.evidenceWorkflow.currentStage} requires ${expected}, not ${artifactType}`
+    );
+  }
+}
+
+function draftSource(
+  draft: WorkflowArtifactDraft
+): { artifactType: WorkflowArtifactType; version: number } | undefined {
+  switch (draft.artifactType) {
+    case "ledger":
+      return undefined;
+    case "design-contract":
+      return {
+        artifactType: "ledger",
+        version: draft.artifact.sourceLedgerVersion,
+      };
+    case "token-inventory":
+      return {
+        artifactType: "design-contract",
+        version: draft.artifact.sourceContractVersion,
+      };
+    case "tailwind-plan":
+      return {
+        artifactType: "token-inventory",
+        version: draft.artifact.sourceTokenInventoryVersion,
+      };
+    case "css-architecture":
+      return {
+        artifactType: "tailwind-plan",
+        version: draft.artifact.sourceTailwindPlanVersion,
+      };
+    case "visual-qa":
+      return {
+        artifactType: "css-architecture",
+        version: draft.artifact.sourceCssArchitectureVersion,
+      };
+  }
+}
+
+function assertLatestApprovedSource(
+  state: RunState,
+  draft: WorkflowArtifactDraft
+): void {
+  const source = draftSource(draft);
+  if (!source) return;
+  const latest = latestArtifact(state, source.artifactType);
+  if (!latest || artifactApprovalState(latest) !== "approved") {
+    throw new EvidenceWorkflowError(
+      `${draft.artifactType} requires an approved ${source.artifactType}`
+    );
+  }
+  if (source.version !== latest.version) {
+    throw new EvidenceWorkflowError(
+      `${draft.artifactType} source version ${source.version} does not match latest approved ${source.artifactType} v${latest.version}`
+    );
+  }
+}
+
+export async function loadEvidenceWorkflow(runId: string) {
+  return (await loadRun(runId)).evidenceWorkflow;
+}
+
+export interface SaveEvidenceArtifactOptions {
+  actor?: string;
+  note?: string;
+}
+
+function appendEvidenceArtifactVersion(
+  state: RunState,
+  validatedDraft: WorkflowArtifactDraft,
+  options: SaveEvidenceArtifactOptions
+): WorkflowArtifactVersion {
+  assertArtifactMatchesCurrentStage(state, validatedDraft.artifactType);
+  if (
+    state.pipelineVersion === "evidence-gated-v2" &&
+    validatedDraft.artifactType === "design-contract"
+  ) {
+    V2DesignContractMetadataSchema.parse(validatedDraft.artifact);
+  }
+  assertLatestApprovedSource(state, validatedDraft);
+  const previous = latestArtifact(state, validatedDraft.artifactType);
+  const now = new Date().toISOString();
+  if (previous) {
+    if (artifactApprovalState(previous) !== "revision-requested") {
+      throw new EvidenceWorkflowError(
+        `${validatedDraft.artifactType} v${previous.version} must be revision-requested before replacement`
+      );
+    }
+    previous.approvalTransitions.push({ state: "superseded", at: now, actor: options.actor, note: options.note });
+  }
+  const artifact = WorkflowArtifactVersionSchema.parse({
+    ...validatedDraft,
+    version: (previous?.version ?? 0) + 1,
+    createdAt: now,
+    revisionOf: previous?.version,
+    approvalTransitions: [{ state: "draft", at: now, actor: options.actor, note: options.note }],
+  });
+  state.evidenceWorkflow.artifacts.push(artifact);
+  return artifact;
+}
+
+/**
+ * Persist a new immutable artifact payload. Revisions create a new numbered
+ * record and retain the previous version; only its append-only approval log is
+ * marked superseded. saveRun supplies the existing tmp+rename atomic write.
+ */
+export function saveEvidenceArtifactVersion(
+  runId: string,
+  draft: WorkflowArtifactDraft,
+  options: SaveEvidenceArtifactOptions = {}
+): Promise<WorkflowArtifactVersion> {
+  const validatedDraft = WorkflowArtifactDraftSchema.parse(draft);
+  return withRunTransaction(runId, (transaction) =>
+    transaction.saveEvidenceArtifactVersion(validatedDraft, options)
+  );
+}
+
+export interface EvidenceApprovalOptions {
+  actor?: string;
+  note?: string;
+}
+
+function appendEvidenceApprovalTransition(
+  state: RunState,
+  artifactType: WorkflowArtifactType,
+  version: number,
+  validatedState: ArtifactApprovalState,
+  options: EvidenceApprovalOptions
+): WorkflowArtifactVersion {
+  assertArtifactMatchesCurrentStage(state, artifactType);
+  const artifact = latestArtifact(state, artifactType);
+  if (!artifact || artifact.version !== version) {
+    throw new EvidenceWorkflowError(`${artifactType} version ${version} is not the current artifact`);
+  }
+  const currentState = artifactApprovalState(artifact);
+  if (!ARTIFACT_APPROVAL_TRANSITIONS[currentState].includes(validatedState)) {
+    throw new EvidenceWorkflowError(`invalid ${artifactType} approval transition: ${currentState} -> ${validatedState}`);
+  }
+  if (validatedState === "approved" && artifact.artifactType === "token-inventory") {
+    const contract = state.evidenceWorkflow.artifacts.find(
+      (candidate) => candidate.artifactType === "design-contract" && candidate.version === artifact.artifact.sourceContractVersion
+    );
+    if (!contract || contract.artifactType !== "design-contract" || !contract.artifact.designTokens) {
+      throw new EvidenceWorkflowError("token inventory requires the approved contract token proposal");
+    }
+    assertCanonicalTokenInventory(
+      contract.artifact.designTokens,
+      artifact.artifact,
+      contract.artifact.approvedEvidenceIds
+    );
+  }
+  if (validatedState === "approved" && artifact.artifactType === "tailwind-plan") {
+    const inventory = state.evidenceWorkflow.artifacts.find(
+      (candidate) => candidate.artifactType === "token-inventory" && candidate.version === artifact.artifact.sourceTokenInventoryVersion
+    );
+    if (!inventory || inventory.artifactType !== "token-inventory") {
+      throw new EvidenceWorkflowError("Tailwind plan requires its approved token inventory");
+    }
+    assertTailwindPlanMatchesInventory(inventory.artifact, artifact.artifact);
+  }
+  artifact.approvalTransitions.push({ state: validatedState, at: new Date().toISOString(), actor: options.actor, note: options.note });
+  return artifact;
+}
+
+/** Append a validated approval transition without changing artifact content. */
+export function transitionEvidenceArtifactApproval(
+  runId: string,
+  artifactType: WorkflowArtifactType,
+  version: number,
+  nextState: ArtifactApprovalState,
+  options: EvidenceApprovalOptions = {}
+): Promise<WorkflowArtifactVersion> {
+  const validatedState = ArtifactApprovalStateSchema.parse(nextState);
+  return withRunTransaction(runId, (transaction) =>
+    transaction.transitionEvidenceArtifactApproval(
+      artifactType,
+      version,
+      validatedState,
+      options
+    )
+  );
+}
+
+/**
+ * Move exactly one gate forward after the current gate's latest artifact is
+ * approved. The fixed order prevents research-to-code and other skipped gates.
+ */
+export function advanceEvidenceWorkflow(
+  runId: string,
+  nextStage: EvidenceWorkflowStage
+): Promise<RunState> {
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    const currentStage = state.evidenceWorkflow.currentStage;
+    const currentIndex = EVIDENCE_WORKFLOW_STAGES.indexOf(currentStage);
+    const expectedNext = EVIDENCE_WORKFLOW_STAGES[currentIndex + 1];
+    if (!expectedNext || nextStage !== expectedNext) {
+      throw new EvidenceWorkflowError(
+        `invalid evidence workflow transition: ${currentStage} -> ${nextStage}`
+      );
+    }
+
+    const requiredType = EVIDENCE_STAGE_ARTIFACT[currentStage];
+    const requiredArtifact = latestArtifact(state, requiredType);
+    if (
+      !requiredArtifact ||
+      artifactApprovalState(requiredArtifact) !== "approved"
+    ) {
+      throw new EvidenceWorkflowError(
+        `${requiredType} must be approved before entering ${nextStage}`
+      );
+    }
+
+    state.evidenceWorkflow.currentStage = nextStage;
+    await saveRun(state);
+    return state;
+  });
 }
 
 // ---------- stage transitions ----------

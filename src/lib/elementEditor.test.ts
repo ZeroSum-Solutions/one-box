@@ -1,0 +1,366 @@
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  ElementEditError,
+  applyElementPatchToHtml,
+  applyElementHtmlEdit,
+  applyStructuredElementEdit,
+  elementHistoryState,
+  moveElementHistory,
+} from "./elementEditor";
+import { BlockingMutationError, type GateRunner } from "./siteMutation";
+
+const temporaryRoots: string[] = [];
+const passGate: GateRunner = async () => [
+  {
+    gate: "test",
+    pass: true,
+    blocking: true,
+    details: [],
+    ranAt: new Date().toISOString(),
+  },
+];
+
+afterEach(async () => {
+  await Promise.all(
+    temporaryRoots
+      .splice(0)
+      .map((root) => fs.rm(root, { recursive: true, force: true })),
+  );
+});
+
+async function fixture() {
+  const sitesRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "onebox-elements-"),
+  );
+  temporaryRoots.push(sitesRoot);
+  const siteDir = path.join(sitesRoot, "test-run", "site");
+  await fs.mkdir(siteDir, { recursive: true });
+  const html =
+    '<!doctype html><html><body><h1 data-edit-id="hero.headline">Original</h1><a data-edit-id="hero.cta" href="#contact">Call us</a><section id="contact">Contact</section></body></html>';
+  await fs.writeFile(path.join(siteDir, "index.html"), html);
+  return { sitesRoot, siteDir, html };
+}
+
+describe("structured element patch", () => {
+  it("persists text as escaped text and maps typography to allowlisted token values", () => {
+    const html = applyElementPatchToHtml(
+      '<html><body><h1 data-edit-id="hero.headline">Old</h1></body></html>',
+      "hero.headline",
+      {
+        text: "New <safe>",
+        typography: {
+          fontFamily: "display",
+          fontSize: "heading-lg",
+          color: "accent",
+          alignment: "center",
+        },
+      },
+    );
+    expect(html).toContain("New &lt;safe&gt;");
+    expect(html).toContain("font-family: var(--font-display)");
+    expect(html).toContain("font-size: var(--text-heading-lg)");
+    expect(html).toContain("color: var(--color-accent)");
+    expect(html).toContain("text-align: center");
+  });
+
+  it("allows bounded destinations and rejects executable or missing actions", () => {
+    const source =
+      '<html><body><a data-edit-id="hero.cta" href="#old">Go</a><div id="contact"></div></body></html>';
+    expect(
+      applyElementPatchToHtml(source, "hero.cta", { href: "#contact" }),
+    ).toContain('href="#contact"');
+    expect(() =>
+      applyElementPatchToHtml(source, "hero.cta", {
+        href: "javascript:alert(1)",
+      }),
+    ).toThrow(ElementEditError);
+    expect(() =>
+      applyElementPatchToHtml(source, "hero.cta", { href: "#missing" }),
+    ).toThrow(ElementEditError);
+  });
+
+  it("supports constrained native button actions without executable input", () => {
+    const source =
+      '<html><body><button data-edit-id="hero.button">Go</button><section id="contact"></section></body></html>';
+    const html = applyElementPatchToHtml(source, "hero.button", {
+      text: "Continue",
+      buttonAction: { type: "scroll", target: "#contact" },
+    });
+    expect(html).toContain('data-onebox-action="scroll"');
+    expect(html).toContain('data-onebox-target="contact"');
+    expect(html).toContain("script data-onebox-actions");
+    expect(() =>
+      applyElementPatchToHtml(source, "hero.button", {
+        buttonAction: { type: "scroll", target: "javascript:alert(1)" },
+      }),
+    ).toThrow(ElementEditError);
+  });
+
+  it("preserves an omitted native submit default on label-only edits", () => {
+    const source =
+      '<html><body><form><button data-edit-id="hero.button">Send</button></form></body></html>';
+    const html = applyElementPatchToHtml(source, "hero.button", {
+      text: "Submit now",
+    });
+    expect(html).toContain('data-edit-id="hero.button"');
+    expect(html).not.toContain('type="button"');
+    expect(html).not.toContain("data-onebox-action");
+  });
+
+  it("reorders only adjacent editable siblings", () => {
+    const source =
+      '<html><body><section><p data-edit-id="a.one">One</p><p data-edit-id="a.two">Two</p><span>fixed</span></section></body></html>';
+    const moved = applyElementPatchToHtml(source, "a.two", {
+      move: "previous",
+    });
+    expect(moved.indexOf("a.two")).toBeLessThan(moved.indexOf("a.one"));
+    expect(() =>
+      applyElementPatchToHtml(source, "a.two", { move: "next" }),
+    ).toThrow(ElementEditError);
+  });
+
+  it("preserves existing typography on label-only edits and resets only explicit fields", () => {
+    const source =
+      '<html><body><a data-edit-id="hero.cta" href="#contact" style="font-size: var(--text-body-lg); color: var(--color-text)">Old</a><section id="contact"></section></body></html>';
+    const labelOnly = applyElementPatchToHtml(source, "hero.cta", {
+      text: "New",
+      href: "#contact",
+    });
+    expect(labelOnly).toContain("font-size: var(--text-body-lg)");
+    expect(labelOnly).toContain("color: var(--color-text)");
+    const reset = applyElementPatchToHtml(labelOnly, "hero.cta", {
+      typography: { fontSize: "inherit" },
+    });
+    expect(reset).not.toContain("font-size:");
+    expect(reset).toContain("color: var(--color-text)");
+  });
+});
+
+describe("element persistence history", () => {
+  it("applies actual values and supports explicit undo and redo", async () => {
+    const { sitesRoot, siteDir } = await fixture();
+    const options = { sitesRoot, gateRunner: passGate };
+    await applyStructuredElementEdit(
+      "test-run",
+      "hero.headline",
+      { text: "Persisted" },
+      options,
+    );
+    expect(
+      await fs.readFile(path.join(siteDir, "index.html"), "utf8"),
+    ).toContain("Persisted");
+    expect(await elementHistoryState("test-run", options)).toEqual({
+      canUndo: true,
+      canRedo: false,
+    });
+
+    await moveElementHistory("test-run", "undo", options);
+    expect(
+      await fs.readFile(path.join(siteDir, "index.html"), "utf8"),
+    ).toContain("Original");
+    expect(await elementHistoryState("test-run", options)).toEqual({
+      canUndo: false,
+      canRedo: true,
+    });
+
+    await moveElementHistory("test-run", "redo", options);
+    expect(
+      await fs.readFile(path.join(siteDir, "index.html"), "utf8"),
+    ).toContain("Persisted");
+  });
+
+  it("restores the pristine file when a blocking gate rejects the candidate", async () => {
+    const { sitesRoot, siteDir, html } = await fixture();
+    const failGate: GateRunner = async () => [
+      {
+        gate: "axe",
+        pass: false,
+        blocking: true,
+        details: ["candidate failed"],
+        ranAt: new Date().toISOString(),
+      },
+    ];
+    await expect(
+      applyStructuredElementEdit(
+        "test-run",
+        "hero.headline",
+        { text: "Rejected" },
+        { sitesRoot, gateRunner: failGate },
+      ),
+    ).rejects.toBeInstanceOf(BlockingMutationError);
+    expect(await fs.readFile(path.join(siteDir, "index.html"), "utf8")).toBe(
+      html,
+    );
+    expect(await elementHistoryState("test-run", { sitesRoot })).toEqual({
+      canUndo: false,
+      canRedo: false,
+    });
+  });
+
+  it("restores gates.json byte-for-byte when candidate and restorative gate runs fail", async () => {
+    const { sitesRoot, siteDir, html } = await fixture();
+    const gatesPath = path.join(sitesRoot, "test-run", "gates.json");
+    const originalGates = Buffer.from('[{"gate":"original","pass":true}]\n');
+    await fs.writeFile(gatesPath, originalGates);
+    let calls = 0;
+    const failTwice: GateRunner = async () => {
+      calls += 1;
+      await fs.writeFile(
+        gatesPath,
+        calls === 1 ? "candidate gates" : "partial restorative gates",
+      );
+      if (calls === 2) throw new Error("restorative gate crashed");
+      return [
+        {
+          gate: "axe",
+          pass: false,
+          blocking: true,
+          details: ["candidate failed"],
+          ranAt: new Date().toISOString(),
+        },
+      ];
+    };
+
+    await expect(
+      applyStructuredElementEdit(
+        "test-run",
+        "hero.headline",
+        { text: "Rejected" },
+        { sitesRoot, gateRunner: failTwice },
+      ),
+    ).rejects.toBeInstanceOf(BlockingMutationError);
+    expect(await fs.readFile(path.join(siteDir, "index.html"), "utf8")).toBe(html);
+    expect(await fs.readFile(gatesPath)).toEqual(originalGates);
+  });
+
+  it("serializes concurrent applies so neither edit nor history entry is lost", async () => {
+    const { sitesRoot, siteDir } = await fixture();
+    const options = { sitesRoot, gateRunner: passGate };
+    await Promise.all([
+      applyStructuredElementEdit(
+        "test-run",
+        "hero.headline",
+        { text: "First" },
+        options,
+      ),
+      applyStructuredElementEdit(
+        "test-run",
+        "hero.cta",
+        { text: "Second" },
+        options,
+      ),
+    ]);
+    const html = await fs.readFile(path.join(siteDir, "index.html"), "utf8");
+    expect(html).toContain("First");
+    expect(html).toContain("Second");
+    await moveElementHistory("test-run", "undo", options);
+    const afterUndo = await fs.readFile(
+      path.join(siteDir, "index.html"),
+      "utf8",
+    );
+    expect(afterUndo).toContain("First");
+    expect(afterUndo).toContain("Call us");
+  });
+
+  it("orders an apply followed immediately by undo inside the same run lock", async () => {
+    const { sitesRoot, siteDir } = await fixture();
+    let releaseFirstGate: () => void = () => undefined;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirstGate = () => resolve();
+    });
+    let gateCalls = 0;
+    const orderedGate: GateRunner = async () => {
+      gateCalls += 1;
+      if (gateCalls === 1) await firstGate;
+      return passGate("test-run", { afterEdit: true });
+    };
+    const options = { sitesRoot, gateRunner: orderedGate };
+    const apply = applyStructuredElementEdit(
+      "test-run",
+      "hero.headline",
+      { text: "Transient" },
+      options,
+    );
+    const undo = moveElementHistory("test-run", "undo", options);
+    releaseFirstGate();
+    await Promise.all([apply, undo]);
+    expect(
+      await fs.readFile(path.join(siteDir, "index.html"), "utf8"),
+    ).toContain("Original");
+    expect(await elementHistoryState("test-run", options)).toEqual({
+      canUndo: false,
+      canRedo: true,
+    });
+  });
+
+  it("places natural-language HTML edits in the same chronology as structured edits", async () => {
+    const { sitesRoot, siteDir } = await fixture();
+    let releaseTransform: () => void = () => undefined;
+    const transformGate = new Promise<void>((resolve) => {
+      releaseTransform = resolve;
+    });
+    const options = { sitesRoot, gateRunner: passGate };
+    const natural = applyElementHtmlEdit(
+      "test-run",
+      "hero.headline",
+      async (html) => {
+        await transformGate;
+        return html.replace("Original", "Natural");
+      },
+      options,
+    );
+    const structured = applyStructuredElementEdit(
+      "test-run",
+      "hero.cta",
+      { text: "Structured" },
+      options,
+    );
+    releaseTransform();
+    await Promise.all([natural, structured]);
+    expect(
+      await fs.readFile(path.join(siteDir, "index.html"), "utf8"),
+    ).toContain("Natural");
+    await moveElementHistory("test-run", "undo", options);
+    const onceUndone = await fs.readFile(
+      path.join(siteDir, "index.html"),
+      "utf8",
+    );
+    expect(onceUndone).toContain("Natural");
+    expect(onceUndone).toContain("Call us");
+    await moveElementHistory("test-run", "undo", options);
+    expect(
+      await fs.readFile(path.join(siteDir, "index.html"), "utf8"),
+    ).toContain("Original");
+  });
+
+  it("rolls back a rejected natural-language HTML candidate and its history", async () => {
+    const { sitesRoot, siteDir, html } = await fixture();
+    const failGate: GateRunner = async () => [
+      {
+        gate: "contract",
+        pass: false,
+        blocking: true,
+        details: [],
+        ranAt: new Date().toISOString(),
+      },
+    ];
+    await expect(
+      applyElementHtmlEdit(
+        "test-run",
+        "hero.headline",
+        (source) => source.replace("Original", "Rejected natural"),
+        { sitesRoot, gateRunner: failGate },
+      ),
+    ).rejects.toBeInstanceOf(BlockingMutationError);
+    expect(await fs.readFile(path.join(siteDir, "index.html"), "utf8")).toBe(
+      html,
+    );
+    expect(await elementHistoryState("test-run", { sitesRoot })).toEqual({
+      canUndo: false,
+      canRedo: false,
+    });
+  });
+});

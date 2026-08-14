@@ -57,9 +57,13 @@ describe("crawlSite", () => {
 
     const result = await crawlSite("https://example.com", tempDir);
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       markdownPath: path.join(tempDir, "result.md"),
-      provenance: "crawl4ai",
+      crawl: {
+        provider: "crawl4ai",
+        outcome: "succeeded",
+        sourceUrl: "https://example.com",
+      },
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -82,15 +86,61 @@ describe("crawlSite", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await crawlSite("https://example.com/pricing", tempDir);
+    const result = await crawlSite("https://example.com/pricing", tempDir, undefined, true);
 
-    expect(result.provenance).toBe("firecrawl");
+    expect(result.crawl).toMatchObject({
+      provider: "firecrawl",
+      outcome: "succeeded",
+      fallbackReason: "bot-challenge",
+      paidFallbackApproved: true,
+    });
+    expect(result.crawlAttempts).toHaveLength(2);
+    expect(result.crawlAttempts[0]).toMatchObject({
+      provider: "crawl4ai",
+      outcome: "failed",
+      failureReason: "bot challenge detected",
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
       "https://api.firecrawl.dev/v2/scrape",
       expect.objectContaining({ method: "POST" })
     );
     expect(await fs.readFile(result.markdownPath!, "utf8")).toBe("# Fallback result");
+  });
+
+  it("does not call or bill Firecrawl after ERR without explicit consent", async () => {
+    const tempDir = await makeTempDir("one-box-crawl-no-consent-");
+    const scriptPath = path.join(tempDir, "crawl-no-consent.sh");
+    await fs.writeFile(scriptPath, '#!/bin/sh\nprintf "ERR\\tbot challenge\\n"\nexit 1\n', { mode: 0o755 });
+    process.env.CRAWL4AI_SCRIPT_PATH = scriptPath;
+    process.env.FIRECRAWL_API_KEY = "test-key";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await crawlSite("https://example.com/no-consent", tempDir);
+    expect(result.error).toContain("did not authorize metered fallback");
+    expect(result.crawlAttempts).toHaveLength(1);
+    expect(result.crawlAttempts[0]).toMatchObject({ provider: "crawl4ai", outcome: "failed" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("retains both attempts when the authorized Firecrawl request throws", async () => {
+    const tempDir = await makeTempDir("one-box-crawl-fetch-throw-");
+    const scriptPath = path.join(tempDir, "crawl-fetch-throw.sh");
+    await fs.writeFile(scriptPath, '#!/bin/sh\nprintf "ERR\\tbot challenge\\n"\nexit 1\n', { mode: 0o755 });
+    process.env.CRAWL4AI_SCRIPT_PATH = scriptPath;
+    process.env.FIRECRAWL_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    const result = await crawlSite("https://example.com/throw", tempDir, undefined, true);
+    expect(result.crawlAttempts).toHaveLength(2);
+    expect(result.crawlAttempts[0]).toMatchObject({ provider: "crawl4ai", outcome: "failed" });
+    expect(result.crawlAttempts[1]).toMatchObject({
+      provider: "firecrawl",
+      outcome: "failed",
+      paidFallbackApproved: true,
+      failureReason: "network down",
+    });
   });
 
   it("does not silently spend when the wrapper fails without an ERR signal", async () => {
@@ -107,7 +157,29 @@ describe("crawlSite", () => {
     const result = await crawlSite("https://example.com", tempDir);
 
     expect(result.error).toContain("did not return the documented OK or ERR status");
+    expect(result.crawl).toMatchObject({ provider: "crawl4ai", outcome: "failed" });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("records an explicit ERR followed by a failed Firecrawl attempt", async () => {
+    const tempDir = await makeTempDir("one-box-crawl-fallback-fail-");
+    const scriptPath = path.join(tempDir, "crawl-fallback-fail.sh");
+    await fs.writeFile(scriptPath, '#!/bin/sh\nprintf "ERR\\tlocal renderer failed\\n"\nexit 1\n', { mode: 0o755 });
+    process.env.CRAWL4AI_SCRIPT_PATH = scriptPath;
+    process.env.FIRECRAWL_API_KEY = "test-key";
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 503 })));
+
+    const result = await crawlSite("https://example.com/fail", tempDir, undefined, true);
+    expect(result).toMatchObject({
+      error: expect.stringMatching(/503/),
+      crawl: {
+        provider: "firecrawl",
+        outcome: "failed",
+        fallbackReason: "local-failure",
+        paidFallbackApproved: true,
+      },
+    });
+    expect(result.crawlAttempts).toHaveLength(2);
   });
 
   it("reports a missing configured wrapper without entering Firecrawl fallback", async () => {

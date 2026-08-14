@@ -18,7 +18,7 @@
  */
 import { addCost, CostCapExceeded } from "../runstate";
 import { findPlace, mapsConfigured, mapsSearchUrl } from "./places";
-import type { Place } from "../contracts";
+import type { CrawlProvenance, Place } from "../contracts";
 
 const FIRECRAWL_BASE = "https://api.firecrawl.dev";
 const RESULTS_PER_QUERY = 10;
@@ -154,6 +154,8 @@ export interface CompetitorLead {
   screenshotPaths?: string[];
   structure?: string[];
   notes?: string;
+  crawl?: CrawlProvenance;
+  crawlAttempts?: CrawlProvenance[];
 }
 
 export interface ExcludedLead {

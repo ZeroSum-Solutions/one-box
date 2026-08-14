@@ -181,5 +181,8 @@
   <!-- /SECTION:footer -->
 
   <script src="reveal.js"></script>
+  <script src="gsap.min.js"></script>
+  <script src="ScrollTrigger.min.js"></script>
+  <script src="motion-runtime.js"></script>
 </body>
 </html>

@@ -6,13 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:smoke": "node scripts/smoke/gates-smoke.mjs && node scripts/smoke/scan-filter-smoke.mjs",
+    "test:e2e:intake": "node scripts/e2e/intake-upload.mjs",
+    "test:e2e:preview": "node scripts/e2e/preview-workbench.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@openrouter/ai-sdk-provider": "^3.0.0",
     "ai": "^7.0.64",
     "cheerio": "^1.2.0",
+    "gsap": "3.15.0",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",

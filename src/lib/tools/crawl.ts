@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { addCost, CostCapExceeded } from "../runstate";
+import { CrawlProvenanceSchema, type CrawlProvenance } from "../contracts";
 
 const execFileAsync = promisify(execFile);
 
@@ -24,12 +25,13 @@ const FIRECRAWL_SCRAPE_COST_USD = 0.01;
 
 export interface CrawlResult {
   markdownPath?: string;
-  provenance?: "crawl4ai" | "firecrawl";
   error?: string;
+  crawl: CrawlProvenance;
+  crawlAttempts: CrawlProvenance[];
 }
 
 interface Crawl4aiAttempt {
-  result?: CrawlResult;
+  result?: Pick<CrawlResult, "markdownPath">;
   fallbackReason?: string;
 }
 
@@ -43,26 +45,86 @@ export function resolveCrawl4aiScriptPath(): string {
 export async function crawlSite(
   url: string,
   outDir: string,
-  runId?: string
+  runId?: string,
+  allowPaidFirecrawlFallback = false,
+  onPaidFallback?: (reason: string) => void
 ): Promise<CrawlResult> {
+  const capturedAt = new Date().toISOString();
   let fallbackReason: string;
   try {
     const attempt = await runCrawl4aiScript(url, outDir);
-    if (attempt.result) return attempt.result;
+    if (attempt.result) {
+      const crawl = CrawlProvenanceSchema.parse({
+        provider: "crawl4ai",
+        sourceUrl: url,
+        extractedAt: capturedAt,
+        confidence: 0.95,
+        outcome: "succeeded",
+      });
+      return {
+        ...attempt.result,
+        crawl,
+        crawlAttempts: [crawl],
+      };
+    }
     fallbackReason = attempt.fallbackReason!;
   } catch (err) {
-    return { error: err instanceof Error ? err.message : String(err) };
+    const error = err instanceof Error ? err.message : String(err);
+    const crawl = CrawlProvenanceSchema.parse({
+      provider: "crawl4ai",
+      sourceUrl: url,
+      extractedAt: capturedAt,
+      confidence: 0,
+      outcome: "failed",
+      failureReason: error,
+    });
+    return {
+      error,
+      crawl,
+      crawlAttempts: [crawl],
+    };
   }
+  const localAttempt = CrawlProvenanceSchema.parse({
+    provider: "crawl4ai",
+    sourceUrl: url,
+    extractedAt: capturedAt,
+    confidence: 0,
+    outcome: "failed",
+    failureReason: fallbackReason,
+  });
+  if (!allowPaidFirecrawlFallback) {
+    return {
+      error: `crawl4ai requested a paid Firecrawl fallback (${fallbackReason}), but this run did not authorize metered fallback`,
+      crawl: localAttempt,
+      crawlAttempts: [localAttempt],
+    };
+  }
+  onPaidFallback?.(fallbackReason);
   try {
     const result = await firecrawlScrapeFallback(url, outDir, fallbackReason);
-    if (result.provenance === "firecrawl" && runId) {
+    if (result.crawl.provider === "firecrawl" && result.crawl.outcome === "succeeded" && runId) {
       await addCost(runId, FIRECRAWL_SCRAPE_COST_USD);
     }
-    return result;
+    return { ...result, crawlAttempts: [localAttempt, result.crawl] };
   } catch (err) {
     // a cost-cap trip is a hard stop, never a soft per-site failure
     if (err instanceof CostCapExceeded) throw err;
-    return { error: err instanceof Error ? err.message : String(err) };
+    const error = err instanceof Error ? err.message : String(err);
+    const crawl = CrawlProvenanceSchema.parse({
+      provider: "firecrawl",
+      sourceUrl: url,
+      extractedAt: capturedAt,
+      confidence: 0,
+      outcome: "failed",
+      failureReason: error,
+      fallbackReason: classifyFallbackReason(fallbackReason),
+      paidFallbackApproved: true,
+    });
+    return {
+      error,
+      crawl,
+      crawlAttempts: [localAttempt, crawl],
+    };
   }
 }
 
@@ -91,7 +153,7 @@ async function runCrawl4aiScript(url: string, outDir: string): Promise<Crawl4aiA
   }
   const markdownPath = detail;
   if (code === 0 && status === "OK" && markdownPath) {
-    return { result: { markdownPath, provenance: "crawl4ai" } };
+    return { result: { markdownPath } };
   }
   throw new Error(
     `crawl4ai wrapper at "${scriptPath}" did not return the documented OK or ERR status ` +
@@ -125,12 +187,26 @@ async function firecrawlScrapeFallback(
   outDir: string,
   fallbackReason: string
 ): Promise<CrawlResult> {
+  const provenanceBase = {
+    provider: "firecrawl" as const,
+    sourceUrl: url,
+    extractedAt: new Date().toISOString(),
+    fallbackReason: classifyFallbackReason(fallbackReason),
+    paidFallbackApproved: true,
+  };
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
     return {
       error:
         `crawl4ai requested Firecrawl fallback (${fallbackReason}), but ` +
         "FIRECRAWL_API_KEY is not set",
+      crawl: CrawlProvenanceSchema.parse({
+        ...provenanceBase,
+        confidence: 0,
+        outcome: "failed",
+        failureReason: `FIRECRAWL_API_KEY is not set after ${fallbackReason}`,
+      }),
+      crawlAttempts: [],
     };
   }
 
@@ -142,17 +218,40 @@ async function firecrawlScrapeFallback(
     res = await fetch(`${FIRECRAWL_BASE}/v1/scrape`, { method: "POST", headers, body });
   }
   if (!res.ok) {
-    return { error: `firecrawl scrape failed (${res.status}) for ${url}` };
+    const error = `firecrawl scrape failed (${res.status}) for ${url}`;
+    const crawl = CrawlProvenanceSchema.parse({ ...provenanceBase, confidence: 0, outcome: "failed", failureReason: error });
+    return { error, crawl, crawlAttempts: [] };
   }
 
   const json = (await res.json()) as { data?: { markdown?: string } };
   const markdown = json.data?.markdown;
-  if (!markdown) return { error: `firecrawl scrape returned no markdown for ${url}` };
+  if (!markdown) {
+    const error = `firecrawl scrape returned no markdown for ${url}`;
+    const crawl = CrawlProvenanceSchema.parse({ ...provenanceBase, confidence: 0, outcome: "failed", failureReason: error });
+    return { error, crawl, crawlAttempts: [] };
+  }
 
   await fs.mkdir(outDir, { recursive: true });
   const markdownPath = path.join(outDir, `${slugFromUrl(url)}.md`);
   await fs.writeFile(markdownPath, markdown, "utf8");
-  return { markdownPath, provenance: "firecrawl" };
+  const crawl = CrawlProvenanceSchema.parse({
+    ...provenanceBase,
+    confidence: 0.85,
+    outcome: "succeeded",
+  });
+  return {
+    markdownPath,
+    crawl,
+    crawlAttempts: [],
+  };
+}
+
+function classifyFallbackReason(
+  reason: string
+): CrawlProvenance["fallbackReason"] {
+  return /bot|challenge|cloudflare|captcha/i.test(reason)
+    ? "bot-challenge"
+    : "local-failure";
 }
 
 function slugFromUrl(url: string): string {

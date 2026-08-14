@@ -4,9 +4,21 @@ import { useEffect, useReducer, useState, type Dispatch, type ReactNode } from "
 import Link from "next/link";
 import { ChatComposer } from "@/components/ChatComposer";
 import { CostChip } from "@/components/CostChip";
+import { IntakeControls } from "@/components/IntakeControls";
 import { STAGE_LABEL, StageCard, type StageCardStatus } from "@/components/StageCard";
+import {
+  buildChatRequest,
+  type IntakeChatContext,
+} from "@/components/intakeRequest";
 import { readSSE } from "@/components/sse";
-import type { PipelineEvent, Stage } from "@/lib/contracts";
+import { resumedRunId } from "@/components/resumeRun";
+import type {
+  PipelineEvent,
+  ProjectTarget,
+  ResearchConfiguration,
+  Stage,
+  UploadMetadata,
+} from "@/lib/contracts";
 
 // ---------- local state ----------
 
@@ -30,6 +42,7 @@ interface OneBoxState {
   timeline: TimelineItem[];
   costUsd: number;
   previewUrl: string | null;
+  evidenceUrl: string | null;
   settled: boolean; // pipeline reached complete or error
 }
 
@@ -42,6 +55,7 @@ const initialState: OneBoxState = {
   timeline: [],
   costUsd: 0,
   previewUrl: null,
+  evidenceUrl: null,
   settled: false,
 };
 
@@ -50,6 +64,7 @@ type Action =
   | { type: "CHAT_DELTA"; delta: string }
   | { type: "CHAT_DONE" }
   | { type: "CHAT_ERROR"; message: string }
+  | { type: "UPLOAD_SESSION_EXPIRED"; message: string }
   | { type: "PIPELINE_START"; runId: string }
   | { type: "PIPELINE_EVENT"; event: PipelineEvent }
   | { type: "PIPELINE_STREAM_ERROR" };
@@ -78,16 +93,23 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
       return { ...state, isStreaming: false };
     case "CHAT_ERROR":
       return { ...state, isStreaming: false, chatError: action.message };
+    case "UPLOAD_SESSION_EXPIRED":
+      return { ...state, isStreaming: false, chatError: action.message };
     case "PIPELINE_START":
       return { ...state, phase: "pipeline", runId: action.runId, isStreaming: false };
     case "PIPELINE_EVENT": {
       const ev = action.event;
       let costUsd = state.costUsd;
       let previewUrl = state.previewUrl;
+      let evidenceUrl = state.evidenceUrl;
       let settled = state.settled;
       if (ev.type === "cost") costUsd = ev.usd;
       if (ev.type === "complete") {
         previewUrl = ev.previewUrl;
+        settled = true;
+      }
+      if (ev.type === "paused") {
+        evidenceUrl = ev.workspaceUrl;
         settled = true;
       }
       if (ev.type === "error") settled = true;
@@ -95,7 +117,7 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
         ev.type === "cost"
           ? state.timeline
           : [...state.timeline, { key: `${state.timeline.length}-${ev.type}`, event: ev }];
-      return { ...state, timeline, costUsd, previewUrl, settled };
+      return { ...state, timeline, costUsd, previewUrl, evidenceUrl, settled };
     }
     case "PIPELINE_STREAM_ERROR": {
       if (state.settled) return state; // EventSource fires "error" on a clean close too
@@ -169,6 +191,14 @@ function timelineNode(item: TimelineItem, runId: string): ReactNode {
       );
     case "error":
       return <StageCard key={key} title="Something went wrong" body={event.message} tone="error" />;
+    case "paused":
+      return (
+        <StageCard
+          key={key}
+          title={`${event.workflowStage} ready for review`}
+          body={event.note}
+        />
+      );
     default:
       return null; // "cost"/"complete" drive the cost chip and the preview link, not a card
   }
@@ -180,19 +210,18 @@ function timelineNode(item: TimelineItem, runId: string): ReactNode {
 // isn't installed (not in the approved dep list), so this hand-rolls the
 // chunk reducer instead of useChat — see WAVE-NOTES-ui.md for the exact
 // chunk vocabulary this relies on.
-async function sendMessage(history: ChatMsg[], dispatch: Dispatch<Action>) {
+async function sendMessage(
+  history: ChatMsg[],
+  intakeContext: IntakeChatContext,
+  dispatch: Dispatch<Action>,
+  onUploadSessionExpired: (message: string) => void
+) {
   const toolNames = new Map<string, string>();
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messages: history.map((m) => ({
-          id: m.id,
-          role: m.role,
-          parts: [{ type: "text", text: m.content }],
-        })),
-      }),
+      body: JSON.stringify(buildChatRequest(history, intakeContext)),
     });
     if (!res.ok || !res.body) {
       throw new Error(`Chat request failed (${res.status}).`);
@@ -218,6 +247,18 @@ async function sendMessage(history: ChatMsg[], dispatch: Dispatch<Action>) {
       if (type === "tool-output-available" && typeof chunk.toolCallId === "string") {
         if (toolNames.get(chunk.toolCallId) === "start_pipeline") {
           const output = chunk.output as Record<string, unknown> | undefined;
+          if (output?.code === "upload-session-expired") {
+            const message =
+              typeof output.message === "string"
+                ? output.message
+                : "Your private upload session expired. Choose the files again.";
+            onUploadSessionExpired(message);
+            dispatch({
+              type: "UPLOAD_SESSION_EXPIRED",
+              message,
+            });
+            return;
+          }
           if (output && typeof output.runId === "string") {
             dispatch({ type: "PIPELINE_START", runId: output.runId });
           }
@@ -255,13 +296,23 @@ async function sendMessage(history: ChatMsg[], dispatch: Dispatch<Action>) {
 export default function Home() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [input, setInput] = useState("");
+  const [projectTarget, setProjectTarget] = useState<ProjectTarget>("website");
+  const [research, setResearch] = useState<ResearchConfiguration>({
+    enabled: true,
+    businessIntelligence: true,
+    referoDesignEvidence: true,
+    allowPaidFirecrawlFallback: false,
+  });
+  const [uploads, setUploads] = useState<UploadMetadata[]>([]);
+  const [uploadSession, setUploadSession] = useState<string | null>(null);
+  const [uploadRecoveryMessage, setUploadRecoveryMessage] = useState<string | null>(null);
 
   // Restore a run from the URL so a refresh rejoins the build instead of
   // stranding the checkpointed run (audit P1). The server attaches
   // reconnects to an in-flight run; finished stages replay instantly.
   useEffect(() => {
-    const runId = new URLSearchParams(window.location.search).get("run");
-    if (runId && /^[a-z0-9_-]{4,40}$/i.test(runId)) {
+    const runId = resumedRunId(window.location.search);
+    if (runId) {
       dispatch({ type: "PIPELINE_START", runId });
     }
   }, []);
@@ -283,7 +334,7 @@ export default function Home() {
       try {
         const parsed = JSON.parse(e.data) as PipelineEvent;
         dispatch({ type: "PIPELINE_EVENT", event: parsed });
-        if (parsed.type === "complete" || parsed.type === "error") es.close();
+        if (parsed.type === "complete" || parsed.type === "paused" || parsed.type === "error") es.close();
       } catch {
         // ignore malformed frame
       }
@@ -301,7 +352,16 @@ export default function Home() {
     const history = [...state.messages, { id: crypto.randomUUID(), role: "user" as const, content }];
     dispatch({ type: "SUBMIT", content });
     setInput("");
-    void sendMessage(history, dispatch);
+    void sendMessage(
+      history,
+      { projectTarget, research, uploads, uploadSession },
+      dispatch,
+      (message) => {
+        setUploadSession(null);
+        setUploads([]);
+        setUploadRecoveryMessage(message);
+      }
+    );
   }
 
   return (
@@ -316,6 +376,22 @@ export default function Home() {
               Get the site.
             </h1>
             <p className="eyebrow">{"{ one prompt }"}</p>
+            <IntakeControls
+              projectTarget={projectTarget}
+              research={research}
+              uploads={uploads}
+              uploadSession={uploadSession}
+              onProjectTargetChange={setProjectTarget}
+              onResearchChange={setResearch}
+              onUploadsChange={setUploads}
+              onUploadSessionChange={(handle) => {
+                setUploadSession(handle);
+                if (handle) setUploadRecoveryMessage(null);
+              }}
+              uploadRecoveryMessage={uploadRecoveryMessage}
+              onUploadRecoveryClear={() => setUploadRecoveryMessage(null)}
+              disabled={state.isStreaming}
+            />
             {state.messages.length > 0 && (
               <div className="transcript">
                 {state.messages
@@ -352,6 +428,13 @@ export default function Home() {
             <div className="timeline-complete">
               <Link href={state.previewUrl} className="pill-button">
                 Open preview
+              </Link>
+            </div>
+          )}
+          {state.evidenceUrl && (
+            <div className="timeline-complete">
+              <Link href={state.evidenceUrl} className="pill-button">
+                Review evidence
               </Link>
             </div>
           )}

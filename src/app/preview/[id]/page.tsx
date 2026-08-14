@@ -1,14 +1,33 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
-import { ChatComposer } from "@/components/ChatComposer";
-import { GateStrip } from "@/components/GateStrip";
-
-interface Selection {
-  editId: string;
-  tag: string;
-  text: string;
-}
+import {
+  use,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type PointerEvent,
+} from "react";
+import { Workbench, type WorkbenchTool } from "@/components/preview/Workbench";
+import {
+  DEFAULT_WORKBENCH_STATE,
+  breakpointForWidth,
+  clampPanelWidth,
+  isTrustedEditorMessage,
+  panelWidthBounds,
+  parseWorkbenchState,
+  readEditorStateMessage,
+  workbenchSizeForWidth,
+  workbenchStorageKey,
+  type EditorInteractionState,
+  type PersistedWorkbenchState,
+  type PreviewBreakpoint,
+  type PreviewMode,
+  type PreviewSelection,
+  type WorkbenchSize,
+} from "@/components/preview/previewState";
 
 interface EditApiGate {
   gate: string;
@@ -16,25 +35,30 @@ interface EditApiGate {
   blocking: boolean;
 }
 
-// Shape guard for the overlay's postMessage payload (public/overlay.js).
-function isOneboxSelectMessage(
-  data: unknown
-): data is { type: "onebox-select"; editId: string; tag: string; text: string } {
-  if (!data || typeof data !== "object") return false;
-  const d = data as Record<string, unknown>;
-  return (
-    d.type === "onebox-select" &&
-    typeof d.editId === "string" &&
-    typeof d.tag === "string" &&
-    typeof d.text === "string"
-  );
+const WORKBENCH_TOOLS: WorkbenchTool[] = [
+  "selection",
+  "text",
+  "assets",
+  "research",
+  "tokens",
+  "motion",
+];
+
+function isWorkbenchTool(value: string): value is WorkbenchTool {
+  return WORKBENCH_TOOLS.includes(value as WorkbenchTool);
 }
 
 export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   const { id } = use(props.params);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [selection, setSelection] = useState<Selection | null>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const previewViewportRef = useRef<HTMLElement>(null);
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const [selection, setSelection] = useState<PreviewSelection | null>(null);
+  const [editorState, setEditorState] =
+    useState<EditorInteractionState>("idle");
+  const [editorReason, setEditorReason] = useState<string | null>(null);
   const [instruction, setInstruction] = useState("");
   const [imageIntent, setImageIntent] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -42,20 +66,210 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   const [editError, setEditError] = useState<string | null>(null);
   const [gateRefreshToken, setGateRefreshToken] = useState(0);
   const [iframeVersion, setIframeVersion] = useState(0);
+  const [previewBreakpoint, setPreviewBreakpoint] =
+    useState<PreviewBreakpoint>("desktop");
+  const [workbench, setWorkbench] = useState<PersistedWorkbenchState>(
+    DEFAULT_WORKBENCH_STATE,
+  );
+  const [restored, setRestored] = useState(false);
+  const [workspaceWidth, setWorkspaceWidth] = useState(1280);
 
-  // The iframe renders at an opaque origin (sandbox="allow-scripts" without
-  // allow-same-origin per audit E21), so event.origin is always the literal
-  // string "null" — not a meaningful check. Verify provenance via window
-  // identity instead, then validate the message shape before trusting it.
+  const handleStructuredMutationComplete = useCallback(() => {
+    setSelection(null);
+    setEditorState("idle");
+    setEditorReason(null);
+    setGateRefreshToken((value) => value + 1);
+    setIframeVersion((value) => value + 1);
+  }, []);
+
   useEffect(() => {
-    function handleMessage(e: MessageEvent) {
-      if (e.source !== iframeRef.current?.contentWindow) return;
-      if (!isOneboxSelectMessage(e.data)) return;
-      setSelection(e.data.editId ? { editId: e.data.editId, tag: e.data.tag, text: e.data.text } : null);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setWorkbench(
+        parseWorkbenchState(localStorage.getItem(workbenchStorageKey(id))),
+      );
+      setRestored(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  useEffect(() => {
+    if (!restored) return;
+    localStorage.setItem(workbenchStorageKey(id), JSON.stringify(workbench));
+  }, [id, restored, workbench]);
+
+  useEffect(() => {
+    const viewport = previewViewportRef.current;
+    if (!viewport) return;
+    const update = () =>
+      setPreviewBreakpoint(
+        breakpointForWidth(viewport.getBoundingClientRect().width),
+      );
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const workspace = workspaceRef.current;
+    if (!workspace || !restored) return;
+    const reclamp = () => {
+      const width = workspace.getBoundingClientRect().width;
+      setWorkspaceWidth(width);
+      setWorkbench((current) => {
+        if (current.size === "collapsed") return current;
+        const panelWidth = clampPanelWidth(current.panelWidth, width);
+        if (panelWidth === current.panelWidth) return current;
+        const size = workbenchSizeForWidth(panelWidth);
+        return { ...current, panelWidth, size, lastOpenSize: size };
+      });
+    };
+    reclamp();
+    const observer = new ResizeObserver(reclamp);
+    observer.observe(workspace);
+    return () => observer.disconnect();
+  }, [restored]);
+
+  // The sandbox omits allow-same-origin, so event.origin is the literal "null".
+  // Exact contentWindow identity plus a strict payload guard is the trust boundary.
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (
+        !isTrustedEditorMessage(
+          event.source,
+          iframeRef.current?.contentWindow,
+          event.data,
+        )
+      )
+        return;
+      const message = readEditorStateMessage(event.data);
+      if (!message) return;
+      setEditorState(message.state);
+      setEditorReason(message.reason ?? null);
+      setSelection(message.selection);
+      if (message.state === "dragging") {
+        setWorkbench((current) => ({ ...current, activeTool: "selection" }));
+      } else if (
+        message.selection?.behavior === "text" ||
+        message.selection?.behavior === "interactive"
+      ) {
+        setWorkbench((current) => ({ ...current, activeTool: "text" }));
+      } else if (message.selection) {
+        setWorkbench((current) => ({ ...current, activeTool: "selection" }));
+      }
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
   }, []);
+
+  function setMode(mode: PreviewMode) {
+    setSelection(null);
+    setEditorState("idle");
+    setEditorReason(null);
+    setWorkbench((current) => ({ ...current, mode }));
+  }
+
+  function setWorkbenchSize(size: WorkbenchSize) {
+    const workspaceWidth =
+      workspaceRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+    setWorkbench((current) => {
+      if (size === "collapsed") {
+        return {
+          ...current,
+          size,
+          lastOpenSize: current.size === "expanded" ? "expanded" : "normal",
+        };
+      }
+      const reopening = current.size === "collapsed";
+      const restoredWidth = clampPanelWidth(current.panelWidth, workspaceWidth);
+      const nextSize = reopening ? workbenchSizeForWidth(restoredWidth) : size;
+      return {
+        ...current,
+        size: nextSize,
+        lastOpenSize: nextSize,
+        panelWidth: reopening
+          ? restoredWidth
+          : nextSize === "expanded"
+            ? clampPanelWidth(Math.max(current.panelWidth, 560), workspaceWidth)
+            : clampPanelWidth(
+                Math.min(current.panelWidth, 420),
+                workspaceWidth,
+              ),
+      };
+    });
+  }
+
+  function resizeWorkbench(nextWidth: number) {
+    const workspaceWidth =
+      workspaceRef.current?.getBoundingClientRect().width ?? window.innerWidth;
+    const panelWidth = clampPanelWidth(nextWidth, workspaceWidth);
+    setWorkbench((current) => ({
+      ...current,
+      panelWidth,
+      size: workbenchSizeForWidth(panelWidth),
+      lastOpenSize: workbenchSizeForWidth(panelWidth),
+    }));
+  }
+
+  function sendEditorCommand(action: "cancel" | "clear") {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "onebox-editor-command", action },
+      "*",
+    );
+  }
+
+  function previewSelectedMotion() {
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: "onebox-editor-command", action: "preview-motion", editId: selection?.editId },
+      "*",
+    );
+  }
+
+  function handleDividerPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (workbench.size === "collapsed") return;
+    dragRef.current = {
+      startX: event.clientX,
+      startWidth: workbench.panelWidth,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handleDividerPointerMove(event: PointerEvent<HTMLDivElement>) {
+    if (
+      !dragRef.current ||
+      !event.currentTarget.hasPointerCapture(event.pointerId)
+    )
+      return;
+    resizeWorkbench(
+      dragRef.current.startWidth + dragRef.current.startX - event.clientX,
+    );
+  }
+
+  function handleDividerPointerUp(event: PointerEvent<HTMLDivElement>) {
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleDividerKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      resizeWorkbench(
+        workbench.panelWidth + (event.key === "ArrowLeft" ? 24 : -24),
+      );
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      setWorkbenchSize("collapsed");
+    } else if (event.key === "End") {
+      event.preventDefault();
+      setWorkbenchSize("expanded");
+    }
+  }
 
   async function submitEdit() {
     if (!selection || !instruction.trim() || isEditing) return;
@@ -63,7 +277,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     setEditError(null);
     setEditResult(null);
     try {
-      const res = await fetch("/api/edit", {
+      const response = await fetch("/api/edit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -73,80 +287,139 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           imageIntent,
         }),
       });
-      const data = (await res.json().catch(() => null)) as
+      const data = (await response.json().catch(() => null)) as
         | { ok: true; gates: EditApiGate[]; gatesClean: boolean }
         | { error: string }
         | null;
 
-      if (!res.ok || !data || "error" in data) {
-        throw new Error((data && "error" in data && data.error) || `Edit failed (${res.status}).`);
+      if (!response.ok || !data || "error" in data) {
+        throw new Error(
+          (data && "error" in data && data.error) ||
+            `Edit failed (${response.status}).`,
+        );
       }
 
-      const passing = data.gates.filter((g) => g.pass).length;
-      setEditResult(`Applied. Gates ${data.gatesClean ? "clean" : "flagged"} (${passing}/${data.gates.length} passing).`);
+      const passing = data.gates.filter((gate) => gate.pass).length;
+      setEditResult(
+        `Applied. Gates ${data.gatesClean ? "clean" : "flagged"} (${passing}/${data.gates.length} passing).`,
+      );
       setInstruction("");
       setImageIntent(false);
-      setGateRefreshToken((n) => n + 1);
-      setIframeVersion((n) => n + 1); // remounts the iframe to load the patched source
-    } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Edit failed.");
+      setGateRefreshToken((value) => value + 1);
+      setIframeVersion((value) => value + 1);
+    } catch (error) {
+      setEditError(error instanceof Error ? error.message : "Edit failed.");
     } finally {
       setIsEditing(false);
     }
   }
 
-  return (
-    <div className="preview-layout">
-      <iframe
-        key={iframeVersion}
-        ref={iframeRef}
-        className="preview-frame"
-        src={`/api/sites/${id}/index.html?edit=1`}
-        sandbox="allow-scripts"
-        title="Site preview"
-      />
-      <aside className="preview-rail">
-        <p className="eyebrow">{"{ Edit }"}</p>
+  const activeTool = isWorkbenchTool(workbench.activeTool)
+    ? workbench.activeTool
+    : "selection";
+  const style = {
+    "--workbench-width": `${workbench.panelWidth}px`,
+  } as CSSProperties;
+  const panelBounds = panelWidthBounds(workspaceWidth);
+  const iframeSrc = `/api/sites/${encodeURIComponent(id)}/index.html${workbench.mode === "edit" ? "?edit=1" : ""}`;
 
-        {selection ? (
-          <div className="selection-chip">
-            <span className="selection-chip__tag">{selection.tag}</span>
-            {selection.editId}
-            {selection.text && <span className="selection-chip__text">&ldquo;{selection.text}&rdquo;</span>}
+  return (
+    <main
+      ref={workspaceRef}
+      className={`preview-layout preview-layout--${workbench.size}`}
+      style={style}
+    >
+      <section
+        ref={previewViewportRef}
+        className="preview-viewport"
+        aria-label="Rendered site preview"
+      >
+        <div className="preview-toolbar">
+          <div
+            className="preview-mode-switch"
+            role="group"
+            aria-label="Preview mode"
+          >
+            <button
+              type="button"
+              aria-pressed={workbench.mode === "view"}
+              onClick={() => setMode("view")}
+            >
+              View
+            </button>
+            <button
+              type="button"
+              aria-pressed={workbench.mode === "edit"}
+              onClick={() => setMode("edit")}
+            >
+              Edit
+            </button>
           </div>
+          <span className="preview-breakpoint" aria-live="polite">
+            {previewBreakpoint}
+          </span>
+        </div>
+        {restored ? (
+          <iframe
+            key={`${iframeVersion}:${workbench.mode}`}
+            ref={iframeRef}
+            className="preview-frame"
+            src={iframeSrc}
+            sandbox={
+              workbench.mode === "view"
+                ? "allow-scripts allow-forms allow-popups allow-downloads"
+                : "allow-scripts"
+            }
+            title={`${workbench.mode === "view" ? "View" : "Edit"} site preview`}
+          />
         ) : (
-          <div className="selection-chip selection-chip--empty">
-            Click an element in the preview to select it.
+          <div className="preview-frame-pending" role="status">
+            Restoring preview…
           </div>
         )}
+      </section>
 
-        <ChatComposer
-          value={instruction}
-          onChange={setInstruction}
-          onSubmit={submitEdit}
-          placeholder={selection ? "Make the headline bolder…" : "Select an element first"}
-          disabled={!selection || isEditing}
-          submitLabel={isEditing ? "Applying…" : "Apply"}
-          rows={3}
-          extra={
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={imageIntent}
-                onChange={(e) => setImageIntent(e.target.checked)}
-              />
-              Generate image
-            </label>
-          }
-        />
+      <div
+        className="preview-divider"
+        role="separator"
+        aria-label="Resize preview and workbench"
+        aria-orientation="vertical"
+        aria-valuemin={panelBounds.min}
+        aria-valuemax={panelBounds.max}
+        aria-valuenow={clampPanelWidth(workbench.panelWidth, workspaceWidth)}
+        tabIndex={workbench.size === "collapsed" ? -1 : 0}
+        onPointerDown={handleDividerPointerDown}
+        onPointerMove={handleDividerPointerMove}
+        onPointerUp={handleDividerPointerUp}
+        onPointerCancel={handleDividerPointerUp}
+        onKeyDown={handleDividerKeyDown}
+      />
 
-        {editResult && <p className="edit-status">{editResult}</p>}
-        {editError && <p className="edit-error">{editError}</p>}
-
-        <hr className="hairline" />
-
-        <GateStrip runId={id} refreshToken={gateRefreshToken} />
-      </aside>
-    </div>
+      <Workbench
+        runId={id}
+        mode={workbench.mode}
+        size={workbench.size}
+        activeTool={activeTool}
+        selection={selection}
+        editorState={editorState}
+        editorReason={editorReason}
+        instruction={instruction}
+        imageIntent={imageIntent}
+        isEditing={isEditing}
+        editResult={editResult}
+        editError={editError}
+        gateRefreshToken={gateRefreshToken}
+        onActiveToolChange={(activeTool) =>
+          setWorkbench((current) => ({ ...current, activeTool }))
+        }
+        onInstructionChange={setInstruction}
+        onImageIntentChange={setImageIntent}
+        onSubmitEdit={submitEdit}
+        onSizeChange={setWorkbenchSize}
+        onEditorCommand={sendEditorCommand}
+        onStructuredMutationComplete={handleStructuredMutationComplete}
+        onMotionPreview={previewSelectedMotion}
+      />
+    </main>
   );
 }

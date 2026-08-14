@@ -19,6 +19,8 @@ import {
   SITES_DIR,
   SITE_DIR,
   SiteManifestSchema,
+  RunStateSchema,
+  workflowArtifactApprovalState,
   type DesignTokens,
   type SkeletonSpec,
   type CopyDoc,
@@ -43,11 +45,15 @@ export interface BuildSiteInput {
   skeleton: SkeletonSpec;
   copy: CopyDoc;
   assets: { heroImagePath?: string };
+  /** Approved Tailwind v4 source artifact. The static site does not require a
+   * Tailwind runtime; this file preserves the exact semantic theme mapping. */
+  tailwindThemeCss?: string;
 }
 
 export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   const runId = assertSafeRunId(input.runId);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
+  await assertBuildAuthorized(runRoot);
   const siteDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
   await mkdir(path.join(siteDir, "assets"), { recursive: true });
 
@@ -65,15 +71,37 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
 
   const tokensCss = await renderTokensCss(input.tokens);
   await writeFile(path.join(siteDir, "tokens.css"), tokensCss, "utf8");
+  if (input.tailwindThemeCss) {
+    await writeFile(
+      path.join(siteDir, "tailwind-theme.css"),
+      input.tailwindThemeCss,
+      "utf8"
+    );
+  }
   await copyFile(path.join(TEMPLATE_DIR, "site.css"), path.join(siteDir, "site.css"));
   await copyFile(path.join(TEMPLATE_DIR, "reveal.js"), path.join(siteDir, "reveal.js"));
+  await copyFile(path.join(TEMPLATE_DIR, "motion-runtime.js"), path.join(siteDir, "motion-runtime.js"));
+  await copyFile(path.join(process.cwd(), "node_modules", "gsap", "dist", "gsap.min.js"), path.join(siteDir, "gsap.min.js"));
+  await copyFile(path.join(process.cwd(), "node_modules", "gsap", "dist", "ScrollTrigger.min.js"), path.join(siteDir, "ScrollTrigger.min.js"));
+  await writeFile(path.join(siteDir, "motion.json"), '{"version":1,"entries":[]}\n', "utf8");
 
   const assetEntries: SiteManifest["assets"] = [
     { path: "tokens.css", kind: "css", generatedBy: "builder:tokens" },
     { path: "site.css", kind: "css" },
     { path: "reveal.js", kind: "js" },
+    { path: "gsap.min.js", kind: "js" },
+    { path: "ScrollTrigger.min.js", kind: "js" },
+    { path: "motion-runtime.js", kind: "js" },
   ];
-  const files = ["index.html", "tokens.css", "site.css", "reveal.js"];
+  const files = ["index.html", "tokens.css", "site.css", "reveal.js", "gsap.min.js", "ScrollTrigger.min.js", "motion-runtime.js", "motion.json"];
+  if (input.tailwindThemeCss) {
+    assetEntries.push({
+      path: "tailwind-theme.css",
+      kind: "css",
+      generatedBy: "evidence-workflow:tailwind-v4-theme",
+    });
+    files.push("tailwind-theme.css");
+  }
 
   const phone = resolvePhone(input.intake, input.copy);
   const heroMediaHtml = await renderHeroMedia({
@@ -85,7 +113,7 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     files,
   });
 
-  const html = renderHtml({
+  const html = decorateTargetMarkup(input.intake.projectTarget, renderHtml({
     template: await readFile(path.join(TEMPLATE_DIR, "index.html.tpl"), "utf8"),
     tokens: input.tokens,
     copy: input.copy,
@@ -93,8 +121,20 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     phone,
     enabledSections,
     heroMediaHtml,
-  });
-  await writeFile(path.join(siteDir, "index.html"), html, "utf8");
+  }));
+  await writeFile(
+    path.join(siteDir, "index.html"),
+    html.replace(
+      "<html ",
+      `<html data-project-target="${input.intake.projectTarget}" `
+    ).replace(
+      '<link rel="stylesheet" href="tokens.css" />',
+      input.tailwindThemeCss
+        ? '<link rel="stylesheet" href="tokens.css" />\n  <link rel="stylesheet" href="tailwind-theme.css" />'
+        : '<link rel="stylesheet" href="tokens.css" />'
+    ),
+    "utf8"
+  );
 
   const manifest = SiteManifestSchema.parse({
     entry: "index.html",
@@ -105,6 +145,61 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   });
   await writeManifest(siteDir, manifest); // atomic flip
   return manifest;
+}
+
+export function decorateTargetMarkup(
+  target: Intake["projectTarget"],
+  html: string
+): string {
+  if (target === "website") return html;
+  if (target === "web-app") {
+    return html.replace(
+      "<body>",
+      '<body><aside class="app-sidebar" aria-label="Application navigation"><strong>Workspace</strong><a href="#main">Overview</a><a href="#services">Tasks</a><a href="#contact">Account</a></aside><div class="app-surface">'
+    ).replace("</body>", "</div></body>");
+  }
+  return html
+    .replace(
+      '<meta name="viewport" content="width=device-width, initial-scale=1" />',
+      '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />'
+    )
+    .replace(
+      "<body>",
+      '<body><div class="ios-device-surface"><header class="ios-navigation" aria-label="iOS navigation"><span aria-hidden="true">‹</span><strong>Overview</strong><button type="button" aria-label="More options">•••</button></header>'
+    )
+    .replace(
+      "</body>",
+      '<nav class="ios-tab-bar" aria-label="App tabs"><a href="#main">Home</a><a href="#services">Services</a><a href="#contact">Contact</a></nav></div></body>'
+    );
+}
+
+export async function assertBuildAuthorized(runRoot: string): Promise<void> {
+  let raw: string;
+  try {
+    raw = await readFile(path.join(runRoot, "run.json"), "utf8");
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return; // standalone builder fixture, not a durable pipeline run
+    }
+    throw error;
+  }
+  const run = RunStateSchema.parse(JSON.parse(raw));
+  if (run.pipelineVersion === "legacy-v1") return;
+  const approvedCss = run.evidenceWorkflow.artifacts.some(
+    (artifact) =>
+      artifact.artifactType === "css-architecture" &&
+      workflowArtifactApprovalState(artifact) === "approved"
+  );
+  if (run.evidenceWorkflow.currentStage !== "build" || !approvedCss) {
+    throw new Error(
+      "evidence-gated-v2 build blocked: approve evidence, contract, tokens, Tailwind, and CSS architecture first"
+    );
+  }
 }
 
 // ---------- manifest ----------
@@ -167,6 +262,15 @@ async function renderTokensCss(tokens: DesignTokens): Promise<string> {
   }
   for (const [key, value] of Object.entries(tokens.spacing)) {
     lines.push(`  --space-${key}: ${value};`);
+  }
+  for (const [key, value] of Object.entries(tokens.borders)) {
+    lines.push(`  --border-${key}: ${value};`);
+  }
+  for (const [key, value] of Object.entries(tokens.shadows)) {
+    lines.push(`  --shadow-${key}: ${value};`);
+  }
+  for (const [key, value] of Object.entries(tokens.layers)) {
+    lines.push(`  --layer-${key}: ${value};`);
   }
   lines.push(`  --layout-max-width: ${tokens.layout.maxWidthPx}px;`);
   lines.push(`  --layout-section-gap: ${tokens.layout.sectionGapPx}px;`);

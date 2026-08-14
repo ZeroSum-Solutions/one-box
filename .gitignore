@@ -43,3 +43,5 @@ next-env.d.ts
 # generated runs
 /sites/
 
+# private local intake staging; uploads are claimed into ignored run data
+/.one-box/

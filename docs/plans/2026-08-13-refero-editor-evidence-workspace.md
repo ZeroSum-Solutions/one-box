@@ -1,0 +1,182 @@
+# One-Box Refero editor and evidence workspace
+
+Status: implementation in progress on `codex/refero-editor-goal`.
+
+This plan extends the prototype plan of record in
+`docs/plans/2026-08-12-one-box-prototype.md`. The three briefs supplied on
+2026-08-13 govern this extension. Existing security, persistence, source-editing,
+quality-gate, and spend-control decisions remain binding unless this plan names a
+replacement.
+
+## Success contract
+
+The acceptance source is the versioned contract copied into
+`docs/specs/2026-08-13-refero-editor-requirements.md`. It preserves the atomic
+`IMP`, `ART`, `EXP`, and `BEN` identifiers from the approved briefs. The build is
+complete only when the acceptance matrix links every identifier to a passing
+mechanical, rendered, or saved-artifact check.
+
+## Confirmed current state
+
+- The pipeline is a resumable state machine in `src/lib/pipeline.ts`, with Zod
+  contracts in `src/lib/contracts.ts` and project artifacts in `sites/<runId>/`.
+- Generated sites use the frozen `templates/local-service/` skeleton and are
+  served through a CSP-protected catch-all route.
+- Preview uses a sandboxed opaque-origin iframe. `public/overlay.js` sends only
+  validated selection messages, and `/api/edit` patches pristine source by
+  `data-edit-id` before re-running gates.
+- Crawl4AI already precedes Firecrawl for known URLs. The fallback is explicit in
+  code, but its result lacks the full provider-event record required by the new
+  brief.
+- Competitive scan data and Refero reference-lock data are separate contracts.
+- The current intake has no project-target, research configuration, or upload
+  controls. The current editor has selection plus natural-language patching, not
+  direct text/button/token/motion tools or an explicit View mode.
+- Existing Phase 4 fixtures cover three prompts and three reference arms. They do
+  not cover the expanded model-routing benchmark.
+- Two source files contain a legacy `/Users/zero-suminc.` home path and must be
+  made portable before the same checkout can work on both Macs.
+
+No local clone or worktree existed before this run. Remote `main` was clean at
+`5076f9e417566d37dc676a42464a520794faf810`; the implementation branch was cut
+from that commit.
+
+## Dependency-ordered slices
+
+### 1. Portable baseline and executable test surface
+
+Ownership: `src/lib/tools/crawl.ts`, `src/lib/tools/locallib.ts`, `package.json`,
+test configuration, setup documentation.
+
+- Replace machine-specific paths with environment-aware, repository-independent
+  resolution.
+- Add named test commands for unit, type, smoke, and rendered checks.
+- Preserve the crawl4ai-first and explicit Firecrawl-fallback policy.
+
+Verify: clean install, lint, TypeScript, unit tests, production build, gate smoke,
+and crawl-provider tests on this Mac. Rollback: revert only the portability and
+script commit; no data migration is involved.
+
+### 2. Project, evidence, and approval contracts
+
+Ownership: `src/lib/contracts.ts`, `src/lib/runstate.ts`, evidence routes and
+components.
+
+- Add project target, research configuration, upload metadata, evidence stages,
+  approval state, design ledger, contract, token proposal, Tailwind plan, CSS map,
+  visual QA, and crawler provenance contracts.
+- Persist immutable artifact versions and approval transitions under the run.
+- Enforce `evidence -> contract -> tokens -> Tailwind plan -> CSS architecture -> build`.
+
+Verify: schema tests cover valid order, invalid skips, revision history, exports,
+and separation of business versus design research. Rollback: the new fields are
+defaulted and additive; revert the slice without rewriting existing runs.
+
+### 3. Intake, targets, research configuration, and safe uploads
+
+Ownership: intake UI, chat/start-pipeline contract, upload endpoint and tests.
+
+- Use the label `Design Research`: it describes the user benefit and avoids the
+  ambiguous internal term “referral research.”
+- Add Website, Web app, and iOS targets, an explicit research control, and upload
+  intake with documented types, limits, privacy, extraction, and failure states.
+- Reject unsafe names, unsupported formats, oversized content, and unapproved
+  archives before storage.
+
+Verify: keyboard/UI tests plus endpoint tests for accepted, malformed, oversized,
+and traversal inputs. Rollback: the original chat intake remains the fallback when
+the new controls are absent.
+
+### 4. View/Edit workbench vertical slice
+
+Ownership: preview page, overlay protocol, editor endpoints, workbench components,
+and preview CSS.
+
+- Add explicit View and Edit modes. View loads production behavior without the
+  editor overlay. Edit loads the safe overlay.
+- Add a persisted resizable workbench, actual iframe viewport resizing, breakpoint
+  indicator, and accessible collapsed rail.
+- Add distinct select/text-edit/drag states, direct text editing, button label and
+  action editing, typography controls, undo/redo, Escape cancellation, focus
+  restoration, and clear unsupported states.
+
+Verify: Playwright at desktop, tablet, and mobile widths; direct text/button edits;
+navigation in View; keyboard collapse/restore; undo/redo; opaque iframe security.
+Rollback: mode and workbench state are client-side additions; the existing
+natural-language edit endpoint stays available.
+
+### 5. Token inspection and constrained motion authoring
+
+Ownership: token/motion schemas, workbench tools, edit route, generated runtime.
+
+- Expose semantic tokens, usage scope, affected elements, preview, apply, and revert.
+- Add a versioned motion schema for entrance, exit, hover, scroll trigger, and
+  timeline sequences. Allow only validated values; never execute user JavaScript.
+- Clean up timelines and ScrollTriggers on reload, resize, edit, and unmount; honor
+  reduced motion.
+
+Verify: schema rejection tests, lifecycle tests, rendered reduced-motion checks,
+and repeated preview-size changes without duplicate effects. Rollback: remove the
+motion manifest/runtime and retain existing CSS reveal behavior.
+
+### 6. Evidence-gated pipeline and Tailwind v4 output
+
+Ownership: pipeline stages, builder, token export, template, evidence workspace.
+
+- Persist separate business intelligence and Refero design evidence with source,
+  timestamp, confidence, fact/inference labels, and rationale.
+- Generate and approve the project design contract, semantic token inventory,
+  Tailwind v4 mapping, CSS architecture, and QA checklist before build.
+- Keep exported CSS portable and forbid unjustified raw utility values.
+
+Verify: deterministic stage-order tests, design-contract lint/export, token drift,
+artifact preview/export, and three-width rendered QA. Rollback: retain prior
+artifacts and route new runs through the existing synthesis stage behind a versioned
+pipeline flag.
+
+### 7. Controlled baseline and routing benchmark
+
+Ownership: `docs/eval/`, evaluation scripts, fixed fixtures, blinded score data.
+
+- Reuse one versioned brief for the current pipeline and direct Refero workflow.
+- Record prompts, sources, intermediate artifacts, outputs, time, cost, repairs,
+  and independent findings without using Refero content to train or benchmark a
+  model in violation of Refero terms.
+- Benchmark representative task classes, including Grok 4.6, Luna, and Terra only
+  through approved billing lanes. Keep producers hidden from evaluators.
+- Separate confirmed measurements from operating hypotheses and missing data.
+
+Verify: manifest identity checks, blinding/randomization tests, complete score rows,
+and a decision log whose routing recommendations follow the registered thresholds.
+Rollback: evaluation artifacts do not change runtime routing until a policy version
+is explicitly adopted.
+
+### 8. Independent review, documentation, and release gate
+
+Ownership: tests, security report, documentation impact ledger, proof files, PR.
+
+- Run independent Grok 4.6 advisory review per completed slice.
+- Run the TypeScript reviewer, security review, project-documentation verifier, and
+  independent acceptance verifier.
+- Capture command output and rendered evidence for every acceptance-matrix row.
+- Open a draft PR with cross-Mac setup and coordination instructions.
+
+Verify: all canonical gates exit zero, security report validates, independent
+verdict is PASS, and the `/goal` completion gate reports DONE. Rollback: keep the PR
+draft and do not merge if any mandatory gate is incomplete.
+
+## Cross-Mac coordination
+
+Use one feature branch per task and one owner per file group. Before starting, fetch
+and branch from the current `origin/main`. Do not share an uncommitted working tree
+through file synchronization. Publish work through GitHub, open a draft PR early,
+and integrate by reviewed commits. Each machine uses its own ZS Vault and Refero OAuth
+session; secrets and OAuth tokens never enter Git. Generated `sites/` data remains
+local unless a fixture is deliberately redacted and committed under `docs/eval/`.
+
+## Acceptance and rollback record
+
+The canonical acceptance matrix will live at
+`docs/verification/2026-08-13-refero-editor-acceptance.md`. Each row records the
+criterion, implementation owner, verification command or rendered artifact, result,
+and rollback boundary. A missing or skipped check is not a pass.
