@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   EVIDENCE_WORKFLOW_STAGES,
@@ -12,6 +14,7 @@ import {
   advanceEvidenceWorkflow,
   artifactApprovalState,
   createRun,
+  invalidateApprovedVisualQa,
   loadEvidenceWorkflow,
   loadRun,
   saveEvidenceArtifactVersion,
@@ -29,6 +32,7 @@ import {
 } from "./pipeline";
 
 const testRunIds: string[] = [];
+const execFileAsync = promisify(execFile);
 
 interface PersistedRunFixture {
   evidenceWorkflow: {
@@ -460,6 +464,69 @@ describe("evidence workflow persistence", () => {
     await expect(fs.readFile(path.join(sitePaths(runId).root, "evidence/approved/project-record.json"))).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("holds the shared filesystem run-state lock for the whole transaction", async () => {
+    const runId = await createTestRun();
+    let enterTransaction!: () => void;
+    let releaseTransaction!: () => void;
+    const entered = new Promise<void>((resolve) => { enterTransaction = resolve; });
+    const release = new Promise<void>((resolve) => { releaseTransaction = resolve; });
+
+    const transaction = withRunTransaction(runId, async () => {
+      enterTransaction();
+      await release;
+    });
+    await entered;
+
+    const lockDirectory = path.join(sitePaths(runId).root, ".run-state-lock");
+    const owner = JSON.parse(
+      await fs.readFile(path.join(lockDirectory, "owner.lock"), "utf8"),
+    ) as { pid: number; token: string };
+    expect(owner.pid).toBe(process.pid);
+    expect(owner.token).toMatch(/^[a-f0-9]{32}$/);
+
+    releaseTransaction();
+    await transaction;
+    await expect(
+      fs.access(path.join(lockDirectory, "owner.lock")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("does not lose run-state updates from separate processes", async () => {
+    const runId = await createTestRun();
+    const barrierDirectory = path.join(
+      sitePaths(runId).root,
+      "cross-process-run-barrier",
+    );
+    const vitestEntry = path.join(
+      process.cwd(),
+      "node_modules/vitest/vitest.mjs",
+    );
+    const fixturePath = path.join(
+      process.cwd(),
+      "src/lib/runstate.crossProcess.fixture.test.ts",
+    );
+
+    await Promise.all(
+      ["writer-a", "writer-b"].map((writerId) =>
+        execFileAsync(
+          process.execPath,
+          [vitestEntry, "run", fixturePath, "--maxWorkers=1"],
+          {
+            cwd: process.cwd(),
+            env: {
+              ...process.env,
+              ONEBOX_CROSS_PROCESS_RUN_ID: runId,
+              ONEBOX_CROSS_PROCESS_WRITER_ID: writerId,
+              ONEBOX_CROSS_PROCESS_BARRIER_DIRECTORY: barrierDirectory,
+            },
+          },
+        ),
+      ),
+    );
+
+    expect((await loadRun(runId)).costUsd).toBe(2);
+  }, 20_000);
+
   it("rolls back an initial contract transaction without exposing unapproved aliases", async () => {
     const runId = await createTestRun();
     const ledger = await saveEvidenceArtifactVersion(runId, artifactDrafts()[0]);
@@ -507,6 +574,34 @@ describe("evidence workflow persistence", () => {
     const workflow = await loadEvidenceWorkflow(runId);
     expect(workflow.artifacts).toHaveLength(1);
     expect(artifactApprovalState(workflow.artifacts[0])).toBe("approved");
+  });
+
+  it("invalidates an approved visual review after a committed site mutation without erasing history", async () => {
+    const runId = await createTestRun();
+    const drafts = artifactDrafts();
+    for (let index = 0; index < drafts.length; index += 1) {
+      const artifact = await saveEvidenceArtifactVersion(runId, drafts[index]);
+      await reviewAndApprove(runId, artifact);
+      const nextStage = EVIDENCE_WORKFLOW_STAGES[index + 1];
+      if (nextStage) await advanceEvidenceWorkflow(runId, nextStage);
+    }
+
+    await expect(invalidateApprovedVisualQa(runId)).resolves.toBe(true);
+    const workflow = await loadEvidenceWorkflow(runId);
+    const visualQa = workflow.artifacts.find((artifact) => artifact.artifactType === "visual-qa");
+    expect(visualQa && artifactApprovalState(visualQa)).toBe("revision-requested");
+    expect(visualQa?.approvalTransitions.at(-1)).toMatchObject({
+      actor: "site-mutation",
+      note: expect.stringMatching(/site changed/i),
+    });
+    const alias = JSON.parse(
+      await fs.readFile(
+        path.join(sitePaths(runId).root, workflowArtifactAliasPath("visual-qa")),
+        "utf8"
+      )
+    );
+    expect(alias.approvalTransitions.at(-1).state).toBe("revision-requested");
+    expect(await invalidateApprovedVisualQa(runId)).toBe(false);
   });
 });
 

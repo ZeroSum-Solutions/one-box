@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AssetControls,
   classifyAssetTarget,
-  imageEditPayload,
+  retainGenerationAttempt,
 } from "./AssetControls";
 import type { PreviewSelection } from "./previewState";
 
@@ -18,21 +18,33 @@ const imageSelection: PreviewSelection = {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("AssetControls", () => {
-  it("accepts image targets and sends only the guarded image-intent payload", () => {
+  it("keeps one immutable request snapshot across an ambiguous retry", () => {
+    const first = {
+      requestId: "00000000-0000-4000-8000-000000000133",
+      prompt: "Original prompt",
+      model: "higgsfield:gpt_image_2",
+      aspectRatio: "1:1",
+      quality: "high" as const,
+      sourceAssetId: null,
+      targetEditId: "hero-image",
+    };
+    const changedDraft = {
+      ...first,
+      requestId: "00000000-0000-4000-8000-000000000134",
+      prompt: "Changed prompt",
+    };
+    expect(retainGenerationAttempt(first, changedDraft)).toBe(first);
+    expect(retainGenerationAttempt(null, changedDraft)).toBe(changedDraft);
+  });
+
+  it("accepts image targets without broadening non-image selection authority", () => {
     expect(classifyAssetTarget(imageSelection)).toMatchObject({
       supported: true,
       summary: "img · hero-image",
     });
-    expect(imageEditPayload("run-1", "hero-image", "  sunlit studio  ", "00000000-0000-4000-8000-000000000009")).toEqual({
-      runId: "run-1",
-      editId: "hero-image",
-      instruction: "sunlit studio",
-      imageIntent: true,
-      requestId: "00000000-0000-4000-8000-000000000009",
-    });
   });
 
-  it("renders a labelled image action without making a paid request", () => {
+  it("renders project Library and Generate views without making a paid request", () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
     const html = renderToStaticMarkup(
@@ -42,14 +54,15 @@ describe("AssetControls", () => {
         onMutationComplete={() => undefined}
       />,
     );
+    expect(html).toContain('aria-label="Asset view"');
     expect(html).toContain('aria-label="Selected image target"');
-    expect(html).toContain('aria-label="Image prompt"');
-    expect(html).toContain("Generate and replace image");
-    expect(html).toContain("blocking gates");
+    expect(html).toContain("Library");
+    expect(html).toContain("Generate");
+    expect(html).toContain("Project images");
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("keeps non-image media and arbitrary selections out of the paid route", () => {
+  it("keeps non-image media and arbitrary selections out of placement authority", () => {
     const video = { ...imageSelection, editId: "showreel", tag: "video" };
     const text = { ...imageSelection, editId: "headline", tag: "h1", assetKind: undefined };
     const namedButEmpty = { ...imageSelection, editId: "hero.image", tag: "figure", assetKind: undefined };
@@ -64,8 +77,7 @@ describe("AssetControls", () => {
         onMutationComplete={() => undefined}
       />,
     );
-    expect(html).toContain("Image replacement unavailable");
-    expect(html).toContain("replaces images only");
-    expect(html).not.toContain("Generate and replace image");
+    expect(html).toContain("Project images");
+    expect(html).not.toContain("Replace selected");
   });
 });

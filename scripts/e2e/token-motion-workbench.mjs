@@ -144,7 +144,7 @@ try {
     order: savedTimeline.order,
   }, { trigger: "manual", replay: "repeat", breakpoint: "tablet", durationMs: 875, delayMs: 125, x: 55, opacity: 0.4, timelineId: "hero-sequence", order: 3 });
 
-  await page.getByRole("button", { name: "View" }).click();
+  await page.getByRole("button", { name: "View", exact: true }).click();
   await frame().locator('[data-edit-id="hero.headline"][data-onebox-motion-active="scroll"]').waitFor();
   const triggerCount = () => page.frames()[1].evaluate(() => window.ScrollTrigger.getAll().filter((trigger) => String(trigger.vars.id || "").startsWith("onebox:")).length);
   assert.equal(await triggerCount(), 1);

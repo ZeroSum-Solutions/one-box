@@ -32,7 +32,7 @@ function postRequest(headers: Record<string, string>) {
     request: {
       method: "POST",
       url: "http://localhost:3000/api/elements",
-      headers: new Headers(headers),
+      headers: new Headers({ Host: "localhost:3000", ...headers }),
       json,
     } as unknown as Request,
     json,
@@ -55,7 +55,7 @@ describe("element route authorization", () => {
   it("rejects cross-origin GET before reading history", async () => {
     const response = await GET(
       new Request("http://localhost:3000/api/elements?runId=test-run", {
-        headers: { Origin: "https://evil.example" },
+        headers: { Host: "localhost:3000", Origin: "https://evil.example" },
       }),
     );
     expect(response.status).toBe(403);
@@ -64,7 +64,9 @@ describe("element route authorization", () => {
 
   it("allows method-aware no-Origin GET and configured bearer POST", async () => {
     const getResponse = await GET(
-      new Request("http://localhost:3000/api/elements?runId=test-run"),
+      new Request("http://localhost:3000/api/elements?runId=test-run", {
+        headers: { Host: "localhost:3000" },
+      }),
     );
     expect(getResponse.status).toBe(200);
     expect(mocks.elementHistoryState).toHaveBeenCalledWith("test-run");

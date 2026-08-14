@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 import {
   EVIDENCE_WORKFLOW_STAGES,
   ARTIFACTS,
+  HumanVisualReviewCriteriaSchema,
   WorkflowArtifactDraftSchema,
+  type HumanVisualReview,
   type WorkflowArtifactType,
 } from "../../../../lib/contracts";
 import {
@@ -27,6 +29,7 @@ import {
   stageThreeWidthVisualQa,
 } from "../../../../lib/evidence";
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
+import { runGates } from "../../../../lib/gates";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
@@ -37,6 +40,13 @@ const ActionSchema = z.discriminatedUnion("action", [
     note: z.string().min(1).max(2_000),
   }),
   z.object({ action: z.literal("approve"), note: z.string().max(2_000).optional() }),
+  z.object({
+    action: z.literal("record-human-visual-review"),
+    reviewerName: z.string().trim().min(1).max(120),
+    reviewerKind: z.literal("human"),
+    humanAttestation: z.literal(true),
+    criteria: HumanVisualReviewCriteriaSchema,
+  }),
   z.object({ action: z.literal("regenerate-visual-qa") }),
   z.object({
     action: z.literal("advance"),
@@ -50,6 +60,20 @@ const ActionSchema = z.discriminatedUnion("action", [
     ),
   }),
 ]);
+
+function humanReviewPassed(review: Pick<HumanVisualReview, "criteria">): boolean {
+  return Object.values(review.criteria).every((criterion) => criterion.status === "pass");
+}
+
+function visualQaRevisionBaseline(
+  artifact: Extract<ReturnType<typeof latestCurrentArtifact>, { artifactType: "visual-qa" }>
+): { buildSha256: string; humanRejected: boolean } {
+  const review = artifact.approvalTransitions.at(-1)?.humanVisualReview;
+  if (review && !humanReviewPassed(review)) {
+    return { buildSha256: review.buildSha256, humanRejected: true };
+  }
+  return { buildSha256: artifact.artifact.buildSha256, humanRejected: false };
+}
 
 function latestCurrentArtifact(run: Awaited<ReturnType<typeof loadRun>>) {
   const expected: Record<string, WorkflowArtifactType> = {
@@ -193,6 +217,15 @@ export async function POST(
               "visual QA regeneration requires a revision-requested visual-qa artifact"
             );
           }
+          const revisionBaseline = visualQaRevisionBaseline(transactionCurrent);
+          const currentBuildHash = await computeSiteBuildSha256(sitePaths(id).site);
+          if (currentBuildHash === revisionBaseline.buildSha256) {
+            throw new EvidenceWorkflowError(
+              revisionBaseline.humanRejected
+                ? "the build must change after a human rejection before visual QA can be regenerated"
+                : "the build must change after visual QA was revision-requested before it can be regenerated"
+            );
+          }
           const nextVersion = transactionCurrent.version + 1;
           const evidenceBasePath = `evidence/qa/v${nextVersion}`;
           const stagingParent = path.join(sitePaths(id).root, "evidence");
@@ -234,6 +267,78 @@ export async function POST(
           }
         })
       );
+    } else if (input.action === "record-human-visual-review") {
+      if (!current || current.artifactType !== "visual-qa") {
+        throw new EvidenceWorkflowError("human visual review is available only for visual QA");
+      }
+      await withSiteAuthorityLock(id, () =>
+        withRunTransaction(id, async (transaction) => {
+          const transactionCurrent = latestCurrentArtifact(transaction.state);
+          if (
+            !transactionCurrent ||
+            transactionCurrent.artifactType !== "visual-qa" ||
+            transactionCurrent.version !== current.version ||
+            artifactApprovalState(transactionCurrent) !== "in-review"
+          ) {
+            throw new EvidenceWorkflowError("visual QA must be in review before human review");
+          }
+          const referenceContext = input.criteria.designAndReferenceAlignment.referenceContext;
+          if (
+            (transaction.state.referenceMode === "none") !==
+            (referenceContext === "explicit-no-reference")
+          ) {
+            throw new EvidenceWorkflowError(
+              transaction.state.referenceMode === "none"
+                ? "visual review must explicitly record that no external reference was selected"
+                : "visual review must evaluate the selected design/reference evidence"
+            );
+          }
+
+          const currentBuildHash = await computeSiteBuildSha256(sitePaths(id).site);
+          if (transactionCurrent.artifact.buildSha256 !== currentBuildHash) {
+            throw new EvidenceWorkflowError("visual QA does not match the current build");
+          }
+          const humanVisualReview: HumanVisualReview = {
+            reviewerName: input.reviewerName,
+            reviewerKind: input.reviewerKind,
+            humanAttestation: input.humanAttestation,
+            reviewedAt: new Date().toISOString(),
+            buildSha256: currentBuildHash,
+            criteria: input.criteria,
+          };
+          const passed = humanReviewPassed(humanVisualReview);
+          if (passed) {
+            if (transactionCurrent.artifact.checks.some((check) => check.status !== "pass")) {
+              throw new EvidenceWorkflowError(
+                "every automated visual evidence check must pass before human approval"
+              );
+            }
+            const reports = await runGates(id, {});
+            const blockingFailures = reports.filter((report) => report.blocking && !report.pass);
+            if (blockingFailures.length > 0) {
+              throw new EvidenceWorkflowError(
+                `mechanical gates must pass before visual approval: ${blockingFailures.map((report) => report.gate).join(", ")}`
+              );
+            }
+            const verifiedBuildHash = await computeSiteBuildSha256(sitePaths(id).site);
+            if (verifiedBuildHash !== currentBuildHash) {
+              throw new EvidenceWorkflowError("the build changed while mechanical gates were running");
+            }
+          }
+          await transaction.transitionEvidenceArtifactApproval(
+            "visual-qa",
+            transactionCurrent.version,
+            passed ? "approved" : "revision-requested",
+            {
+              actor: "human-reviewer",
+              note: passed
+                ? "All named human visual-quality criteria passed."
+                : "Human visual review requested a meaningful revision.",
+              humanVisualReview,
+            }
+          );
+        })
+      );
     } else {
       if (!current) {
         return Response.json(
@@ -248,35 +353,16 @@ export async function POST(
             ? "revision-requested"
             : "approved";
       if (nextState === "approved" && current.artifactType === "visual-qa") {
-        // Site authority always precedes run authority. Editors use the same
-        // site lock, so the verified build bytes cannot change between the
-        // hash check and the approval transition.
-        await withSiteAuthorityLock(id, () =>
-          withRunTransaction(id, async (transaction) => {
-            const transactionCurrent = latestCurrentArtifact(transaction.state);
-            if (
-              !transactionCurrent ||
-              transactionCurrent.artifactType !== "visual-qa" ||
-              transactionCurrent.version !== current.version
-            ) {
-              throw new EvidenceWorkflowError("visual QA revision changed before approval");
-            }
-            if (transactionCurrent.artifact.checks.some((check) => check.status !== "pass")) {
-              throw new EvidenceWorkflowError("every visual QA check must pass before approval");
-            }
-            const currentBuildHash = await computeSiteBuildSha256(sitePaths(id).site);
-            if (transactionCurrent.artifact.buildSha256 !== currentBuildHash) {
-              throw new EvidenceWorkflowError("visual QA does not match the current build");
-            }
-            await transaction.transitionEvidenceArtifactApproval(
-              "visual-qa",
-              transactionCurrent.version,
-              "approved",
-              { actor: "workspace-user", note: input.note }
-            );
-          })
+        throw new EvidenceWorkflowError(
+          "visual QA approval requires a structured named human visual review"
         );
-      } else if (nextState === "approved" && current.artifactType === "design-contract") {
+      }
+      if (input.action === "request-revision" && current.artifactType === "visual-qa") {
+        throw new EvidenceWorkflowError(
+          "visual QA rejection requires a structured named human visual review"
+        );
+      }
+      if (nextState === "approved" && current.artifactType === "design-contract") {
         await withRunTransaction(id, async (transaction) => {
           const transactionCurrent = latestCurrentArtifact(transaction.state);
           if (!transactionCurrent || transactionCurrent.artifactType !== "design-contract" || transactionCurrent.version !== current.version) {

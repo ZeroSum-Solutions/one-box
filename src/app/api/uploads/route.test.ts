@@ -1,8 +1,8 @@
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MAX_UPLOAD_BYTES } from "../../../components/uploadPolicy";
 import {
   claimUploadSession,
@@ -43,8 +43,12 @@ function uploadRequest(
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
   const headers = new Headers(extraHeaders);
+  if (!headers.has("Host")) headers.set("Host", "localhost");
   if (!headers.has("Origin")) headers.set("Origin", "http://localhost");
   if (!headers.has("Sec-Fetch-Site")) headers.set("Sec-Fetch-Site", "same-origin");
+  if (!headers.has("X-One-Box-Upload-Request-Id")) {
+    headers.set("X-One-Box-Upload-Request-Id", randomUUID());
+  }
   if (uploadSession) headers.set("Authorization", `Bearer ${uploadSession}`);
   return new Request("http://localhost/api/uploads", {
     method: "POST",
@@ -109,6 +113,7 @@ describe("bounded multipart handling", () => {
     const request = new Request("http://localhost/api/uploads", {
       method: "POST",
       headers: {
+        Host: "localhost",
         Origin: "https://hostile.example",
         "Content-Type": "multipart/form-data; boundary=valid-boundary",
       },
@@ -183,6 +188,26 @@ describe("bounded multipart handling", () => {
     }
   });
 
+  it("lets a rebased legitimate browser upload reach multipart validation without staging", async () => {
+    const root = await stagingRoot();
+    const response = await handleUpload(
+      new Request("http://localhost:3000/api/uploads", {
+        method: "POST",
+        headers: {
+          Host: "127.0.0.1:3000",
+          Origin: "http://127.0.0.1:3000",
+          "Sec-Fetch-Site": "same-origin",
+          "Content-Type": "multipart/form-data",
+        },
+        body: "",
+      }),
+      root
+    );
+
+    expect(response.status).toBe(400);
+    expect(await readdir(root)).toEqual([]);
+  });
+
   it("caps a chunked body without relying on Content-Length", async () => {
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -207,6 +232,7 @@ describe("bounded multipart handling", () => {
       new Request("http://localhost/api/uploads", {
         method: "POST",
         headers: {
+          Host: "localhost",
           Origin: "http://localhost",
           "Sec-Fetch-Site": "same-origin",
           "Content-Type": "multipart/form-data",
@@ -223,6 +249,7 @@ describe("bounded multipart handling", () => {
       new Request("http://localhost/api/uploads", {
         method: "POST",
         headers: {
+          Host: "localhost",
           Origin: "http://localhost",
           "Sec-Fetch-Site": "same-origin",
           "Content-Type": "multipart/form-data; boundary=bad boundary",
@@ -271,6 +298,160 @@ describe("upload validation", () => {
 });
 
 describe("upload-session lifecycle", () => {
+  it("replays the original upload batch without staging or count penalties", async () => {
+    const root = await stagingRoot();
+    const requestId = "018f3f39-d1e2-7c3a-9b4d-5e6f708192a3";
+    const first = await handleUpload(
+      uploadRequest([textFile("one.txt"), textFile("two.txt")], undefined, {
+        "X-One-Box-Upload-Request-Id": requestId,
+      }),
+      root
+    );
+    const firstBody = (await first.json()) as {
+      uploadSession: string;
+      uploads: Array<{ id: string; fileName: string }>;
+    };
+
+    const replay = await handleUpload(
+      uploadRequest([textFile("one.txt"), textFile("two.txt")], undefined, {
+        "X-One-Box-Upload-Request-Id": requestId,
+      }),
+      root
+    );
+    const replayBody = await replay.json();
+
+    expect(first.status).toBe(200);
+    expect(replay.status).toBe(200);
+    expect(replayBody).toEqual(firstBody);
+    const sessionDirectory = path.join(
+      root,
+      createHash("sha256").update(firstBody.uploadSession).digest("hex")
+    );
+    expect(await readdir(sessionDirectory)).toHaveLength(3);
+  });
+
+  it("recovers a fresh manifest-less partial session on retry", async () => {
+    const root = await stagingRoot();
+    const requestId = "018f3f39-d1e2-7c3a-9b4d-5e6f708192b3";
+    const first = await stageUploads([textFile("copy.txt")], {
+      requestId,
+      stagingRoot: root,
+    });
+    const directory = path.join(
+      root,
+      createHash("sha256").update(first.uploadSession).digest("hex")
+    );
+    await rm(path.join(directory, "manifest.json"));
+
+    const recovered = await stageUploads([textFile("copy.txt")], {
+      requestId,
+      stagingRoot: root,
+    });
+    expect(recovered.uploadSession).toBe(first.uploadSession);
+    expect(recovered.uploads).toHaveLength(1);
+    expect(await readdir(directory)).toHaveLength(2);
+  });
+
+  it("serializes concurrent upload replays across the filesystem lock", async () => {
+    const root = await stagingRoot();
+    const requestId = "018f3f39-d1e2-7c3a-9b4d-5e6f708192b4";
+    const [first, replay] = await Promise.all([
+      stageUploads([textFile("copy.txt")], { requestId, stagingRoot: root }),
+      stageUploads([textFile("copy.txt")], { requestId, stagingRoot: root }),
+    ]);
+    expect(replay).toEqual(first);
+    expect(await readdir(root)).toHaveLength(1);
+  });
+
+  it("replays an appended two-file batch after the session reaches five files", async () => {
+    const root = await stagingRoot();
+    const first = await handleUpload(
+      uploadRequest([textFile("one.txt"), textFile("two.txt"), textFile("three.txt")]),
+      root
+    );
+    const firstBody = (await first.json()) as { uploadSession: string };
+    const requestId = "018f3f39-d1e2-7c3a-9b4d-5e6f708192a4";
+    const append = await handleUpload(
+      uploadRequest(
+        [textFile("four.txt"), textFile("five.txt")],
+        firstBody.uploadSession,
+        { "X-One-Box-Upload-Request-Id": requestId }
+      ),
+      root
+    );
+    const appendBody = await append.json();
+    const replay = await handleUpload(
+      uploadRequest(
+        [textFile("four.txt"), textFile("five.txt")],
+        firstBody.uploadSession,
+        { "X-One-Box-Upload-Request-Id": requestId }
+      ),
+      root
+    );
+
+    expect(append.status).toBe(200);
+    expect(replay.status).toBe(200);
+    await expect(replay.json()).resolves.toEqual(appendBody);
+  });
+
+  it("keeps an appended batch committed when transaction cleanup fails", async () => {
+    const root = await stagingRoot();
+    const first = await stageUploads([textFile("one.txt", "first")], {
+      requestId: "018f3f39-d1e2-7c3a-9b4d-5e6f708192c1",
+      stagingRoot: root,
+    });
+    const cleanupTransactionDirectory = vi.fn(async () => {
+      throw new Error("injected post-commit cleanup failure");
+    });
+    const requestId = "018f3f39-d1e2-7c3a-9b4d-5e6f708192c2";
+
+    const appended = await stageUploads([textFile("two.txt", "second")], {
+      handle: first.uploadSession,
+      requestId,
+      stagingRoot: root,
+      cleanupTransactionDirectory,
+    });
+    expect(cleanupTransactionDirectory).toHaveBeenCalledOnce();
+    const replay = await stageUploads([textFile("two.txt", "second")], {
+      handle: first.uploadSession,
+      requestId,
+      stagingRoot: root,
+    });
+    expect(replay).toEqual(appended);
+
+    const runId = await createRun();
+    testRunIds.push(runId);
+    const claimed = await claimUploadSession(
+      first.uploadSession,
+      [first.uploads[0].id, appended.uploads[0].id],
+      runId,
+      root
+    );
+    await expect(readRunUpload(runId, claimed[1].id)).resolves.toEqual(
+      new TextEncoder().encode("second")
+    );
+  });
+
+  it("rejects reuse of an upload request id for different bytes", async () => {
+    const root = await stagingRoot();
+    const requestId = "018f3f39-d1e2-7c3a-9b4d-5e6f708192a5";
+    const first = await handleUpload(
+      uploadRequest([textFile("copy.txt", "first")], undefined, {
+        "X-One-Box-Upload-Request-Id": requestId,
+      }),
+      root
+    );
+    expect(first.status).toBe(200);
+
+    const replay = await handleUpload(
+      uploadRequest([textFile("copy.txt", "different")], undefined, {
+        "X-One-Box-Upload-Request-Id": requestId,
+      }),
+      root
+    );
+    expect(replay.status).toBe(409);
+  });
+
   it("returns a bearer handle, retains it across appends, and enforces cumulative count", async () => {
     const root = await stagingRoot();
     const first = await handleUpload(
@@ -368,13 +549,8 @@ describe("upload-session lifecycle", () => {
       "Approved homepage copy"
     );
     await expect(
-      claimUploadSession(
-        staged.uploadSession,
-        [staged.uploads[0].id],
-        runId,
-        root
-      )
-    ).rejects.toMatchObject({ status: 401 });
+      claimUploadSession(staged.uploadSession, [staged.uploads[0].id], runId, root)
+    ).resolves.toEqual(claimed);
   });
 
   it("keeps an atomic claim committed when post-rename cleanup fails", async () => {
@@ -400,8 +576,24 @@ describe("upload-session lifecycle", () => {
     );
     await expect(
       claimUploadSession(staged.uploadSession, [staged.uploads[0].id], runId, root)
-    ).rejects.toMatchObject({ status: 401 });
+    ).resolves.toEqual(claimed);
     expect((await readdir(sitePaths(runId).uploads)).filter((name) => name === "manifest.json")).toHaveLength(1);
+  });
+
+  it("restores an interrupted pre-commit claim and finishes it on the same run", async () => {
+    const root = await stagingRoot();
+    const staged = await stageUploads([textFile("copy.txt")], { stagingRoot: root });
+    const digest = createHash("sha256").update(staged.uploadSession).digest("hex");
+    await rename(
+      path.join(root, digest),
+      path.join(root, `.claiming-${digest}-crash`)
+    );
+    const runId = await createRun();
+    testRunIds.push(runId);
+
+    await expect(
+      claimUploadSession(staged.uploadSession, [staged.uploads[0].id], runId, root)
+    ).resolves.toHaveLength(1);
   });
 
   it("routes bounded text by kind and leaves unsupported formats out of generation context", async () => {

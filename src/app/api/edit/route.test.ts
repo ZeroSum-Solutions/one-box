@@ -48,7 +48,7 @@ function request(headers: Record<string, string>) {
     request: {
       method: "POST",
       url: "http://localhost:3000/api/edit",
-      headers: new Headers(headers),
+      headers: new Headers({ Host: "localhost:3000", ...headers }),
       json,
     } as unknown as Request,
     json,
@@ -112,6 +112,7 @@ describe("edit route authorization", () => {
     const response = await POST(new Request("http://localhost:3000/api/edit", {
       method: "POST",
       headers: {
+        Host: "localhost:3000",
         Origin: "http://localhost:3000",
         "Sec-Fetch-Site": "same-origin",
         "Content-Type": "application/json",
@@ -159,6 +160,7 @@ describe("edit route authorization", () => {
     const response = await POST(new Request("http://localhost:3000/api/edit", {
       method: "POST",
       headers: {
+        Host: "localhost:3000",
         Origin: "http://localhost:3000",
         "Sec-Fetch-Site": "same-origin",
         "Content-Type": "application/json",

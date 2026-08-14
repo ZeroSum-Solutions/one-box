@@ -363,11 +363,53 @@ export type ArtifactApprovalState = z.infer<
   typeof ArtifactApprovalStateSchema
 >;
 
+const HumanVisualCriterionSchema = z.object({
+  status: z.enum(["pass", "fail"]),
+  findings: z.string().trim().max(2_000).optional(),
+}).superRefine((criterion, context) => {
+  if (criterion.status === "fail" && !criterion.findings) {
+    context.addIssue({
+      code: "custom",
+      path: ["findings"],
+      message: "failed human visual criteria require revision findings",
+    });
+  }
+});
+
+export const HumanVisualReviewCriteriaSchema = z.object({
+  briefFidelity: HumanVisualCriterionSchema,
+  visualHierarchy: HumanVisualCriterionSchema,
+  spacingAndComposition: HumanVisualCriterionSchema,
+  businessSpecificity: HumanVisualCriterionSchema,
+  designAndReferenceAlignment: HumanVisualCriterionSchema.and(z.object({
+    referenceContext: z.enum([
+      "design-and-references",
+      "explicit-no-reference",
+    ]),
+  })),
+});
+export type HumanVisualReviewCriteria = z.infer<
+  typeof HumanVisualReviewCriteriaSchema
+>;
+
+/** A visual decision made by a named person. Automated/model audits remain
+ * advisory inputs and must never be persisted in this human-only record. */
+export const HumanVisualReviewSchema = z.object({
+  reviewerName: z.string().trim().min(1).max(120),
+  reviewerKind: z.literal("human"),
+  humanAttestation: z.literal(true),
+  reviewedAt: z.string(),
+  buildSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  criteria: HumanVisualReviewCriteriaSchema,
+});
+export type HumanVisualReview = z.infer<typeof HumanVisualReviewSchema>;
+
 export const ArtifactApprovalTransitionSchema = z.object({
   state: ArtifactApprovalStateSchema,
   at: z.string(),
   actor: z.string().optional(),
   note: z.string().optional(),
+  humanVisualReview: HumanVisualReviewSchema.optional(),
 });
 export type ArtifactApprovalTransition = z.infer<
   typeof ArtifactApprovalTransitionSchema

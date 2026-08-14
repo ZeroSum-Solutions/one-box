@@ -17,7 +17,7 @@ import {
   type UploadMetadata,
 } from "../../../lib/contracts";
 import {
-  createRun,
+  ensureRun,
   finishStage,
   removeRun,
   saveArtifact,
@@ -26,6 +26,13 @@ import {
 import { openrouter } from "../../../lib/openrouter";
 import { claimUploadSession, UploadError } from "../../../lib/uploads";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
+import {
+  canonicalRequestFingerprint,
+  IntakeAttemptConflict,
+  reserveIntakeAttempt,
+  runIntakeAttempt,
+  type IntakeAttemptResult,
+} from "../../../lib/intakeAttempts";
 
 export const maxDuration = 120;
 
@@ -85,6 +92,7 @@ export function enforceResearchInvariant(
 
 export const ChatRequestSchema = z
   .object({
+    attemptId: z.string().uuid(),
     messages: z.array(UIMessageRequestSchema).min(1).max(100),
     intakeContext: IntakeContextRequestSchema,
   })
@@ -119,57 +127,64 @@ export function forceIntakeContext(
   });
 }
 
-export type StartPipelineResult =
-  | { runId: string; started: true }
-  | {
-      started: false;
-      code: "upload-session-expired";
-      message: string;
-    };
+export type StartPipelineResult = IntakeAttemptResult;
 
 interface StartPipelineDependencies {
-  createRun: typeof createRun;
+  ensureRun: typeof ensureRun;
   claimUploadSession: typeof claimUploadSession;
   removeRun: typeof removeRun;
+  runIntakeAttempt: typeof runIntakeAttempt;
+  startStage: typeof startStage;
+  saveArtifact: typeof saveArtifact;
+  finishStage: typeof finishStage;
 }
 
 export async function startPipelineFromIntake(
   intake: Intake,
   intakeContext: IntakeContextRequest,
+  attemptId: string,
+  requestFingerprint: string,
   dependencies: StartPipelineDependencies = {
-    createRun,
+    ensureRun,
     claimUploadSession,
     removeRun,
+    runIntakeAttempt,
+    startStage,
+    saveArtifact,
+    finishStage,
   }
 ): Promise<StartPipelineResult> {
-  const runId = await dependencies.createRun();
-  let authoritativeUploads: UploadMetadata[];
-  try {
-    authoritativeUploads = await dependencies.claimUploadSession(
-      intakeContext.uploadSession,
-      intakeContext.uploads.map((upload) => upload.id),
-      runId
-    );
-  } catch (error) {
-    await dependencies.removeRun(runId).catch(() => undefined);
-    if (error instanceof UploadError && [401, 409].includes(error.status)) {
-      return {
-        started: false,
-        code: "upload-session-expired",
-        message: "Your private upload session expired. Choose the files again.",
-      };
+  return dependencies.runIntakeAttempt(attemptId, requestFingerprint, async (runId) => {
+    await dependencies.ensureRun(runId);
+    let authoritativeUploads: UploadMetadata[];
+    try {
+      authoritativeUploads = await dependencies.claimUploadSession(
+        intakeContext.uploadSession,
+        intakeContext.uploads.map((upload) => upload.id),
+        runId
+      );
+    } catch (error) {
+      await dependencies.removeRun(runId).catch(() => undefined);
+      if (error instanceof UploadError && [401, 409].includes(error.status)) {
+        return {
+          started: false,
+          code: "upload-session-expired",
+          message: "Your private upload session expired. Choose the files again.",
+        };
+      }
+      throw error;
     }
-    throw error;
-  }
-  const parsed = forceIntakeContext(intake, intakeContext, authoritativeUploads);
-  await startStage(runId, "intake");
-  await saveArtifact(runId, ARTIFACTS.intake, parsed);
-  await finishStage(runId, "intake");
-  return { runId, started: true };
+    const parsed = forceIntakeContext(intake, intakeContext, authoritativeUploads);
+    await dependencies.startStage(runId, "intake");
+    await dependencies.saveArtifact(runId, ARTIFACTS.intake, parsed);
+    await dependencies.finishStage(runId, "intake");
+    return { runId, started: true };
+  });
 }
 
 interface ChatRouteDependencies {
   streamText: typeof streamText;
+  reserveIntakeAttempt?: typeof reserveIntakeAttempt;
 }
 
 export async function handleChat(
@@ -192,7 +207,29 @@ export async function handleChat(
       { status: 400 }
     );
   }
-  const { messages, intakeContext } = parsedRequest.data;
+  const { attemptId, messages, intakeContext } = parsedRequest.data;
+  const requestFingerprint = canonicalRequestFingerprint({ messages, intakeContext });
+  let attempt;
+  try {
+    attempt = await (dependencies.reserveIntakeAttempt ?? reserveIntakeAttempt)(
+      attemptId,
+      requestFingerprint
+    );
+  } catch (error) {
+    if (error instanceof IntakeAttemptConflict) {
+      return Response.json(
+        { error: error.message },
+        { status: 409, headers: { "Cache-Control": "no-store" } }
+      );
+    }
+    throw error;
+  }
+  if (attempt.state === "completed") {
+    return Response.json(
+      { runId: attempt.runId, started: true, replayed: true },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
 
   const result = dependencies.streamText({
     model: openrouter(MODELS.orchestrator),
@@ -203,7 +240,13 @@ export async function handleChat(
         description:
           "Start the build pipeline once required intake facts are gathered and confirmed.",
         inputSchema: IntakeSchema,
-        execute: (intake) => startPipelineFromIntake(intake, intakeContext),
+        execute: (intake) =>
+          startPipelineFromIntake(
+            intake,
+            intakeContext,
+            attemptId,
+            requestFingerprint
+          ),
       }),
     },
   });

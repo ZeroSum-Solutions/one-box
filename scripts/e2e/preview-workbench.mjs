@@ -236,7 +236,7 @@ async function openFixture(context, width, height = 844) {
   await page.goto(`${base}/preview/${runId}`, {
     waitUntil: "domcontentloaded",
   });
-  await page.getByRole("button", { name: "Edit" }).waitFor();
+  await page.getByRole("button", { name: "Edit", exact: true }).waitFor();
   await waitForMode(page, "Edit");
   await page.frameLocator("iframe").locator("[data-edit-id]").first().waitFor();
   return page;
@@ -379,28 +379,55 @@ try {
     /Complex content stays live behind a safe selection overlay/,
   );
 
-  // Actual iframe width and ARIA divider value track the rendered split.
+  // Actual iframe width and ARIA divider value track the rendered split. The
+  // top toolbar is reserved for View/Edit; named widths live at the grab tab.
   const iframeBox = await page.locator("iframe").boundingBox();
   assert.ok(iframeBox && iframeBox.width > 800);
   assert.equal(
     await child.evaluate(() => window.innerWidth),
     Math.round(iframeBox.width),
   );
+  assert.equal(await page.locator(".preview-breakpoint").count(), 0);
   assert.equal(
-    (await page.getByText("desktop", { exact: true }).count()) > 0,
-    true,
+    await page.locator(".workbench-size-controls").count(),
+    0,
+    "Normal/Expand controls must not compete with preview sizing",
   );
+  const grabTab = page.locator(".workbench-grab-tab");
+  const grabTabBox = await grabTab.boundingBox();
+  assert.ok(grabTabBox && grabTabBox.width >= 44 && grabTabBox.height >= 44);
+  assert.match(
+    (await grabTab.getAttribute("aria-label")) ?? "",
+    /Preview width: desktop/i,
+  );
+  for (const tool of await page.locator(".workbench-tool").all()) {
+    const toolBox = await tool.boundingBox();
+    const iconBox = await tool.locator("svg").boundingBox();
+    assert.ok(toolBox && toolBox.width >= 44 && toolBox.height >= 44);
+    assert.ok(iconBox && iconBox.width === 20 && iconBox.height === 20);
+    assert.ok(
+      Math.abs(
+        iconBox.x + iconBox.width / 2 - (toolBox.x + toolBox.width / 2),
+      ) <= 1,
+      "workbench icon is not centered",
+    );
+  }
   const divider = page.getByRole("separator", {
     name: "Resize preview and workbench",
   });
   assert.equal(Number(await divider.getAttribute("aria-valuemin")), 300);
-  assert.equal(Number(await divider.getAttribute("aria-valuemax")), 720);
+  assert.equal(Number(await divider.getAttribute("aria-valuemax")), 960);
   const dividerBox = await divider.boundingBox();
   const panelBefore = await page.locator(".preview-workbench").boundingBox();
   assert.ok(dividerBox && panelBefore);
   assert.ok(
     dividerBox.width >= 44,
     `separator hit area is ${dividerBox.width}px`,
+  );
+  assert.equal(
+    await divider.evaluate((element) => getComputedStyle(element).backgroundColor),
+    "rgba(0, 0, 0, 0)",
+    "separator hit area must remain visually transparent",
   );
   await page.mouse.move(
     dividerBox.x + dividerBox.width / 2,
@@ -415,9 +442,45 @@ try {
     Number(await divider.getAttribute("aria-valuenow")),
     Math.round(panelAfter.width),
   );
+  assert.equal(await divider.getAttribute("aria-valuetext"), "tablet preview");
+
+  // The grab tab exposes all three named widths without putting them in the
+  // top bar. Named choices snap to exact reachable iframe widths.
+  await grabTab.click();
+  const widthChoices = page.getByRole("group", { name: "Preview width" });
+  await widthChoices.waitFor();
+  assert.equal(
+    await widthChoices.getByRole("button").count(),
+    3,
+    "grab tab must expose Desktop, Tablet, and Mobile",
+  );
+  await page.getByRole("button", { name: "Mobile preview width" }).click();
+  const mobilePresetFrame = await page.locator("iframe").boundingBox();
+  assert.ok(mobilePresetFrame && Math.round(mobilePresetFrame.width) === 390);
+  await grabTab.click();
+  await page.getByRole("button", { name: "Desktop preview width" }).click();
+  const desktopPresetFrame = await page.locator("iframe").boundingBox();
+  assert.ok(desktopPresetFrame && Math.round(desktopPresetFrame.width) === 979);
+  await grabTab.click();
+  await page.getByRole("button", { name: "Tablet preview width" }).click();
+  const tabletPresetFrame = await page.locator("iframe").boundingBox();
+  const tabletPresetPanel = await page.locator(".preview-workbench").boundingBox();
+  assert.ok(tabletPresetFrame && Math.round(tabletPresetFrame.width) === 767);
+  assert.ok(tabletPresetPanel);
+
+  await divider.focus();
+  const keyboardWidthBefore = Number(await divider.getAttribute("aria-valuenow"));
+  await divider.press("ArrowLeft");
+  assert.equal(
+    Number(await divider.getAttribute("aria-valuenow")),
+    keyboardWidthBefore + 24,
+    "separator keyboard resizing must remain available",
+  );
+  await page.getByRole("button", { name: /Preview width:/i }).click();
+  await page.getByRole("button", { name: "Tablet preview width" }).click();
 
   // Collapse fills nearly the workspace; reopen restores expanded size/width.
-  const expandedWidth = panelAfter.width;
+  const expandedWidth = tabletPresetPanel.width;
   await page.getByRole("button", { name: "Collapse workbench" }).click();
   const collapsedPreview = await page.locator("iframe").boundingBox();
   assert.ok(collapsedPreview && collapsedPreview.width >= 1210);
@@ -426,11 +489,16 @@ try {
   assert.ok(
     reopenedPanel && Math.abs(reopenedPanel.width - expandedWidth) <= 1,
   );
-  assert.equal(
-    await page
-      .getByRole("button", { name: "Expand" })
-      .getAttribute("aria-pressed"),
-    "true",
+  await page.waitForFunction(() =>
+    document
+      .querySelector(".workbench-grab-tab")
+      ?.getAttribute("aria-label")
+      ?.toLowerCase()
+      .includes("preview width: tablet"),
+  );
+  assert.match(
+    (await page.locator(".workbench-grab-tab").getAttribute("aria-label")) ?? "",
+    /Preview width: tablet/i,
   );
 
   // Pointer width and expanded state persist across a full reload.
@@ -736,16 +804,105 @@ try {
     );
   assert.deepEqual(order, ["fixture.order.one", "fixture.order.two"]);
 
-  // The durable Assets tool targets an image region, submits only the guarded
-  // image-intent payload, and refreshes without making a paid provider call in
-  // this acceptance run.
-  await page.route("**/api/edit", async (route) => {
+  // Assets keeps a project-scoped thumbnail library and exposes only the one
+  // currently supported provider model. The acceptance run intercepts the
+  // paid call after consent, so no provider credits are spent.
+  const imageModel = {
+    id: "higgsfield:gpt_image_2",
+    label: "GPT Image 2",
+    provider: "higgsfield",
+    descriptor:
+      "High-quality prompt-to-image generation. Usually slower and may queue for several minutes. Supports prompt-based regeneration, not source-image editing. Metered Higgsfield credits; the exact estimate is reserved before generation.",
+    aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "3:2", "2:3"],
+    qualities: ["low", "medium", "high"],
+  };
+  const legacyImage = {
+    id: "legacy_0123456789abcdefabcd",
+    status: "completed",
+    prompt: null,
+    model: "unknown",
+    provider: "unknown",
+    aspectRatio: null,
+    quality: null,
+    dimensions: null,
+    mimeType: "image/jpeg",
+    createdAt: "2026-08-14T12:00:00.000Z",
+    updatedAt: "2026-08-14T12:00:00.000Z",
+    credits: null,
+    error: null,
+    outputPath: "site/assets/hero.jpg",
+    source: {
+      kind: "legacy",
+      parentAssetId: null,
+      targetEditId: "hero.image",
+      originalPath: "assets/hero.jpg",
+    },
+    usage: [{ editId: "hero.image", src: "assets/hero.jpg" }],
+    url: `/api/sites/${runId}/assets/hero.jpg`,
+  };
+  let libraryImages = [legacyImage];
+  const assetMutations = [];
+  let loseFirstGenerationResponse = true;
+  await page.route(`**/api/assets/${runId}`, async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          models: [imageModel],
+          library: { version: 1, items: libraryImages },
+        }),
+      });
+      return;
+    }
+    const body = request.postDataJSON();
+    assetMutations.push(body);
+    if (body.action === "generate") {
+      if (loseFirstGenerationResponse) {
+        loseFirstGenerationResponse = false;
+        await route.abort("failed");
+        return;
+      }
+      const generated = {
+        ...legacyImage,
+        id: body.requestId,
+        prompt: body.prompt,
+        model: body.model,
+        provider: "higgsfield",
+        aspectRatio: body.aspectRatio,
+        quality: body.quality,
+        dimensions: { width: 1600, height: 900 },
+        credits: 2,
+        outputPath: `site/assets/generated/${body.requestId}.jpg`,
+        source: {
+          kind: "generated",
+          parentAssetId: null,
+          targetEditId: body.targetEditId,
+          originalPath: null,
+        },
+        usage: [],
+      };
+      libraryImages = [generated, legacyImage];
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ok: true,
+          action: "generate",
+          item: generated,
+          library: { version: 1, items: libraryImages },
+        }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
         ok: true,
-        gatesClean: true,
+        action: "place",
+        item: libraryImages.find((item) => item.id === body.assetId),
         gates: [{ gate: "fixture", pass: true, blocking: true }],
       }),
     });
@@ -755,23 +912,85 @@ try {
     .locator('[data-edit-id="hero.image"]')
     .click();
   await page.getByRole("button", { name: "Assets" }).click();
-  await page.getByLabel("Image prompt").fill("Sunlit technician in a clean fiber lab");
-  const imageRequestPromise = page.waitForRequest(
-    (request) => request.url().endsWith("/api/edit") && request.method() === "POST",
+  const assetViews = page.getByRole("group", { name: "Asset view" });
+  await page.getByRole("region", { name: "Project image library" }).waitFor();
+  await page
+    .getByText("Prompt unknown — existing site image", { exact: true })
+    .waitFor();
+  assert.match(
+    await page.getByRole("region", { name: "Project image library" }).innerText(),
+    /Prompt unknown — existing site image/,
   );
-  await page.getByRole("button", { name: "Generate and replace image" }).click();
-  const imageRequest = await imageRequestPromise;
-  const imageRequestBody = imageRequest.postDataJSON();
+  assert.match(
+    await page.getByRole("region", { name: "Project image library" }).innerText(),
+    /hero\.image/,
+  );
+  await assetViews.getByRole("button", { name: "Generate" }).click();
+  await page.getByLabel("Image model").waitFor();
+  assert.deepEqual(await page.getByLabel("Image model").locator("option").allTextContents(), [
+    "GPT Image 2",
+  ]);
+  assert.match(await page.getByRole("region", { name: "Generate project image" }).innerText(), /not source-image editing/i);
+  await page.getByLabel("Image prompt").fill("Sunlit technician in a clean fiber lab");
+  const generateButton = page.getByRole("button", { name: "Generate and save" });
+  assert.equal(await generateButton.isDisabled(), true, "paid generation requires consent");
+  await page
+    .getByLabel(/I approve this metered Higgsfield generation/)
+    .check();
+  await generateButton.click();
+  await page
+    .getByText(/request outcome is unknown.*same saved request/i)
+    .waitFor();
+  const retrySavedRequest = page.getByRole("button", {
+    name: "Check saved request",
+  });
+  await retrySavedRequest.waitFor();
+  assert.equal(
+    await page.getByLabel("Image prompt").isDisabled(),
+    true,
+    "ambiguous retries keep the original generation snapshot immutable",
+  );
+  await retrySavedRequest.click();
+  await page.getByText("Image generated and saved to this project.").waitFor();
+  assert.deepEqual(
+    assetMutations[1],
+    assetMutations[0],
+    "ambiguous retries reuse the exact request UUID and payload",
+  );
+  const imageRequestBody = { ...assetMutations[1] };
   assert.match(imageRequestBody.requestId, /^[0-9a-f-]{36}$/i);
   delete imageRequestBody.requestId;
   assert.deepEqual(imageRequestBody, {
-    runId,
-    editId: "hero.image",
-    instruction: "Sunlit technician in a clean fiber lab",
-    imageIntent: true,
+    action: "generate",
+    prompt: "Sunlit technician in a clean fiber lab",
+    model: "higgsfield:gpt_image_2",
+    aspectRatio: "1:1",
+    quality: "high",
+    meteredConsent: true,
+    targetEditId: "hero.image",
   });
-  await page.getByText("Image replaced", { exact: true }).waitFor();
-  await page.unroute("**/api/edit");
+  const generatedCard = page.locator(".asset-library-card").filter({
+    hasText: "Sunlit technician in a clean fiber lab",
+  });
+  await generatedCard.getByRole("button", { name: "Preview" }).click();
+  await page.getByRole("region", { name: "Image preview" }).waitFor();
+  await page.getByRole("region", { name: "Image preview" }).getByRole("button", { name: "Close" }).click();
+  assert.equal(await generatedCard.getByRole("link", { name: "Download" }).count(), 1);
+  await generatedCard.getByRole("button", { name: "Regenerate" }).click();
+  assert.equal(await page.getByLabel("Image prompt").inputValue(), "Sunlit technician in a clean fiber lab");
+  assert.equal(
+    await page.getByLabel(/I approve this metered Higgsfield generation/).isChecked(),
+    false,
+    "regeneration requires fresh metered consent",
+  );
+  await assetViews.getByRole("button", { name: "Library" }).click();
+  await generatedCard.getByRole("button", { name: "Replace selected" }).click();
+  assert.deepEqual(assetMutations[2], {
+    action: "place",
+    assetId: libraryImages[0].id,
+    editId: "hero.image",
+  });
+  await page.unroute(`**/api/assets/${runId}`);
 
   // Research is a saved-evidence reader, not a second business/design mixing
   // path. A retained ledger renders claims, confidence, rationale, and links.
@@ -838,7 +1057,7 @@ try {
   // View mode is still opaque but permits normal navigation, self forms,
   // popups, downloads, and scripts. The popup carries no secret-bearing URL,
   // referrer, or storage access.
-  await page.getByRole("button", { name: "View" }).click();
+  await page.getByRole("button", { name: "View", exact: true }).click();
   await waitForMode(page, "View");
   await page.frameLocator("iframe").locator("#e2e-form").waitFor();
   assert.equal(
@@ -889,7 +1108,7 @@ try {
   await page.close();
   await context.close();
 
-  // Responsive matrix: labels stay visible, 480/768 boundaries are exact,
+  // Responsive matrix: grab-tab state tracks the actual 480/768 boundaries,
   // and the iframe's CSS viewport equals the rendered iframe width.
   const matrix = [
     { width: 454, frameWidth: 390, expected: "mobile" },
@@ -959,12 +1178,21 @@ try {
         .getByRole("button", { name: "Collapse workbench" })
         .click();
     }
-    const label = matrixPage.getByText(item.expected, { exact: true });
-    await label.waitFor();
-    assert.equal(
-      await label.isVisible(),
-      true,
-      `${item.width}px breakpoint label must be visible`,
+    const responsiveGrabTab = matrixPage.locator(".workbench-grab-tab");
+    await responsiveGrabTab.waitFor();
+    await matrixPage.waitForFunction(
+      (expected) =>
+        document
+          .querySelector(".workbench-grab-tab")
+          ?.getAttribute("aria-label")
+          ?.toLowerCase()
+          .includes(`preview width: ${expected}`),
+      item.expected,
+    );
+    assert.match(
+      (await responsiveGrabTab.getAttribute("aria-label")) ?? "",
+      new RegExp(`Preview width: ${item.expected}`, "i"),
+      `${item.width}px grab tab must expose the active breakpoint`,
     );
     const box = await matrixPage.locator("iframe").boundingBox();
     assert.ok(box && box.width > 0);
@@ -1008,6 +1236,77 @@ try {
     }
     await matrixContext.close();
   }
+
+  // Wide workspaces keep the workbench bounded while named presets use an
+  // exact, centered canvas. This guards the >1351px cap regression where
+  // Tablet and Mobile previously remained desktop-sized.
+  const wideContext = await browser.newContext();
+  const widePage = await openFixture(wideContext, 1920, 900);
+  const wideGrabTab = widePage.locator(".workbench-grab-tab");
+
+  async function chooseWidePreset(label, expectedWidth) {
+    await wideGrabTab.click();
+    await widePage
+      .getByRole("button", { name: `${label} preview width` })
+      .click();
+    await widePage.waitForFunction(
+      (width) =>
+        Math.round(
+          document.querySelector("iframe")?.getBoundingClientRect().width ?? 0,
+        ) === width,
+      expectedWidth,
+    );
+    const frameBox = await widePage.locator("iframe").boundingBox();
+    const panelBox = await widePage.locator(".preview-workbench").boundingBox();
+    assert.ok(frameBox && Math.round(frameBox.width) === expectedWidth);
+    assert.ok(panelBox && panelBox.width <= 960);
+  }
+
+  await chooseWidePreset("Desktop", 1280);
+  await chooseWidePreset("Tablet", 767);
+  await chooseWidePreset("Mobile", 390);
+
+  const wideViewportBox = await widePage.locator(".preview-viewport").boundingBox();
+  const wideMobileBox = await widePage.locator("iframe").boundingBox();
+  assert.ok(wideViewportBox && wideMobileBox);
+  assert.ok(
+    Math.abs(
+      wideMobileBox.x -
+        (wideViewportBox.x + (wideViewportBox.width - wideMobileBox.width) / 2),
+    ) <= 1,
+    "wide mobile preset must be centered in the available preview canvas",
+  );
+
+  await widePage.reload({ waitUntil: "domcontentloaded" });
+  await waitForMode(widePage, "Edit");
+  await widePage.frameLocator("iframe").locator("[data-edit-id]").first().waitFor();
+  assert.equal(
+    Math.round((await widePage.locator("iframe").boundingBox()).width),
+    390,
+    "named preview preset must survive reload",
+  );
+
+  const wideDivider = widePage.getByRole("separator", {
+    name: "Resize preview and workbench",
+  });
+  const wideDividerBox = await wideDivider.boundingBox();
+  assert.ok(wideDividerBox);
+  await widePage.mouse.move(
+    wideDividerBox.x + wideDividerBox.width / 2,
+    wideDividerBox.y + 120,
+  );
+  await widePage.mouse.down();
+  await widePage.mouse.move(wideDividerBox.x + 200, wideDividerBox.y + 120, {
+    steps: 5,
+  });
+  await widePage.mouse.up();
+  const fluidWideFrame = await widePage.locator("iframe").boundingBox();
+  assert.ok(
+    fluidWideFrame && fluidWideFrame.width > 1_100,
+    "manual divider drag must leave the named preset and resize fluidly",
+  );
+  await chooseWidePreset("Mobile", 390);
+  await wideContext.close();
 
   console.log("preview workbench acceptance matrix passed");
 } finally {

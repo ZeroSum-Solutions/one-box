@@ -8,8 +8,59 @@ import {
   ARTIFACTS,
   workflowArtifactApprovalState,
   type RunState,
+  type HumanVisualReviewCriteria,
   type WorkflowArtifactVersion,
 } from "../lib/contracts";
+
+type HumanReviewCriterionKey = Exclude<
+  keyof HumanVisualReviewCriteria,
+  "designAndReferenceAlignment"
+> | "designAndReferenceAlignment";
+type HumanReviewDraftCriterion = { status: "" | "pass" | "fail"; findings: string };
+type HumanReviewReferenceContext = "" | "design-and-references" | "explicit-no-reference";
+
+interface HumanVisualReviewDraft {
+  identity: string | null;
+  reviewerName: string;
+  humanAttestation: boolean;
+  criteria: Record<HumanReviewCriterionKey, HumanReviewDraftCriterion>;
+  referenceContext: HumanReviewReferenceContext;
+}
+
+const HUMAN_REVIEW_CRITERIA: Array<{
+  key: HumanReviewCriterionKey;
+  label: string;
+  description: string;
+}> = [
+  { key: "briefFidelity", label: "Brief fidelity", description: "The result follows the approved brief and intended outcome." },
+  { key: "visualHierarchy", label: "Visual hierarchy", description: "The page makes priority, reading order, and calls to action clear." },
+  { key: "spacingAndComposition", label: "Intentional spacing and composition", description: "Space, rhythm, and composition feel deliberate rather than accidental." },
+  { key: "businessSpecificity", label: "Business specificity (not a generic template)", description: "The result looks and reads as specific to this business." },
+  { key: "designAndReferenceAlignment", label: "DESIGN.md and reference alignment", description: "The rendered result aligns with the approved design contract and selected references." },
+];
+
+function emptyHumanReviewCriteria(): Record<HumanReviewCriterionKey, HumanReviewDraftCriterion> {
+  return Object.fromEntries(
+    HUMAN_REVIEW_CRITERIA.map(({ key }) => [key, { status: "", findings: "" }])
+  ) as Record<HumanReviewCriterionKey, HumanReviewDraftCriterion>;
+}
+
+/** Keep edits only while they belong to the exact visual-QA artifact bytes
+ * being reviewed. A new version or build hash must receive a fresh reviewer
+ * name, criterion decisions, reference basis, and human attestation. */
+export function syncHumanVisualReviewDraft(
+  current: HumanVisualReviewDraft | undefined,
+  identity: string | null
+): HumanVisualReviewDraft {
+  if (current?.identity === identity) return current;
+  return {
+    identity,
+    reviewerName: "",
+    humanAttestation: false,
+    criteria: emptyHumanReviewCriteria(),
+    referenceContext: "",
+  };
+}
 
 function latestCurrentArtifact(run: RunState): WorkflowArtifactVersion | undefined {
   const expected = EVIDENCE_STAGE_ARTIFACT[run.evidenceWorkflow.currentStage];
@@ -113,7 +164,7 @@ export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifac
     case "css-architecture":
       return <div className="evidence-readable"><h3>CSS architecture</h3><p><a href={jsonHref}>Open versioned CSS architecture JSON</a></p><ol>{artifact.artifact.cssVariableHierarchy.map((layer) => <li key={layer}>{layer}</li>)}</ol><h4>Token to component usage</h4><ul>{Object.entries(artifact.artifact.tokenToComponentUsage).map(([token, uses]) => <li key={token}><code>{token}</code> — {uses.join("; ")}</li>)}</ul><ArtifactTextPreview runId={runId} artifactPath={ARTIFACTS.tailwindTheme} label="Generated Tailwind theme source (@theme mapping)" />{artifact.artifact.generatedCssPath ? <ArtifactTextPreview runId={runId} artifactPath={artifact.artifact.generatedCssPath} label="Compiled Tailwind utility output" /> : <p>Compiled utility output: pending until build.</p>}<p>Exceptions: {artifact.artifact.justifiedExceptions.join(", ") || "none"}</p><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
     case "visual-qa":
-      return <div className="evidence-readable"><h3>Visual QA</h3><p><a href={jsonHref}>Open versioned visual QA JSON</a></p><ul>{artifact.artifact.checks.map((check) => <li key={check.area}><strong>{check.area}: {check.status}</strong> — {check.notes}{check.evidencePath && <figure><a href={artifactUrl(runId, check.evidencePath)}><EvidenceImage src={artifactUrl(runId, check.evidencePath)} alt={`${check.area} QA evidence`} /></a><figcaption>{check.evidencePath}</figcaption></figure>}</li>)}</ul><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
+      return <div className="evidence-readable"><h3>Automated visual evidence</h3><p>These machine-generated checks and screenshots are separate from the human visual decision.</p><p><a href={jsonHref}>Open versioned visual QA JSON</a></p><ul>{artifact.artifact.checks.map((check) => <li key={check.area}><strong>{check.area}: {check.status}</strong> — {check.notes}{check.evidencePath && <figure><a href={artifactUrl(runId, check.evidencePath)}><EvidenceImage src={artifactUrl(runId, check.evidencePath)} alt={`${check.area} QA evidence`} /></a><figcaption>{check.evidencePath}</figcaption></figure>}</li>)}</ul>{artifact.approvalTransitions.filter((transition) => transition.humanVisualReview).map((transition) => { const review = transition.humanVisualReview!; return <section key={review.reviewedAt} aria-label={`Human visual review by ${review.reviewerName}`}><h4>Reviewed by {review.reviewerName}</h4><p>{review.reviewedAt} · build <code>{review.buildSha256.slice(0, 12)}</code></p><ul>{HUMAN_REVIEW_CRITERIA.map(({ key, label }) => { const criterion = review.criteria[key]; return <li key={key}><strong>{label}: {criterion.status}</strong>{criterion.findings ? ` — ${criterion.findings}` : ""}{key === "designAndReferenceAlignment" && "referenceContext" in criterion ? ` · ${criterion.referenceContext}` : ""}</li>; })}</ul></section>; })}<pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
   }
 }
 
@@ -124,6 +175,22 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
   const [busy, setBusy] = useState(false);
   const current = useMemo(() => latestCurrentArtifact(run), [run]);
   const approval = current ? workflowArtifactApprovalState(current) : null;
+  const humanReviewIdentity = current?.artifactType === "visual-qa"
+    ? `${current.version}:${current.artifact.buildSha256}`
+    : null;
+  const [storedHumanReviewDraft, setStoredHumanReviewDraft] = useState<HumanVisualReviewDraft>(
+    () => syncHumanVisualReviewDraft(undefined, humanReviewIdentity)
+  );
+  const humanReviewDraft = syncHumanVisualReviewDraft(
+    storedHumanReviewDraft,
+    humanReviewIdentity
+  );
+  const {
+    reviewerName,
+    humanAttestation,
+    criteria: humanCriteria,
+    referenceContext,
+  } = humanReviewDraft;
   const [draftText, setDraftText] = useState(
     current ? JSON.stringify(current.artifact, null, 2) : ""
   );
@@ -131,6 +198,15 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
     run.evidenceWorkflow.currentStage
   );
   const nextStage = EVIDENCE_WORKFLOW_STAGES[currentIndex + 1];
+  const humanReviewReady =
+    reviewerName.trim().length > 0 &&
+    humanAttestation &&
+    Boolean(referenceContext) &&
+    Object.values(humanCriteria).every(
+      (criterion) =>
+        criterion.status !== "" &&
+        (criterion.status !== "fail" || criterion.findings.trim().length > 0)
+    );
 
   async function action(body: Record<string, unknown>) {
     setBusy(true);
@@ -166,6 +242,48 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
     } catch {
       setError("The edited artifact is not valid JSON.");
     }
+  }
+
+  function updateHumanCriterion(
+    key: HumanReviewCriterionKey,
+    patch: Partial<HumanReviewDraftCriterion>
+  ) {
+    setStoredHumanReviewDraft((draft) => {
+      const currentDraft = syncHumanVisualReviewDraft(draft, humanReviewIdentity);
+      return {
+        ...currentDraft,
+        criteria: {
+          ...currentDraft.criteria,
+          [key]: { ...currentDraft.criteria[key], ...patch },
+        },
+      };
+    });
+  }
+
+  function submitHumanReview() {
+    if (!humanReviewReady) return;
+    const criterion = (key: HumanReviewCriterionKey) => ({
+      status: humanCriteria[key].status as "pass" | "fail",
+      ...(humanCriteria[key].findings.trim()
+        ? { findings: humanCriteria[key].findings.trim() }
+        : {}),
+    });
+    void action({
+      action: "record-human-visual-review",
+      reviewerName: reviewerName.trim(),
+      reviewerKind: "human",
+      humanAttestation: true,
+      criteria: {
+        briefFidelity: criterion("briefFidelity"),
+        visualHierarchy: criterion("visualHierarchy"),
+        spacingAndComposition: criterion("spacingAndComposition"),
+        businessSpecificity: criterion("businessSpecificity"),
+        designAndReferenceAlignment: {
+          ...criterion("designAndReferenceAlignment"),
+          referenceContext,
+        },
+      },
+    });
   }
 
   return (
@@ -219,10 +337,41 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
           <p>Advance or resume the run to generate this stage’s deterministic draft.</p>
         )}
 
-        <label className="evidence-note">
+        {!(approval === "in-review" && current?.artifactType === "visual-qa") && <label className="evidence-note">
           Review note
           <textarea value={note} onChange={(event) => setNote(event.target.value)} />
-        </label>
+        </label>}
+        {approval === "in-review" && current?.artifactType === "visual-qa" && (
+          <section className="evidence-readable" aria-labelledby="human-visual-review-title">
+            <h3 id="human-visual-review-title">Human visual review</h3>
+            <p>Only a person can submit this decision. Gemini and other model audits stay advisory and cannot fill this review.</p>
+            <label className="evidence-note">
+              Reviewer name
+              <input value={reviewerName} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, reviewerName: event.target.value })} autoComplete="name" />
+            </label>
+            {HUMAN_REVIEW_CRITERIA.map(({ key, label, description }) => (
+              <fieldset key={key}>
+                <legend>{label}</legend>
+                <p>{description}</p>
+                <label><input type="radio" name={`human-review-${key}`} checked={humanCriteria[key].status === "pass"} onChange={() => updateHumanCriterion(key, { status: "pass" })} /> Pass</label>
+                <label><input type="radio" name={`human-review-${key}`} checked={humanCriteria[key].status === "fail"} onChange={() => updateHumanCriterion(key, { status: "fail" })} /> Needs revision</label>
+                {key === "designAndReferenceAlignment" && (
+                  <label>Reference basis
+                    <select value={referenceContext} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, referenceContext: event.target.value as HumanReviewReferenceContext })}>
+                      <option value="">Choose reference basis…</option>
+                      <option value="design-and-references">DESIGN.md and selected references</option>
+                      <option value="explicit-no-reference">No external reference was selected</option>
+                    </select>
+                  </label>
+                )}
+                <label>Findings {humanCriteria[key].status === "fail" ? "(required)" : "(optional)"}
+                  <textarea value={humanCriteria[key].findings} onChange={(event) => updateHumanCriterion(key, { findings: event.target.value })} />
+                </label>
+              </fieldset>
+            ))}
+            <label><input type="checkbox" checked={humanAttestation} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, humanAttestation: event.target.checked })} /> I attest that I am the human reviewer</label>
+          </section>
+        )}
         {error && <p className="chat-error">{error}</p>}
 
         <div className="evidence-actions">
@@ -238,10 +387,12 @@ export function EvidenceWorkspace({ initialRun }: { initialRun: RunState }) {
             </>
           )}
           {approval === "in-review" && (
-            <>
-              <button disabled={busy} onClick={() => void action({ action: "approve", note })}>Approve</button>
-              <button disabled={busy || !note.trim()} onClick={() => void action({ action: "request-revision", note })}>Request revision</button>
-            </>
+            current?.artifactType === "visual-qa" ? (
+              <button disabled={busy || !humanReviewReady} onClick={submitHumanReview}>Submit human visual review</button>
+            ) : <>
+                <button disabled={busy} onClick={() => void action({ action: "approve", note })}>Approve</button>
+                <button disabled={busy || !note.trim()} onClick={() => void action({ action: "request-revision", note })}>Request revision</button>
+              </>
           )}
           {approval === "revision-requested" && current?.artifactType !== "visual-qa" && (
             <button disabled={busy} onClick={() => void saveVersion()}>Save new version</button>

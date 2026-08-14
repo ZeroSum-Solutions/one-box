@@ -55,9 +55,18 @@ export interface PersistedWorkbenchState {
   lastOpenSize: Exclude<WorkbenchSize, "collapsed">;
   panelWidth: number;
   activeTool: string;
+  previewPreset: PreviewBreakpoint | null;
 }
 
 const DEFAULT_PANEL_WIDTH = 360;
+const DIVIDER_LAYOUT_WIDTH = 1;
+const MAX_PANEL_WIDTH = 960;
+const PREVIEW_SNAP_WIDTHS: Record<PreviewBreakpoint, number> = {
+  mobile: 390,
+  // Keep the named tablet width inside the existing <768 tablet boundary.
+  tablet: 767,
+  desktop: 1280,
+};
 
 export const DEFAULT_WORKBENCH_STATE: PersistedWorkbenchState = {
   mode: "edit",
@@ -65,6 +74,7 @@ export const DEFAULT_WORKBENCH_STATE: PersistedWorkbenchState = {
   lastOpenSize: "normal",
   panelWidth: DEFAULT_PANEL_WIDTH,
   activeTool: "selection",
+  previewPreset: null,
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -210,8 +220,50 @@ export function panelWidthBounds(workspaceWidth: number): {
   max: number;
 } {
   const min = Math.min(300, Math.max(220, workspaceWidth - 260));
-  const max = Math.max(min, Math.min(720, workspaceWidth - 260));
+  const max = Math.max(
+    min,
+    Math.min(MAX_PANEL_WIDTH, workspaceWidth - 260),
+  );
   return { min, max };
+}
+
+export function panelWidthForBreakpoint(
+  breakpoint: PreviewBreakpoint,
+  workspaceWidth: number,
+): number {
+  const { min } = panelWidthBounds(workspaceWidth);
+  if (breakpoint === "desktop") return min;
+  return clampPanelWidth(
+    workspaceWidth - DIVIDER_LAYOUT_WIDTH - PREVIEW_SNAP_WIDTHS[breakpoint],
+    workspaceWidth,
+  );
+}
+
+export function previewWidthForBreakpoint(
+  breakpoint: PreviewBreakpoint,
+): number {
+  return PREVIEW_SNAP_WIDTHS[breakpoint];
+}
+
+export function nearestPreviewBreakpoint(
+  panelWidth: number,
+  workspaceWidth: number,
+  threshold = 28,
+): PreviewBreakpoint | null {
+  const candidates: PreviewBreakpoint[] = ["desktop", "tablet", "mobile"];
+  let nearest: { breakpoint: PreviewBreakpoint; distance: number } | null =
+    null;
+
+  for (const breakpoint of candidates) {
+    const distance = Math.abs(
+      panelWidth - panelWidthForBreakpoint(breakpoint, workspaceWidth),
+    );
+    if (!nearest || distance < nearest.distance) {
+      nearest = { breakpoint, distance };
+    }
+  }
+
+  return nearest && nearest.distance <= threshold ? nearest.breakpoint : null;
 }
 
 export function workbenchSizeForWidth(
@@ -237,7 +289,10 @@ export function parseWorkbenchState(
     const panelWidth =
       typeof parsed.panelWidth === "number" &&
       Number.isFinite(parsed.panelWidth)
-        ? Math.min(720, Math.max(220, Math.round(parsed.panelWidth)))
+        ? Math.min(
+            MAX_PANEL_WIDTH,
+            Math.max(220, Math.round(parsed.panelWidth)),
+          )
         : DEFAULT_PANEL_WIDTH;
     const lastOpenSize =
       parsed.lastOpenSize === "expanded" ||
@@ -246,7 +301,19 @@ export function parseWorkbenchState(
         : "normal";
     const activeTool =
       typeof parsed.activeTool === "string" ? parsed.activeTool : "selection";
-    return { mode, size, lastOpenSize, panelWidth, activeTool };
+    const previewPreset = ["mobile", "tablet", "desktop"].includes(
+      String(parsed.previewPreset),
+    )
+      ? (parsed.previewPreset as PreviewBreakpoint)
+      : null;
+    return {
+      mode,
+      size,
+      lastOpenSize,
+      panelWidth,
+      activeTool,
+      previewPreset,
+    };
   } catch {
     return DEFAULT_WORKBENCH_STATE;
   }
@@ -254,4 +321,42 @@ export function parseWorkbenchState(
 
 export function workbenchStorageKey(runId: string): string {
   return `onebox:preview-workbench:${runId}`;
+}
+
+export function restoreWorkbenchState(
+  storage: Pick<Storage, "getItem">,
+  runId: string,
+): PersistedWorkbenchState {
+  try {
+    return parseWorkbenchState(storage.getItem(workbenchStorageKey(runId)));
+  } catch {
+    return DEFAULT_WORKBENCH_STATE;
+  }
+}
+
+export function persistWorkbenchState(
+  storage: Pick<Storage, "setItem">,
+  runId: string,
+  state: PersistedWorkbenchState,
+): void {
+  try {
+    storage.setItem(workbenchStorageKey(runId), JSON.stringify(state));
+  } catch {
+    // Storage can be unavailable or full; persistence must remain best-effort.
+  }
+}
+
+export function isWorkbenchStateRestoredForRun(
+  restoredRunId: string | null,
+  currentRunId: string,
+): boolean {
+  return restoredRunId === currentRunId;
+}
+
+/** Ignore edit/asset completions that resolve after client navigation. */
+export function isRunBoundRequestCurrent(
+  requestRunId: string,
+  activeRunId: string,
+): boolean {
+  return requestRunId === activeRunId;
 }

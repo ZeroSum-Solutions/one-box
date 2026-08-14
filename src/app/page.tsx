@@ -2,12 +2,12 @@
 
 import { useEffect, useReducer, useState, type Dispatch, type ReactNode } from "react";
 import Link from "next/link";
-import { ChatComposer } from "@/components/ChatComposer";
 import { CostChip } from "@/components/CostChip";
-import { IntakeControls } from "@/components/IntakeControls";
+import { IntakeComposer } from "@/components/IntakeComposer";
 import { STAGE_LABEL, StageCard, type StageCardStatus } from "@/components/StageCard";
 import {
   buildChatRequest,
+  completedChatReplayRunId,
   type IntakeChatContext,
 } from "@/components/intakeRequest";
 import { readSSE } from "@/components/sse";
@@ -33,11 +33,28 @@ interface TimelineItem {
   event: PipelineEvent;
 }
 
+interface AttemptFailure {
+  message: string;
+  technicalDetails: string;
+  retryable: boolean;
+  kind: "authorization" | "request" | "upload-expired" | "conflict";
+}
+
+interface SubmissionAttempt {
+  id: string;
+  userMessageId: string;
+  assistantMessageId: string;
+  prompt: string;
+  context: IntakeChatContext;
+  status: "pending" | "failed";
+  failure: AttemptFailure | null;
+}
+
 interface OneBoxState {
   phase: "intake" | "pipeline";
   messages: ChatMsg[];
   isStreaming: boolean;
-  chatError: string | null;
+  activeAttempt: SubmissionAttempt | null;
   runId: string | null;
   timeline: TimelineItem[];
   costUsd: number;
@@ -50,7 +67,7 @@ const initialState: OneBoxState = {
   phase: "intake",
   messages: [],
   isStreaming: false,
-  chatError: null,
+  activeAttempt: null,
   runId: null,
   timeline: [],
   costUsd: 0,
@@ -60,10 +77,12 @@ const initialState: OneBoxState = {
 };
 
 type Action =
-  | { type: "SUBMIT"; content: string }
+  | { type: "SUBMIT"; attempt: SubmissionAttempt }
+  | { type: "RETRY" }
+  | { type: "EDIT_ATTEMPT" }
   | { type: "CHAT_DELTA"; delta: string }
   | { type: "CHAT_DONE" }
-  | { type: "CHAT_ERROR"; message: string }
+  | { type: "CHAT_ERROR"; failure: AttemptFailure }
   | { type: "UPLOAD_SESSION_EXPIRED"; message: string }
   | { type: "PIPELINE_START"; runId: string }
   | { type: "PIPELINE_EVENT"; event: PipelineEvent }
@@ -72,15 +91,51 @@ type Action =
 function reducer(state: OneBoxState, action: Action): OneBoxState {
   switch (action.type) {
     case "SUBMIT": {
-      const userMsg: ChatMsg = { id: crypto.randomUUID(), role: "user", content: action.content };
-      const assistantMsg: ChatMsg = { id: crypto.randomUUID(), role: "assistant", content: "" };
+      const userMsg: ChatMsg = {
+        id: action.attempt.userMessageId,
+        role: "user",
+        content: action.attempt.prompt,
+      };
+      const assistantMsg: ChatMsg = {
+        id: action.attempt.assistantMessageId,
+        role: "assistant",
+        content: "",
+      };
       return {
         ...state,
         messages: [...state.messages, userMsg, assistantMsg],
         isStreaming: true,
-        chatError: null,
+        activeAttempt: action.attempt,
       };
     }
+    case "RETRY":
+      if (!state.activeAttempt?.failure?.retryable) return state;
+      return {
+        ...state,
+        messages: state.messages.map((message) =>
+          message.id === state.activeAttempt?.assistantMessageId
+            ? { ...message, content: "" }
+            : message
+        ),
+        isStreaming: true,
+        activeAttempt: {
+          ...state.activeAttempt,
+          status: "pending",
+          failure: null,
+        },
+      };
+    case "EDIT_ATTEMPT":
+      if (!state.activeAttempt) return state;
+      return {
+        ...state,
+        messages: state.messages.filter(
+          (message) =>
+            message.id !== state.activeAttempt?.userMessageId &&
+            message.id !== state.activeAttempt?.assistantMessageId
+        ),
+        isStreaming: false,
+        activeAttempt: null,
+      };
     case "CHAT_DELTA": {
       const messages = state.messages.slice();
       const last = messages[messages.length - 1];
@@ -90,13 +145,49 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
       return { ...state, messages };
     }
     case "CHAT_DONE":
-      return { ...state, isStreaming: false };
+      return {
+        ...state,
+        isStreaming: false,
+        activeAttempt:
+          state.activeAttempt?.status === "failed" ? state.activeAttempt : null,
+      };
     case "CHAT_ERROR":
-      return { ...state, isStreaming: false, chatError: action.message };
+      return {
+        ...state,
+        isStreaming: false,
+        activeAttempt: state.activeAttempt
+          ? {
+              ...state.activeAttempt,
+              status: "failed",
+              failure: action.failure,
+            }
+          : null,
+      };
     case "UPLOAD_SESSION_EXPIRED":
-      return { ...state, isStreaming: false, chatError: action.message };
+      return {
+        ...state,
+        isStreaming: false,
+        activeAttempt: state.activeAttempt
+          ? {
+              ...state.activeAttempt,
+              status: "failed",
+              failure: {
+                message: action.message,
+                technicalDetails: "The staged upload session expired before the build could claim it.",
+                retryable: false,
+                kind: "upload-expired",
+              },
+            }
+          : null,
+      };
     case "PIPELINE_START":
-      return { ...state, phase: "pipeline", runId: action.runId, isStreaming: false };
+      return {
+        ...state,
+        phase: "pipeline",
+        runId: action.runId,
+        isStreaming: false,
+        activeAttempt: null,
+      };
     case "PIPELINE_EVENT": {
       const ev = action.event;
       let costUsd = state.costUsd;
@@ -213,6 +304,7 @@ function timelineNode(item: TimelineItem, runId: string): ReactNode {
 async function sendMessage(
   history: ChatMsg[],
   intakeContext: IntakeChatContext,
+  attemptId: string,
   dispatch: Dispatch<Action>,
   onUploadSessionExpired: (message: string) => void
 ) {
@@ -221,10 +313,42 @@ async function sendMessage(
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildChatRequest(history, intakeContext)),
+      body: JSON.stringify(buildChatRequest(history, intakeContext, attemptId)),
     });
     if (!res.ok || !res.body) {
-      throw new Error(`Chat request failed (${res.status}).`);
+      let serverDetail = "";
+      try {
+        const body = (await res.json()) as { error?: unknown };
+        if (typeof body.error === "string") serverDetail = ` ${body.error}`;
+      } catch {
+        // The status is still useful technical information when no JSON body exists.
+      }
+      dispatch({
+        type: "CHAT_ERROR",
+        failure: {
+          message:
+            res.status === 403
+              ? "OneBox could not start this project because the local request was blocked. Your prompt and settings are still here."
+              : res.status === 409
+                ? "This retry no longer matches the original request. Edit the prompt to start a fresh attempt."
+              : "OneBox could not start this project. Your prompt and settings are still here.",
+          technicalDetails: `Chat request failed (${res.status}).${serverDetail}`,
+          retryable: res.status !== 409,
+          kind:
+            res.status === 403
+              ? "authorization"
+              : res.status === 409
+                ? "conflict"
+                : "request",
+        },
+      });
+      return;
+    }
+
+    const replayRunId = await completedChatReplayRunId(res);
+    if (replayRunId) {
+      dispatch({ type: "PIPELINE_START", runId: replayRunId });
+      return;
     }
 
     await readSSE(res, (raw) => {
@@ -269,7 +393,15 @@ async function sendMessage(
         if (toolNames.get(chunk.toolCallId) === "start_pipeline") {
           dispatch({
             type: "CHAT_ERROR",
-            message: typeof chunk.errorText === "string" ? chunk.errorText : "Could not start the build.",
+            failure: {
+              message: "OneBox could not start this project. Your prompt and settings are still here.",
+              technicalDetails:
+                typeof chunk.errorText === "string"
+                  ? chunk.errorText
+                  : "Could not start the build.",
+              retryable: true,
+              kind: "request",
+            },
           });
         }
         return;
@@ -277,7 +409,15 @@ async function sendMessage(
       if (type === "error") {
         dispatch({
           type: "CHAT_ERROR",
-          message: typeof chunk.errorText === "string" ? chunk.errorText : "The assistant hit an error.",
+          failure: {
+            message: "OneBox could not finish the request. Your prompt and settings are still here.",
+            technicalDetails:
+              typeof chunk.errorText === "string"
+                ? chunk.errorText
+                : "The assistant hit an error.",
+            retryable: true,
+            kind: "request",
+          },
         });
       }
     });
@@ -286,7 +426,13 @@ async function sendMessage(
   } catch (err) {
     dispatch({
       type: "CHAT_ERROR",
-      message: err instanceof Error ? err.message : "Chat request failed.",
+      failure: {
+        message: "OneBox could not reach the local service. Your prompt and settings are still here.",
+        technicalDetails:
+          err instanceof Error ? err.message : "Chat request failed.",
+        retryable: true,
+        kind: "request",
+      },
     });
   }
 }
@@ -326,6 +472,19 @@ export default function Home() {
     }
   }, [state.phase, state.runId]);
 
+  const activeAttemptId = state.activeAttempt?.id;
+  const activeAttemptStatus = state.activeAttempt?.status;
+
+  useEffect(() => {
+    if (!activeAttemptId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const status = document.getElementById(`attempt-status-${activeAttemptId}`);
+      status?.focus({ preventScroll: true });
+      status?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeAttemptId, activeAttemptStatus]);
+
   // Pipeline SSE: authorized POST starts/resumes once per run. Native
   // EventSource is GET-only, so use the shared bounded frame reader.
   useEffect(() => {
@@ -353,15 +512,11 @@ export default function Home() {
     return () => controller.abort();
   }, [state.phase, state.runId]);
 
-  function handleSend() {
-    const content = input.trim();
-    if (!content || state.isStreaming) return;
-    const history = [...state.messages, { id: crypto.randomUUID(), role: "user" as const, content }];
-    dispatch({ type: "SUBMIT", content });
-    setInput("");
+  function runAttempt(attempt: SubmissionAttempt, history: ChatMsg[]) {
     void sendMessage(
       history,
-      { projectTarget, research, uploads, uploadSession },
+      attempt.context,
+      attempt.id,
       dispatch,
       (message) => {
         setUploadSession(null);
@@ -371,19 +526,131 @@ export default function Home() {
     );
   }
 
+  function handleSend() {
+    const content = input.trim();
+    if (!content || state.isStreaming) return;
+    const userMessageId = crypto.randomUUID();
+    const context: IntakeChatContext = {
+      projectTarget,
+      research: { ...research },
+      uploads: uploads.map((upload) => ({ ...upload })),
+      uploadSession,
+    };
+    const attempt: SubmissionAttempt = {
+      id: crypto.randomUUID(),
+      userMessageId,
+      assistantMessageId: crypto.randomUUID(),
+      prompt: content,
+      context,
+      status: "pending",
+      failure: null,
+    };
+    const history = [
+      ...state.messages,
+      { id: userMessageId, role: "user" as const, content },
+    ];
+    dispatch({ type: "SUBMIT", attempt });
+    setInput("");
+    runAttempt(attempt, history);
+  }
+
+  function handleRetry() {
+    const attempt = state.activeAttempt;
+    if (!attempt?.failure?.retryable || state.isStreaming) return;
+    const history = state.messages.filter(
+      (message) => message.id !== attempt.assistantMessageId
+    );
+    dispatch({ type: "RETRY" });
+    runAttempt({ ...attempt, status: "pending", failure: null }, history);
+  }
+
+  function handleEditPrompt() {
+    const attempt = state.activeAttempt;
+    if (!attempt || state.isStreaming) return;
+    setInput(attempt.prompt);
+    setProjectTarget(attempt.context.projectTarget);
+    setResearch({ ...attempt.context.research });
+    if (attempt.failure?.kind !== "upload-expired") {
+      setUploads(attempt.context.uploads.map((upload) => ({ ...upload })));
+      setUploadSession(attempt.context.uploadSession);
+    }
+    dispatch({ type: "EDIT_ATTEMPT" });
+    window.requestAnimationFrame(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>(".composer__input");
+      composer?.focus();
+      composer?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+
   return (
     <main>
       {state.phase === "intake" && (
-        <section className="hero" aria-label="Describe your business">
-          <div className="hero-blob" aria-hidden="true" />
-          <div className="hero-inner">
-            <h1 className="hero-display">
-              Describe the business.
-              <br />
-              Get the site.
-            </h1>
-            <p className="eyebrow">{"{ one prompt }"}</p>
-            <IntakeControls
+        <section className="intake-view" aria-label="Describe your project">
+          <div className="intake-view__inner">
+            {state.messages.length > 0 && (
+              <div className="transcript">
+                {state.messages
+                  .filter((m) => m.content.length > 0 || m.role === "user")
+                  .map((m) => {
+                    const attempt =
+                      m.id === state.activeAttempt?.userMessageId
+                        ? state.activeAttempt
+                        : null;
+                    return (
+                      <div key={m.id}>
+                        <p className="transcript__line">
+                          <span className="transcript__role">
+                            {m.role === "user" ? "You" : "one-box"}
+                          </span>
+                          {m.content || (state.isStreaming ? "…" : "")}
+                        </p>
+                        {attempt && (
+                          <div
+                            id={`attempt-status-${attempt.id}`}
+                            className={attempt.status === "failed" ? "chat-error" : undefined}
+                            role={attempt.status === "failed" ? "alert" : "status"}
+                            tabIndex={-1}
+                          >
+                            {attempt.status === "pending" ? (
+                              <p>Starting your project…</p>
+                            ) : (
+                              <>
+                                <p>{attempt.failure?.message}</p>
+                                <div>
+                                  {attempt.failure?.retryable && (
+                                    <button
+                                      type="button"
+                                      onClick={handleRetry}
+                                      disabled={state.isStreaming}
+                                    >
+                                      Retry
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={handleEditPrompt}
+                                    disabled={state.isStreaming}
+                                  >
+                                    Edit prompt
+                                  </button>
+                                </div>
+                                <details>
+                                  <summary>Technical details</summary>
+                                  <code>{attempt.failure?.technicalDetails}</code>
+                                </details>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+            <IntakeComposer
+              value={input}
+              onChange={setInput}
+              onSubmit={handleSend}
               projectTarget={projectTarget}
               research={research}
               uploads={uploads}
@@ -398,28 +665,8 @@ export default function Home() {
               uploadRecoveryMessage={uploadRecoveryMessage}
               onUploadRecoveryClear={() => setUploadRecoveryMessage(null)}
               disabled={state.isStreaming}
-            />
-            {state.messages.length > 0 && (
-              <div className="transcript">
-                {state.messages
-                  .filter((m) => m.content.length > 0 || m.role === "user")
-                  .map((m) => (
-                    <p className="transcript__line" key={m.id}>
-                      <span className="transcript__role">{m.role === "user" ? "You" : "one-box"}</span>
-                      {m.content || (state.isStreaming ? "…" : "")}
-                    </p>
-                  ))}
-              </div>
-            )}
-            <ChatComposer
-              value={input}
-              onChange={setInput}
-              onSubmit={handleSend}
-              placeholder="A fiber-optic installer in Reno, NV that wants more booked quotes…"
-              disabled={state.isStreaming}
               submitLabel={state.isStreaming ? "Thinking…" : "Send"}
             />
-            {state.chatError && <p className="chat-error">{state.chatError}</p>}
           </div>
         </section>
       )}

@@ -14,6 +14,7 @@ function request(body = '{"runId":"run-test"}', origin?: string) {
   return new Request("http://localhost:3000/api/run", {
     method: "POST",
     headers: {
+      Host: "localhost:3000",
       "Content-Type": "application/json",
       ...(origin ? { Origin: origin, "Sec-Fetch-Site": "same-origin" } : {}),
     },

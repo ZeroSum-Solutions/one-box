@@ -13,6 +13,7 @@ export { inspectUpload, inspectZip };
 export const runtime = "nodejs";
 
 const BOUNDARY_PATTERN = /^[0-9A-Za-z'()+_,\-./:=?]{1,70}$/;
+const REQUEST_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function multipartBoundary(contentType: string | null): string {
   if (!contentType || !/^multipart\/form-data(?:;|$)/i.test(contentType)) {
@@ -39,6 +40,13 @@ function bearerHandle(authorization: string | null): string | undefined {
   const match = authorization.match(/^Bearer ([A-Za-z0-9_-]{43})$/);
   if (!match) throw new UploadError("The upload session handle is invalid.", 401);
   return match[1];
+}
+
+function uploadRequestId(value: string | null): string {
+  if (!value || !REQUEST_ID_PATTERN.test(value)) {
+    throw new UploadError("The upload request id is missing or invalid.");
+  }
+  return value;
 }
 
 /** Buffer only after incrementally enforcing the aggregate body cap. */
@@ -119,7 +127,14 @@ export async function handleUpload(
       throw new UploadError("Every files field must contain a file.");
     }
 
-    const result = await stageUploads(entries, { handle, stagingRoot });
+    const requestId = uploadRequestId(
+      request.headers.get("x-one-box-upload-request-id")
+    );
+    const result = await stageUploads(entries, {
+      handle,
+      requestId,
+      stagingRoot,
+    });
     return Response.json(result, {
       headers: { "Cache-Control": "no-store" },
     });
