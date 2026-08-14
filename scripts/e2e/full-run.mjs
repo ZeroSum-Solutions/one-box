@@ -4,16 +4,31 @@
  * (Firecrawl + crawl4ai + Refero + OpenRouter + Higgsfield), real preview,
  * real edit. Spends real (small) money — run deliberately, not in CI loops.
  *
- * Usage: node scripts/e2e/full-run.mjs [--reuse <runId>]
- *   --reuse skips intake+pipeline and re-tests preview/editor on an existing run.
+ * Usage: node scripts/e2e/full-run.mjs --allow-metered
+ *        node scripts/e2e/full-run.mjs --allow-metered --resume <runId>
+ *        node scripts/e2e/full-run.mjs --allow-metered --reuse <runId>
+ *        node scripts/e2e/full-run.mjs --allow-metered --finalize <runId>
+ *   New and resumed pipelines exit 2 at each evidence approval boundary. Review
+ *   the reported workspace, approve or request revision there, then rerun with
+ *   --resume. --reuse skips intake+pipeline and re-tests a completed run.
  */
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
+import {
+  classifyPipelineEvents,
+  computeSiteBuildSha256,
+  localJsonMutationHeaders,
+  parseFullRunArguments,
+  shouldPreserveFinalizeCheckpoint,
+  validateFinalizeCheckpoint,
+} from "./full-run-state.mjs";
 
 const ROOT = process.cwd();
 const BASE = "http://127.0.0.1:3123";
+const JSON_MUTATION_HEADERS = localJsonMutationHeaders(BASE);
 const results = [];
 const ok = (name, pass, detail = "") => {
   results.push({ name, pass, detail });
@@ -53,7 +68,7 @@ const uiMsg = (role, text) => ({
 async function chatTurn(messages) {
   const res = await fetch(`${BASE}/api/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: JSON_MUTATION_HEADERS,
     body: JSON.stringify({ messages }),
   });
   if (!res.ok) throw new Error(`chat ${res.status}`);
@@ -98,7 +113,7 @@ async function runIntake() {
 async function runPipeline(runId) {
   const res = await fetch(`${BASE}/api/run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Origin: BASE },
+    headers: JSON_MUTATION_HEADERS,
     body: JSON.stringify({ runId }),
   });
   if (!res.ok) throw new Error(`run ${res.status}`);
@@ -128,28 +143,77 @@ async function runPipeline(runId) {
 }
 
 // ---------- main ----------
-const reuseIdx = process.argv.indexOf("--reuse");
-let runId = reuseIdx > -1 ? process.argv[reuseIdx + 1] : null;
+const runArguments = parseFullRunArguments(process.argv.slice(2));
+let runId = runArguments.runId;
+let postEditProof = null;
+let validatedFinalizeCheckpoint = null;
+
+async function assertReviewedSiteUnchanged() {
+  if (!postEditProof) return;
+  const currentSiteSha256 = await computeSiteBuildSha256(
+    path.join(ROOT, "sites", runId, "site"),
+  );
+  if (currentSiteSha256 !== postEditProof.siteSha256) {
+    throw new Error(
+      "--finalize refused because the edited site changed after review was requested.",
+    );
+  }
+}
+
+if (runArguments.mode === "finalize") {
+  const previous = JSON.parse(
+    await fs.readFile(path.join(ROOT, "docs", "eval", "e2e-latest.json"), "utf8"),
+  );
+  postEditProof = validateFinalizeCheckpoint(previous, runId);
+  validatedFinalizeCheckpoint = previous;
+  await assertReviewedSiteUnchanged();
+  results.push(...previous.results);
+}
 
 await startServer();
 try {
-  if (!runId) {
-    runId = await runIntake();
-    ok("chat intake produces runId via start_pipeline", !!runId, runId ?? "no runId after 2 turns");
-    if (!runId) process.exit(await finish(1));
+  if (runArguments.mode !== "reuse") {
+    if (!runId) {
+      runId = await runIntake();
+      ok("chat intake produces runId via start_pipeline", !!runId, runId ?? "no runId after 2 turns");
+      if (!runId) await finish(1, "FAILED");
+    }
 
     const events = await runPipeline(runId);
-    const complete = events.find((e) => e.type === "complete");
+    const terminal = classifyPipelineEvents(events);
     const stagesDone = ["scanned", "locked", "synthesized", "built"].filter((s) =>
       events.some((e) => e.type === "stage" && e.stage === s && e.status === "done")
     );
-    ok("pipeline completes all stages", !!complete, `done: ${stagesDone.join(",")}`);
+    if (terminal.status === "APPROVAL_REQUIRED") {
+      const paused = terminal.event;
+      ok(
+        "pipeline stops at required approval",
+        true,
+        `${paused.workflowStage}: ${paused.workspaceUrl}`,
+      );
+      console.log(`\nApproval required at ${BASE}${paused.workspaceUrl}`);
+      const nextMode =
+        runArguments.mode === "finalize" ? "--finalize" : "--resume";
+      console.log(
+        `After review, resume with: node scripts/e2e/full-run.mjs --allow-metered ${nextMode} ${runId}`,
+      );
+      await finish(2, "APPROVAL_REQUIRED", paused);
+    }
+    if (terminal.status === "FAILED") {
+      ok("pipeline completes without an error event", false, terminal.event.message);
+      await finish(1, "FAILED", terminal.event);
+    }
+    if (terminal.status === "INCOMPLETE") {
+      ok("pipeline reaches a terminal event", false, `done: ${stagesDone.join(",")}`);
+      await finish(1, "INCOMPLETE");
+    }
+    ok("pipeline completes all stages", true, `done: ${stagesDone.join(",")}`);
 
     // reconnect: a second stream replays the checkpointed run without
     // re-executing paid stages (should settle in seconds, not minutes)
     const t0 = Date.now();
     const replay = await runPipeline(runId);
-    const replayComplete = replay.some((e) => e.type === "complete");
+    const replayComplete = classifyPipelineEvents(replay).status === "COMPLETE";
     ok("reconnect replays checkpointed run", replayComplete && Date.now() - t0 < 60_000, `${Math.round((Date.now() - t0) / 1000)}s`);
   }
 
@@ -207,49 +271,58 @@ try {
   const chipVisible = await page.getByText(/hero\.headline/).first().isVisible().catch(() => false);
   ok("overlay click → selection chip in parent", chipVisible);
 
-  // deterministic text edit through the real API — headline is unique per
-  // invocation so a --reuse re-run never no-ops into a false failure
-  const stamp = `v${Date.now().toString(36).slice(-4)}`;
-  const targetHeadline = `Fiber that just works ${stamp}`;
-  const beforeHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
-  const editRes = await fetch(`${BASE}/api/edit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ runId, editId: "hero.headline", instruction: `Change the headline text to exactly: ${targetHeadline}`, imageIntent: false }),
-  }).then((r) => r.json());
-  const afterHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
-  ok("edit_site applies NL edit", editRes.ok === true && afterHtml !== beforeHtml, editRes.error ?? "");
-  ok("edited headline present in source", afterHtml.includes(targetHeadline));
-  ok("gates re-ran after edit", Array.isArray(editRes.gates) && editRes.gates.length > 0, `clean=${editRes.gatesClean}`);
+  if (runArguments.mode !== "finalize") {
+    // deterministic text edit through the real API — headline is unique per
+    // invocation so a --reuse re-run never no-ops into a false failure
+    const stamp = `v${Date.now().toString(36).slice(-4)}`;
+    const targetHeadline = `Fiber that just works ${stamp}`;
+    const beforeHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
+    const editRes = await fetch(`${BASE}/api/edit`, {
+      method: "POST",
+      headers: JSON_MUTATION_HEADERS,
+      body: JSON.stringify({ runId, editId: "hero.headline", instruction: `Change the headline text to exactly: ${targetHeadline}`, imageIntent: false }),
+    }).then((r) => r.json());
+    const afterHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
+    ok("edit_site applies NL edit", editRes.ok === true && afterHtml !== beforeHtml, editRes.error ?? "");
+    ok("edited headline present in source", afterHtml.includes(targetHeadline));
+    ok("gates re-ran after edit", Array.isArray(editRes.gates) && editRes.gates.length > 0, `clean=${editRes.gatesClean}`);
 
-  // other data-edit-ids intact
-  const idsBefore = [...beforeHtml.matchAll(/data-edit-id="([^"]+)"/g)].map((m) => m[1]);
-  const idsAfter = [...afterHtml.matchAll(/data-edit-id="([^"]+)"/g)].map((m) => m[1]);
-  ok("edit preserves all other data-edit-ids", idsBefore.every((id) => idsAfter.includes(id)));
+    // other data-edit-ids intact
+    const idsBefore = [...beforeHtml.matchAll(/data-edit-id="([^"]+)"/g)].map((m) => m[1]);
+    const idsAfter = [...afterHtml.matchAll(/data-edit-id="([^"]+)"/g)].map((m) => m[1]);
+    ok("edit preserves all other data-edit-ids", idsBefore.every((id) => idsAfter.includes(id)));
 
-  // image edit: the same chat box drives a Higgsfield regeneration constrained
-  // by the run's locked imagery brief (real spend: one image credit)
-  const heroSrc = (html) =>
-    /data-edit-id="hero\.image"[\s\S]{0,400}?src="([^"]+)"/.exec(html)?.[1];
-  const imgBefore = heroSrc(afterHtml);
-  const imgRes = await fetch(`${BASE}/api/edit`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ runId, editId: "hero.image", instruction: "A close-up of gloved hands splicing a glowing fiber optic cable at dusk", imageIntent: true }),
-  }).then((r) => r.json());
-  const afterImgHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
-  const imgAfter = heroSrc(afterImgHtml);
-  ok("image edit swaps hero via Higgsfield", imgRes.ok === true && !!imgAfter && imgAfter !== imgBefore, imgRes.error ?? `${imgBefore} → ${imgAfter}`);
-  const imgSwapOk = imgRes.ok === true && !!imgAfter && imgAfter !== imgBefore;
-  const assetOnDisk = imgSwapOk
-    ? await fs.access(path.join(runDir, "site", imgAfter)).then(() => true).catch(() => false)
-    : false;
-  ok("generated image asset exists on disk", assetOnDisk, imgAfter ?? "no src");
+    // image edit: the same chat box drives a Higgsfield regeneration constrained
+    // by the run's locked imagery brief (real spend: one image credit)
+    const heroSrc = (html) =>
+      /data-edit-id="hero\.image"[\s\S]{0,400}?src="([^"]+)"/.exec(html)?.[1];
+    const imgBefore = heroSrc(afterHtml);
+    const imgRes = await fetch(`${BASE}/api/edit`, {
+      method: "POST",
+      headers: JSON_MUTATION_HEADERS,
+      body: JSON.stringify({
+        runId,
+        editId: "hero.image",
+        instruction:
+          "A close-up of gloved hands splicing a glowing fiber optic cable at dusk",
+        imageIntent: true,
+        requestId: randomUUID(),
+      }),
+    }).then((r) => r.json());
+    const afterImgHtml = await fs.readFile(path.join(runDir, "site/index.html"), "utf8");
+    const imgAfter = heroSrc(afterImgHtml);
+    ok("image edit swaps hero via Higgsfield", imgRes.ok === true && !!imgAfter && imgAfter !== imgBefore, imgRes.error ?? `${imgBefore} → ${imgAfter}`);
+    const imgSwapOk = imgRes.ok === true && !!imgAfter && imgAfter !== imgBefore;
+    const assetOnDisk = imgSwapOk
+      ? await fs.access(path.join(runDir, "site", imgAfter)).then(() => true).catch(() => false)
+      : false;
+    ok("generated image asset exists on disk", assetOnDisk, imgAfter ?? "no src");
 
-  // reload iframe shows the change
-  await page.reload({ waitUntil: "domcontentloaded" });
-  const newHeadline = await page.frameLocator("iframe").locator('[data-edit-id="hero.headline"]').innerText({ timeout: 20000 });
-  ok("preview reflects the edit", newHeadline.includes(targetHeadline), newHeadline.slice(0, 60));
+    // reload iframe shows the change
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const newHeadline = await page.frameLocator("iframe").locator('[data-edit-id="hero.headline"]').innerText({ timeout: 20000 });
+    ok("preview reflects the edit", newHeadline.includes(targetHeadline), newHeadline.slice(0, 60));
+  }
 
   ok("no page errors in preview shell", consoleErrors.length === 0, consoleErrors.join("; ").slice(0, 100));
 
@@ -259,20 +332,76 @@ try {
   await page.screenshot({ path: path.join(shotsDir, `preview-${runId}.png`), fullPage: false });
   await browser.close();
 
-  await finish(results.some((r) => !r.pass) ? 1 : 0);
+  if (runArguments.mode !== "finalize") {
+    if (results.some((result) => !result.pass)) {
+      await finish(1, "FAILED");
+    }
+    const postMutation = classifyPipelineEvents(await runPipeline(runId));
+    if (postMutation.status !== "APPROVAL_REQUIRED") {
+      ok(
+        "committed edits require renewed visual approval",
+        false,
+        postMutation.status,
+      );
+      await finish(1, "FAILED", postMutation.event);
+    }
+    ok(
+      "committed edits require renewed visual approval",
+      true,
+      `${postMutation.event.workflowStage}: ${postMutation.event.workspaceUrl}`,
+    );
+    console.log(
+      `\nReview the edited site at ${BASE}${postMutation.event.workspaceUrl}`,
+    );
+    console.log(
+      `After final visual approval, finish with: node scripts/e2e/full-run.mjs --allow-metered --finalize ${runId}`,
+    );
+    const siteSha256 = await computeSiteBuildSha256(
+      path.join(runDir, "site"),
+    );
+    await finish(2, "APPROVAL_REQUIRED", postMutation.event, {
+      phase: "post-edit-review",
+      postEditProof: { siteSha256 },
+    });
+  }
+
+  await assertReviewedSiteUnchanged();
+  await finish(results.some((r) => !r.pass) ? 1 : 0, undefined, null, {
+    phase: "complete",
+    ...(postEditProof ? { postEditProof } : {}),
+  });
 } catch (e) {
   console.error("E2E crashed:", e);
-  await finish(1);
+  await finish(1, "FAILED");
 }
 
-async function finish(code) {
+async function finish(
+  code,
+  status = code === 0 ? "COMPLETE" : "FAILED",
+  terminal = null,
+  metadata = {},
+) {
   const pass = results.filter((r) => r.pass).length;
   console.log(`\n${pass}/${results.length} checks passed`);
-  await fs.mkdir(path.join(ROOT, "docs", "eval"), { recursive: true });
-  await fs.writeFile(
-    path.join(ROOT, "docs", "eval", "e2e-latest.json"),
-    JSON.stringify({ at: new Date().toISOString(), runId, results }, null, 2)
-  );
+  if (
+    shouldPreserveFinalizeCheckpoint(
+      runArguments.mode,
+      status,
+      validatedFinalizeCheckpoint !== null,
+    )
+  ) {
+    console.log("Preserved the post-edit checkpoint for another --finalize attempt.");
+  } else {
+    await fs.mkdir(path.join(ROOT, "docs", "eval"), { recursive: true });
+    await fs.writeFile(
+      path.join(ROOT, "docs", "eval", "e2e-latest.json"),
+      JSON.stringify(
+        { at: new Date().toISOString(), runId, status, terminal, results, ...metadata },
+        null,
+        2,
+      )
+    );
+  }
   server?.kill("SIGTERM");
   process.exit(code);
 }

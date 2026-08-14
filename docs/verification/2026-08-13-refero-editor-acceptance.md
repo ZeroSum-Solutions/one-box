@@ -1,17 +1,22 @@
 # Refero editor acceptance matrix
 
-**Record date:** 2026-08-13
+**Record date:** 2026-08-14
 
-**Branch inspected:** `codex/refero-goal-final-evidence` from merged `main`
+**Revision inspected:** `e2b41995d960eac14905c645631d3565f7ed5a54` on
+`codex/onebox-production-loop`, matching merged `main` at the start of this pass
 
-**Scope:** current in-progress implementation only; this is not a release verdict.
+**Scope:** production-like local conformance. This is not a deployment or
+live-provider verdict.
 
 ## Evidence rules
 
-`npm test` was rerun on this branch on 2026-08-13 and passed: **26 test files,
-171 tests**. The evaluation harness suite also passed **43 tests**. Production build,
-smoke gates, and rendered motion checks passed after the current
-workbench/fidelity slice. A row is **PROVEN** only where that direct check or a saved
+`npm test` was rerun at the inspected revision on 2026-08-14 and passed:
+**232 tests in 33 files**, with two fixture-only suites skipped by the canonical
+runner. The evaluation harness passed **43 tests**. Typecheck, production build,
+smoke gates, DESIGN.md lint and export, and the intake, preview, motion, and
+token/motion rendered matrices also passed. The live full-run harness is now
+approval-aware, but no paid provider run, automatic evidence approval, or
+deployment occurred. A row is **PROVEN** only where that direct check or a saved
 authoritative artifact proves the whole stated requirement. **PARTIAL** means
 there is focused implementation or unit coverage but no complete rendered,
 persisted-project, or live-provider proof. **BLOCKED** requires an external
@@ -49,20 +54,20 @@ the direct assertion family included in the passing `npm test` run. Commands in
 | IMP-012 | PROVEN | Preview E2E selects the live canvas through the visible safe-overlay fallback; motion E2E rejects it | Re-run after overlay behavior changes. |
 | IMP-013 | PROVEN | Preview E2E proves navigation/form suppression and zero generated capture-handler execution while WebGL/parallax/hover remain live | Re-run after overlay or sandbox changes. |
 | IMP-014 | PROVEN | Preview E2E asserts actual iframe `window.innerWidth`, breakpoint behavior, and live interactions | Re-run after responsive-layout changes. |
-| IMP-015 | PARTIAL | `src/app/preview/[id]/page.tsx` split layout; preview state tests | Rendered desktop workbench screenshot/assertion. |
-| IMP-016 | PARTIAL | Panel bound/clamp tests in `src/components/preview/previewState.test.ts` | `npm run test:e2e:preview` drag proof in both directions. |
+| IMP-015 | PROVEN | Preview E2E renders the desktop split workbench and measures its iframe, panel, tools, and divider | Re-run after split-layout changes. |
+| IMP-016 | PROVEN | Preview E2E drags the divider in both directions across standard and wide workspaces and checks ARIA values | Re-run after divider behavior changes. |
 | IMP-017 | PROVEN | Preview E2E asserts iframe `window.innerWidth` equals rendered width across six boundary cases | Re-run after split-layout changes. |
 | IMP-018 | PROVEN | Preview E2E crosses exact 479/480 and 767/768 boundaries with visible stable labels | Re-run after breakpoint-token changes. |
 | IMP-019 | PROVEN | Preview E2E reloads after divider release and asserts retained width/size | Re-run after persistence-key changes. |
 | IMP-020 | PROVEN | Preview E2E exercises expanded, collapsed, reopened, and reloaded state | Normal-size transition remains covered by state tests. |
-| IMP-021 | PARTIAL | Accessible control implementation in `src/app/preview/[id]/page.tsx` | Keyboard and screen-reader-name checks on collapsed rail in E2E. |
+| IMP-021 | PROVEN | Preview E2E exercises named collapse/reopen controls, keyboard divider resizing, focus, and the collapsed grab-tab label | Re-run after rail accessibility changes. |
 | IMP-022 | PROVEN | Preview E2E measures a near-full-workspace iframe while collapsed | Re-run after rail width changes. |
 | IMP-023 | PROVEN | Workbench registry plus preview/token-motion E2Es cover Selection, Text, Assets, Research, Tokens, and Motion targeting | Re-run after adding or removing a tool. |
 | IMP-024 | PARTIAL | `parseWorkbenchState` and local persistence tests | E2E proves per-project/session persistence and selected-element targeting. |
 | IMP-025 | PARTIAL | Component implementation only | Rendered empty, loading, error, and unsupported states for every tool. |
 | IMP-026 | PARTIAL | Tool registry implementation only | Document and test overflow/scaling behavior with more tools than the rail viewport. |
-| IMP-027 | PARTIAL | Preview state unit tests | Small-screen keyboard, focus, and usable-layout rendered checks. |
-| IMP-028 | PARTIAL | `src/components/researchConsent.ts`; intake page | Run `npm run test:e2e:intake` and retain screenshot/text evidence of the `Design Research` label and rationale. |
+| IMP-027 | PROVEN | Preview and token/motion E2Es verify small-screen focus, one-column controls, fixed panel bounds, breakpoint labels, and 44px targets | Re-run after small-screen workbench changes. |
+| IMP-028 | PROVEN | Intake E2E renders `Design Research`, its controls, rationale, disabled states, and explicit paid-fallback consent | Re-run after research intake copy or consent changes. |
 | IMP-029 | PARTIAL | `src/lib/pipelineEvidence.test.ts`; `src/app/page.tsx` | Render and submit research configuration through a real local run. |
 | IMP-030 | PARTIAL | `src/app/api/uploads/route.test.ts` direct bounded-upload coverage | `npm run test:e2e:intake` plus a real authorized upload of each supported kind. |
 | IMP-031 | PARTIAL | Upload validation tests and intake policy UI | Browser proof of types, limits, extraction, privacy, and every failure state. |
@@ -92,21 +97,21 @@ the direct assertion family included in the passing `npm test` run. Commands in
 | IMP-055 | PARTIAL | Token-drift smoke implementation referenced by `WAVE-NOTES-buildgate.md` | Current `npm run test:smoke` plus source audit of a generated project for justified exceptions. |
 | IMP-056 | MISSING | No located sampled-value promotion decision artifact | Add a reviewed evidence-to-token promotion record and its test. |
 | IMP-057 | PARTIAL | Builder/gate implementation and smoke note only | Reference-fidelity review against approved source evidence with maintainability token report. |
-| IMP-058 | PARTIAL | `src/lib/siteTokens.test.ts`; token route tests | `npm run test:e2e:token-motion` against local app. |
-| IMP-059 | PARTIAL | `src/lib/siteTokens.test.ts` reports usage scope/affected IDs | E2E proof that scope is shown before apply. |
+| IMP-058 | PROVEN | Token/motion E2E previews, applies, persists, reloads, and reverts a semantic token against the local app | Re-run after token editing changes. |
+| IMP-059 | PROVEN | Token/motion E2E requires visible usage scope and affected elements before apply | Re-run after token scope presentation changes. |
 | IMP-060 | PARTIAL | Tailwind v4 export test in `src/lib/evidence.test.ts` | Export a project CSS artifact and load it outside One-Box. |
 | IMP-061 | PROVEN | `src/lib/runstate.test.ts` required transition-order assertion, passing `npm test` | Independent verifier reruns focused transition test after remediation lands. |
 | IMP-062 | PARTIAL | Evidence route/export tests; `src/components/EvidenceWorkspace.test.tsx` | Browser flow through preview, approve, revise, export, and reload for each artifact. |
 | IMP-063 | PROVEN | `src/lib/runstate.test.ts` blocks build until CSS architecture approval, passing `npm test` | Independent verifier reruns focused authorization test after remediation lands. |
 | IMP-064 | PARTIAL | CSS architecture artifact derivation in `src/lib/evidence.test.ts` | Saved project CSS map with global/page/component scopes and justified exceptions. |
-| IMP-065 | PARTIAL | Motion tool implementation; `src/lib/siteMotion.test.ts` | `npm run test:e2e:token-motion` confirms selection exposes configuration. |
+| IMP-065 | PROVEN | Token/motion E2E selects an element and exposes its motion configuration in context | Re-run after motion targeting changes. |
 | IMP-066 | PARTIAL | Supported kinds asserted in `src/lib/siteMotion.test.ts` | Rendered run exercises every kind, including timeline behavior. |
 | IMP-067 | PARTIAL | Motion draft schema assertions in `src/lib/siteMotion.test.ts` | Browser configuration proof for all listed values and replay behavior. |
-| IMP-068 | PARTIAL | Motion history/revert tests in `src/lib/siteMotion.test.ts` | `npm run test:e2e:token-motion` proves contextual preview, reset, remove. |
+| IMP-068 | PROVEN | Token/motion E2E proves contextual preview, reset, apply, reload, remove, and revert | Re-run after motion history changes. |
 | IMP-069 | PROVEN | `src/lib/siteMotion.test.ts` rejects selector/code/unknown properties; motion route rejects JavaScript, passing `npm test` | Independent verifier reruns focused schema/route tests. |
 | IMP-070 | PARTIAL | View/Edit mode and motion implementation | E2E at all breakpoints in both modes. |
-| IMP-071 | PARTIAL | `src/lib/evidence.test.ts` QA model; motion runtime script exists | Run `npm run test:e2e:motion` and retain reduced-motion result. |
-| IMP-072 | PARTIAL | Motion persistence tests cover rollback/history only | Run `npm run test:e2e:motion` and `npm run test:e2e:token-motion` for lifecycle/resize/reload cleanup. |
+| IMP-071 | PROVEN | Motion E2E verifies initial reduced motion plus live preference changes without transforms or active motion markers | Re-run after reduced-motion handling changes. |
+| IMP-072 | PROVEN | Motion and token/motion E2Es verify resize deduplication, reload persistence, reset, remove, revert, and runtime cleanup | Re-run after motion lifecycle changes. |
 | IMP-073 | PARTIAL | WebGL target safety in `src/lib/siteMotion.test.ts` | Render a WebGL/parallax fixture before and after motion changes at three widths. |
 
 ## Saved evidence and artifact criteria
@@ -159,9 +164,9 @@ the direct assertion family included in the passing `npm test` run. Commands in
 
 ## Release boundary
 
-No row in **PARTIAL**, **BLOCKED**, or **MISSING** can support a release claim. In
-particular, the outstanding browser matrices require a controlled local server and
-the baseline requires Devin-controlled Refero OAuth, ZS Vault/OpenRouter access,
+No row in **PARTIAL**, **BLOCKED**, or **MISSING** can support a release claim.
+The remaining live journey requires manual evidence approvals. The baseline also
+requires Devin-controlled Refero OAuth, ZS Vault/OpenRouter access,
 and independent blinded evaluation. The independent verifier owns the final
 row-by-row re-read; implementation owners must not self-certify their active
 remediation.
