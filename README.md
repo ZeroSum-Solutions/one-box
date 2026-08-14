@@ -91,9 +91,32 @@ npm run test:e2e:intake     # rendered intake/upload acceptance
 npm run test:e2e:preview    # rendered View/Edit workbench acceptance
 npm run test:e2e:motion     # isolated GSAP lifecycle/reduced-motion matrix
 npm run test:e2e:token-motion # integrated token/motion workbench matrix
+npm run test:e2e:full-unit  # live full-run terminal-state tests
 npm run test:eval           # offline frozen-comparison harness tests
 npm run eval:baseline:verify # verify frozen brief, rubric, and hashes
 ```
+
+The live full-run harness uses real model and provider calls, so run it only
+after approving that spend. It stops with exit code 2 whenever an evidence
+artifact needs human review and prints the evidence workspace URL. Approve or
+request revision in that workspace, then resume the same run:
+
+```bash
+node scripts/e2e/full-run.mjs --allow-metered --resume RUN_ID
+```
+
+The required `--allow-metered` flag records operator intent; it does not approve
+Firecrawl fallback or any evidence artifact. The harness never approves evidence
+or final visual quality. Successful edit checks invalidate the prior visual
+decision and stop at one final review. After approving the edited build, complete
+the recorded run with:
+
+```bash
+node scripts/e2e/full-run.mjs --allow-metered --finalize RUN_ID
+```
+
+`--reuse RUN_ID` skips intake and pipeline execution, retests a completed run,
+then requires the same final visual review.
 
 ## Architecture and safety boundary
 
