@@ -94,10 +94,25 @@ describe("local API authorization", () => {
     ).toBe(true);
     expect(
       isLocalApiAuthorized(
+        new Request("http://attacker.example/api/evidence/run1")
+      )
+    ).toBe(false);
+    expect(
+      isLocalApiAuthorized(
         new Request("http://localhost:3000/api/evidence/run1", {
           headers: { Origin: "https://attacker.example" },
         })
       )
     ).toBe(false);
+  });
+
+  it("keeps shipped development and production servers loopback-only", async () => {
+    const { scripts } = JSON.parse(
+      await import("node:fs/promises").then((fs) =>
+        fs.readFile(new URL("../../package.json", import.meta.url), "utf8")
+      )
+    ) as { scripts: Record<string, string> };
+    expect(scripts.dev).toContain("--hostname 127.0.0.1");
+    expect(scripts.start).toContain("--hostname 127.0.0.1");
   });
 });
