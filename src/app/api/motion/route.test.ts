@@ -27,7 +27,7 @@ describe("motion route authorization", () => {
   });
   it("allows local read and rejects unknown request fields", async () => {
     expect((await GET(new Request("http://localhost:3000/api/motion?runId=test-run"))).status).toBe(200);
-    const request = new Request("http://localhost:3000/api/motion", { method: "POST", headers: { Origin: "http://localhost:3000", "Content-Type": "application/json" }, body: JSON.stringify({ action: "revert", runId: "test-run", javascript: "alert(1)" }) });
+    const request = new Request("http://localhost:3000/api/motion", { method: "POST", headers: { Origin: "http://localhost:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" }, body: JSON.stringify({ action: "revert", runId: "test-run", javascript: "alert(1)" }) });
     expect((await POST(request)).status).toBe(400);
     expect(mocks.revert).not.toHaveBeenCalled();
   });

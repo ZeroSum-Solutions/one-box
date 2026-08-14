@@ -39,6 +39,13 @@ export function UploadPanel({
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const addFilesDisabled =
+    disabled || isUploading || uploads.length >= MAX_UPLOAD_FILES;
+  const externalExpiryActive = Boolean(
+    externalSessionError && !uploadSession && uploads.length === 0
+  );
+  const recoveryActive = sessionExpired || externalExpiryActive;
+  const visibleError = error || (externalExpiryActive ? externalSessionError : null);
 
   function resetAndReselect() {
     onUploadSessionChange(null);
@@ -56,6 +63,7 @@ export function UploadPanel({
     setSessionExpired(false);
 
     if (files.length === 0) return;
+    onExternalSessionErrorClear?.();
     if (uploads.length + files.length > MAX_UPLOAD_FILES) {
       setError(`Choose no more than ${MAX_UPLOAD_FILES} files total.`);
       return;
@@ -77,7 +85,6 @@ export function UploadPanel({
           : undefined,
         body: formData,
       });
-      const body = (await response.json()) as UploadResponse;
       if (response.status === 401) {
         onUploadSessionChange(null);
         onChange([]);
@@ -87,6 +94,12 @@ export function UploadPanel({
         );
         return;
       }
+      let body: UploadResponse;
+      try {
+        body = (await response.json()) as UploadResponse;
+      } catch {
+        throw new Error(`Upload failed (${response.status}).`);
+      }
       if (!response.ok || !body.uploads || !body.uploadSession) {
         throw new Error(body.error || `Upload failed (${response.status}).`);
       }
@@ -95,6 +108,7 @@ export function UploadPanel({
       }
       onUploadSessionChange(body.uploadSession);
       onChange([...uploads, ...body.uploads]);
+      onExternalSessionErrorClear?.();
     } catch (uploadError) {
       setError(
         uploadError instanceof Error ? uploadError.message : "Upload failed."
@@ -115,7 +129,7 @@ export function UploadPanel({
           type="button"
           className="intake-upload__button"
           onClick={() => inputRef.current?.click()}
-          disabled={disabled || isUploading || uploads.length >= MAX_UPLOAD_FILES}
+          disabled={addFilesDisabled}
         >
           {isUploading ? "Uploading…" : "Add files"}
         </button>
@@ -128,7 +142,8 @@ export function UploadPanel({
         accept={UPLOAD_ACCEPT_ATTRIBUTE}
         multiple
         onChange={handleFiles}
-        disabled={disabled || isUploading}
+        disabled={addFilesDisabled}
+        tabIndex={-1}
       />
       <p className="intake-upload__policy">
         {UPLOAD_TYPE_COPY}. Up to 10 MiB each and {MAX_UPLOAD_FILES} files total.
@@ -168,14 +183,14 @@ export function UploadPanel({
           ))}
         </ul>
       )}
-      {(error || externalSessionError) && (
+      {visibleError && (
         <div className="intake-upload__error" role="alert">
           <p>
-            {error || externalSessionError} {(sessionExpired || Boolean(externalSessionError))
+            {visibleError} {recoveryActive
               ? "Choose the files again to start a fresh private session."
               : "Rejected files remain on your device; adjust the selection and try again."}
           </p>
-          {(sessionExpired || Boolean(externalSessionError)) && (
+          {recoveryActive && (
             <button type="button" onClick={resetAndReselect} disabled={disabled || isUploading}>
               Choose files again
             </button>

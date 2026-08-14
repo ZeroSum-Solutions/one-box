@@ -7,11 +7,11 @@
   "inputs": [
     {
       "path": "docs/eval/baseline/brief-v1.json",
-      "sha256": "149220484abbe6f466fafcfc40bf20806af04090bc5f61a8fe99c7f74cb48541"
+      "sha256": "6fbc275b973e5b892d289fcdafbc89b9d2e6daa31b9fab8e56970c0bc6775c6d"
     },
     {
       "path": "docs/eval/baseline/rubric-v1.md",
-      "sha256": "8407fa537545d2ff2a1d193777d33f91b8827933e189670a38f02000374ee208"
+      "sha256": "5d5a1bce43aa59bfb252666585b1a00c590af973b80cbcb6cecb01389d044b07"
     }
   ],
   "paths": [
@@ -38,14 +38,25 @@
     "copy facts, imagery policy, viewport checks, and quality gates"
   ],
   "requiredArtifacts": [
-    "research.json",
-    "design-contract.md",
-    "token-proposal.json",
+    "business-intelligence.json",
+    "design-research-ledger.json",
+    "DESIGN.md",
+    "token-inventory.json",
     "tailwind-plan.json",
     "css-architecture.json",
     "site-manifest.json",
     "visual-qa.json",
     "provenance.json"
+  ],
+  "requiredPresentationArtifacts": [
+    "business-intelligence.json",
+    "design-research-ledger.json",
+    "DESIGN.md",
+    "token-inventory.json",
+    "tailwind-plan.json",
+    "css-architecture.json",
+    "site-manifest.json",
+    "visual-qa.json"
   ],
   "requiredRubricAreas": [
     "Reference relevance",
@@ -66,10 +77,50 @@
   },
   "humanGate": {
     "required": true,
-    "rule": "A named human evaluator must submit complete blind scores with evidence for every rubric area before unblinding."
+    "minimumEvaluators": 2,
+    "rule": "Two distinct named human evaluators must independently submit complete blind scores with evidence for every rubric area, each bound to the current presentation packet, before unblinding."
   },
   "blinding": {
-    "presentationRule": "Presentation copies exclude provenance.json. Producer/model/provider, path identity, timing, and cost metadata must remain in coordinator-only provenance, not the evaluator-facing artifact content.",
-    "blockedTerms": ["path-a", "path-b", "openrouter", "refero mcp", "x-ai/", "grok-4", "gemini-3", "kimi-k3", "deepseek-"]
+    "normalization": "Unicode NFKC, lowercase, then remove non-letter and non-number characters before matching",
+    "presentationRule": "Only requiredPresentationArtifacts are copied. Every source must be a regular non-symlink UTF-8 file. Full-set leak scanning completes before an atomic, immutable presentation publish. provenance.json stays coordinator-only.",
+    "neutralizationRule": "Before submission, replace producer/provider/model/path identity, timestamps, latency, token use, and cost with neutral source IDs, freshness classes, and artifact-local evidence. Full values remain in provenance.json for post-score audit.",
+    "blockedTerms": [
+      "path a",
+      "path b",
+      "path-a",
+      "path-b",
+      "path_a",
+      "path_b",
+      "current one-box pipeline",
+      "one-box pipeline",
+      "direct refero",
+      "refero",
+      "openrouter",
+      "openai",
+      "anthropic",
+      "x-ai",
+      "grok",
+      "gemini",
+      "moonshot",
+      "kimi",
+      "deepseek",
+      "gpt-",
+      "claude-",
+      "providerId",
+      "modelId",
+      "modelSlug",
+      "models",
+      "toolCalls",
+      "createdAt",
+      "capturedAt",
+      "startedAt",
+      "finishedAt",
+      "latencyMs",
+      "durationMs",
+      "costUsd",
+      "inputTokens",
+      "outputTokens",
+      "meteredCalls"
+    ]
   }
 }

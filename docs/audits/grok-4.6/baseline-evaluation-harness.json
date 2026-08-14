@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-14T01:38:49.143Z",
+  "request": {
+    "task": "baseline-evaluation-harness",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "5076f9e417566d37dc676a42464a520794faf810",
+    "head": "5719511ff89ebcf61fd19a0329b1ba1002b7bcd0",
+    "files": [
+      "docs/eval/baseline/brief-v1.json",
+      "docs/eval/baseline/comparison-status.md",
+      "docs/eval/baseline/evaluation-contract-v1.json",
+      "docs/eval/baseline/evaluation-contract-v1.lock.json",
+      "docs/eval/baseline/harness.md",
+      "docs/eval/baseline/root-cause-log.md",
+      "docs/eval/baseline/rubric-v1.md",
+      "scripts/eval/baseline-harness.mjs",
+      "scripts/eval/baseline-harness.node.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 39835
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 12086,
+      "completion_tokens": 12760,
+      "total_tokens": 24846,
+      "cost": 0.10054,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.10054,
+        "upstream_inference_prompt_cost": 0.02398,
+        "upstream_inference_completions_cost": 0.07656
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 11157,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/baseline-harness.mjs",
+        "line": "assembleBlindPacket ~268-280",
+        "scenario": "Identity scan covers only requiredArtifacts via a short blockedTerms list, then fs.cp copies the whole tree (extra files, logs, nested dirs, symlinks). Path B source/provider text such as 'Refero', 'refero.design', 'Path A', model names, timing, or cost is required by the rubric's Source credibility / Efficiency evidence and is not in blockedTerms ('refero mcp', 'path-a', …). A symlink whose basename is not provenance.json is copied un-audited. Evaluator-facing presentation can therefore reveal producer identity while assemble-blind still succeeds.",
+        "remediation": "Copy only regular files from the required non-provenance list after realpath-confining them under the path artifact dir. Reject symlinks. Scan every copied byte for path labels, provider/model tokens (including 'refero' and URL hosts), and timing/cost fields; require neutral source IDs in presentation files."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/baseline-harness.mjs",
+        "line": "unblind ~332-361",
+        "scenario": "unblind only calls validateCompletedArtifacts plus validateHumanScores. It does not require assemble-blind, a presentation packet, or a passed leak check. A coordinator can score labeled artifacts/path-a and artifacts/path-b, supply any non-empty attestation, and obtain UNBLINDED_HUMAN_SCORES_RECORDED. Blinding is a documented convention, not a gate.",
+        "remediation": "Make unblind depend on an existing packet whose contents re-pass the leak scan; bind scores.runManifestSha256 and a packet/presentation hash; refuse unblind if presentation is missing or stale."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/baseline-harness.mjs",
+        "line": "unblind writeJson unblinded-results.json",
+        "scenario": "unblind overwrites unblinded-results.json on every success. After the mapping is known, scores can be edited and unblind re-run, replacing the human-score record. The human-score gate is not a one-way freeze.",
+        "remediation": "If unblinded-results.json exists, refuse unless the new record's scoreSha256 and bytes are identical. Write via temp file + atomic rename."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/eval/baseline-harness.mjs",
+        "line": "validateCompletedArtifacts ~244-252",
+        "scenario": "Provenance is 'complete' if required keys exist, status is completed, runManifestSha256 matches, and list fields are arrays. prompts/models/sources/outputHashes may all be []. outputHashes are never checked against artifact bytes. Dummy files plus empty provenance flip the run from honest BLOCKED into assemble-blind/unblind success and look like live results.",
+        "remediation": "For status=completed require non-empty prompts and models, meteredCalls present (empty only when claimed), and outputHashes covering every required artifact with matching sha256. Treat empty or mismatched provenance as BLOCKED."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/eval/baseline/rubric-v1.md",
+        "line": "31-32",
+        "scenario": "Frozen rubric requires two evaluators with randomized A/B labels. humanGate and validateHumanScores accept a single named evaluator and one scores file, then unblind. Inter-rater disagreement (called out in comparison-status.md) cannot be enforced.",
+        "remediation": "Require two independent score files with distinct evaluator names, both bound to the same manifest/packet hash, before writing unblinded results."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/eval/baseline/brief-v1.json",
+        "line": "requiredArtifacts 47-56 vs evaluation-contract-v1.json 40-49",
+        "scenario": "The hashed brief freezes site, DESIGN.md, business-intelligence.json, token-inventory.json, etc. The evaluation contract/harness freeze a different set (research.json, design-contract.md, token-proposal.json, site-manifest.json, provenance.json). Identical-input / output-artifact constancy is two conflicting truths; a path can pass the harness while missing the brief's artifacts (or the reverse).",
+        "remediation": "Version a single required-artifact list in the contract that is a superset of the brief, or make verifyContract fail if brief.requiredArtifacts is not exactly the non-provenance contract set."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/eval/baseline-harness.mjs",
+        "line": "prepareRun 158-164 and 199-207",
+        "scenario": "Existence check uses fs.access and swallows every error except the synthetic 'run already exists' message (including EACCES). Manifest and unblinding.json are written non-atomically. A half-created run directory permanently blocks retry; a lost race or swallowed error can overwrite an 'immutable' run and break the unblinding binding.",
+        "remediation": "Treat EEXIST/existing run-manifest.json as immutable; rethrow other access errors; write manifest+unblinding in a temp directory and rename into place only when both files are complete."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/eval/baseline-harness.mjs",
+        "line": "prepareRun manifest.blinding.seed ~182-186",
+        "scenario": "run-manifest.json stores the seed and algorithm. Path IDs are public in the frozen contract, so seededOrder(seed, ['path-a','path-b']) reconstructs the mapping without unblinding.json. Anyone given the run directory (not only presentation/) is unblinded.",
+        "remediation": "Keep seed and mapping only in coordinator-only unblinding.json; store a seed hash (not the seed) in the manifest; document that evaluators must receive a copied presentation/ tree with no sibling run files."
+      },
+      {
+        "severity": "LOW",
+        "file": "scripts/eval/baseline-harness.node.mjs",
+        "line": "completed provenance plus full human scores test ~91-128",
+        "scenario": "Tests never assert mapped pathId order, never call unblind/assemble-blind on a BLOCKED run, and writeCompletedArtifacts uses empty outputHashes. A swapped mapping or a dropped BLOCKED gate still passes.",
+        "remediation": "Assert exact pathId↔blindId mapping for the fixed seed, assert unblind/assemble-blind throw on BLOCKED fixtures, and require hashed outputHashes in the completed-artifact helper."
+      }
+    ],
+    "proof_assessment": "No external proof artifacts were supplied. In-repo node:test cases only show happy-path verify/prepare/unblind and one blocked-term leak; they do not independently recompute lock/input hashes here and are too weak to certify blinding, provenance completeness, or immutability. Deterministic tests were treated as claims, not authority.",
+    "residual_risks": [
+      "Live-runner honesty (identical prompts/builder, no hidden paid fallback) is not mechanically attested beyond self-reported provenance.",
+      "Operational leakage if evaluators receive the whole run directory rather than a copied presentation/ packet.",
+      "SHA-256 lock and input digests were not recomputed in this review; a lock/input mismatch would only surface when verifyContract is actually executed.",
+      "Efficiency scoring needs time/cost that the blinding contract forbids in presentation files, so honest blind Efficiency scores remain underspecified even after leak-scan hardening."
+    ]
+  }
+}

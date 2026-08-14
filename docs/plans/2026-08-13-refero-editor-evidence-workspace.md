@@ -1,6 +1,48 @@
 # One-Box Refero editor and evidence workspace
 
-Status: implementation in progress on `codex/refero-editor-goal`.
+Status: implementation in progress on `codex/refero-editor-goal-finalize`.
+
+## 2026-08-13 branch-specific current-state record
+
+This record was refreshed on `codex/refero-editor-goal-finalize` while
+implementation remediation was still active. It is an implementation and
+documentation inventory, not a release declaration. The direct test run on this
+branch was `npm test`: **22 files / 152 tests passed**. Rendered intake,
+workbench, token/motion, live Refero, authenticated OpenRouter, and controlled
+baseline proofs have not been rerun for this record; their requirements remain
+partial or blocked in the acceptance matrix.
+
+Protected active areas—do not overwrite, reformat, or fold them into a broad
+refactor while their owners are remediating them—are:
+
+- `scripts/e2e/token-motion-workbench.mjs` and `scripts/eval/grok-audit.mjs`;
+- `src/app/api/evidence/[id]/route.ts` and its test;
+- `src/components/EvidenceWorkspace.tsx`, its test, and
+  `src/components/preview/MotionControls.tsx`; and
+- `src/lib/builder.ts`, `src/lib/evidence.ts`, `src/lib/evidence.test.ts`,
+  `src/lib/pipeline.ts`, and the untracked `src/lib/fixtures/` area.
+
+The working tree was intentionally non-clean at this point. Those paths are
+implementation-owner territory; this plan and
+`docs/verification/2026-08-13-refero-editor-acceptance.md` are documentation
+owner territory. Re-read both the working tree and acceptance record immediately
+before handoff because an in-flight remediation can invalidate a row's evidence.
+
+External and human gates remain unresolved:
+
+- Devin must complete Refero OAuth for a direct Path B run.
+- The ZS Vault/OpenRouter lane must be unlocked for the authenticated Path A run.
+- Two independent blinded evaluators and Devin's judge-of-record decision are
+  required before the controlled baseline or a routing-policy change can pass.
+- Any paid Firecrawl call still needs the per-run explicit consent recorded in
+  the artifact provenance; a key alone is never consent.
+
+Verification ownership is deliberately separate from implementation ownership:
+the implementation owner supplies focused test and rendered evidence, the
+independent verifier checks the acceptance matrix against the branch, and the
+release owner decides whether the remaining external gates may be opened. Every
+slice retains its stated rollback boundary below; no rollback is authorized by
+this record, and no partial row may be presented as release-ready.
 
 This plan extends the prototype plan of record in
 `docs/plans/2026-08-12-one-box-prototype.md`. The three briefs supplied on
@@ -19,27 +61,36 @@ mechanical, rendered, or saved-artifact check.
 ## Confirmed current state
 
 - The pipeline is a resumable state machine in `src/lib/pipeline.ts`, with Zod
-  contracts in `src/lib/contracts.ts` and project artifacts in `sites/<runId>/`.
+  contracts in `src/lib/contracts.ts`, evidence-gated persistence in
+  `src/lib/runstate.ts`, and project artifacts in `sites/<runId>/`.
 - Generated sites use the frozen `templates/local-service/` skeleton and are
   served through a CSP-protected catch-all route.
 - Preview uses a sandboxed opaque-origin iframe. `public/overlay.js` sends only
   validated selection messages, and `/api/edit` patches pristine source by
   `data-edit-id` before re-running gates.
-- Crawl4AI already precedes Firecrawl for known URLs. The fallback is explicit in
-  code, but its result lacks the full provider-event record required by the new
-  brief.
-- Competitive scan data and Refero reference-lock data are separate contracts.
-- The current intake has no project-target, research configuration, or upload
-  controls. The current editor has selection plus natural-language patching, not
-  direct text/button/token/motion tools or an explicit View mode.
+- Crawl4AI precedes Firecrawl for known URLs and the provider contract records
+  attempts/provenance. Its live known-URL and paid-fallback evidence is still
+  outstanding; unit coverage alone is not a provider-run pass.
+- Competitive scan data and Refero reference-lock data are separate contracts and
+  have focused contract/ledger tests, but no complete authenticated project
+  workspace has been accepted.
+- Intake now exposes Website/Web app/iOS targets, Design Research configuration,
+  and upload staging. The preview now has View/Edit mode, a resizable workbench,
+  structured element editing, token inspection, and constrained motion controls.
+  Those visible behaviors remain partial until the local browser matrices are rerun.
+- Evidence workflow versions, approvals, and build authorization have direct unit
+  coverage; the complete persisted-project/export/browser route remains pending.
 - Existing Phase 4 fixtures cover three prompts and three reference arms. They do
-  not cover the expanded model-routing benchmark.
-- Two source files contain a legacy `/Users/zero-suminc.` home path and must be
-  made portable before the same checkout can work on both Macs.
+  not substitute for the frozen two-path baseline or expanded model-routing
+  benchmark.
+- No `/Users/zero-suminc.` path was found in the current source scan. Portability
+  still needs a clean-install and cross-Mac verification rather than a text scan.
 
-No local clone or worktree existed before this run. Remote `main` was clean at
-`5076f9e417566d37dc676a42464a520794faf810`; the implementation branch was cut
-from that commit.
+Historical base: remote `main` was recorded clean at
+`5076f9e417566d37dc676a42464a520794faf810` before the original implementation
+branch. The active branch for this record is `codex/refero-editor-goal-finalize`;
+its intentionally non-clean state is enumerated above rather than treated as a
+clean checkpoint.
 
 ## Dependency-ordered slices
 

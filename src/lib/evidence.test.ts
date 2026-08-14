@@ -20,6 +20,7 @@ import {
   renderTailwindThemeCss,
   runThreeWidthVisualQa,
   preferredReferenceEvidenceImage,
+  tailwindComponentUtilityClasses,
   verifyAndExportDesignContract,
 } from "./evidence";
 
@@ -250,7 +251,7 @@ describe("evidence artifact derivation", () => {
         "component-state",
       ])
     );
-    expect(architecture.generatedCssPath).toBe("site/tailwind-theme.css");
+    expect(architecture.generatedCssPath).toBe("site/tailwind-utilities.css");
     expect(qa.checks.map((check) => check.area)).toContain("reduced-motion");
     expect(css).toContain("@theme inline");
     expect(css).toContain("var(--ds-color-primary)");
@@ -367,21 +368,24 @@ describe("evidence artifact derivation", () => {
     const runRoot = sitePaths(runId).root;
     const site = sitePaths(runId).site;
     temporaryDirectories.push(runRoot);
+    const runtimeTokens = {
+      ...tokens,
+      colors: [
+        ...tokens.colors,
+        { name: "Background", value: "#111315", cssVar: "--color-bg", role: "Page background" },
+        { name: "Text", value: "#faf9f7", cssVar: "--color-text", role: "Body text" },
+        { name: "Muted", value: "#c9c5bf", cssVar: "--color-text-muted", role: "Secondary text" },
+        { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary" },
+        { name: "Border", value: "#77716a", cssVar: "--color-border", role: "Dividers" },
+        { name: "Surface alt", value: "#24282c", cssVar: "--color-surface-alt", role: "Alternate surface" },
+      ],
+    };
+    const inventory = buildTokenInventory(runtimeTokens, 1, ["fixture"]);
+    const plan = buildTailwindPlan(inventory, 1);
     await buildSite({
       runId,
       intake,
-      tokens: {
-        ...tokens,
-        colors: [
-          ...tokens.colors,
-          { name: "Background", value: "#111315", cssVar: "--color-bg", role: "Page background" },
-          { name: "Text", value: "#faf9f7", cssVar: "--color-text", role: "Body text" },
-          { name: "Muted", value: "#c9c5bf", cssVar: "--color-text-muted", role: "Secondary text" },
-          { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary" },
-          { name: "Border", value: "#77716a", cssVar: "--color-border", role: "Dividers" },
-          { name: "Surface alt", value: "#24282c", cssVar: "--color-surface-alt", role: "Alternate surface" },
-        ],
-      },
+      tokens: runtimeTokens,
       skeleton: {
         sections: [
           { id: "nav", name: "Navigation", purpose: "wayfinding", contentNeeds: [] },
@@ -399,7 +403,26 @@ describe("evidence artifact derivation", () => {
         },
       },
       assets: {},
+      tailwindThemeCss: renderTailwindThemeCss(inventory, plan),
+      tailwindUtilityClasses: tailwindComponentUtilityClasses(plan),
     });
+
+    const [builtHtml, compiledCss] = await Promise.all([
+      fs.readFile(path.join(site, "index.html"), "utf8"),
+      fs.readFile(path.join(site, "tailwind-utilities.css"), "utf8"),
+    ]);
+    expect(builtHtml).toContain("hero__cta font-sans text-body rounded-sm shadow-raised ease-standard max-w-content");
+    expect(builtHtml).toContain('href="tailwind-utilities.css"');
+    expect(compiledCss).toContain(".font-sans");
+    expect(compiledCss).toContain("font-family: var(--ds-font-sans)");
+    const runtimeBrowser = await chromium.launch({ headless: true });
+    try {
+      const runtimePage = await runtimeBrowser.newPage();
+      await runtimePage.goto(`file://${path.join(site, "index.html")}`);
+      expect(await runtimePage.locator(".hero__cta").evaluate((element) => getComputedStyle(element).fontFamily)).toContain("Public Sans");
+    } finally {
+      await runtimeBrowser.close();
+    }
 
     const qa = await runThreeWidthVisualQa(runId, site, 1);
     for (const area of ["desktop", "tablet", "mobile"] as const) {

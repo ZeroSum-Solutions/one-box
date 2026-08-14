@@ -56,15 +56,25 @@
     });
   }
 
+  function isObject(value) {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function hasOnlyKeys(value, allowed) {
+    return Object.keys(value).every(function (key) { return allowed.indexOf(key) >= 0; });
+  }
+
   function validEntry(entry) {
-    if (!entry || typeof entry !== "object" || typeof entry.id !== "string" || typeof entry.editId !== "string") return false;
+    var allowedKeys = ["id", "editId", "kind", "durationMs", "delayMs", "ease", "properties", "trigger", "replay", "breakpoint", "scrub", "timelineId", "order"];
+    if (!isObject(entry) || !hasOnlyKeys(entry, allowedKeys) || typeof entry.id !== "string" || typeof entry.editId !== "string") return false;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(entry.id)) return false;
     if (!/^[a-z0-9][a-z0-9._-]{1,79}$/i.test(entry.editId)) return false;
     if (["entrance", "exit", "hover", "scroll", "timeline"].indexOf(entry.kind) < 0) return false;
     if (["load", "viewport", "hover", "manual"].indexOf(entry.trigger) < 0) return false;
     if (["once", "repeat"].indexOf(entry.replay) < 0 || !breakpointQueries[entry.breakpoint]) return false;
     if (["none", "power1.out", "power2.out", "power3.out", "sine.inOut"].indexOf(entry.ease) < 0) return false;
     if (!Number.isInteger(entry.durationMs) || entry.durationMs < 50 || entry.durationMs > 5000 || !Number.isInteger(entry.delayMs) || entry.delayMs < 0 || entry.delayMs > 5000) return false;
-    if (!entry.properties || typeof entry.properties !== "object") return false;
+    if (!isObject(entry.properties)) return false;
     var bounds = { x: [-2000, 2000], y: [-2000, 2000], scale: [0.1, 4], rotation: [-360, 360], opacity: [0, 1] };
     if (!(Object.keys(entry.properties).length > 0 && Object.keys(entry.properties).every(function (key) {
       return bounds[key] && typeof entry.properties[key] === "number" && isFinite(entry.properties[key]) && entry.properties[key] >= bounds[key][0] && entry.properties[key] <= bounds[key][1];
@@ -72,8 +82,22 @@
     if (entry.kind === "hover" && entry.trigger !== "hover") return false;
     if (entry.kind === "scroll" && entry.trigger !== "viewport") return false;
     if (entry.kind === "exit" && entry.trigger !== "manual") return false;
-    if (entry.kind === "timeline" && (typeof entry.timelineId !== "string" || !Number.isInteger(entry.order))) return false;
+    if (Object.prototype.hasOwnProperty.call(entry, "scrub") && typeof entry.scrub !== "boolean") return false;
+    if (entry.scrub && entry.kind !== "scroll") return false;
+    if (entry.kind === "timeline") {
+      if (typeof entry.timelineId !== "string" || !/^[a-z0-9][a-z0-9_-]{1,39}$/i.test(entry.timelineId)) return false;
+      if (!Number.isInteger(entry.order) || entry.order < 0 || entry.order > 50) return false;
+    } else if (Object.prototype.hasOwnProperty.call(entry, "timelineId") || Object.prototype.hasOwnProperty.call(entry, "order")) return false;
     return true;
+  }
+
+  function validManifest(manifest) {
+    return isObject(manifest) &&
+      hasOnlyKeys(manifest, ["version", "entries"]) &&
+      manifest.version === 1 &&
+      Array.isArray(manifest.entries) &&
+      manifest.entries.length <= 100 &&
+      manifest.entries.every(validEntry);
   }
 
   function mark(element, entry) {
@@ -85,6 +109,15 @@
     state.listeners.push(function () { element.removeEventListener(eventName, handler); });
   }
 
+  function addReplayListener(element, eventName, entry, handler) {
+    var played = false;
+    addListener(element, eventName, function () {
+      if (entry.replay === "once" && played) return;
+      played = true;
+      handler();
+    });
+  }
+
   function installEntry(entry, timelines) {
     if (!matchesBreakpoint(entry.breakpoint)) return;
     var element = exactTarget(entry.editId);
@@ -92,7 +125,12 @@
     mark(element, entry);
     var vars = varsFor(entry);
     if (entry.kind === "hover") {
-      var tween = function () { window.gsap.to(element, vars); };
+      var played = false;
+      var tween = function () {
+        if (entry.replay === "once" && played) return;
+        played = true;
+        window.gsap.to(element, vars);
+      };
       var reset = function () { window.gsap.to(element, { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1, duration: Math.min(vars.duration, 0.3), overwrite: "auto" }); };
       addListener(element, "pointerenter", tween);
       addListener(element, "pointerleave", reset);
@@ -114,12 +152,21 @@
       return;
     }
     if (entry.kind === "timeline") {
-      var timeline = timelines[entry.timelineId] || (timelines[entry.timelineId] = window.gsap.timeline({ paused: entry.trigger === "manual" }));
-      timeline.from(element, vars, entry.order);
+      var timelineKey = [entry.timelineId, entry.trigger, entry.replay].join(":");
+      var group = timelines[timelineKey];
+      if (!group) {
+        group = timelines[timelineKey] = {
+          entry: entry,
+          element: element,
+          timeline: window.gsap.timeline({ paused: true }),
+        };
+      }
+      group.timeline.from(element, Object.assign({}, vars, { immediateRender: false }));
+      if (entry.trigger === "manual") addReplayListener(element, "onebox-motion-preview", entry, function () { group.timeline.restart(); });
       return;
     }
     if (entry.kind === "exit") {
-      addListener(element, "onebox-motion-preview", function () { window.gsap.to(element, vars); });
+      addReplayListener(element, "onebox-motion-preview", entry, function () { window.gsap.to(element, vars); });
       return;
     }
     if (entry.trigger === "viewport") {
@@ -133,15 +180,33 @@
         },
       }));
     } else if (entry.trigger === "manual") {
-      addListener(element, "onebox-motion-preview", function () { window.gsap.from(element, vars); });
+      addReplayListener(element, "onebox-motion-preview", entry, function () { window.gsap.from(element, vars); });
     } else {
       window.gsap.from(element, vars);
     }
   }
 
+  function startTimelines(timelines) {
+    Object.keys(timelines).forEach(function (key) {
+      var group = timelines[key];
+      if (group.entry.trigger === "load") {
+        group.timeline.play(0);
+      } else if (group.entry.trigger === "viewport") {
+        window.ScrollTrigger.create({
+          id: "onebox:" + group.entry.id,
+          trigger: group.element,
+          animation: group.timeline,
+          start: "top 85%",
+          toggleActions: group.entry.replay === "repeat" ? "play reverse play reverse" : "play none none none",
+          invalidateOnRefresh: true,
+        });
+      }
+    });
+  }
+
   function applyManifest(manifest) {
     cleanup();
-    if (!manifest || manifest.version !== 1 || !Array.isArray(manifest.entries) || !manifest.entries.length) {
+    if (!validManifest(manifest) || !manifest.entries.length) {
       document.documentElement.classList.remove("no-motion");
       return;
     }
@@ -154,8 +219,8 @@
     }
     state.context = window.gsap.context(function () {
       var timelines = Object.create(null);
-      manifest.entries.filter(validEntry).slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).forEach(function (entry) { installEntry(entry, timelines); });
-      Object.keys(timelines).forEach(function (key) { if (!timelines[key].paused()) timelines[key].play(0); });
+      manifest.entries.slice().sort(function (a, b) { return (a.order || 0) - (b.order || 0); }).forEach(function (entry) { installEntry(entry, timelines); });
+      startTimelines(timelines);
     }, document.body);
     window.ScrollTrigger.refresh();
   }
@@ -185,7 +250,8 @@
     applyManifest({ version: 1, entries: [entry] });
     var element = exactTarget(entry.editId);
     if (!element || !window.gsap) return false;
-    if (entry.kind === "hover" || entry.kind === "exit") window.gsap.to(element, varsFor(entry));
+    if (entry.kind === "hover") window.gsap.to(element, varsFor(entry));
+    else if (entry.trigger === "manual") element.dispatchEvent(new Event("onebox-motion-preview"));
     return true;
   }
 

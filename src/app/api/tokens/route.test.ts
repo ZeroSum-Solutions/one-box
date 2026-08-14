@@ -27,7 +27,7 @@ describe("token route authorization", () => {
   });
   it("allows local read and exact-origin validation", async () => {
     expect((await GET(new Request("http://localhost:3000/api/tokens?runId=test-run"))).status).toBe(200);
-    const request = new Request("http://localhost:3000/api/tokens", { method: "POST", headers: { Origin: "http://localhost:3000", "Content-Type": "application/json" }, body: "{}" });
+    const request = new Request("http://localhost:3000/api/tokens", { method: "POST", headers: { Origin: "http://localhost:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" }, body: "{}" });
     expect((await POST(request)).status).toBe(400);
   });
 });

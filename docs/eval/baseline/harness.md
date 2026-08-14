@@ -27,26 +27,32 @@ Create a run only after selecting a reproducible seed and run ID:
 npm run eval:baseline:prepare -- --run-id fiber-refero-v1 --seed review-2026-08-13
 ```
 
-This writes `docs/eval/baseline/runs/fiber-refero-v1/`. Both paths are explicitly
+This atomically writes `docs/eval/baseline/runs/fiber-refero-v1/`; an existing run is
+immutable and is never replaced. Both paths are explicitly
 `BLOCKED` because the offline harness cannot attest Refero OAuth or ZS Vault access
 and is forbidden to run providers. The run manifest preserves the contract hash,
-input hashes, seed, and randomized blind presentation order. The separately stored
-`unblinding.json` must not be given to evaluators.
+input hashes, seed hash, and randomized blind presentation order. The seed itself and
+mapping exist only in the coordinator-side `unblinding.json`, which must not be given
+to evaluators.
 
 ## Live boundary and provenance
 
 An approved live runner may place actual outputs in `artifacts/path-a/` and
 `artifacts/path-b/` beneath that run. Each path needs every file listed in the frozen
-contract. `provenance.json` must identify the exact path, mark itself `completed`,
-bind the run-manifest SHA-256, record prompts/models/tool calls/source records/output
-hashes, and state `meteredCalls: []` when no metered calls occurred. The harness
-rejects absent, blocked, or mismatched provenance.
+contract. Every required artifact must be a regular, non-symlink file.
+`provenance.json` must identify the exact path, mark itself `completed`, bind the
+run-manifest SHA-256, record nonempty prompts and models, explicitly record tool calls,
+sources, and metered calls, and supply a matching SHA-256 for every presentation
+artifact. (`provenance.json` cannot self-hash.) The harness rejects absent, blocked,
+mismatched, incomplete, duplicate, or unexpected provenance.
 
 Keep this rich provenance coordinator-only. Evaluator-facing artifact content must use
-neutral source IDs and cannot contain a path label, provider, model, timing, or cost.
-`assemble-blind` excludes provenance and rejects the frozen contract's producer-
-identity terms in presentation files. Full source URLs and provider records remain
-available for the audit after the human blind score is fixed.
+neutral source IDs and freshness classes and cannot contain path, provider, model,
+timing, token-use, or cost metadata. `assemble-blind` reads only the frozen regular-
+file allowlist, completes normalized leak scanning across the full set, then atomically
+publishes an immutable presentation packet. It never recursively copies an artifact
+directory. Full source URLs and provider records remain available for the audit after
+both human blind scores are fixed.
 
 It does not authorize that runner, unlock a vault, or treat a provider's availability
 as completion. Preserve provider errors as provenance; do not replace them with a
@@ -59,22 +65,27 @@ blinded presentation packet:
 
 ```sh
 node scripts/eval/baseline-harness.mjs assemble-blind --run-id fiber-refero-v1
-node scripts/eval/baseline-harness.mjs score-template --run-id fiber-refero-v1
+node scripts/eval/baseline-harness.mjs score-template --run-id fiber-refero-v1 --evaluator-slot 1
+node scripts/eval/baseline-harness.mjs score-template --run-id fiber-refero-v1 --evaluator-slot 2
 ```
 
-Give only `presentation/` and `scores.template.json` to the evaluator. The evaluator
-fills each score from 0 to 4, cites evidence, names themselves, supplies a timestamp,
-and attests that scoring was blind. Then a coordinator may run:
+Give only `presentation/` and one evaluator-specific template to each evaluator. Both
+evaluators independently fill each score from 0 to 4, cite evidence, provide distinct
+IDs and names, supply timestamps, and attest that scoring was blind. Each score file
+is bound to the current packet hash. Then a coordinator may run:
 
 ```sh
 node scripts/eval/baseline-harness.mjs unblind --run-id fiber-refero-v1 \
-  --scores /absolute/path/to/completed-scores.json
+  --scores-a /absolute/path/to/evaluator-1.json \
+  --scores-b /absolute/path/to/evaluator-2.json
 ```
 
-Unblinding is blocked until both complete artifact sets and all human scores validate.
-The resulting record is an audited score aggregation only; it does not change model
-routing or declare a root cause. Those decisions remain governed by the frozen rubric
-and the independent quality audit.
+Unblinding revalidates source provenance, current packet hashes, the presentation
+allowlist, non-symlink files, and the full leak scan. It is blocked until both complete
+artifact sets and both distinct human score files validate. The result is written
+atomically once and cannot be overwritten. It is an audited score aggregation only;
+it does not change model routing or declare a root cause. Those decisions remain
+governed by the frozen rubric and the independent quality audit.
 
 Historical `docs/eval/ab/` material remains historical evidence only. It is neither
 input nor a result of this two-path controlled comparison.

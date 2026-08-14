@@ -15,7 +15,7 @@ function request(body = '{"runId":"run-test"}', origin?: string) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(origin ? { Origin: origin } : {}),
+      ...(origin ? { Origin: origin, "Sec-Fetch-Site": "same-origin" } : {}),
     },
     body,
   });

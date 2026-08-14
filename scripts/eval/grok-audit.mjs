@@ -21,7 +21,7 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const options = { files: [], proofs: [], model: "x-ai/grok-4.6" };
+  const options = { files: [], proofs: [], model: "x-ai/grok-4.6", effort: "medium" };
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index];
     if (key === "--dry-run") {
@@ -38,12 +38,16 @@ function parseArgs(argv) {
     else if (key === "--criterion") options.criterion = value;
     else if (key === "--out") options.out = value;
     else if (key === "--model") options.model = value;
+    else if (key === "--effort") options.effort = value;
     else fail(`unknown argument: ${key}`);
   }
   for (const required of ["task", "base", "criterion", "out"]) {
     if (!options[required]) fail(`missing --${required.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`);
   }
   if (options.files.length === 0) fail("at least one --file is required");
+  if (!["low", "medium", "high", "xhigh"].includes(options.effort)) {
+    fail("--effort must be low, medium, high, or xhigh");
+  }
   return options;
 }
 
@@ -150,6 +154,7 @@ const patchDocument = [
 const requestSummary = {
   task: options.task,
   model: options.model,
+  effort: options.effort,
   base: options.base,
   head,
   files,
@@ -167,6 +172,7 @@ if (!apiKey) fail("OPENROUTER_API_KEY is not set; load it through ZS Vault first
 
 const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
   method: "POST",
+  signal: AbortSignal.timeout(300_000),
   headers: {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
@@ -175,7 +181,7 @@ const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
   },
   body: JSON.stringify({
     model: options.model,
-    reasoning: { effort: "high" },
+    reasoning: { effort: options.effort },
     temperature: 0,
     max_tokens: 12_000,
     response_format: { type: "json_object" },
@@ -183,19 +189,7 @@ const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       { role: "system", content: auditPrompt },
       {
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Read the attached repository diff and proof directly. Audit the stated criterion.",
-          },
-          {
-            type: "file",
-            file: {
-              filename: `${options.task}-diff-and-proof.md`,
-              file_data: `data:text/markdown;base64,${Buffer.from(patchDocument).toString("base64")}`,
-            },
-          },
-        ],
+        content: `Audit the stated criterion against this bounded repository diff and proof. The complete input follows inline; do not request another tool or file.\n\n${patchDocument}`,
       },
     ],
   }),
@@ -217,6 +211,15 @@ try {
   audit = JSON.parse(content);
 } catch {
   fail("Grok audit was not valid JSON");
+}
+if (
+  !audit ||
+  !["CLEAN", "FINDINGS"].includes(audit.verdict) ||
+  !Array.isArray(audit.findings) ||
+  !Array.isArray(audit.residual_risks) ||
+  typeof audit.proof_assessment !== "string"
+) {
+  fail("Grok audit did not match the required verdict schema");
 }
 
 const output = {

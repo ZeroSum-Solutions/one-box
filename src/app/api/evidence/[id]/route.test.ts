@@ -5,9 +5,11 @@ import { GET, POST } from "./route";
 import { GET as EXPORT } from "./export/route";
 import {
   createRun,
+  artifactApprovalState,
   advanceEvidenceWorkflow,
   saveArtifact,
   saveEvidenceArtifactVersion,
+  loadRun,
   sitePaths,
   transitionEvidenceArtifactApproval,
 } from "../../../../lib/runstate";
@@ -75,7 +77,7 @@ function request(runId: string, body?: unknown, origin = "http://localhost:3000"
   return new Request(`http://localhost:3000/api/evidence/${runId}`, {
     method: body ? "POST" : "GET",
     headers: body
-      ? { "Content-Type": "application/json", Origin: origin }
+      ? { "Content-Type": "application/json", Origin: origin, "Sec-Fetch-Site": "same-origin" }
       : { Origin: origin },
     body: body ? JSON.stringify(body) : undefined,
   });
@@ -282,7 +284,7 @@ describe("evidence workspace routes", () => {
         checks: (["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const).map((area) => ({
           area,
           status: "pass",
-          ...(["desktop", "tablet", "mobile"].includes(area) ? { evidencePath: `evidence/qa/${area}.png` } : {}),
+          ...(["desktop", "tablet", "mobile"].includes(area) ? { evidencePath: `evidence/qa/v1/${area}.png` } : {}),
         })),
       },
     });
@@ -303,5 +305,46 @@ describe("evidence workspace routes", () => {
     const response = await approval;
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ error: "visual QA does not match the current build" });
-  });
+    const retainedV1 = path.join(sitePaths(runId).root, "evidence/qa/v1/desktop.png");
+    await fs.mkdir(path.dirname(retainedV1), { recursive: true });
+    await fs.writeFile(retainedV1, "v1 evidence");
+    expect((await POST(request(runId, { action: "request-revision", note: "Re-run against the changed build" }), context(runId))).status).toBe(200);
+    const concurrent = await Promise.all([
+      POST(request(runId, { action: "regenerate-visual-qa" }), context(runId)),
+      POST(request(runId, { action: "regenerate-visual-qa" }), context(runId)),
+    ]);
+    expect(concurrent.map((candidate) => candidate.status).sort()).toEqual([200, 409]);
+    const regenerated = concurrent.find((candidate) => candidate.status === 200)!;
+    expect(regenerated.status).toBe(200);
+    const payload = await regenerated.json();
+    const versions = payload.workflow.artifacts.filter((artifact: { artifactType: string }) => artifact.artifactType === "visual-qa");
+    expect(versions).toHaveLength(2);
+    expect(versions[0].approvalTransitions.at(-1).state).toBe("superseded");
+    expect(versions[1]).toMatchObject({ version: 2, revisionOf: 1 });
+    expect(versions[1].artifact.checks.find((check: { area: string }) => check.area === "desktop").evidencePath).toContain("evidence/qa/v2/");
+    expect(await fs.readFile(retainedV1, "utf8")).toBe("v1 evidence");
+    expect((await POST(request(runId, { action: "request-revision", note: "Exercise transactional failure recovery" }), context(runId))).status).toBe(200);
+    const aliasPath = path.join(sitePaths(runId).root, ARTIFACTS.visualQa);
+    const aliasBeforeFailure = await fs.readFile(aliasPath);
+    const blockedTarget = path.join(sitePaths(runId).root, "evidence/qa/v3/tablet-768.png");
+    await fs.mkdir(blockedTarget, { recursive: true });
+    await expect(
+      POST(request(runId, { action: "regenerate-visual-qa" }), context(runId))
+    ).rejects.toThrow();
+    await expect(
+      fs.access(path.join(sitePaths(runId).root, "evidence/qa/v3/desktop-1440.png"))
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      fs.access(path.join(sitePaths(runId).root, "evidence/qa/v3/mobile-390.png"))
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      fs.access(path.join(sitePaths(runId).root, "evidence/versions/visual-qa/v3.json"))
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(aliasPath)).toEqual(aliasBeforeFailure);
+    const afterFailure = await loadRun(runId);
+    const qaVersions = afterFailure.evidenceWorkflow.artifacts.filter((artifact) => artifact.artifactType === "visual-qa");
+    expect(qaVersions).toHaveLength(2);
+    expect(artifactApprovalState(qaVersions[1])).toBe("revision-requested");
+    expect((await fs.readdir(path.join(sitePaths(runId).root, "evidence"))).some((entry) => entry.startsWith(".qa-stage-"))).toBe(false);
+  }, 60_000);
 });

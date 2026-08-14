@@ -4,6 +4,7 @@
  * It validates bytes and evidence, but never reads credentials or calls a provider.
  */
 import crypto from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,6 +13,7 @@ const SCRIPT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const CONTRACT_PATH = "docs/eval/baseline/evaluation-contract-v1.json";
 const LOCK_PATH = "docs/eval/baseline/evaluation-contract-v1.lock.json";
 const RUNS_PATH = "docs/eval/baseline/runs";
+const PROVENANCE_FILE = "provenance.json";
 
 export const REQUIRED_PROVENANCE_FIELDS = [
   "pathId",
@@ -60,19 +62,88 @@ function rootPath(root, relativePath) {
   return resolved;
 }
 
-async function readJson(file) {
+function jsonBytes(value) {
+  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function readRegularFile(file, label = file) {
+  let linkStat;
   try {
-    return JSON.parse(await fs.readFile(file, "utf8"));
+    linkStat = await fs.lstat(file);
   } catch (error) {
-    fail(`invalid JSON at ${file}: ${error instanceof Error ? error.message : String(error)}`);
+    fail(`${label} is unreadable: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (linkStat.isSymbolicLink() || !linkStat.isFile()) fail(`${label} must be a regular non-symlink file`);
+  let handle;
+  try {
+    handle = await fs.open(file, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    const before = await handle.stat();
+    if (!before.isFile()) fail(`${label} must be a regular file`);
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs) {
+      fail(`${label} changed while it was being read`);
+    }
+    return bytes;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(label)) throw error;
+    fail(`${label} is unreadable: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    await handle?.close();
   }
 }
 
-async function readFileHash(file) {
-  return sha256(await fs.readFile(file));
+function parseJsonBytes(bytes, label) {
+  try {
+    return JSON.parse(bytes.toString("utf8"));
+  } catch (error) {
+    fail(`invalid JSON at ${label}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
-export function validateRubric(rubric, requiredAreas) {
+async function readJson(file, label = file) {
+  return parseJsonBytes(await readRegularFile(file, label), label);
+}
+
+async function readFileHash(file) {
+  return sha256(await readRegularFile(file));
+}
+
+async function writeFileExclusive(file, bytes) {
+  const handle = await fs.open(file, "wx", 0o600);
+  try {
+    await handle.writeFile(bytes);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function writeJsonExclusive(file, value) {
+  await writeFileExclusive(file, jsonBytes(value));
+}
+
+async function atomicWriteImmutable(file, bytes, description) {
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  const temporary = path.join(path.dirname(file), `.${path.basename(file)}.${crypto.randomUUID()}.tmp`);
+  try {
+    await writeFileExclusive(temporary, bytes);
+    try {
+      await fs.link(temporary, file);
+    } catch (error) {
+      if (error && typeof error === "object" && error.code === "EEXIST") fail(`${description} already exists and is immutable`);
+      throw error;
+    }
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+function sameStrings(left, right) {
+  return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+export function validateRubric(rubric, requiredAreas, minimumEvaluators) {
   const errors = [];
   if (!rubric.includes("Status: frozen before the controlled comparison run.")) {
     errors.push("rubric is not marked frozen before the controlled comparison");
@@ -82,6 +153,7 @@ export function validateRubric(rubric, requiredAreas) {
   }
   if (!rubric.includes("Automatic rejection:")) errors.push("rubric is missing automatic rejection rules");
   if (!rubric.includes("randomized A/B labels")) errors.push("rubric is missing blinded evaluator instructions");
+  if (!rubric.includes(`${minimumEvaluators} distinct human evaluators`)) errors.push("rubric is missing the distinct human-evaluator gate");
   return errors;
 }
 
@@ -89,16 +161,14 @@ export async function verifyContract(root = SCRIPT_ROOT) {
   const contractFile = rootPath(root, CONTRACT_PATH);
   const lockFile = rootPath(root, LOCK_PATH);
   const [contractBytes, contract, lock] = await Promise.all([
-    fs.readFile(contractFile),
-    readJson(contractFile),
-    readJson(lockFile),
+    readRegularFile(contractFile, CONTRACT_PATH),
+    readJson(contractFile, CONTRACT_PATH),
+    readJson(lockFile, LOCK_PATH),
   ]);
   const errors = [];
   if (contract.status !== "frozen") errors.push("contract status must be frozen");
   if (contract.hashAlgorithm !== "sha256") errors.push("contract must use sha256");
-  if (lock.contractPath !== CONTRACT_PATH || lock.sha256 !== sha256(contractBytes)) {
-    errors.push("contract SHA-256 does not match its lock");
-  }
+  if (lock.contractPath !== CONTRACT_PATH || lock.sha256 !== sha256(contractBytes)) errors.push("contract SHA-256 does not match its lock");
   if (!Array.isArray(contract.inputs) || contract.inputs.length < 2) errors.push("contract must declare frozen inputs");
   for (const input of contract.inputs ?? []) {
     if (!input.path || !/^[a-f0-9]{64}$/.test(input.sha256 ?? "")) {
@@ -112,11 +182,21 @@ export async function verifyContract(root = SCRIPT_ROOT) {
   if (!rubricInput) {
     errors.push("contract must include a rubric input");
   } else {
-    const rubric = await fs.readFile(rootPath(root, rubricInput.path), "utf8");
-    errors.push(...validateRubric(rubric, contract.requiredRubricAreas ?? []));
+    const rubric = (await readRegularFile(rootPath(root, rubricInput.path), rubricInput.path)).toString("utf8");
+    errors.push(...validateRubric(rubric, contract.requiredRubricAreas ?? [], contract.humanGate?.minimumEvaluators));
   }
+  const briefInput = (contract.inputs ?? []).find((input) => input.path.endsWith("brief-v1.json"));
+  if (!briefInput) {
+    errors.push("contract must include a brief input");
+  } else {
+    const brief = await readJson(rootPath(root, briefInput.path), briefInput.path);
+    if (!sameStrings(brief.requiredArtifacts, contract.requiredArtifacts)) errors.push("brief and contract requiredArtifacts must match exactly");
+  }
+  const expectedPresentation = (contract.requiredArtifacts ?? []).filter((name) => name !== PROVENANCE_FILE);
+  if (!sameStrings(expectedPresentation, contract.requiredPresentationArtifacts)) errors.push("requiredPresentationArtifacts must equal requiredArtifacts excluding provenance.json");
+  if (!Array.isArray(contract.blinding?.blockedTerms) || contract.blinding.blockedTerms.length < 12) errors.push("blinding contract needs a complete blocked-term list");
   if (contract.liveExecution?.permittedByThisHarness !== false) errors.push("harness must remain offline-only");
-  if (contract.humanGate?.required !== true) errors.push("contract must require a human score gate");
+  if (contract.humanGate?.required !== true || contract.humanGate?.minimumEvaluators !== 2) errors.push("contract must require two human evaluators");
   return { contract, contractSha256: sha256(contractBytes), errors };
 }
 
@@ -127,6 +207,7 @@ function parseArgs(argv) {
     const key = rest[index];
     const value = rest[index + 1];
     if (!key.startsWith("--") || !value || value.startsWith("--")) fail(`missing value for ${key}`);
+    if (key.slice(2) in options) fail(`duplicate option: ${key}`);
     options[key.slice(2)] = value;
     index += 1;
   }
@@ -145,22 +226,38 @@ function runDirectory(root, runId) {
   return rootPath(root, path.join(RUNS_PATH, validateRunId(runId)));
 }
 
-async function writeJson(file, value) {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  await fs.writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+async function publishDirectory(parent, name, populate, description) {
+  await fs.mkdir(parent, { recursive: true });
+  const destination = path.join(parent, name);
+  try {
+    await fs.lstat(destination);
+    fail(`${description} already exists and is immutable`);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(description)) throw error;
+    if (!error || typeof error !== "object" || error.code !== "ENOENT") throw error;
+  }
+  const temporary = path.join(parent, `.${name}.${crypto.randomUUID()}.tmp`);
+  await fs.mkdir(temporary, { recursive: false, mode: 0o700 });
+  try {
+    await populate(temporary);
+    try {
+      await fs.rename(temporary, destination);
+    } catch (error) {
+      if (error && typeof error === "object" && ["EEXIST", "ENOTEMPTY"].includes(error.code)) {
+        fail(`${description} already exists and is immutable`);
+      }
+      throw error;
+    }
+  } finally {
+    await fs.rm(temporary, { recursive: true, force: true });
+  }
+  return destination;
 }
 
 export async function prepareRun({ root = SCRIPT_ROOT, runId, seed, createdAt = new Date().toISOString() }) {
   if (!seed) fail("--seed is required to reproduce blind presentation order");
   const verification = await verifyContract(root);
   if (verification.errors.length) fail(`frozen contract invalid:\n- ${verification.errors.join("\n- ")}`);
-  const directory = runDirectory(root, runId);
-  try {
-    await fs.access(directory);
-    fail(`run already exists and is immutable: ${runId}`);
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith("run already exists")) throw error;
-  }
   const orderedPathIds = seededOrder(seed, verification.contract.paths.map((entry) => entry.id));
   const blindArtifacts = orderedPathIds.map((pathId, index) => ({
     blindId: `artifact-${String(index + 1).padStart(2, "0")}`,
@@ -173,13 +270,9 @@ export async function prepareRun({ root = SCRIPT_ROOT, runId, seed, createdAt = 
     status: "BLOCKED",
     createdAt,
     executionMode: "offline-plan-only",
-    contract: {
-      path: CONTRACT_PATH,
-      sha256: verification.contractSha256,
-      inputHashes: verification.contract.inputs,
-    },
+    contract: { path: CONTRACT_PATH, sha256: verification.contractSha256, inputHashes: verification.contract.inputs },
     blinding: {
-      seed,
+      seedSha256: sha256(seed),
       algorithm: "fnv1a-mulberry32-fisher-yates-v1",
       presentationOrder: blindArtifacts.map(({ blindId, presentationOrder }) => ({ blindId, presentationOrder })),
     },
@@ -195,102 +288,225 @@ export async function prepareRun({ root = SCRIPT_ROOT, runId, seed, createdAt = 
       result: "No live artifacts or scores were created.",
     },
   };
-  const manifestHash = sha256(`${JSON.stringify(manifest, null, 2)}\n`);
-  await fs.mkdir(directory, { recursive: true });
-  await writeJson(path.join(directory, "run-manifest.json"), manifest);
-  await writeJson(path.join(directory, "unblinding.json"), {
-    schemaVersion: 1,
-    runId,
-    runManifestSha256: manifestHash,
-    visibility: "coordinator-only; never provide this file to blinded evaluators",
-    mapping: blindArtifacts,
-  });
+  const manifestBytes = jsonBytes(manifest);
+  const manifestHash = sha256(manifestBytes);
+  const parent = rootPath(root, RUNS_PATH);
+  const directory = await publishDirectory(parent, validateRunId(runId), async (temporary) => {
+    await writeFileExclusive(path.join(temporary, "run-manifest.json"), manifestBytes);
+    await writeJsonExclusive(path.join(temporary, "unblinding.json"), {
+      schemaVersion: 1,
+      runId,
+      runManifestSha256: manifestHash,
+      visibility: "coordinator-only; never provide this file to blinded evaluators",
+      seed,
+      mapping: blindArtifacts,
+    });
+  }, `run ${runId}`);
   return { directory, manifest, manifestHash };
 }
 
 async function readRun(root, runId) {
   const directory = runDirectory(root, runId);
   const manifestFile = path.join(directory, "run-manifest.json");
-  const manifestBytes = await fs.readFile(manifestFile);
-  const unblinding = await readJson(path.join(directory, "unblinding.json"));
-  const manifest = JSON.parse(manifestBytes.toString("utf8"));
+  const manifestBytes = await readRegularFile(manifestFile, "run-manifest.json");
+  const manifest = parseJsonBytes(manifestBytes, "run-manifest.json");
+  const unblinding = await readJson(path.join(directory, "unblinding.json"), "unblinding.json");
   const manifestHash = sha256(manifestBytes);
   if (unblinding.runManifestSha256 !== manifestHash) fail("unblinding key is not bound to this run manifest");
+  if (sha256(unblinding.seed ?? "") !== manifest.blinding?.seedSha256) fail("coordinator seed does not match the run manifest seed hash");
   return { directory, manifest, manifestHash, unblinding };
+}
+
+async function readArtifactSet(directory, contract, pathId) {
+  const artifactDirectory = path.join(directory, "artifacts", pathId);
+  const files = new Map();
+  const errors = [];
+  for (const name of contract.requiredArtifacts) {
+    try {
+      files.set(name, await readRegularFile(path.join(artifactDirectory, name), `${pathId} ${name}`));
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  if (errors.length || !files.has(PROVENANCE_FILE)) return { files, errors };
+  let provenance;
+  try {
+    provenance = parseJsonBytes(files.get(PROVENANCE_FILE), `${pathId} ${PROVENANCE_FILE}`);
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error));
+    return { files, errors };
+  }
+  for (const field of REQUIRED_PROVENANCE_FIELDS) {
+    if (!(field in provenance)) errors.push(`${pathId} provenance missing: ${field}`);
+  }
+  if (provenance.pathId !== pathId) errors.push(`${pathId} provenance pathId mismatch`);
+  if (provenance.status !== "completed") errors.push(`${pathId} provenance is not completed`);
+  for (const listField of ["prompts", "models", "toolCalls", "sources", "outputHashes", "meteredCalls"]) {
+    if (!Array.isArray(provenance[listField])) errors.push(`${pathId} provenance ${listField} must be an array`);
+  }
+  const hasContent = (entry) => (typeof entry === "string" ? entry.trim().length > 0 : entry && typeof entry === "object" && Object.keys(entry).length > 0);
+  if (!Array.isArray(provenance.prompts) || provenance.prompts.length === 0 || !provenance.prompts.every(hasContent)) errors.push(`${pathId} provenance prompts must contain nonempty records`);
+  if (!Array.isArray(provenance.models) || provenance.models.length === 0 || !provenance.models.every(hasContent)) errors.push(`${pathId} provenance models must contain nonempty records`);
+  if (Array.isArray(provenance.outputHashes)) {
+    const hashes = new Map();
+    for (const entry of provenance.outputHashes) {
+      if (!entry || typeof entry.path !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256 ?? "")) {
+        errors.push(`${pathId} provenance contains an invalid output hash`);
+        continue;
+      }
+      if (hashes.has(entry.path)) errors.push(`${pathId} provenance contains duplicate output hash: ${entry.path}`);
+      hashes.set(entry.path, entry.sha256);
+    }
+    for (const name of contract.requiredPresentationArtifacts) {
+      if (!hashes.has(name)) errors.push(`${pathId} provenance outputHashes missing: ${name}`);
+      else if (files.has(name) && hashes.get(name) !== sha256(files.get(name))) errors.push(`${pathId} provenance output hash mismatch: ${name}`);
+    }
+    for (const name of hashes.keys()) {
+      if (!contract.requiredPresentationArtifacts.includes(name)) errors.push(`${pathId} provenance outputHashes contains unexpected artifact: ${name}`);
+    }
+  }
+  return { files, provenance, errors };
 }
 
 export async function validateCompletedArtifacts({ root = SCRIPT_ROOT, runId }) {
   const verification = await verifyContract(root);
-  const { directory, manifest, manifestHash } = await readRun(root, runId);
+  const run = await readRun(root, runId);
   const errors = [...verification.errors];
+  const snapshots = new Map();
   for (const entry of verification.contract.paths) {
-    const artifactDirectory = path.join(directory, "artifacts", entry.id);
-    for (const name of verification.contract.requiredArtifacts) {
-      try {
-        await fs.access(path.join(artifactDirectory, name));
-      } catch {
-        errors.push(`${entry.id} missing required artifact: ${name}`);
-      }
-    }
+    const snapshot = await readArtifactSet(run.directory, verification.contract, entry.id);
+    if (snapshot.provenance?.runManifestSha256 !== run.manifestHash) errors.push(`${entry.id} provenance is not bound to the frozen run`);
+    errors.push(...snapshot.errors);
+    snapshots.set(entry.id, snapshot.files);
+  }
+  if (run.manifest.executionMode !== "offline-plan-only") errors.push("unexpected run execution mode");
+  return { errors, ...run, contract: verification.contract, contractSha256: verification.contractSha256, snapshots };
+}
+
+function normalizedLeakText(value) {
+  return value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+export function scanForIdentityLeaks(files, blockedTerms) {
+  const errors = [];
+  for (const [name, bytes] of files) {
+    let text;
     try {
-      const provenance = await readJson(path.join(artifactDirectory, "provenance.json"));
-      for (const field of REQUIRED_PROVENANCE_FIELDS) {
-        if (!(field in provenance)) errors.push(`${entry.id} provenance missing: ${field}`);
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    } catch {
+      errors.push(`${name} is not valid UTF-8 and cannot enter the blind packet`);
+      continue;
+    }
+    const normalized = normalizedLeakText(text);
+    for (const term of blockedTerms) {
+      if (normalized.includes(normalizedLeakText(term))) {
+        errors.push(`${name} leaks blinded identity or run metadata: ${term}`);
+        break;
       }
-      if (provenance.pathId !== entry.id) errors.push(`${entry.id} provenance pathId mismatch`);
-      if (provenance.status !== "completed") errors.push(`${entry.id} provenance is not completed`);
-      if (provenance.runManifestSha256 !== manifestHash) errors.push(`${entry.id} provenance is not bound to the frozen run`);
-      for (const listField of ["prompts", "models", "toolCalls", "sources", "outputHashes", "meteredCalls"]) {
-        if (!Array.isArray(provenance[listField])) errors.push(`${entry.id} provenance ${listField} must be an array`);
-      }
-    } catch (error) {
-      errors.push(`${entry.id} provenance unreadable: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  if (manifest.executionMode !== "offline-plan-only") errors.push("unexpected run execution mode");
-  return { errors, directory, manifest, manifestHash, contract: verification.contract };
+  return errors;
+}
+
+function presentationFiles(snapshot, contract) {
+  return new Map(contract.requiredPresentationArtifacts.map((name) => [name, snapshot.get(name)]));
+}
+
+async function validateCurrentPacket(checked) {
+  const presentation = path.join(checked.directory, "presentation");
+  const packetBytes = await readRegularFile(path.join(presentation, "packet.json"), "presentation packet.json");
+  const binding = await readJson(path.join(presentation, "packet-binding.json"), "presentation packet-binding.json");
+  const packetHash = sha256(packetBytes);
+  const packet = parseJsonBytes(packetBytes, "presentation packet.json");
+  const errors = [];
+  if (binding.packetSha256 !== packetHash) errors.push("presentation packet hash does not match its binding");
+  if (binding.runManifestSha256 !== checked.manifestHash || packet.runManifestSha256 !== checked.manifestHash) errors.push("presentation packet is not bound to the current run manifest");
+  if (packet.contractSha256 !== checked.contractSha256) errors.push("presentation packet is not bound to the frozen contract");
+  const expectedBlindIds = checked.unblinding.mapping.map((entry) => entry.blindId);
+  if (!sameStrings(packet.artifacts?.map((entry) => entry.blindId), expectedBlindIds)) errors.push("presentation packet artifact order does not match the frozen mapping");
+  for (const artifact of packet.artifacts ?? []) {
+    const mapping = checked.unblinding.mapping.find((entry) => entry.blindId === artifact.blindId);
+    const directory = path.join(presentation, artifact.blindId);
+    let entries = [];
+    try {
+      const directoryStat = await fs.lstat(directory);
+      if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) errors.push(`${artifact.blindId} must be a regular directory`);
+      entries = (await fs.readdir(directory)).sort();
+    } catch (error) {
+      errors.push(`${artifact.blindId} is unreadable: ${error instanceof Error ? error.message : String(error)}`);
+      continue;
+    }
+    const expectedNames = [...checked.contract.requiredPresentationArtifacts].sort();
+    if (!sameStrings(entries, expectedNames)) errors.push(`${artifact.blindId} contains files outside the frozen presentation allowlist`);
+    const files = new Map();
+    for (const record of artifact.files ?? []) {
+      try {
+        const bytes = await readRegularFile(path.join(directory, record.path), `${artifact.blindId} ${record.path}`);
+        files.set(record.path, bytes);
+        if (sha256(bytes) !== record.sha256) errors.push(`${artifact.blindId} packet hash mismatch: ${record.path}`);
+        const sourceBytes = checked.snapshots.get(mapping?.pathId)?.get(record.path);
+        if (!sourceBytes || sha256(sourceBytes) !== record.sha256) errors.push(`${artifact.blindId} no longer matches completed source artifact: ${record.path}`);
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    if (!sameStrings((artifact.files ?? []).map((entry) => entry.path).sort(), expectedNames)) errors.push(`${artifact.blindId} packet file list is incomplete`);
+    errors.push(...scanForIdentityLeaks(files, checked.contract.blinding.blockedTerms).map((error) => `${artifact.blindId} ${error}`));
+  }
+  return { errors, packet, packetHash, presentation };
 }
 
 export async function assembleBlindPacket({ root = SCRIPT_ROOT, runId }) {
   const checked = await validateCompletedArtifacts({ root, runId });
   if (checked.errors.length) fail(`cannot assemble blind packet:\n- ${checked.errors.join("\n- ")}`);
-  const { unblinding } = await readRun(root, runId);
-  const presentation = path.join(checked.directory, "presentation");
-  await fs.mkdir(presentation, { recursive: true });
-  const artifacts = [];
-  for (const entry of unblinding.mapping) {
-    const destination = path.join(presentation, entry.blindId);
-    const source = path.join(checked.directory, "artifacts", entry.pathId);
-    for (const artifact of checked.contract.requiredArtifacts.filter((name) => name !== "provenance.json")) {
-      const text = (await fs.readFile(path.join(source, artifact), "utf8")).toLowerCase();
-      const blocked = (checked.contract.blinding?.blockedTerms ?? []).find((term) => text.includes(term));
-      if (blocked) fail(`${entry.pathId} ${artifact} leaks blinded producer identity: ${blocked}`);
-    }
-    await fs.cp(source, destination, {
-      recursive: true,
-      force: false,
-      filter: (candidate) => path.basename(candidate) !== "provenance.json",
+  const artifactRecords = [];
+  const snapshots = new Map();
+  for (const entry of checked.unblinding.mapping) {
+    const files = presentationFiles(checked.snapshots.get(entry.pathId), checked.contract);
+    const leakErrors = scanForIdentityLeaks(files, checked.contract.blinding.blockedTerms);
+    if (leakErrors.length) fail(`cannot assemble blind packet:\n- ${entry.pathId} ${leakErrors.join(`\n- ${entry.pathId} `)}`);
+    snapshots.set(entry.blindId, files);
+    artifactRecords.push({
+      blindId: entry.blindId,
+      presentationOrder: entry.presentationOrder,
+      files: [...files].map(([name, bytes]) => ({ path: name, sha256: sha256(bytes) })),
     });
-    artifacts.push({ blindId: entry.blindId, presentationOrder: entry.presentationOrder, artifactDirectory: entry.blindId });
   }
   const packet = {
     schemaVersion: 1,
     runId,
-    status: "READY_FOR_HUMAN_BLIND_SCORING",
+    status: "READY_FOR_TWO_HUMAN_BLIND_EVALUATORS",
+    runManifestSha256: checked.manifestHash,
+    contractSha256: checked.contractSha256,
     rubricPath: "docs/eval/baseline/rubric-v1.md",
-    artifacts,
-    instructions: "Do not inspect run-manifest.json, unblinding.json, or artifacts/path-*. Score every area and cite artifact or rendered screenshot evidence.",
+    artifacts: artifactRecords,
+    instructions: "Score every area before inspecting coordinator-only run, provenance, or unblinding files.",
   };
-  await writeJson(path.join(presentation, "packet.json"), packet);
-  return packet;
+  const packetBytes = jsonBytes(packet);
+  await publishDirectory(checked.directory, "presentation", async (temporary) => {
+    for (const artifact of artifactRecords) {
+      const directory = path.join(temporary, artifact.blindId);
+      await fs.mkdir(directory, { mode: 0o700 });
+      for (const record of artifact.files) await writeFileExclusive(path.join(directory, record.path), snapshots.get(artifact.blindId).get(record.path));
+    }
+    await writeFileExclusive(path.join(temporary, "packet.json"), packetBytes);
+    await writeJsonExclusive(path.join(temporary, "packet-binding.json"), {
+      schemaVersion: 1,
+      runManifestSha256: checked.manifestHash,
+      packetSha256: sha256(packetBytes),
+    });
+  }, "presentation packet");
+  return { ...packet, packetSha256: sha256(packetBytes) };
 }
 
-export function scoreTemplate({ runId, blindIds, rubricAreas, runManifestSha256 }) {
+export function scoreTemplate({ runId, blindIds, rubricAreas, runManifestSha256, presentationPacketSha256, evaluatorSlot }) {
   return {
     schemaVersion: 1,
     runId,
     runManifestSha256,
-    evaluator: { name: "", scoredAt: "", attestation: "I scored these blinded artifacts before seeing the producer mapping." },
+    presentationPacketSha256,
+    evaluatorSlot,
+    evaluator: { id: "", name: "", scoredAt: "", attestation: "I scored these blinded artifacts independently before seeing the producer mapping." },
     scores: blindIds.map((blindId) => ({
       blindId,
       areas: Object.fromEntries(rubricAreas.map((area) => [area, { score: null, evidence: "" }])),
@@ -299,10 +515,12 @@ export function scoreTemplate({ runId, blindIds, rubricAreas, runManifestSha256 
   };
 }
 
-export function validateHumanScores(scores, { runId, blindIds, rubricAreas, runManifestSha256 }) {
+export function validateHumanScores(scores, { runId, blindIds, rubricAreas, runManifestSha256, presentationPacketSha256 }) {
   const errors = [];
   if (scores.runId !== runId) errors.push("scores are for another run");
   if (scores.runManifestSha256 !== runManifestSha256) errors.push("scores are not bound to this run manifest");
+  if (scores.presentationPacketSha256 !== presentationPacketSha256) errors.push("scores are not bound to the current presentation packet");
+  if (!scores.evaluator?.id?.trim()) errors.push("human evaluator ID is required");
   if (!scores.evaluator?.name?.trim()) errors.push("human evaluator name is required");
   if (!scores.evaluator?.scoredAt?.trim()) errors.push("human evaluator timestamp is required");
   if (!scores.evaluator?.attestation?.trim()) errors.push("human blind-scoring attestation is required");
@@ -311,6 +529,7 @@ export function validateHumanScores(scores, { runId, blindIds, rubricAreas, runM
     return errors;
   }
   const byBlindId = new Map(scores.scores.map((entry) => [entry.blindId, entry]));
+  if (byBlindId.size !== scores.scores.length) errors.push("duplicate blind artifact score entry");
   for (const blindId of blindIds) {
     const entry = byBlindId.get(blindId);
     if (!entry) {
@@ -326,37 +545,62 @@ export function validateHumanScores(scores, { runId, blindIds, rubricAreas, runM
   return errors;
 }
 
-export async function unblind({ root = SCRIPT_ROOT, runId, scoresFile }) {
+export async function unblind({ root = SCRIPT_ROOT, runId, scoresFiles }) {
+  if (!Array.isArray(scoresFiles) || scoresFiles.length !== 2) fail("exactly two evaluator score files are required");
+  const resolvedScores = scoresFiles.map((file) => path.resolve(file));
+  if (new Set(resolvedScores).size !== 2) fail("two distinct evaluator score files are required");
   const checked = await validateCompletedArtifacts({ root, runId });
   if (checked.errors.length) fail(`cannot unblind without real completed artifacts:\n- ${checked.errors.join("\n- ")}`);
-  const { unblinding } = await readRun(root, runId);
-  const scores = await readJson(path.resolve(scoresFile));
-  const blindIds = unblinding.mapping.map((entry) => entry.blindId);
-  const errors = validateHumanScores(scores, {
-    runId,
-    blindIds,
-    rubricAreas: checked.contract.requiredRubricAreas,
-    runManifestSha256: checked.manifestHash,
+  const currentPacket = await validateCurrentPacket(checked);
+  if (currentPacket.errors.length) fail(`current presentation packet is invalid:\n- ${currentPacket.errors.join("\n- ")}`);
+  const scoreRecords = [];
+  const blindIds = checked.unblinding.mapping.map((entry) => entry.blindId);
+  for (const file of resolvedScores) {
+    const bytes = await readRegularFile(file, "evaluator score file");
+    const scores = parseJsonBytes(bytes, "evaluator score file");
+    const errors = validateHumanScores(scores, {
+      runId,
+      blindIds,
+      rubricAreas: checked.contract.requiredRubricAreas,
+      runManifestSha256: checked.manifestHash,
+      presentationPacketSha256: currentPacket.packetHash,
+    });
+    if (errors.length) fail(`human score gate failed:\n- ${errors.join("\n- ")}`);
+    scoreRecords.push({ scores, sha256: sha256(bytes) });
+  }
+  if (scoreRecords[0].scores.evaluator.id === scoreRecords[1].scores.evaluator.id || scoreRecords[0].scores.evaluator.name === scoreRecords[1].scores.evaluator.name) {
+    fail("two distinct human evaluators are required");
+  }
+  const results = checked.unblinding.mapping.map((mapping) => {
+    const evaluations = scoreRecords.map(({ scores, sha256: scoreSha256 }) => {
+      const entry = scores.scores.find((score) => score.blindId === mapping.blindId);
+      return {
+        evaluatorId: scores.evaluator.id,
+        scoreSha256,
+        total: Object.values(entry.areas).reduce((total, area) => total + area.score, 0),
+        areas: entry.areas,
+        findings: entry.findings ?? [],
+      };
+    });
+    return {
+      pathId: mapping.pathId,
+      blindId: mapping.blindId,
+      evaluatorTotals: evaluations.map((entry) => entry.total),
+      averageTotal: evaluations.reduce((sum, entry) => sum + entry.total, 0) / evaluations.length,
+      evaluations,
+    };
   });
-  if (errors.length) fail(`human score gate failed:\n- ${errors.join("\n- ")}`);
-  const results = scores.scores.map((entry) => ({
-    pathId: unblinding.mapping.find((mapping) => mapping.blindId === entry.blindId).pathId,
-    blindId: entry.blindId,
-    total: Object.values(entry.areas).reduce((total, area) => total + area.score, 0),
-    areas: entry.areas,
-    findings: entry.findings ?? [],
-  }));
   const record = {
     schemaVersion: 1,
-    status: "UNBLINDED_HUMAN_SCORES_RECORDED",
+    status: "UNBLINDED_TWO_HUMAN_SCORES_RECORDED",
     runId,
     runManifestSha256: checked.manifestHash,
-    scoreSha256: await readFileHash(path.resolve(scoresFile)),
-    evaluator: scores.evaluator,
+    presentationPacketSha256: currentPacket.packetHash,
+    evaluators: scoreRecords.map(({ scores, sha256: scoreSha256 }) => ({ ...scores.evaluator, scoreSha256 })),
     results,
     decision: "No routing or root-cause decision is implied. Complete the independent quality audit and decision log separately.",
   };
-  await writeJson(path.join(checked.directory, "unblinded-results.json"), record);
+  await atomicWriteImmutable(path.join(checked.directory, "unblinded-results.json"), jsonBytes(record), "unblinded result");
   return record;
 }
 
@@ -376,24 +620,30 @@ async function main() {
   }
   if (command === "assemble-blind") {
     const packet = await assembleBlindPacket({ runId });
-    console.log(JSON.stringify({ status: packet.status, runId }));
+    console.log(JSON.stringify({ status: packet.status, runId, packetSha256: packet.packetSha256 }));
     return;
   }
   if (command === "score-template") {
-    const run = await readRun(SCRIPT_ROOT, runId);
-    const contract = (await verifyContract()).contract;
+    const slot = Number(options["evaluator-slot"]);
+    if (![1, 2].includes(slot)) fail("--evaluator-slot must be 1 or 2");
+    const checked = await validateCompletedArtifacts({ runId });
+    if (checked.errors.length) fail(`cannot create score template:\n- ${checked.errors.join("\n- ")}`);
+    const packet = await validateCurrentPacket(checked);
+    if (packet.errors.length) fail(`current presentation packet is invalid:\n- ${packet.errors.join("\n- ")}`);
     const template = scoreTemplate({
       runId,
-      blindIds: run.unblinding.mapping.map((entry) => entry.blindId),
-      rubricAreas: contract.requiredRubricAreas,
-      runManifestSha256: run.manifestHash,
+      blindIds: checked.unblinding.mapping.map((entry) => entry.blindId),
+      rubricAreas: checked.contract.requiredRubricAreas,
+      runManifestSha256: checked.manifestHash,
+      presentationPacketSha256: packet.packetHash,
+      evaluatorSlot: slot,
     });
-    await writeJson(path.join(run.directory, "scores.template.json"), template);
-    console.log(JSON.stringify({ status: "TEMPLATE_CREATED", runId }));
+    await atomicWriteImmutable(path.join(checked.directory, `scores.evaluator-${slot}.template.json`), jsonBytes(template), `evaluator ${slot} score template`);
+    console.log(JSON.stringify({ status: "TEMPLATE_CREATED", runId, evaluatorSlot: slot }));
     return;
   }
-  if (!options.scores) fail("--scores is required for unblind");
-  const record = await unblind({ runId, scoresFile: options.scores });
+  if (!options["scores-a"] || !options["scores-b"]) fail("--scores-a and --scores-b are required for unblind");
+  const record = await unblind({ runId, scoresFiles: [options["scores-a"], options["scores-b"]] });
   console.log(JSON.stringify({ status: record.status, runId }));
 }
 
