@@ -25,6 +25,7 @@ import {
   reserveImageGeneration,
 } from "../../../lib/imageGenerationBudget";
 import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEditor";
+import { describeTokensForEdit } from "../../../lib/editorPromptContext";
 import { BlockingMutationError } from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
 
@@ -130,7 +131,7 @@ export async function POST(req: Request) {
             runId,
             MODELS.builder,
             z.object({ innerHtml: z.string() }),
-            `Rewrite ONLY the inner content of this element per the instruction. Hard rules: keep every data-edit-id attribute on descendants; do not add classes, ids, inline styles, scripts, or new colors — styling comes from the site's token sheet; keep the same tag structure unless the instruction requires otherwise; return innerHtml only (no outer tag).\n\nINSTRUCTION: ${instruction}\n\nELEMENT (outer HTML for context):\n${fragment}\n\nAVAILABLE TOKENS (for reference, do not inline them): ${tokens.colors.map((c) => c.cssVar).join(", ")}`,
+            `Rewrite ONLY the inner content of this element per the instruction. Hard rules: keep every data-edit-id attribute on descendants; do not add classes, ids, inline styles, scripts, or new colors — styling comes from the site's token sheet; keep the same tag structure unless the instruction requires otherwise; return innerHtml only (no outer tag).\n\nINSTRUCTION: ${instruction}\n\nELEMENT (outer HTML for context):\n${fragment}\n\nAVAILABLE TOKENS (for reference, do not inline them):\n${describeTokensForEdit(tokens)}`,
           );
           el.html(out.innerHtml);
           // Descendant edit-ids are the editor's address space — losing one makes

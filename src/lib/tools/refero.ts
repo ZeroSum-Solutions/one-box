@@ -24,6 +24,7 @@ import {
   referoFetch,
   referoOAuthStorePath,
 } from "../referoAuth";
+import { recordReferoCall } from "./referoBudget";
 
 const REFERO_MCP_URL = "https://api.refero.design/mcp";
 
@@ -187,7 +188,12 @@ async function invokeRefero(
   const name = pickToolName(toolNames, candidateNames);
   const state = getState();
   state.callCount += 1;
-  console.log(`[refero] call #${state.callCount}/8000 → ${name}`);
+  // Durable month ledger — the in-memory count above resets on every restart,
+  // so budget enforcement/reporting must come from the ledger, never from it.
+  const usage = await recordReferoCall(name).catch(() => null);
+  console.log(
+    `[refero] call #${usage?.count ?? state.callCount}/8000 (${usage?.month ?? "month n/a"}) → ${name}`
+  );
 
   const result = await client.callTool({ name, arguments: args });
   if (result.isError) {
