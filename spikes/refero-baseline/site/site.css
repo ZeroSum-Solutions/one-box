@@ -1,8 +1,12 @@
 /**
  * WITS — composition
  *
- * Built only from tokens.css. No raw colour, no raw font, no invented scalar.
- * Layout rules and their Refero sources are in DESIGN.md §4–§9.
+ * Colour, type and shape come from tokens.css — no raw colour, no raw font.
+ *
+ * Composition scalars (hairlines, optical sizes, measures, breakpoints, the
+ * 44px touch target) are NOT from Refero. Refero supplies a vocabulary, not a
+ * layout. Those values are this build's own decisions and are marked where
+ * they are not obvious. Layout rules: DESIGN.md §4–§9.
  */
 
 *,
@@ -463,57 +467,9 @@ p { margin: 0; }
 }
 
 .coverage__regions li:last-child { border-block-end: 0; }
-.coverage__regions span:last-child { color: var(--color-ink-muted); }
+.coverage__regions span:last-child { color: var(--color-ink-secondary); }
 
 /* ---- Photography plate · [A] art direction ----------------------------- */
-
-/* The plate is a specification, not a missing image. At full width it read as
- * a hole in the page, so it is sized as a callout and the direction copy sits
- * beside it as the actual content. */
-.plate-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: var(--space-2xl);
-  align-items: center;
-}
-
-.plate {
-  border: 1px dashed var(--color-ink-muted);
-  border-radius: var(--radius-data);       /* [O] sharp — this is a spec */
-  aspect-ratio: 4 / 3;
-  max-block-size: 280px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: var(--space-xs);
-  padding: var(--space-md);
-  background: var(--surface-1);
-}
-
-.plate__ratio {
-  font-family: var(--font-mono);
-  font-size: var(--text-heading);
-  line-height: 1;
-  color: var(--color-ink-muted);
-  margin-block: auto;
-  align-self: center;
-}
-
-.plate__tag {
-  font-family: var(--font-mono);
-  font-size: var(--text-label);
-  letter-spacing: var(--text-label-ls);
-  text-transform: uppercase;
-  color: var(--color-accent-edge);
-}
-
-.plate__brief {
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  line-height: 1.6;
-  color: var(--color-ink-secondary);
-  max-inline-size: 60ch;
-}
 
 /* ---- FAQ · [O] 0 radius, hairline rules -------------------------------- */
 
@@ -606,7 +562,7 @@ p { margin: 0; }
   overflow-wrap: anywhere;
 }
 
-.contact__value:hover { color: var(--color-accent); }
+.contact__value:hover { text-decoration: underline; text-underline-offset: 4px; }
 
 .contact__actions { margin-block-start: var(--space-lg); }
 
@@ -638,7 +594,6 @@ p { margin: 0; }
   .scope__primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .scope__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .plate-grid { grid-template-columns: minmax(0, 1fr); }
   .masthead__nav { display: none; }
 }
 
@@ -659,7 +614,6 @@ p { margin: 0; }
   .spec { padding: var(--space-md); }
   .wordmark__expand { display: none; }
   .contact__value { font-size: var(--text-body-lg); }
-  .plate { aspect-ratio: 4 / 3; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -151,7 +151,30 @@ This is materially more than "inspiration". It is close to a design contract.
 
    All three were repaired using Refero's *own* darker tokens (Graphite `#454542`
    at 9.21:1, Accent Edge `#be400f` at 5.11:1) rather than invented values, so
-   provenance survives the fix. Full pair audit: 19 pairs, all pass.
+   provenance survives the fix.
+
+   **A first repair pass then claimed "19 pairs, all pass". That claim was also
+   wrong**, and the GPT-5.6 audit caught it. Two failures were still live:
+   14px coverage metadata at 3.37:1 (a single-line rule a bulk edit missed), and
+   the contact-link hover at 4.10:1 — which passes as 30px large text on desktop
+   but fails once the `<=640px` rule drops it to 16px normal text.
+
+   The pattern is the point: **three hand-audits of one small page, three wrong
+   answers.** Hand-listing pairs audits your memory of the stylesheet, not the
+   stylesheet. `contrast-audit.mjs` now walks the rendered page at both
+   viewports, resolves effective backgrounds through transparency, applies
+   size-aware thresholds, and forces every `:hover` rule. It exits non-zero on
+   failure and is negative-tested against all three known defects.
+
+   Two traps found while building it, both of which silently produce a green
+   gate:
+   - `getComputedStyle` returns the **interpolated** value mid-transition, so a
+     150ms colour transition makes a freshly-forced hover state read as the old
+     colour. Transitions must be killed before measuring.
+   - Forcing a hover *colour* without its hover *background* invents failures.
+     Two states here darken the background and lighten the text together; a
+     colour-only gate reported them as light-on-light. A gate that cries wolf
+     gets switched off.
 
 ## 5. The mix
 

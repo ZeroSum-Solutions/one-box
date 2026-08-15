@@ -176,12 +176,24 @@ This is also what the strongest references do. **[O]**: *"minimal imagery …
 text-dominant, images playing a supporting, explanatory role."* **[F]**: imagery is
 *"product screenshots and abstract graphic elements"*, not atmosphere.
 
-Where photography will go, the build ships an **art-direction plate** — a marked
-placeholder carrying aspect ratio and shot direction, so the commission brief is
-on the page rather than in a document. Direction is **[A]**'s, which is the only
-reference whose imagery rule fits a trade: *"candid, slightly desaturated
-photography … real people in natural or work environments"*. **[N]**'s heavy black
-tint is rejected with the rest of **[N]**.
+An earlier pass shipped an **art-direction plate** on the page — a marked
+placeholder carrying the aspect ratio and shot list. That was wrong and has been
+removed. A shot list is production documentation; publishing it on a client's
+public site is not honesty, it is leaking the handoff. The correct options were
+always "omit the section until real work is photographed" or "use clearly
+contextual imagery that is not presented as WITS's own". The first was taken.
+
+The commission brief lives here instead:
+
+> **16:9 and 4:3, colour.** Candid and slightly desaturated. Real work in
+> progress — a technician terminating a patch panel, a clean IDF with labelled
+> runs, a rack mid-build. Natural light. No posed stock, no stage-lit server
+> rooms, no imagery of another company's install. Shot on a WITS job site with
+> the customer's written permission.
+
+Direction is **[A]**'s, the only reference whose imagery rule fits a trade:
+*"candid, slightly desaturated photography … real people in natural or work
+environments"*. **[N]**'s heavy black tint is rejected with the rest of **[N]**.
 
 Icons, per **[F]**: outlined, monochrome, functional, never decorative.
 
@@ -205,10 +217,9 @@ proof of process, then the call.
 | 4 | Accent band | The five differentiators as one statement, not five icon tiles | [O] full-bleed divider |
 | 5 | How a project runs | Brief: FAQs must address *project timelines*. Answered structurally, before it is asked | [O] annotation, [F] rhythm |
 | 6 | Coverage | Orlando primary; Florida and Colorado | [F] data treatment |
-| 7 | Photography plate | Brief: photography *"will be needed"* — carries the commission direction | [A] art direction |
-| 8 | FAQ | The three the brief names, and only those | [O] accordion, 0px |
-| 9 | Contact band | Brief: *"call for an estimate"*, phone and email, simple | [N] single dark band |
-| 10 | Footer | Thin, mono, factual | [O] |
+| 7 | FAQ | The three the brief names, and only those | [O] accordion, 0px |
+| 8 | Contact band | Brief: *"call for an estimate"*, phone and email, simple | [N] single dark band |
+| 9 | Footer | Thin, mono, factual | [O] |
 
 ## 11. Content constraints
 
@@ -231,3 +242,30 @@ Recorded so the absences read as decisions, not omissions:
 - **No statistics beyond the two permitted numbers.**
 - **No webfont.** See §3.
 - **No booking widget.** See §11.5.
+- **No photography section.** See §8. It returns when WITS has its own.
+
+## 13. Where this contract was wrong
+
+Recorded because the corrections are more useful than the contract:
+
+1. **"Soft for people, sharp for data" (§4) is post-rationalised.** It does not
+   describe the page. The coverage cards are rounded as "content", but the
+   service entries, the process steps and the FAQ are *also* content and are
+   sharp hairline structures. The mixed geometry works visually; the stated
+   semantic rule is not what produced it. Treat §4 as a description of two
+   permitted shape families, not as a rule that predicts which is used where.
+
+2. **The accent band carries the least evidence and the most emphasis.** The
+   loudest device on the page holds four adjectives that any contractor could
+   claim. Whatever concrete proof the second intake pass produces (§ CLAIMS.md)
+   belongs here, not in a quieter section.
+
+3. **The mono annotation layer is over-applied.** It began as a semantic
+   register for technical data and spread into navigation, service lists,
+   coverage rows, contact values and the footer. Past a certain density it stops
+   reading as "documented trade" and starts reading as software-company costume.
+
+4. **The claim that composition scalars came from Refero was false.** Hairlines,
+   optical sizes, measures, breakpoints and the 44px touch target are this
+   build's decisions. Refero supplies a vocabulary, not a layout. `site.css`
+   now says so.
