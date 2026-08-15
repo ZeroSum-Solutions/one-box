@@ -279,3 +279,15 @@ compositions from byte-identical WITS copy and one shared token sheet.
    discipline `compile.mjs` already holds itself to. That discipline is what
    makes this a compiler proof and not two hand-authored IR files wearing a
    contract costume.
+
+### C2 review disposition (2026-08-15, independent Grok 4.5 audit)
+
+1. **Claim narrowed**: the two outputs ship different hero photographs
+   (per-style media inputs), so visible difference = composition + asset
+   choice, not composition alone. The topology/surface divergence checks are
+   what isolate composition; the screenshots do not. An identical-hero re-run
+   is the clean isolation and belongs to the promotion-bar pass.
+2. **Paint assertion is anti-blank, not pro-photo**: the 0.02 stddev threshold
+   proves the hero box is not flat/empty (the C1 failure class); it does not
+   bind the decoded pixels to the specific asset. Tighten (higher threshold +
+   asset binding) at the promotion bar.
