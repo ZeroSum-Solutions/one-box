@@ -24,7 +24,10 @@ import {
   referoFetch,
   referoOAuthStorePath,
 } from "../referoAuth";
-import { ReferoBudgetExceededError, reserveReferoCall } from "./referoBudget";
+import {
+  ReferoLedgerUnavailableError,
+  reserveReferoCall,
+} from "./referoBudget";
 
 const REFERO_MCP_URL = "https://api.refero.design/mcp";
 
@@ -190,13 +193,14 @@ async function invokeRefero(
   state.callCount += 1;
   // Durable month ledger — the in-memory count above resets on every restart.
   // This deliberately runs on the critical path: budget enforcement must
-  // reserve the call before the MCP network request fires. A ledger I/O
-  // failure still falls back to the in-memory log so it cannot block a call.
+  // reserve the call before the MCP network request fires. ONLY a typed
+  // storage failure may proceed unreserved — any other error is a bug in the
+  // budget layer and swallowing it would silently turn the cap off.
   try {
     const usage = await reserveReferoCall(name);
     console.log(`[refero] call #${usage.count}/${usage.cap} (${usage.month}) → ${name}`);
   } catch (error) {
-    if (error instanceof ReferoBudgetExceededError) throw error;
+    if (!(error instanceof ReferoLedgerUnavailableError)) throw error;
     console.log(`[refero] call #${state.callCount} (ledger unavailable) → ${name}`);
   }
 

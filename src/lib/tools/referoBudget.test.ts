@@ -6,6 +6,7 @@ import {
   readReferoUsage,
   recordReferoCall,
   ReferoBudgetExceededError,
+  ReferoLedgerUnavailableError,
   reserveReferoCall,
 } from "./referoBudget";
 
@@ -169,6 +170,60 @@ describe("refero durable budget ledger", () => {
       expect(warn).toHaveBeenCalledWith(
         "[refero] monthly budget headroom: 1 call remaining (2026-08, cap 10)"
       );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("ignores an unusable explicit cap instead of disabling enforcement", async () => {
+    const storePath = await tempStore();
+    const august = () => new Date("2026-08-15T12:00:00Z");
+    const cap = process.env.ONE_BOX_REFERO_MONTHLY_CAP;
+    process.env.ONE_BOX_REFERO_MONTHLY_CAP = "1";
+    try {
+      // NaN would make `used + 1 > cap` always false — must fall through to env cap 1.
+      await reserveReferoCall("refero_search_styles", {
+        storePath,
+        now: august,
+        cap: Number.NaN,
+      });
+      await expect(
+        reserveReferoCall("refero_get_style", {
+          storePath,
+          now: august,
+          cap: Number.POSITIVE_INFINITY,
+        })
+      ).rejects.toBeInstanceOf(ReferoBudgetExceededError);
+    } finally {
+      if (cap === undefined) delete process.env.ONE_BOX_REFERO_MONTHLY_CAP;
+      else process.env.ONE_BOX_REFERO_MONTHLY_CAP = cap;
+    }
+  });
+
+  it("wraps storage failures in ReferoLedgerUnavailableError", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-refero-budget-"));
+    roots.push(root);
+    const blockingFile = path.join(root, "not-a-dir");
+    await fs.writeFile(blockingFile, "x", "utf8");
+    // Parent path is a FILE, so mkdir/lock under it must fail with ENOTDIR.
+    const storePath = path.join(blockingFile, "refero-usage.json");
+    await expect(
+      reserveReferoCall("refero_get_style", {
+        storePath,
+        now: () => new Date("2026-08-15T12:00:00Z"),
+      })
+    ).rejects.toBeInstanceOf(ReferoLedgerUnavailableError);
+  });
+
+  it("warns only when a reservation crosses the ninety percent line", async () => {
+    const storePath = await tempStore();
+    const august = () => new Date("2026-08-15T12:00:00Z");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      for (let count = 0; count < 10; count += 1) {
+        await reserveReferoCall("refero_search_styles", { storePath, now: august, cap: 10 });
+      }
+      expect(warn).toHaveBeenCalledOnce(); // 9th crosses; 10th must not repeat
     } finally {
       warn.mockRestore();
     }

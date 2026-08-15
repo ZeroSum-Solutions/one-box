@@ -27,6 +27,20 @@ export class ReferoBudgetExceededError extends Error {
   }
 }
 
+/** Ledger storage failed (lock, disk). Callers may proceed without a durable
+ * reservation; every OTHER error class from the budget layer is a bug and
+ * must propagate — silently treating it as "ledger unavailable" would turn
+ * cap enforcement off (review finding, 2026-08-15). */
+export class ReferoLedgerUnavailableError extends Error {
+  constructor(cause: unknown) {
+    super(
+      `refero usage ledger unavailable: ${cause instanceof Error ? cause.message : String(cause)}`
+    );
+    this.name = "ReferoLedgerUnavailableError";
+    this.cause = cause;
+  }
+}
+
 const DEFAULT_MONTHLY_CAP = 8_000;
 
 function defaultStorePath(): string {
@@ -37,12 +51,16 @@ function monthKey(now: () => Date): string {
   return now().toISOString().slice(0, 7);
 }
 
+function isUsableCap(value: number): boolean {
+  return Number.isInteger(value) && value > 0;
+}
+
 function monthlyCap(explicitCap: number | undefined): number {
-  if (explicitCap !== undefined) return explicitCap;
+  // One validator for both lanes: a NaN/Infinity/zero explicit cap must never
+  // silently disable enforcement (used + 1 > NaN is always false).
+  if (explicitCap !== undefined && isUsableCap(explicitCap)) return explicitCap;
   const environmentCap = Number(process.env.ONE_BOX_REFERO_MONTHLY_CAP);
-  return Number.isInteger(environmentCap) && environmentCap > 0
-    ? environmentCap
-    : DEFAULT_MONTHLY_CAP;
+  return isUsableCap(environmentCap) ? environmentCap : DEFAULT_MONTHLY_CAP;
 }
 
 async function readLedger(storePath: string): Promise<Record<string, number>> {
@@ -97,12 +115,19 @@ async function withLockedLedger<T>(
 ): Promise<T> {
   const storePath = opts.storePath ?? defaultStorePath();
   const now = opts.now ?? (() => new Date());
-  return serialized(() =>
-    withFileLock(`${storePath}.lock`, async () => {
-      const ledger = await readLedger(storePath);
-      return operation(ledger, monthKey(now), storePath);
-    })
-  );
+  try {
+    return await serialized(() =>
+      withFileLock(`${storePath}.lock`, async () => {
+        const ledger = await readLedger(storePath);
+        return operation(ledger, monthKey(now), storePath);
+      })
+    );
+  } catch (error) {
+    // Budget decisions are the operation's own signal; everything else that
+    // escapes here is lock/disk storage failing.
+    if (error instanceof ReferoBudgetExceededError) throw error;
+    throw new ReferoLedgerUnavailableError(error);
+  }
 }
 
 export async function recordReferoCall(
@@ -131,7 +156,9 @@ export async function reserveReferoCall(
     const count = used + 1;
     ledger[month] = count;
     await writeLedger(storePath, ledger);
-    if (count / cap >= 0.9) {
+    // Warn once, when the reservation CROSSES the 90% line — not on every
+    // call above it (review finding: spam drowns the signal).
+    if (count / cap >= 0.9 && used / cap < 0.9) {
       const remaining = cap - count;
       console.warn(
         `[refero] monthly budget headroom: ${remaining} call${remaining === 1 ? "" : "s"} remaining (${month}, cap ${cap})`
