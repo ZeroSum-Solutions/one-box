@@ -403,8 +403,25 @@ function renderSlot(section, slot, copy, hints) {
 
   if (slot.name === "media") {
     if (!slot.assetRef) return "";
+    // The hero is the first thing painted — always above the fold, and
+    // usually the LCP candidate. `loading="lazy"` never blocks the page
+    // `load` event, so a snapshot taken at (or near) `load` — exactly what
+    // verify.mjs and most visual-QA tooling do — can catch the hero's media
+    // box already laid out at a correct, momentary size with nothing
+    // painted inside it, because the fetch was deferred behind an
+    // intersection check that hasn't resolved yet. `decoding="async"`
+    // compounds it: it explicitly tells the browser it may finish layout
+    // and fire `load` before the decoded bitmap has actually been
+    // composited, so even an eager fetch can still paint one or more blank
+    // frames. Below-the-fold media keeps deferred loading; the hero's media
+    // is eager AND synchronously decoded, with fetchpriority raised to
+    // match its LCP role.
+    const eager = section.role === "hero";
+    const loading = eager ? "eager" : "lazy";
+    const decoding = eager ? "sync" : "async";
+    const priority = eager ? ' fetchpriority="high"' : "";
     return `      <figure class="slot slot--media" ${attrs}>\n` +
-      `        <img src="${escapeHtml(slot.assetRef)}" alt="" loading="lazy" decoding="async">\n` +
+      `        <img src="${escapeHtml(slot.assetRef)}" alt="" loading="${loading}" decoding="${decoding}"${priority}>\n` +
       `      </figure>`;
   }
 
