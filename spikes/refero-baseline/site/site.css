@@ -36,7 +36,7 @@ body {
   line-height: var(--text-label-lh);
   letter-spacing: var(--text-label-ls);
   text-transform: uppercase;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-secondary);
   margin: 0;
 }
 
@@ -73,8 +73,8 @@ p { margin: 0; }
 /* ---- Actions ----------------------------------------------------------- */
 
 /* [F] Primary Action Button. Text colour is a documented accessibility
- * override: [F] specifies white on Accent Orange, which measures 3.34:1 and
- * fails WCAG AA for normal text. Ink on accent measures 5.57:1 and passes.
+ * override: [F] specifies white on Accent Orange, which measures 3.32:1 and
+ * fails WCAG AA for normal text. Ink on accent measures 5.55:1 and passes.
  * [A]'s own primary button uses dark text on its accent, so the override has
  * precedent inside the reference set. */
 .btn {
@@ -168,7 +168,7 @@ p { margin: 0; }
   line-height: var(--text-caption-lh);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-secondary);
 }
 
 .masthead__nav {
@@ -187,7 +187,7 @@ p { margin: 0; }
   transition: color var(--motion-fast) var(--motion-ease);
 }
 
-.masthead__nav a:hover { color: var(--color-accent); }
+.masthead__nav a:hover { color: var(--color-accent-edge); }
 
 .masthead__call {
   flex: 0 0 auto;
@@ -244,7 +244,7 @@ p { margin: 0; }
   font-family: var(--font-mono);
   font-size: var(--text-label);
   letter-spacing: var(--text-label-ls);
-  color: var(--color-ink-muted);
+  color: var(--color-ink-secondary);
   text-transform: uppercase;
 }
 
@@ -315,7 +315,9 @@ p { margin: 0; }
   font-family: var(--font-mono);
   font-size: var(--text-label);
   letter-spacing: var(--text-label-ls);
-  color: var(--color-accent);
+  /* accent-edge, not accent: [F]'s Accent Orange on canvas measures 3.17:1 and
+   * fails AA at this size. Accent Edge is 5.11:1 and is [F]'s own token. */
+  color: var(--color-accent-edge);
 }
 
 .scope__item h3 {
@@ -383,7 +385,7 @@ p { margin: 0; }
   font-family: var(--font-mono);
   font-size: var(--text-body);
   line-height: 1.7;
-  color: color-mix(in srgb, var(--color-ink) 78%, transparent);
+  color: var(--color-ink);
   max-inline-size: 44ch;
 }
 
@@ -409,7 +411,7 @@ p { margin: 0; }
   font-family: var(--font-mono);
   font-size: var(--text-label);
   letter-spacing: var(--text-label-ls);
-  color: var(--color-accent);
+  color: var(--color-accent-edge);
 }
 
 .step h3 { font-weight: var(--weight-strong); }
@@ -485,14 +487,14 @@ p { margin: 0; }
   justify-content: flex-end;
   gap: var(--space-xs);
   padding: var(--space-md);
-  background: var(--surface-2);
+  background: var(--surface-1);
 }
 
 .plate__ratio {
   font-family: var(--font-mono);
   font-size: var(--text-heading);
   line-height: 1;
-  color: var(--color-border);
+  color: var(--color-ink-muted);
   margin-block: auto;
   align-self: center;
 }
@@ -502,7 +504,7 @@ p { margin: 0; }
   font-size: var(--text-label);
   letter-spacing: var(--text-label-ls);
   text-transform: uppercase;
-  color: var(--color-accent);
+  color: var(--color-accent-edge);
 }
 
 .plate__brief {
@@ -536,13 +538,13 @@ p { margin: 0; }
 }
 
 .faq summary::-webkit-details-marker { display: none; }
-.faq summary:hover { color: var(--color-accent); }
+.faq summary:hover { color: var(--color-accent-edge); }
 
 .faq summary::after {
   content: "+";
   font-family: var(--font-mono);
   font-size: var(--text-body-lg);
-  color: var(--color-accent);
+  color: var(--color-accent-edge);
   flex: 0 0 auto;
 }
 
@@ -622,7 +624,7 @@ p { margin: 0; }
   font-size: var(--text-label);
   letter-spacing: var(--text-label-ls);
   text-transform: uppercase;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-secondary);
 }
 
 /* ---- Responsive -------------------------------------------------------- */

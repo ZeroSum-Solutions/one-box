@@ -119,6 +119,27 @@ This is materially more than "inspiration". It is close to a design contract.
    marketing page. Nothing describes secondary page types, forms at depth, or
    states beyond hover. Anything past a landing page is extrapolation.
 
+6. **Refero's token roles are not accessibility-audited, and following them
+   literally produces WCAG AA failures.** This is the most consequential finding
+   in the list. Refero assigns each colour a written role. Three of those roles,
+   applied exactly as written, fail:
+
+   | Refero token | Its stated role | Measured | Verdict |
+   |---|---|---|---|
+   | Accent Orange `#f35b22` on white | *"primary calls to action"* — [F]'s own button spec | 3.32:1 | Fails AA normal text |
+   | Faded Stone `#8c8c89` on Canvas White | *"tertiary text, descriptive labels"* | 3.23:1 | Fails AA normal text |
+   | Accent Orange `#f35b22` on Canvas White | *"key highlights in text"* | 3.17:1 | Fails AA normal text |
+
+   The first shipped in the build's first pass and the other two shipped too —
+   all three were caught only by computing every pair independently, after the
+   page already looked finished and had passed a visual review. A generation
+   engine consuming Refero **must** run a contrast gate over the resolved token
+   pairs; the style reference will not warn you, and the page looks correct.
+
+   All three were repaired using Refero's *own* darker tokens (Graphite `#454542`
+   at 9.21:1, Accent Edge `#be400f` at 5.11:1) rather than invented values, so
+   provenance survives the fix. Full pair audit: 19 pairs, all pass.
+
 ## 5. The mix
 
 | Layer | Source | Style ID |
@@ -153,8 +174,8 @@ Two deviations from Refero were required and are documented at their point of
 use:
 
 - **CTA text colour.** Fingerprint specifies white on Accent Orange, which
-  measures **3.34:1** and fails WCAG AA for normal text. The build uses Ink on
-  Accent at **5.57:1**. Ambrook's own primary button uses dark text on its
+  measures **3.32:1** and fails WCAG AA for normal text. The build uses Ink on
+  Accent at **5.55:1**. Ambrook's own primary button uses dark text on its
   accent, so the override stays inside the reference set. (`site.css`, `.btn--primary`)
 - **Section padding.** Fingerprint's 48px is a *gap* token; its own page runs
   looser between bands. Major bands here use `2 × 48px`. (`DESIGN.md` §7)
