@@ -44,6 +44,8 @@ body {
   margin: 0;
 }
 
+.label--on-accent { color: color-mix(in srgb, var(--color-ink) 72%, transparent); }
+
 h1, h2, h3 { margin: 0; font-weight: var(--weight-strong); }
 
 h1 {
@@ -374,8 +376,8 @@ p { margin: 0; }
   line-height: 1.25;
   font-weight: var(--weight-strong);
   letter-spacing: -0.4px;
-  max-inline-size: 20ch;
-  margin: 0;
+  max-inline-size: 26ch;
+  margin-block-start: var(--space-sm);
 }
 
 .creed__grid {
@@ -386,11 +388,10 @@ p { margin: 0; }
 }
 
 .creed__note {
-  font-family: var(--font-mono);
-  font-size: var(--text-body);
-  line-height: 1.7;
+  font-size: var(--text-body-lg);
+  line-height: 1.6;
   color: var(--color-ink);
-  max-inline-size: 44ch;
+  max-inline-size: 46ch;
 }
 
 .creed__rule {
@@ -470,6 +471,131 @@ p { margin: 0; }
 .coverage__regions span:last-child { color: var(--color-ink-secondary); }
 
 /* ---- Photography plate · [A] art direction ----------------------------- */
+
+
+/* ---- Photography · [A] candid, slightly desaturated, real work ---------- */
+
+.shot { margin: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+
+.shot img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--radius-card);      /* [F] soft — this is content */
+  /* [A]: "candid, slightly desaturated photography". Applied as a treatment
+   * so every image on the site sits in one register regardless of source. */
+  filter: saturate(0.88) contrast(1.03);
+}
+
+.shot--hero img { aspect-ratio: 16 / 10; object-fit: cover; object-position: 50% 45%; }
+.shot--portrait img { aspect-ratio: 3 / 4; object-fit: cover; block-size: 100%; }
+
+.shot__cap {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+}
+
+.hero__visual { display: flex; flex-direction: column; gap: var(--space-md); }
+
+/* ---- Who this is for --------------------------------------------------- */
+
+.audience {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-xl);
+}
+
+.audience__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-block-start: var(--space-md);
+  border-block-start: var(--border-hairline);
+}
+
+.audience__item h3 { font-weight: var(--weight-strong); }
+.audience__item p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+
+/* ---- What you receive -------------------------------------------------- */
+
+.receive {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: var(--space-2xl);
+  align-items: start;
+}
+
+.receive__list { display: flex; flex-direction: column; }
+
+.receive__row {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr);
+  gap: var(--space-md);
+  padding-block: var(--space-md);
+  border-block-end: var(--border-hairline);
+}
+
+.receive__row:first-child { border-block-start: var(--border-hairline); }
+
+.receive__n {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  color: var(--color-accent-edge);
+  padding-block-start: 4px;
+}
+
+.receive__row h3 { font-weight: var(--weight-strong); margin-block-end: var(--space-2xs); }
+.receive__row p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+
+/* ---- Before we start · commercial qualification ------------------------ */
+
+.quals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-xl);
+}
+
+.quals li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background: var(--surface-1);
+  border: var(--border-hairline);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.quals p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+
+/* ---- Gallery ----------------------------------------------------------- */
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-lg);
+}
+
+.gallery .shot img { aspect-ratio: 4 / 3; object-fit: cover; }
+
+/* ---- About ------------------------------------------------------------- */
+
+.about {
+  display: grid;
+  grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.38fr);
+  gap: var(--space-2xl);
+  align-items: center;
+}
+
+.about h2 { margin-block: var(--space-sm) var(--space-md); }
+.about .lede + .lede { margin-block-start: var(--space-md); }
 
 /* ---- FAQ · [O] 0 radius, hairline rules -------------------------------- */
 
@@ -589,12 +715,34 @@ p { margin: 0; }
   .hero__grid,
   .creed__grid,
   .coverage__grid,
-  .contact__grid { grid-template-columns: minmax(0, 1fr); }
+  .contact__grid,
+  .receive,
+  .about { grid-template-columns: minmax(0, 1fr); }
 
-  .scope__primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .scope__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .masthead__nav { display: none; }
+  .scope__primary,
+  .steps,
+  .scope__list,
+  .audience,
+  .quals,
+  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .about .shot--portrait { max-inline-size: 320px; }
+
+  /* Sol: navigation vanished entirely below 960px with nothing replacing it.
+   * It now wraps to a scrollable second row instead of disappearing. */
+  .masthead__inner { flex-wrap: wrap; padding-block: var(--space-xs); }
+  .masthead__call { margin-inline-start: auto; }
+  .masthead__nav {
+    order: 3;
+    inline-size: 100%;
+    margin-inline-start: 0;
+    gap: var(--space-md);
+    overflow-x: auto;
+    padding-block-end: 2px;
+    scrollbar-width: none;
+  }
+  .masthead__nav::-webkit-scrollbar { display: none; }
+  .masthead__nav a { white-space: nowrap; padding-block: var(--space-2xs); }
 }
 
 @media (max-width: 640px) {
@@ -606,14 +754,18 @@ p { margin: 0; }
     --page-gutter: 20px;
   }
 
-  .scope__primary { grid-template-columns: minmax(0, 1fr); }
-  .steps { grid-template-columns: minmax(0, 1fr); }
-  .scope__list { grid-template-columns: minmax(0, 1fr); }
+  .scope__primary,
+  .steps,
+  .scope__list,
+  .audience,
+  .quals,
+  .gallery { grid-template-columns: minmax(0, 1fr); }
   .scope__also { grid-template-columns: minmax(0, 1fr); gap: var(--space-sm); }
   .spec__row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
   .spec { padding: var(--space-md); }
   .wordmark__expand { display: none; }
-  .contact__value { font-size: var(--text-body-lg); }
+  .contact__value { font-size: var(--text-subheading); }
+  .receive__row { grid-template-columns: 3ch minmax(0, 1fr); gap: var(--space-sm); }
 }
 
 @media (prefers-reduced-motion: reduce) {
