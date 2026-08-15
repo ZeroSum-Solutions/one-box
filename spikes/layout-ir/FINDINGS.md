@@ -249,3 +249,17 @@ paint correctly at both viewports. **Criterion 6 now passes.** Combined with
 criteria 1–5 (already passing, unaffected by this change), the pre-registered
 pass bar for this spike is met on a second, honest pass — as the original
 recommendation required before treating the architecture as cleared.
+
+### C1 review disposition (2026-08-15, independent Grok 4.5 audit)
+
+Two findings against the C1 repair section above, accepted and recorded:
+
+1. **Evidence scope**: painted-hero verification is backed by the five captured
+   screenshots in `evidence/` (gutter-editorial desktop+mobile; the other three
+   variants desktop-only). The "painted / painted" table cells beyond those
+   captures rest on the operator's live pixel checks, not committed artifacts.
+   Read the table as "verified in the captured viewports listed in evidence/".
+2. **No paint assertion in the gate**: `verify.mjs` still asserts geometry, not
+   paint — the same gap that let the original race hide. A deterministic
+   painted-pixels assertion for hero media belongs in the C2 promotion bar
+   before any cross-variant quality claims are made.
