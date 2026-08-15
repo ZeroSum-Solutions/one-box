@@ -21,7 +21,7 @@ import {
   MAX_UPLOAD_FILES,
   uploadExtension,
   type AcceptedUploadExtension,
-} from "../components/uploadPolicy";
+} from "../features/uploads/policy";
 
 export const UPLOAD_SESSION_TTL_MS = 30 * 60 * 1000;
 export const MAX_SESSION_UPLOAD_BYTES = MAX_UPLOAD_FILES * MAX_UPLOAD_BYTES;

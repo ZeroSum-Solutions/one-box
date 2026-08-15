@@ -6,7 +6,7 @@ import {
   UPLOAD_ACCEPT_ATTRIBUTE,
   UPLOAD_TYPE_COPY,
   uploadExtension,
-} from "./uploadPolicy";
+} from "./policy";
 
 describe("upload policy", () => {
   it("keeps the upload count, byte limit, and visible type copy stable", () => {

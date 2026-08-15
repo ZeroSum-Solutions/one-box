@@ -5,7 +5,7 @@ import {
   inspectZip,
   stageUploads,
 } from "../../../lib/uploads";
-import { MAX_UPLOAD_FILES } from "../../../components/uploadPolicy";
+import { MAX_UPLOAD_FILES } from "../../../features/uploads/policy";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
 
 export { inspectUpload, inspectZip };

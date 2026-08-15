@@ -17,7 +17,7 @@ src/lib/pipeline.ts, builder.ts,       feature workflows and use cases
   evidence.ts, runstate.ts,
   imageLibrary.ts, siteTokens.ts,
   siteMotion.ts, elementEditor.ts,
-  uploads.ts
+  uploads.ts, src/features/uploads/policy.ts
                  |
                  v
 src/lib/contracts.ts, fileLock.ts,     platform/shared capabilities
@@ -67,7 +67,9 @@ The concrete feature roots are `src/features/intake`,
 `src/features/runs/pipeline/{controller,stages}`, `src/features/evidence`,
 `src/features/editor`, `src/features/assets`, and `src/features/uploads`;
 platform roots are `src/platform/{ai,research,storage,auth}`; shared roots are
-`src/shared/{contracts,ui}`.
+`src/shared/{contracts,ui}`. Upload policy is the first concrete module at
+`src/features/uploads/policy.ts`; the upload workflow remains in
+`src/lib/uploads.ts` while later seams are established independently.
 
 ## Data and safety boundaries
 
