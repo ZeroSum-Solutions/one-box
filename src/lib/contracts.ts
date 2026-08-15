@@ -783,7 +783,11 @@ export const ReferenceSelectionVersionSchema = z
 export const ReferenceSelectionStateSchema = z
   .object({
     status: z.enum(["pending", "selected"]),
-    /** Server-side reroll reservation: versions.length === rerollsUsed + 1. */
+    /** Server-side reroll reservation counter — counts reservations SPENT,
+     * incremented and persisted BEFORE candidate generation so a duplicate
+     * submit sees the spent reservation and a crash never refunds it. A spent
+     * reservation whose generation failed leaves versions one short, so
+     * versions.length is rerollsUsed or rerollsUsed + 1, never more. */
     rerollsUsed: z.number().int().min(0).max(2).default(0),
     recommendedBy: z.literal("advisory-model").default("advisory-model"),
     versions: z.array(ReferenceSelectionVersionSchema).min(1).max(3),
@@ -798,11 +802,15 @@ export const ReferenceSelectionStateSchema = z
       .optional(),
   })
   .superRefine((state, context) => {
-    if (state.versions.length !== state.rerollsUsed + 1) {
+    if (
+      state.versions.length > state.rerollsUsed + 1 ||
+      state.versions.length < state.rerollsUsed
+    ) {
       context.addIssue({
         code: "custom",
         path: ["versions"],
-        message: "versions.length must equal rerollsUsed + 1",
+        message:
+          "versions.length must be rerollsUsed or rerollsUsed + 1 (a spent reservation may lack its version, never the reverse)",
       });
     }
     const seen = new Set<string>();

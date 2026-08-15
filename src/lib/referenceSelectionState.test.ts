@@ -169,12 +169,37 @@ describe("reference selection state invariants", () => {
     expect(ReferenceSelectionStateSchema.safeParse(rerolled).success).toBe(false);
   });
 
-  it("caps rerolls at two and ties version count to rerollsUsed", () => {
+  it("caps rerolls at two and bounds version count by the reservation counter", () => {
     const overCap = selectionState({ rerollsUsed: 3 });
     expect(ReferenceSelectionStateSchema.safeParse(overCap).success).toBe(false);
 
-    const mismatch = selectionState({ rerollsUsed: 1 }); // still only 1 version
-    expect(ReferenceSelectionStateSchema.safeParse(mismatch).success).toBe(false);
+    // A spent reservation whose generation failed: 1 reroll used, still 1
+    // version — VALID (the no-refund case the route persists mid-reroll).
+    const spentReservation = selectionState({ rerollsUsed: 1 });
+    expect(
+      ReferenceSelectionStateSchema.safeParse(spentReservation).success
+    ).toBe(true);
+
+    // The reverse — more versions than reservations — is never legal.
+    const phantomVersion = selectionState({
+      rerollsUsed: 0,
+      versions: [
+        selectionState().versions[0],
+        {
+          version: 2,
+          createdAt: "2026-08-15T12:30:00.000Z",
+          searchAngles: ["a", "b", "c"],
+          candidates: [
+            candidate({ referoId: "fresh-1", recommended: true }),
+            candidate({ referoId: "fresh-2", name: "Fresh" }),
+          ],
+          excludedFromPrior: [],
+        },
+      ],
+    });
+    expect(ReferenceSelectionStateSchema.safeParse(phantomVersion).success).toBe(
+      false
+    );
   });
 });
 
