@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { withFileLock } from "../fileLock";
 
 /**
  * Durable month-bucketed ledger for Refero MCP calls. The in-memory
@@ -15,12 +16,33 @@ export interface ReferoBudgetOptions {
   now?: () => Date;
 }
 
+export class ReferoBudgetExceededError extends Error {
+  constructor(
+    public readonly month: string,
+    public readonly used: number,
+    public readonly cap: number
+  ) {
+    super(`Refero monthly budget exceeded for ${month}: ${used}/${cap} calls used`);
+    this.name = "ReferoBudgetExceededError";
+  }
+}
+
+const DEFAULT_MONTHLY_CAP = 8_000;
+
 function defaultStorePath(): string {
   return path.join(process.cwd(), ".one-box", "refero-usage.json");
 }
 
 function monthKey(now: () => Date): string {
   return now().toISOString().slice(0, 7);
+}
+
+function monthlyCap(explicitCap: number | undefined): number {
+  if (explicitCap !== undefined) return explicitCap;
+  const environmentCap = Number(process.env.ONE_BOX_REFERO_MONTHLY_CAP);
+  return Number.isInteger(environmentCap) && environmentCap > 0
+    ? environmentCap
+    : DEFAULT_MONTHLY_CAP;
 }
 
 async function readLedger(storePath: string): Promise<Record<string, number>> {
@@ -47,10 +69,9 @@ export async function readReferoUsage(
 }
 
 // Concurrent Refero calls are normal (stageLock fans searches out via
-// Promise.all), so read-modify-write must be serialized in-process or
-// increments are lost and same-pid temp paths collide. Cross-process safety
-// is out of scope here: the app runs one server process, and the singleton
-// MCP client already assumes that.
+// Promise.all), so read-modify-write must be serialized in-process. The
+// lockfile also protects the ledger when multiple local server processes use
+// the same `.one-box/` state directory.
 let writeChain: Promise<unknown> = Promise.resolve();
 
 function serialized<T>(job: () => Promise<T>): Promise<T> {
@@ -59,20 +80,63 @@ function serialized<T>(job: () => Promise<T>): Promise<T> {
   return next;
 }
 
+async function writeLedger(storePath: string, ledger: Record<string, number>): Promise<void> {
+  await fs.mkdir(path.dirname(storePath), { recursive: true });
+  const tmpPath = `${storePath}.${randomUUID()}.tmp`;
+  await fs.writeFile(tmpPath, JSON.stringify(ledger, null, 2), "utf8");
+  await fs.rename(tmpPath, storePath);
+}
+
+async function withLockedLedger<T>(
+  opts: ReferoBudgetOptions,
+  operation: (
+    ledger: Record<string, number>,
+    month: string,
+    storePath: string
+  ) => Promise<T>
+): Promise<T> {
+  const storePath = opts.storePath ?? defaultStorePath();
+  const now = opts.now ?? (() => new Date());
+  return serialized(() =>
+    withFileLock(`${storePath}.lock`, async () => {
+      const ledger = await readLedger(storePath);
+      return operation(ledger, monthKey(now), storePath);
+    })
+  );
+}
+
 export async function recordReferoCall(
   _tool: string,
   opts: ReferoBudgetOptions = {}
 ): Promise<{ month: string; count: number }> {
-  return serialized(async () => {
-    const storePath = opts.storePath ?? defaultStorePath();
-    const month = monthKey(opts.now ?? (() => new Date()));
-    const ledger = await readLedger(storePath);
+  return withLockedLedger(opts, async (ledger, month, storePath) => {
     const count = (ledger[month] ?? 0) + 1;
     ledger[month] = count;
-    await fs.mkdir(path.dirname(storePath), { recursive: true });
-    const tmpPath = `${storePath}.${randomUUID()}.tmp`;
-    await fs.writeFile(tmpPath, JSON.stringify(ledger, null, 2), "utf8");
-    await fs.rename(tmpPath, storePath);
+    await writeLedger(storePath, ledger);
     return { month, count };
+  });
+}
+
+export async function reserveReferoCall(
+  _tool: string,
+  opts: ReferoBudgetOptions & { cap?: number } = {}
+): Promise<{ month: string; count: number; cap: number }> {
+  const cap = monthlyCap(opts.cap);
+  return withLockedLedger(opts, async (ledger, month, storePath) => {
+    const used = ledger[month] ?? 0;
+    if (used + 1 > cap) {
+      throw new ReferoBudgetExceededError(month, used, cap);
+    }
+
+    const count = used + 1;
+    ledger[month] = count;
+    await writeLedger(storePath, ledger);
+    if (count / cap >= 0.9) {
+      const remaining = cap - count;
+      console.warn(
+        `[refero] monthly budget headroom: ${remaining} call${remaining === 1 ? "" : "s"} remaining (${month}, cap ${cap})`
+      );
+    }
+    return { month, count, cap };
   });
 }

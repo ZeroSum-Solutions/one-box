@@ -24,7 +24,7 @@ import {
   referoFetch,
   referoOAuthStorePath,
 } from "../referoAuth";
-import { recordReferoCall } from "./referoBudget";
+import { ReferoBudgetExceededError, reserveReferoCall } from "./referoBudget";
 
 const REFERO_MCP_URL = "https://api.refero.design/mcp";
 
@@ -188,17 +188,17 @@ async function invokeRefero(
   const name = pickToolName(toolNames, candidateNames);
   const state = getState();
   state.callCount += 1;
-  // Durable month ledger — the in-memory count above resets on every restart,
-  // so budget reporting must come from the ledger, never from it. Recorded
-  // off the critical path: a ledger disk stall must never delay or fail the
-  // MCP call itself.
-  void recordReferoCall(name)
-    .then((usage) =>
-      console.log(`[refero] call #${usage.count}/8000 (${usage.month}) → ${name}`)
-    )
-    .catch(() =>
-      console.log(`[refero] call #${state.callCount} (ledger unavailable) → ${name}`)
-    );
+  // Durable month ledger — the in-memory count above resets on every restart.
+  // This deliberately runs on the critical path: budget enforcement must
+  // reserve the call before the MCP network request fires. A ledger I/O
+  // failure still falls back to the in-memory log so it cannot block a call.
+  try {
+    const usage = await reserveReferoCall(name);
+    console.log(`[refero] call #${usage.count}/${usage.cap} (${usage.month}) → ${name}`);
+  } catch (error) {
+    if (error instanceof ReferoBudgetExceededError) throw error;
+    console.log(`[refero] call #${state.callCount} (ledger unavailable) → ${name}`);
+  }
 
   const result = await client.callTool({ name, arguments: args });
   if (result.isError) {
