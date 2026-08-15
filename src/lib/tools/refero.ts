@@ -397,6 +397,51 @@ export async function getStyle(styleId: string): Promise<unknown> {
   return parsePayload(result);
 }
 
+function validateBatchStyleIds(styleIds: string[]): void {
+  if (styleIds.length === 0 || styleIds.length > 10) {
+    throw new Error("refero style batch must contain between 1 and 10 ids");
+  }
+  if (styleIds.some((styleId) => typeof styleId !== "string" || styleId.length === 0)) {
+    throw new Error("refero style batch ids must be non-empty strings");
+  }
+  if (new Set(styleIds).size !== styleIds.length) {
+    throw new Error("refero style batch ids must be unique");
+  }
+}
+
+function mapBatchStylePayload(
+  payload: unknown,
+  styleIds: string[]
+): Map<string, unknown> | undefined {
+  if (Array.isArray(payload)) {
+    if (payload.length !== styleIds.length) return undefined;
+    return new Map(styleIds.map((styleId, index) => [styleId, payload[index]]));
+  }
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    return undefined;
+  }
+  const record = payload as Record<string, unknown>;
+  if (!styleIds.every((styleId) => Object.hasOwn(record, styleId))) return undefined;
+  return new Map(styleIds.map((styleId) => [styleId, record[styleId]]));
+}
+
+export async function getStylesBatch(styleIds: string[]): Promise<Map<string, unknown>> {
+  validateBatchStyleIds(styleIds);
+  const result = await invokeRefero(["refero_get_style"], {
+    style_ids: styleIds,
+    response_format: "json",
+  });
+  const styles = mapBatchStylePayload(parsePayload(result), styleIds);
+  if (styles) return styles;
+
+  console.warn("[refero] batch parse fallback");
+  const fallback = new Map<string, unknown>();
+  for (const styleId of styleIds) {
+    fallback.set(styleId, await getStyle(styleId));
+  }
+  return fallback;
+}
+
 export async function getScreen(screenId: string): Promise<unknown> {
   const result = await invokeRefero(["refero_get_screen"], { screen_id: screenId });
   return parsePayload(result);
