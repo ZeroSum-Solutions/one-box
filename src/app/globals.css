@@ -705,6 +705,11 @@ textarea {
   animation: onebox-pulse 1.2s ease-in-out infinite;
 }
 
+/* A hidden tab still composites this at the display refresh rate. */
+[data-page-hidden] .status-dot--running {
+  animation-play-state: paused;
+}
+
 .status-dot--done {
   background: var(--color-shockingly-green);
   color: var(--color-just-black);

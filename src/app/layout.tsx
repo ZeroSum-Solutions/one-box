@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter_Tight } from "next/font/google";
+import { PageVisibility } from "@/components/PageVisibility";
 import "./globals.css";
 
 // GSAP style record calls for "Mori", a commercial face. The record's own
@@ -19,7 +20,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${interTight.variable} h-full`}>
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <PageVisibility />
+        {children}
+      </body>
     </html>
   );
 }
