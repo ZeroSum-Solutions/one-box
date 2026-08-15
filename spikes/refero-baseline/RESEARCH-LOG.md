@@ -98,6 +98,19 @@ This is materially more than "inspiration". It is close to a design contract.
    corpus is SaaS/product-heavy. **Screens contributed nothing to this build.**
    For this business category, Refero's value is entirely in **styles**.
 
+   **Re-tested with a maximally direct query** to rule out bad prompting.
+   `electrician contractor construction company website` (web) returned: the
+   LEGO contact page, Chargetrip EV-routing software (three separate screens),
+   Programa interior-design SaaS, a Visual Electric Terms of Service, Netflix
+   careers, Webflow Terms of Service, the Twitch Safety Center, and Tesla
+   support. Zero contractors. Zero local services.
+
+   Note the failure mode: semantic search matched the wrong *sense* of
+   "electric" — Visual Electric (an AI image tool), Chargetrip (EV), Tesla.
+   Two independent, directly-worded queries both returned Terms-of-Service
+   pages. This is a corpus gap, not a prompting problem. Do not spend calls on
+   `refero_search_screens` for trade, local-service, or contractor businesses.
+
 2. **At least one style record is corrupted.** `14edc470-fa1c-47f9-9efa-d44194be4aec`
    (Empower) returns a description that breaks mid-sentence into a leaked raw
    JSON fragment (`","searches":[…]`) followed by several thousand characters of
