@@ -94,7 +94,7 @@ service, not bugs we can fix.
 | REF-003 | S2 | CONFIRMED | Named typefaces are licensed and unobtainable (PP Neue Montreal, GT America Mono, Lateral, MDIO). Refero supplies a `substitute` per family — **only substitutes are safe to ship.** |
 | REF-004 | S3 | CONFIRMED | Token values contain transcription artefacts: `9.99999px` padding, a hover colour in raw `oklab()`. Needs rounding and sanity-checking, never literal use. |
 | REF-005 | S2 | CONFIRMED | Styles are extracted from **one marketing page each**. Nothing describes secondary page types, deep form states, or states beyond hover. Anything past a landing page is extrapolation. |
-| REF-006 | **S1** | CONFIRMED | **Refero's token roles are not accessibility-audited.** Three roles, applied exactly as written, fail WCAG AA — see A11Y-001/002/003. The page looks correct while failing. Any engine consuming Refero **must** run a contrast gate over resolved pairs. |
+| REF-006 | **S1** | CONFIRMED, **now gated** | **Refero's token roles are not accessibility-audited.** Three roles, applied exactly as written, fail WCAG AA — see A11Y-001/002/003. The page looks correct while failing. Any engine consuming Refero **must** run a contrast gate over resolved pairs. The engine had none; `src/lib/contrastGate.ts` is now a blocking gate on every build **and** every edit, since a token edit is precisely how a passing pair becomes a failing one. |
 | REF-007 | S3 | CONFIRMED | Semantic search matches the wrong **word sense**. "electrician… electric" surfaced Visual Electric (an AI image tool), Chargetrip (EV), and Tesla. |
 
 ### What Refero is genuinely for
@@ -156,6 +156,7 @@ they look: each one produced a confident green result over a real defect.**
 | H-003 | S2 | FIXED | Forcing a hover *colour* without its hover *background* invents failures. Two states here darken the background and lighten the text together; a colour-only gate reported them as light-on-light. **A gate that cries wolf gets switched off** — false positives are as damaging as misses. |
 | H-004 | S2 | FIXED | A `fullPage` screenshot does **not** reliably trigger `loading="lazy"`. Below-fold images rendered blank, which reads as a broken layout rather than a harness gap. Fixed by forcing `loading=eager` and awaiting `decode()`. |
 | H-005 | S3 | TRACKED | The dev server died twice under the preview harness, producing "OneBox could not reach the local service". Worked around by launching via background shell. |
+| H-006 | S2 | FIXED | **Forcing a hover rule with `!important` overrides the cascade.** Porting the spike's gate into the engine, the generic `.btn--ghost:hover` rule was replayed onto a button that a more specific `.contact-band .btn--ghost:hover` rule governs. It reported **2.53:1 on a pair the browser never renders**, and failed the smoke suite on its first run. Fixed by replaying `:hover` as a `.__hover` class — identical specificity — so the cascade resolves the pair instead of the gate. This is H-003 in a third disguise: the first version measured the wrong background, the second measured the wrong rule. |
 
 **Rule adopted:** a gate is not trusted until it has been **negative-tested** —
 reintroduce each known defect and confirm it fails. `contrast-audit.mjs` is

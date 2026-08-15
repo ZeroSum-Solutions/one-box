@@ -7,6 +7,8 @@
  *                    and every custom property the stylesheets reference is
  *                    actually defined (ENG-006)
  * (b) axe           BLOCKING — zero serious/critical a11y violations
+ * (b2) contrast     BLOCKING — WCAG AA over the rendered page at two widths,
+ *                    INCLUDING hover states, which axe does not evaluate
  * (c) console-errors BLOCKING — no console errors on load
  * (d) assets        BLOCKING — every img/stylesheet/script resolves, every
  *                    internal #anchor resolves, tel: links match intake phone
@@ -30,6 +32,7 @@ import {
   type GateReport,
 } from "./contracts";
 import { findUnresolvedSheetRefs } from "./cssVars";
+import { gateContrast } from "./contrastGate";
 
 export interface RunGatesOptions {
   afterEdit?: boolean;
@@ -57,15 +60,17 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
 
   // afterEdit re-checks only the two invariants amendment B8 calls out by
   // name (token lint + axe) — the full suite still runs on a fresh build.
+  // contrast runs afterEdit too: a token edit is exactly how a passing pair
+  // becomes a failing one, and that is the edit path's whole purpose.
   const gateNames = opts.afterEdit
-    ? (["token-drift", "axe", "mobile-layout"] as const)
-    : (["token-drift", "axe", "console-errors", "assets", "no-js", "mobile-layout", "perf-budget"] as const);
+    ? (["token-drift", "axe", "contrast", "mobile-layout"] as const)
+    : (["token-drift", "axe", "contrast", "console-errors", "assets", "no-js", "mobile-layout", "perf-budget"] as const);
 
   const browser = await chromium.launch();
   const reports: GateReport[] = [];
   try {
     for (const name of gateNames) {
-      const report = await runOne(browser, name, url, { allowed, phone, unresolvedRefs });
+      const report = await runOne(browser, name, url, { allowed, phone, unresolvedRefs, siteDir });
       reports.push(GateReportSchema.parse(report));
     }
   } finally {
@@ -81,13 +86,15 @@ async function runOne(
   browser: import("playwright").Browser,
   name: string,
   url: string,
-  ctx: { allowed: AllowedTokens; phone?: string; unresolvedRefs: string[] }
+  ctx: { allowed: AllowedTokens; phone?: string; unresolvedRefs: string[]; siteDir: string }
 ): Promise<GateReport> {
   switch (name) {
     case "token-drift":
       return withPage(browser, (page) => gateTokenDrift(page, url, ctx.allowed, ctx.unresolvedRefs));
     case "axe":
       return withPage(browser, (page) => gateAxe(page, url));
+    case "contrast":
+      return gateContrast(browser, url, ctx.siteDir);
     case "console-errors":
       return withPage(browser, (page) => gateConsoleErrors(page, url));
     case "assets":
