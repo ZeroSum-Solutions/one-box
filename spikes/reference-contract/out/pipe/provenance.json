@@ -1,0 +1,1853 @@
+[
+  {
+    "selector": ".page-shell",
+    "property": "max-inline-size",
+    "value": "var(--page-wide)",
+    "kind": "token",
+    "token": "--page-wide",
+    "reason": "page canvas wide"
+  },
+  {
+    "selector": ".page-shell",
+    "property": "margin-inline",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "centred shell"
+  },
+  {
+    "selector": ".page-shell",
+    "property": "padding-inline",
+    "value": "var(--space-md)",
+    "kind": "token-step",
+    "token": "--space-md",
+    "reason": "shell gutter"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "kernel gap step 1"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "padding-block",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "chrome rhythm"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "grid-template-columns",
+    "value": "6fr 6fr",
+    "kind": "structure",
+    "reason": "split ratio 6-6"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.heading\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "implicit row 1 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.actions\"]",
+    "property": "grid-row",
+    "value": "2",
+    "kind": "structure",
+    "reason": "implicit row 2 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(1, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 1"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.items\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "background",
+    "value": "var(--color-bg)",
+    "kind": "token",
+    "token": "--color-bg",
+    "reason": "surface page"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "color",
+    "value": "var(--color-text)",
+    "kind": "token",
+    "token": "--color-text",
+    "reason": "surface ink page"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-text-muted)",
+    "kind": "token-alias",
+    "token": "--color-text-muted",
+    "reason": "secondary ink for page"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.heading\"]",
+    "property": "align-self",
+    "value": "center",
+    "kind": "enum",
+    "reason": "align block=center @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.actions\"]",
+    "property": "justify-self",
+    "value": "end",
+    "kind": "enum",
+    "reason": "align inline=end @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.actions\"]",
+    "property": "align-self",
+    "value": "center",
+    "kind": "enum",
+    "reason": "align block=center @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-section=\"nav\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.heading\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.heading\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.heading\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.heading\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.actions\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.actions\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.actions\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"nav.actions\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "gap",
+    "value": "var(--space-lg)",
+    "kind": "token-step",
+    "token": "--space-lg",
+    "reason": "kernel gap step 3"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "padding-block",
+    "value": "var(--rhythm-compact)",
+    "kind": "token",
+    "token": "--rhythm-compact",
+    "reason": "page rhythm compact"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "grid-template-columns",
+    "value": "6fr 6fr",
+    "kind": "structure",
+    "reason": "split ratio 6-6"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.eyebrow\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "declared row 1"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.heading\"]",
+    "property": "grid-row",
+    "value": "2",
+    "kind": "structure",
+    "reason": "declared row 2"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.lede\"]",
+    "property": "grid-row",
+    "value": "3",
+    "kind": "structure",
+    "reason": "declared row 3"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.actions\"]",
+    "property": "grid-row",
+    "value": "4",
+    "kind": "structure",
+    "reason": "declared row 4"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "grid-row",
+    "value": "1 / span 4",
+    "kind": "structure",
+    "reason": "declared row 1"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(1, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 1"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.items\"]",
+    "property": "gap",
+    "value": "var(--space-lg)",
+    "kind": "token-step",
+    "token": "--space-lg",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "background",
+    "value": "var(--color-text)",
+    "kind": "token",
+    "token": "--color-text",
+    "reason": "surface inverted"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "color",
+    "value": "var(--color-bg)",
+    "kind": "token",
+    "token": "--color-bg",
+    "reason": "surface ink inverted"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-bg)",
+    "kind": "token-alias",
+    "token": "--color-bg",
+    "reason": "secondary ink for inverted"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.eyebrow\"]",
+    "property": "grid-column",
+    "value": "1 / 2",
+    "kind": "structure",
+    "reason": "span 1-2 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.heading\"]",
+    "property": "grid-column",
+    "value": "1 / 2",
+    "kind": "structure",
+    "reason": "span 1-2 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.lede\"]",
+    "property": "grid-column",
+    "value": "1 / 2",
+    "kind": "structure",
+    "reason": "span 1-2 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.actions\"]",
+    "property": "grid-column",
+    "value": "1 / 2",
+    "kind": "structure",
+    "reason": "span 1-2 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "grid-column",
+    "value": "2 / 3",
+    "kind": "structure",
+    "reason": "span 2-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.lede\"]",
+    "property": "max-inline-size",
+    "value": "var(--measure-narrow)",
+    "kind": "token",
+    "token": "--measure-narrow",
+    "reason": "measure narrow"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "align-self",
+    "value": "center",
+    "kind": "enum",
+    "reason": "align block=center @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "margin-inline-end",
+    "value": "calc(-1 * var(--space-md))",
+    "kind": "derived-step",
+    "token": "--space-md",
+    "op": "negate",
+    "reason": "bleed end step 2 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "object-fit",
+    "value": "cover",
+    "kind": "structure",
+    "reason": "focal crop needs cover",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "object-position",
+    "value": "60% 35%",
+    "kind": "normalized-coordinate",
+    "reason": "focal crop @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "object-fit",
+    "value": "cover",
+    "kind": "structure",
+    "reason": "focal crop needs cover",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "object-position",
+    "value": "50% 50%",
+    "kind": "normalized-coordinate",
+    "reason": "focal crop @mobile",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"hero\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.eyebrow\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.eyebrow\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.eyebrow\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.eyebrow\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.heading\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.heading\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.heading\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.heading\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.lede\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.lede\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.lede\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.lede\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.actions\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.actions\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.actions\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.actions\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"hero.media\"]",
+    "property": "order",
+    "value": "-1",
+    "kind": "structure",
+    "reason": "split reverseOnMobile",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "gap",
+    "value": "var(--space-xs)",
+    "kind": "token-step",
+    "token": "--space-xs",
+    "reason": "kernel gap step 0"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "padding-block",
+    "value": "var(--rhythm-compact)",
+    "kind": "token",
+    "token": "--rhythm-compact",
+    "reason": "page rhythm compact"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(12, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "stack occupies the 12-track field"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "justify-items",
+    "value": "start",
+    "kind": "enum",
+    "reason": "stack align=start"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "implicit row 1 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(1, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 1"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "gap",
+    "value": "var(--space-xs)",
+    "kind": "token-step",
+    "token": "--space-xs",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "background",
+    "value": "var(--color-text)",
+    "kind": "token",
+    "token": "--color-text",
+    "reason": "surface inverted"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "color",
+    "value": "var(--color-bg)",
+    "kind": "token",
+    "token": "--color-bg",
+    "reason": "surface ink inverted"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-bg)",
+    "kind": "token-alias",
+    "token": "--color-bg",
+    "reason": "secondary ink for inverted"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "border-top",
+    "value": "var(--rule-hairline) solid var(--color-border)",
+    "kind": "token",
+    "token": "--rule-hairline,--color-border",
+    "reason": "seam=rule"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "grid-column",
+    "value": "2 / 12",
+    "kind": "structure",
+    "reason": "span 2-12 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-section=\"proof\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"proof.items\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "mobile collapse flattens collections",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "kernel gap step 1"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "padding-block",
+    "value": "var(--rhythm-compact)",
+    "kind": "token",
+    "token": "--rhythm-compact",
+    "reason": "page rhythm compact"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(2, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "grid columns 2"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.heading\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "implicit row 1 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "grid-row",
+    "value": "2",
+    "kind": "structure",
+    "reason": "implicit row 2 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(2, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 2"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "background",
+    "value": "var(--color-bg)",
+    "kind": "token",
+    "token": "--color-bg",
+    "reason": "surface page"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "color",
+    "value": "var(--color-text)",
+    "kind": "token",
+    "token": "--color-text",
+    "reason": "surface ink page"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-text-muted)",
+    "kind": "token-alias",
+    "token": "--color-text-muted",
+    "reason": "secondary ink for page"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "border-top",
+    "value": "var(--rule-hairline) solid var(--color-border)",
+    "kind": "token",
+    "token": "--rule-hairline,--color-border",
+    "reason": "seam=rule"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.heading\"]",
+    "property": "grid-column",
+    "value": "1 / 3",
+    "kind": "structure",
+    "reason": "span 1-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "grid-column",
+    "value": "1 / 3",
+    "kind": "structure",
+    "reason": "span 1-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.heading\"]",
+    "property": "max-inline-size",
+    "value": "var(--measure-normal)",
+    "kind": "token",
+    "token": "--measure-normal",
+    "reason": "measure normal"
+  },
+  {
+    "selector": "[data-section=\"offer\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.heading\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.heading\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.heading\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.heading\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"offer.items\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "mobile collapse flattens collections",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "kernel gap step 1"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "padding-block",
+    "value": "var(--rhythm-compact)",
+    "kind": "token",
+    "token": "--rhythm-compact",
+    "reason": "page rhythm compact"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(2, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "grid columns 2"
+  },
+  {
+    "selector": "[data-edit-id=\"why.heading\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "implicit row 1 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "grid-row",
+    "value": "2",
+    "kind": "structure",
+    "reason": "implicit row 2 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(2, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 2"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "background",
+    "value": "var(--color-text)",
+    "kind": "token",
+    "token": "--color-text",
+    "reason": "surface inverted"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "color",
+    "value": "var(--color-bg)",
+    "kind": "token",
+    "token": "--color-bg",
+    "reason": "surface ink inverted"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-bg)",
+    "kind": "token-alias",
+    "token": "--color-bg",
+    "reason": "secondary ink for inverted"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "border-top",
+    "value": "var(--rule-hairline) solid var(--color-border)",
+    "kind": "token",
+    "token": "--rule-hairline,--color-border",
+    "reason": "seam=rule"
+  },
+  {
+    "selector": "[data-edit-id=\"why.heading\"]",
+    "property": "grid-column",
+    "value": "1 / 3",
+    "kind": "structure",
+    "reason": "span 1-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "grid-column",
+    "value": "1 / 3",
+    "kind": "structure",
+    "reason": "span 1-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-section=\"why\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.heading\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.heading\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.heading\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.heading\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"why.items\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "mobile collapse flattens collections",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "kernel gap step 1"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "padding-block",
+    "value": "var(--rhythm-compact)",
+    "kind": "token",
+    "token": "--rhythm-compact",
+    "reason": "page rhythm compact"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(2, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "grid columns 2"
+  },
+  {
+    "selector": "[data-edit-id=\"area.heading\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "implicit row 1 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "grid-row",
+    "value": "2",
+    "kind": "structure",
+    "reason": "implicit row 2 in declaration order"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(2, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 2"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "background",
+    "value": "var(--color-bg)",
+    "kind": "token",
+    "token": "--color-bg",
+    "reason": "surface page"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "color",
+    "value": "var(--color-text)",
+    "kind": "token",
+    "token": "--color-text",
+    "reason": "surface ink page"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-text-muted)",
+    "kind": "token-alias",
+    "token": "--color-text-muted",
+    "reason": "secondary ink for page"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "border-top",
+    "value": "var(--rule-hairline) solid var(--color-border)",
+    "kind": "token",
+    "token": "--rule-hairline,--color-border",
+    "reason": "seam=rule"
+  },
+  {
+    "selector": "[data-edit-id=\"area.heading\"]",
+    "property": "grid-column",
+    "value": "1 / 3",
+    "kind": "structure",
+    "reason": "span 1-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "grid-column",
+    "value": "1 / 3",
+    "kind": "structure",
+    "reason": "span 1-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"area.heading\"]",
+    "property": "max-inline-size",
+    "value": "var(--measure-normal)",
+    "kind": "token",
+    "token": "--measure-normal",
+    "reason": "measure normal"
+  },
+  {
+    "selector": "[data-section=\"area\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.heading\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.heading\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.heading\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.heading\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"area.items\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "mobile collapse flattens collections",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "gap",
+    "value": "var(--space-md)",
+    "kind": "token-step",
+    "token": "--space-md",
+    "reason": "kernel gap step 2"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "padding-block",
+    "value": "var(--rhythm-compact)",
+    "kind": "token",
+    "token": "--rhythm-compact",
+    "reason": "page rhythm compact"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(12, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "stack occupies the 12-track field"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "justify-items",
+    "value": "center",
+    "kind": "enum",
+    "reason": "stack align=center"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.heading\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "declared row 1"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.lede\"]",
+    "property": "grid-row",
+    "value": "2",
+    "kind": "structure",
+    "reason": "declared row 2"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.actions\"]",
+    "property": "grid-row",
+    "value": "3",
+    "kind": "structure",
+    "reason": "declared row 3"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(1, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 1"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.items\"]",
+    "property": "gap",
+    "value": "var(--space-md)",
+    "kind": "token-step",
+    "token": "--space-md",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "background",
+    "value": "var(--color-primary)",
+    "kind": "token",
+    "token": "--color-primary",
+    "reason": "surface accent"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "color",
+    "value": "var(--color-primary-contrast)",
+    "kind": "token",
+    "token": "--color-primary-contrast",
+    "reason": "surface ink accent"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-primary-contrast)",
+    "kind": "token-alias",
+    "token": "--color-primary-contrast",
+    "reason": "secondary ink for accent"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "padding-block",
+    "value": "var(--space-lg)",
+    "kind": "token-step",
+    "token": "--space-lg",
+    "reason": "seam=band"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.heading\"]",
+    "property": "grid-column",
+    "value": "1 / 13",
+    "kind": "structure",
+    "reason": "span 1-13 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.heading\"]",
+    "property": "justify-self",
+    "value": "center",
+    "kind": "enum",
+    "reason": "align inline=center @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.lede\"]",
+    "property": "grid-column",
+    "value": "3 / 11",
+    "kind": "structure",
+    "reason": "span 3-11 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.lede\"]",
+    "property": "justify-self",
+    "value": "center",
+    "kind": "enum",
+    "reason": "align inline=center @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.actions\"]",
+    "property": "grid-column",
+    "value": "1 / 13",
+    "kind": "structure",
+    "reason": "span 1-13 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.actions\"]",
+    "property": "justify-self",
+    "value": "center",
+    "kind": "enum",
+    "reason": "align inline=center @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-section=\"contact\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.heading\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.heading\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.heading\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.heading\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.lede\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.lede\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.lede\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.lede\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.actions\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.actions\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.actions\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"contact.actions\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "kernel base"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "kernel gap step 1"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "padding-block",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "chrome rhythm"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "grid-template-columns",
+    "value": "8fr 4fr",
+    "kind": "structure",
+    "reason": "split ratio 8-4"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.heading\"]",
+    "property": "grid-row",
+    "value": "1",
+    "kind": "structure",
+    "reason": "declared row 1"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.caption\"]",
+    "property": "grid-row",
+    "value": "2",
+    "kind": "structure",
+    "reason": "declared row 2"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.actions\"]",
+    "property": "grid-row",
+    "value": "1 / span 2",
+    "kind": "structure",
+    "reason": "declared row 1"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.items\"]",
+    "property": "display",
+    "value": "grid",
+    "kind": "structure",
+    "reason": "collection inherits kernel"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.items\"]",
+    "property": "grid-template-columns",
+    "value": "repeat(1, minmax(0, 1fr))",
+    "kind": "structure",
+    "reason": "collection columns 1"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.items\"]",
+    "property": "gap",
+    "value": "var(--space-sm)",
+    "kind": "token-step",
+    "token": "--space-sm",
+    "reason": "collection gap matches kernel"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "background",
+    "value": "var(--color-bg)",
+    "kind": "token",
+    "token": "--color-bg",
+    "reason": "surface page"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "color",
+    "value": "var(--color-text)",
+    "kind": "token",
+    "token": "--color-text",
+    "reason": "surface ink page"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "--ink-muted",
+    "value": "var(--color-text-muted)",
+    "kind": "token-alias",
+    "token": "--color-text-muted",
+    "reason": "secondary ink for page"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "border-top",
+    "value": "var(--rule-hairline) solid var(--color-border)",
+    "kind": "token",
+    "token": "--rule-hairline,--color-border",
+    "reason": "seam=rule"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.heading\"]",
+    "property": "grid-column",
+    "value": "1 / 2",
+    "kind": "structure",
+    "reason": "span 1-2 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.caption\"]",
+    "property": "grid-column",
+    "value": "1 / 2",
+    "kind": "structure",
+    "reason": "span 1-2 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.actions\"]",
+    "property": "grid-column",
+    "value": "2 / 3",
+    "kind": "structure",
+    "reason": "span 2-3 @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.actions\"]",
+    "property": "justify-self",
+    "value": "end",
+    "kind": "enum",
+    "reason": "align inline=end @desktop",
+    "at": "desktop"
+  },
+  {
+    "selector": "[data-section=\"footer\"]",
+    "property": "grid-template-columns",
+    "value": "minmax(0, 1fr)",
+    "kind": "structure",
+    "reason": "compiler-owned mobile collapse",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.heading\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.heading\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.heading\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.heading\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.caption\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.caption\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.caption\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.caption\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.actions\"]",
+    "property": "grid-column",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse resets spans",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.actions\"]",
+    "property": "grid-row",
+    "value": "auto",
+    "kind": "structure",
+    "reason": "mobile collapse returns to document flow",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.actions\"]",
+    "property": "margin-inline",
+    "value": "0",
+    "kind": "structure",
+    "reason": "mobile collapse cancels bleed",
+    "at": "mobile"
+  },
+  {
+    "selector": "[data-edit-id=\"footer.actions\"]",
+    "property": "max-inline-size",
+    "value": "100%",
+    "kind": "structure",
+    "reason": "mobile collapse caps measure to the viewport",
+    "at": "mobile"
+  }
+]

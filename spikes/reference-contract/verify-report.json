@@ -1,0 +1,1172 @@
+{
+  "ambrook": {
+    "desktop": {
+      "boxes": [
+        {
+          "editId": "nav.heading",
+          "x": 140,
+          "y": 16,
+          "width": 572,
+          "height": 50
+        },
+        {
+          "editId": "nav.actions",
+          "x": 546,
+          "y": 82,
+          "width": 166,
+          "height": 44
+        },
+        {
+          "editId": "hero.eyebrow",
+          "x": 239,
+          "y": 230,
+          "width": 327,
+          "height": 20
+        },
+        {
+          "editId": "hero.heading",
+          "x": 140,
+          "y": 279,
+          "width": 566,
+          "height": 252
+        },
+        {
+          "editId": "hero.lede",
+          "x": 239,
+          "y": 559,
+          "width": 368,
+          "height": 239
+        },
+        {
+          "editId": "hero.actions",
+          "x": 239,
+          "y": 825,
+          "width": 188,
+          "height": 44
+        },
+        {
+          "editId": "hero.media",
+          "x": 833,
+          "y": 230,
+          "width": 467,
+          "height": 639
+        },
+        {
+          "editId": "proof.items",
+          "x": 140,
+          "y": 1013,
+          "width": 1160,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.0",
+          "x": 140,
+          "y": 1013,
+          "width": 368,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.1",
+          "x": 536,
+          "y": 1013,
+          "width": 368,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.2",
+          "x": 932,
+          "y": 1013,
+          "width": 368,
+          "height": 61
+        },
+        {
+          "editId": "offer.heading",
+          "x": 140,
+          "y": 1186,
+          "width": 1160,
+          "height": 50
+        },
+        {
+          "editId": "offer.items",
+          "x": 140,
+          "y": 1264,
+          "width": 1160,
+          "height": 107
+        },
+        {
+          "editId": "offer.items.0",
+          "x": 140,
+          "y": 1264,
+          "width": 368,
+          "height": 107
+        },
+        {
+          "editId": "offer.items.1",
+          "x": 536,
+          "y": 1264,
+          "width": 368,
+          "height": 107
+        },
+        {
+          "editId": "offer.items.2",
+          "x": 932,
+          "y": 1264,
+          "width": 368,
+          "height": 107
+        },
+        {
+          "editId": "why.heading",
+          "x": 140,
+          "y": 1483,
+          "width": 368,
+          "height": 353
+        },
+        {
+          "editId": "why.items",
+          "x": 564,
+          "y": 1483,
+          "width": 736,
+          "height": 550
+        },
+        {
+          "editId": "why.items.0",
+          "x": 564,
+          "y": 1483,
+          "width": 736,
+          "height": 61
+        },
+        {
+          "editId": "why.items.1",
+          "x": 564,
+          "y": 1600,
+          "width": 736,
+          "height": 61
+        },
+        {
+          "editId": "why.items.2",
+          "x": 564,
+          "y": 1717,
+          "width": 736,
+          "height": 84
+        },
+        {
+          "editId": "why.items.3",
+          "x": 564,
+          "y": 1857,
+          "width": 736,
+          "height": 61
+        },
+        {
+          "editId": "why.items.4",
+          "x": 564,
+          "y": 1973,
+          "width": 736,
+          "height": 61
+        },
+        {
+          "editId": "area.heading",
+          "x": 140,
+          "y": 2146,
+          "width": 355,
+          "height": 50
+        },
+        {
+          "editId": "area.items",
+          "x": 140,
+          "y": 2212,
+          "width": 328,
+          "height": 144
+        },
+        {
+          "editId": "area.items.0",
+          "x": 140,
+          "y": 2212,
+          "width": 328,
+          "height": 37
+        },
+        {
+          "editId": "area.items.1",
+          "x": 140,
+          "y": 2266,
+          "width": 328,
+          "height": 37
+        },
+        {
+          "editId": "area.items.2",
+          "x": 140,
+          "y": 2319,
+          "width": 328,
+          "height": 37
+        },
+        {
+          "editId": "contact.heading",
+          "x": 140,
+          "y": 2468,
+          "width": 644,
+          "height": 50
+        },
+        {
+          "editId": "contact.lede",
+          "x": 140,
+          "y": 2575,
+          "width": 644,
+          "height": 68
+        },
+        {
+          "editId": "contact.actions",
+          "x": 1105,
+          "y": 2534,
+          "width": 195,
+          "height": 44
+        },
+        {
+          "editId": "footer.heading",
+          "x": 140,
+          "y": 2716,
+          "width": 763,
+          "height": 101
+        },
+        {
+          "editId": "footer.caption",
+          "x": 140,
+          "y": 2833,
+          "width": 763,
+          "height": 20
+        },
+        {
+          "editId": "footer.actions",
+          "x": 1134,
+          "y": 2716,
+          "width": 166,
+          "height": 137
+        }
+      ],
+      "duplicateIds": [],
+      "overflow": false,
+      "scrollWidth": 1440,
+      "sections": [
+        {
+          "id": "nav",
+          "role": "nav",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "hero",
+          "role": "hero",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "proof",
+          "role": "proof",
+          "background": "rgb(238, 236, 228)"
+        },
+        {
+          "id": "offer",
+          "role": "offer",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "why",
+          "role": "story",
+          "background": "rgb(238, 236, 228)"
+        },
+        {
+          "id": "area",
+          "role": "area",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "contact",
+          "role": "contact",
+          "background": "rgb(217, 122, 46)"
+        },
+        {
+          "id": "footer",
+          "role": "footer",
+          "background": "rgb(247, 246, 242)"
+        }
+      ],
+      "h1Count": 1,
+      "ctaCount": 4,
+      "errors": [],
+      "signature": "area.heading@1-4|area.items.0@1-4|area.items.1@1-4|area.items.2@1-4|area.items@1-4|contact.actions@9-11|contact.heading@1-7|contact.lede@1-7|footer.actions@9-11|footer.caption@1-8|footer.heading@1-8|hero.actions@2-4|hero.eyebrow@2-5|hero.heading@1-6|hero.lede@2-5|hero.media@7-11|nav.actions@5-6|nav.heading@1-6|offer.heading@1-11|offer.items.0@1-4|offer.items.1@4-8|offer.items.2@8-11|offer.items@1-11|proof.items.0@1-4|proof.items.1@4-8|proof.items.2@8-11|proof.items@1-11|why.heading@1-4|why.items.0@5-11|why.items.1@5-11|why.items.2@5-11|why.items.3@5-11|why.items.4@5-11|why.items@5-11",
+      "heroMediaStdDev": 0.208607
+    },
+    "mobile": {
+      "boxes": [
+        {
+          "editId": "nav.heading",
+          "x": 28,
+          "y": 16,
+          "width": 334,
+          "height": 50
+        },
+        {
+          "editId": "nav.actions",
+          "x": 28,
+          "y": 82,
+          "width": 334,
+          "height": 44
+        },
+        {
+          "editId": "hero.eyebrow",
+          "x": 28,
+          "y": 230,
+          "width": 327,
+          "height": 20
+        },
+        {
+          "editId": "hero.heading",
+          "x": 28,
+          "y": 279,
+          "width": 334,
+          "height": 504
+        },
+        {
+          "editId": "hero.lede",
+          "x": 28,
+          "y": 811,
+          "width": 334,
+          "height": 273
+        },
+        {
+          "editId": "hero.actions",
+          "x": 28,
+          "y": 1111,
+          "width": 188,
+          "height": 44
+        },
+        {
+          "editId": "hero.media",
+          "x": 28,
+          "y": 1183,
+          "width": 334,
+          "height": 251
+        },
+        {
+          "editId": "proof.items",
+          "x": 28,
+          "y": 1578,
+          "width": 334,
+          "height": 238
+        },
+        {
+          "editId": "proof.items.0",
+          "x": 28,
+          "y": 1578,
+          "width": 334,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.1",
+          "x": 28,
+          "y": 1666,
+          "width": 334,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.2",
+          "x": 28,
+          "y": 1755,
+          "width": 334,
+          "height": 61
+        },
+        {
+          "editId": "offer.heading",
+          "x": 28,
+          "y": 1928,
+          "width": 334,
+          "height": 101
+        },
+        {
+          "editId": "offer.items",
+          "x": 28,
+          "y": 2056,
+          "width": 334,
+          "height": 430
+        },
+        {
+          "editId": "offer.items.0",
+          "x": 28,
+          "y": 2056,
+          "width": 334,
+          "height": 137
+        },
+        {
+          "editId": "offer.items.1",
+          "x": 28,
+          "y": 2221,
+          "width": 334,
+          "height": 107
+        },
+        {
+          "editId": "offer.items.2",
+          "x": 28,
+          "y": 2356,
+          "width": 334,
+          "height": 130
+        },
+        {
+          "editId": "why.heading",
+          "x": 28,
+          "y": 2599,
+          "width": 334,
+          "height": 353
+        },
+        {
+          "editId": "why.items",
+          "x": 28,
+          "y": 3007,
+          "width": 334,
+          "height": 667
+        },
+        {
+          "editId": "why.items.0",
+          "x": 28,
+          "y": 3007,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "why.items.1",
+          "x": 28,
+          "y": 3147,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "why.items.2",
+          "x": 28,
+          "y": 3287,
+          "width": 334,
+          "height": 107
+        },
+        {
+          "editId": "why.items.3",
+          "x": 28,
+          "y": 3450,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "why.items.4",
+          "x": 28,
+          "y": 3590,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "area.heading",
+          "x": 28,
+          "y": 3786,
+          "width": 334,
+          "height": 101
+        },
+        {
+          "editId": "area.items",
+          "x": 28,
+          "y": 3903,
+          "width": 328,
+          "height": 144
+        },
+        {
+          "editId": "area.items.0",
+          "x": 28,
+          "y": 3903,
+          "width": 328,
+          "height": 37
+        },
+        {
+          "editId": "area.items.1",
+          "x": 28,
+          "y": 3956,
+          "width": 328,
+          "height": 37
+        },
+        {
+          "editId": "area.items.2",
+          "x": 28,
+          "y": 4010,
+          "width": 328,
+          "height": 37
+        },
+        {
+          "editId": "contact.heading",
+          "x": 28,
+          "y": 4159,
+          "width": 334,
+          "height": 101
+        },
+        {
+          "editId": "contact.lede",
+          "x": 28,
+          "y": 4316,
+          "width": 334,
+          "height": 136
+        },
+        {
+          "editId": "contact.actions",
+          "x": 28,
+          "y": 4508,
+          "width": 334,
+          "height": 44
+        },
+        {
+          "editId": "footer.heading",
+          "x": 28,
+          "y": 4625,
+          "width": 334,
+          "height": 202
+        },
+        {
+          "editId": "footer.caption",
+          "x": 28,
+          "y": 4843,
+          "width": 334,
+          "height": 20
+        },
+        {
+          "editId": "footer.actions",
+          "x": 28,
+          "y": 4879,
+          "width": 334,
+          "height": 44
+        }
+      ],
+      "duplicateIds": [],
+      "overflow": false,
+      "scrollWidth": 390,
+      "sections": [
+        {
+          "id": "nav",
+          "role": "nav",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "hero",
+          "role": "hero",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "proof",
+          "role": "proof",
+          "background": "rgb(238, 236, 228)"
+        },
+        {
+          "id": "offer",
+          "role": "offer",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "why",
+          "role": "story",
+          "background": "rgb(238, 236, 228)"
+        },
+        {
+          "id": "area",
+          "role": "area",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "contact",
+          "role": "contact",
+          "background": "rgb(217, 122, 46)"
+        },
+        {
+          "id": "footer",
+          "role": "footer",
+          "background": "rgb(247, 246, 242)"
+        }
+      ],
+      "h1Count": 1,
+      "ctaCount": 4,
+      "errors": [],
+      "signature": "area.heading@1-11|area.items.0@1-11|area.items.1@1-11|area.items.2@1-11|area.items@1-11|contact.actions@1-11|contact.heading@1-11|contact.lede@1-11|footer.actions@1-11|footer.caption@1-11|footer.heading@1-11|hero.actions@1-7|hero.eyebrow@1-11|hero.heading@1-11|hero.lede@1-11|hero.media@1-11|nav.actions@1-11|nav.heading@1-11|offer.heading@1-11|offer.items.0@1-11|offer.items.1@1-11|offer.items.2@1-11|offer.items@1-11|proof.items.0@1-11|proof.items.1@1-11|proof.items.2@1-11|proof.items@1-11|why.heading@1-11|why.items.0@1-11|why.items.1@1-11|why.items.2@1-11|why.items.3@1-11|why.items.4@1-11|why.items@1-11"
+    }
+  },
+  "pipe": {
+    "desktop": {
+      "boxes": [
+        {
+          "editId": "nav.heading",
+          "x": 44,
+          "y": 16,
+          "width": 668,
+          "height": 50
+        },
+        {
+          "editId": "nav.actions",
+          "x": 546,
+          "y": 82,
+          "width": 166,
+          "height": 44
+        },
+        {
+          "editId": "hero.eyebrow",
+          "x": 44,
+          "y": 198,
+          "width": 648,
+          "height": 92
+        },
+        {
+          "editId": "hero.heading",
+          "x": 44,
+          "y": 346,
+          "width": 648,
+          "height": 261
+        },
+        {
+          "editId": "hero.lede",
+          "x": 44,
+          "y": 663,
+          "width": 625,
+          "height": 208
+        },
+        {
+          "editId": "hero.actions",
+          "x": 44,
+          "y": 928,
+          "width": 648,
+          "height": 116
+        },
+        {
+          "editId": "hero.media",
+          "x": 748,
+          "y": 198,
+          "width": 676,
+          "height": 845
+        },
+        {
+          "editId": "proof.items",
+          "x": 157,
+          "y": 1156,
+          "width": 182,
+          "height": 198
+        },
+        {
+          "editId": "proof.items.0",
+          "x": 157,
+          "y": 1156,
+          "width": 182,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.1",
+          "x": 157,
+          "y": 1225,
+          "width": 182,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.2",
+          "x": 157,
+          "y": 1294,
+          "width": 182,
+          "height": 61
+        },
+        {
+          "editId": "offer.heading",
+          "x": 44,
+          "y": 1467,
+          "width": 1352,
+          "height": 50
+        },
+        {
+          "editId": "offer.items",
+          "x": 44,
+          "y": 1534,
+          "width": 1352,
+          "height": 184
+        },
+        {
+          "editId": "offer.items.0",
+          "x": 44,
+          "y": 1534,
+          "width": 668,
+          "height": 84
+        },
+        {
+          "editId": "offer.items.1",
+          "x": 728,
+          "y": 1534,
+          "width": 668,
+          "height": 84
+        },
+        {
+          "editId": "offer.items.2",
+          "x": 44,
+          "y": 1634,
+          "width": 668,
+          "height": 84
+        },
+        {
+          "editId": "why.heading",
+          "x": 44,
+          "y": 1830,
+          "width": 1352,
+          "height": 101
+        },
+        {
+          "editId": "why.items",
+          "x": 44,
+          "y": 1947,
+          "width": 1352,
+          "height": 237
+        },
+        {
+          "editId": "why.items.0",
+          "x": 44,
+          "y": 1947,
+          "width": 668,
+          "height": 61
+        },
+        {
+          "editId": "why.items.1",
+          "x": 728,
+          "y": 1947,
+          "width": 668,
+          "height": 61
+        },
+        {
+          "editId": "why.items.2",
+          "x": 44,
+          "y": 2024,
+          "width": 668,
+          "height": 84
+        },
+        {
+          "editId": "why.items.3",
+          "x": 728,
+          "y": 2024,
+          "width": 668,
+          "height": 84
+        },
+        {
+          "editId": "why.items.4",
+          "x": 44,
+          "y": 2124,
+          "width": 668,
+          "height": 61
+        },
+        {
+          "editId": "area.heading",
+          "x": 44,
+          "y": 2297,
+          "width": 1352,
+          "height": 50
+        },
+        {
+          "editId": "area.items",
+          "x": 44,
+          "y": 2364,
+          "width": 1352,
+          "height": 91
+        },
+        {
+          "editId": "area.items.0",
+          "x": 44,
+          "y": 2364,
+          "width": 668,
+          "height": 37
+        },
+        {
+          "editId": "area.items.1",
+          "x": 728,
+          "y": 2364,
+          "width": 668,
+          "height": 37
+        },
+        {
+          "editId": "area.items.2",
+          "x": 44,
+          "y": 2417,
+          "width": 668,
+          "height": 37
+        },
+        {
+          "editId": "contact.heading",
+          "x": 500,
+          "y": 2567,
+          "width": 439,
+          "height": 50
+        },
+        {
+          "editId": "contact.lede",
+          "x": 274,
+          "y": 2645,
+          "width": 892,
+          "height": 68
+        },
+        {
+          "editId": "contact.actions",
+          "x": 622,
+          "y": 2741,
+          "width": 195,
+          "height": 44
+        },
+        {
+          "editId": "footer.heading",
+          "x": 44,
+          "y": 2858,
+          "width": 891,
+          "height": 101
+        },
+        {
+          "editId": "footer.caption",
+          "x": 44,
+          "y": 2975,
+          "width": 891,
+          "height": 20
+        },
+        {
+          "editId": "footer.actions",
+          "x": 1230,
+          "y": 2858,
+          "width": 166,
+          "height": 137
+        }
+      ],
+      "duplicateIds": [],
+      "overflow": false,
+      "scrollWidth": 1440,
+      "sections": [
+        {
+          "id": "nav",
+          "role": "nav",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "hero",
+          "role": "hero",
+          "background": "rgb(28, 29, 24)"
+        },
+        {
+          "id": "proof",
+          "role": "proof",
+          "background": "rgb(28, 29, 24)"
+        },
+        {
+          "id": "offer",
+          "role": "offer",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "why",
+          "role": "story",
+          "background": "rgb(28, 29, 24)"
+        },
+        {
+          "id": "area",
+          "role": "area",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "contact",
+          "role": "contact",
+          "background": "rgb(217, 122, 46)"
+        },
+        {
+          "id": "footer",
+          "role": "footer",
+          "background": "rgb(247, 246, 242)"
+        }
+      ],
+      "h1Count": 1,
+      "ctaCount": 4,
+      "errors": [],
+      "signature": "area.heading@0-12|area.items.0@0-6|area.items.1@6-12|area.items.2@0-6|area.items@0-12|contact.actions@5-7|contact.heading@4-8|contact.lede@2-10|footer.actions@10-12|footer.caption@0-8|footer.heading@0-8|hero.actions@0-6|hero.eyebrow@0-6|hero.heading@0-6|hero.lede@0-6|hero.media@6-12|nav.actions@5-6|nav.heading@0-6|offer.heading@0-12|offer.items.0@0-6|offer.items.1@6-12|offer.items.2@0-6|offer.items@0-12|proof.items.0@1-3|proof.items.1@1-3|proof.items.2@1-3|proof.items@1-3|why.heading@0-12|why.items.0@0-6|why.items.1@6-12|why.items.2@0-6|why.items.3@6-12|why.items.4@0-6|why.items@0-12",
+      "heroMediaStdDev": 0.206088
+    },
+    "mobile": {
+      "boxes": [
+        {
+          "editId": "nav.heading",
+          "x": 28,
+          "y": 16,
+          "width": 334,
+          "height": 50
+        },
+        {
+          "editId": "nav.actions",
+          "x": 28,
+          "y": 82,
+          "width": 334,
+          "height": 44
+        },
+        {
+          "editId": "hero.eyebrow",
+          "x": 28,
+          "y": 672,
+          "width": 334,
+          "height": 20
+        },
+        {
+          "editId": "hero.heading",
+          "x": 28,
+          "y": 748,
+          "width": 334,
+          "height": 504
+        },
+        {
+          "editId": "hero.lede",
+          "x": 28,
+          "y": 1308,
+          "width": 334,
+          "height": 273
+        },
+        {
+          "editId": "hero.actions",
+          "x": 28,
+          "y": 1637,
+          "width": 334,
+          "height": 44
+        },
+        {
+          "editId": "hero.media",
+          "x": 28,
+          "y": 198,
+          "width": 334,
+          "height": 418
+        },
+        {
+          "editId": "proof.items",
+          "x": 28,
+          "y": 1794,
+          "width": 182,
+          "height": 198
+        },
+        {
+          "editId": "proof.items.0",
+          "x": 28,
+          "y": 1794,
+          "width": 182,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.1",
+          "x": 28,
+          "y": 1862,
+          "width": 182,
+          "height": 61
+        },
+        {
+          "editId": "proof.items.2",
+          "x": 28,
+          "y": 1931,
+          "width": 182,
+          "height": 61
+        },
+        {
+          "editId": "offer.heading",
+          "x": 28,
+          "y": 2105,
+          "width": 334,
+          "height": 101
+        },
+        {
+          "editId": "offer.items",
+          "x": 28,
+          "y": 2221,
+          "width": 334,
+          "height": 406
+        },
+        {
+          "editId": "offer.items.0",
+          "x": 28,
+          "y": 2221,
+          "width": 334,
+          "height": 137
+        },
+        {
+          "editId": "offer.items.1",
+          "x": 28,
+          "y": 2374,
+          "width": 334,
+          "height": 107
+        },
+        {
+          "editId": "offer.items.2",
+          "x": 28,
+          "y": 2497,
+          "width": 334,
+          "height": 130
+        },
+        {
+          "editId": "why.heading",
+          "x": 28,
+          "y": 2741,
+          "width": 334,
+          "height": 353
+        },
+        {
+          "editId": "why.items",
+          "x": 28,
+          "y": 3109,
+          "width": 334,
+          "height": 507
+        },
+        {
+          "editId": "why.items.0",
+          "x": 28,
+          "y": 3109,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "why.items.1",
+          "x": 28,
+          "y": 3209,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "why.items.2",
+          "x": 28,
+          "y": 3309,
+          "width": 334,
+          "height": 107
+        },
+        {
+          "editId": "why.items.3",
+          "x": 28,
+          "y": 3432,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "why.items.4",
+          "x": 28,
+          "y": 3532,
+          "width": 334,
+          "height": 84
+        },
+        {
+          "editId": "area.heading",
+          "x": 28,
+          "y": 3729,
+          "width": 334,
+          "height": 101
+        },
+        {
+          "editId": "area.items",
+          "x": 28,
+          "y": 3846,
+          "width": 334,
+          "height": 144
+        },
+        {
+          "editId": "area.items.0",
+          "x": 28,
+          "y": 3846,
+          "width": 334,
+          "height": 37
+        },
+        {
+          "editId": "area.items.1",
+          "x": 28,
+          "y": 3899,
+          "width": 334,
+          "height": 37
+        },
+        {
+          "editId": "area.items.2",
+          "x": 28,
+          "y": 3953,
+          "width": 334,
+          "height": 37
+        },
+        {
+          "editId": "contact.heading",
+          "x": 28,
+          "y": 4102,
+          "width": 334,
+          "height": 101
+        },
+        {
+          "editId": "contact.lede",
+          "x": 28,
+          "y": 4231,
+          "width": 334,
+          "height": 136
+        },
+        {
+          "editId": "contact.actions",
+          "x": 97,
+          "y": 4395,
+          "width": 195,
+          "height": 44
+        },
+        {
+          "editId": "footer.heading",
+          "x": 28,
+          "y": 4512,
+          "width": 334,
+          "height": 202
+        },
+        {
+          "editId": "footer.caption",
+          "x": 28,
+          "y": 4730,
+          "width": 334,
+          "height": 20
+        },
+        {
+          "editId": "footer.actions",
+          "x": 28,
+          "y": 4766,
+          "width": 334,
+          "height": 44
+        }
+      ],
+      "duplicateIds": [],
+      "overflow": false,
+      "scrollWidth": 390,
+      "sections": [
+        {
+          "id": "nav",
+          "role": "nav",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "hero",
+          "role": "hero",
+          "background": "rgb(28, 29, 24)"
+        },
+        {
+          "id": "proof",
+          "role": "proof",
+          "background": "rgb(28, 29, 24)"
+        },
+        {
+          "id": "offer",
+          "role": "offer",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "why",
+          "role": "story",
+          "background": "rgb(28, 29, 24)"
+        },
+        {
+          "id": "area",
+          "role": "area",
+          "background": "rgb(247, 246, 242)"
+        },
+        {
+          "id": "contact",
+          "role": "contact",
+          "background": "rgb(217, 122, 46)"
+        },
+        {
+          "id": "footer",
+          "role": "footer",
+          "background": "rgb(247, 246, 242)"
+        }
+      ],
+      "h1Count": 1,
+      "ctaCount": 4,
+      "errors": [],
+      "signature": "area.heading@1-11|area.items.0@1-11|area.items.1@1-11|area.items.2@1-11|area.items@1-11|contact.actions@3-9|contact.heading@1-11|contact.lede@1-11|footer.actions@1-11|footer.caption@1-11|footer.heading@1-11|hero.actions@1-11|hero.eyebrow@1-11|hero.heading@1-11|hero.lede@1-11|hero.media@1-11|nav.actions@1-11|nav.heading@1-11|offer.heading@1-11|offer.items.0@1-11|offer.items.1@1-11|offer.items.2@1-11|offer.items@1-11|proof.items.0@1-6|proof.items.1@1-6|proof.items.2@1-6|proof.items@1-6|why.heading@1-11|why.items.0@1-11|why.items.1@1-11|why.items.2@1-11|why.items.3@1-11|why.items.4@1-11|why.items@1-11"
+    }
+  }
+}

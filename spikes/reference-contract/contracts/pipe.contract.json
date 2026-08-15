@@ -1,0 +1,103 @@
+{
+  "contractId": "pipe",
+  "sourceStyle": {
+    "id": "c00d3961-a100-4c22-91fe-75f6e488e579",
+    "name": "Pipe"
+  },
+  "northStar": {
+    "value": "Near-black canvas, molten orange, split photographic hero",
+    "provenance": {
+      "field": "verdict descriptor (proxy for 'North star' — full style never fetched)",
+      "quote": "spikes/refero-baseline/RESEARCH-LOG.md §2: \"c00d3961-a100-4c22-91fe-75f6e488e579 | Pipe | Near-black canvas, molten orange, split photographic hero | Not read in full\". This is a human verdict descriptor written from the search-result summary, not a literal refero_get_style 'North star' field value — Pipe's full style was explicitly never fetched. Corroborated only by docs/refero-mcp-research.md Finding 1's aesthetic label: \"Pipe = black-and-orange technical\"."
+    }
+  },
+  "sectionRhythm": {
+    "contentSurfaces": ["inverted", "page", "inverted", "page"],
+    "heroSurface": "inverted",
+    "ctaSurface": "accent",
+    "provenance": {
+      "field": "verdict descriptor 'Near-black canvas'",
+      "quote": "assumed alternation pattern — RESEARCH-LOG only records the dominant canvas ('Near-black canvas'), not an explicit alternation rule like Ambrook's 'sections alternate between Greige Canvas and Warm Paper'. This contract infers a two-token inverted/page alternation (parallel in shape to Ambrook's raised/page alternation, substituting the documented dominant dark canvas for Ambrook's light one) rather than inventing a third, undocumented surface behaviour."
+    }
+  },
+  "surfaceLevels": {
+    "inverted": {
+      "purpose": "Near-black canvas — the style's own documented dominant surface",
+      "provenance": {
+        "field": "verdict descriptor",
+        "quote": "\"Near-black canvas\" (RESEARCH-LOG §2)."
+      }
+    },
+    "accent": {
+      "purpose": "Molten orange — the style's own documented accent",
+      "provenance": {
+        "field": "verdict descriptor",
+        "quote": "\"molten orange\" (RESEARCH-LOG §2)."
+      }
+    },
+    "page": {
+      "purpose": "assumed — a lighter relief surface between dark bands; not recorded for Pipe, inferred as the practical minimum needed for long-form text sections to stay readable against a near-black-dominant rhythm",
+      "provenance": {
+        "field": "Surfaces",
+        "quote": "assumed"
+      }
+    },
+    "raised": {
+      "purpose": "assumed — no elevated/raised surface recorded for Pipe at all",
+      "provenance": {
+        "field": "Surfaces",
+        "quote": "assumed"
+      }
+    }
+  },
+  "density": {
+    "class": "compact",
+    "baseGapStep": 1,
+    "provenance": {
+      "field": "Spacing & shapes (technical descriptor used as proxy)",
+      "quote": "assumed — no density value recorded for Pipe in either doc. Inferred from docs/refero-mcp-research.md Finding 1's aesthetic label \"black-and-orange technical\": a technical register reads as tighter, more instrumented spacing, the direct opposite of Ambrook's 'tactile' comfortable reading."
+    }
+  },
+  "media": {
+    "treatment": "photography",
+    "framing": "full-bleed-dramatic",
+    "provenance": {
+      "field": "verdict descriptor",
+      "quote": "\"split photographic hero\" (RESEARCH-LOG §2) — directly names both the medium (photographic) and the framing (split, i.e. the image is a dominant, bleeding hero mass, not an inset)."
+    }
+  },
+  "motion": {
+    "durationClass": "brisk",
+    "easingClass": "mechanical",
+    "provenance": {
+      "field": "Motion philosophy",
+      "quote": "assumed — neither doc records any motion field for Pipe at all (unlike Ambrook, where RESEARCH-LOG at least confirms the field's existence). Inferred entirely from the 'technical' descriptor (Finding 1)."
+    }
+  },
+  "componentPosture": {
+    "radiusClass": "sharp",
+    "depthMode": "border",
+    "provenance": {
+      "field": "Component recipes",
+      "quote": "assumed — no component recipe or shadow value recorded for Pipe. Inferred from 'near-black canvas' + 'technical' (Finding 1), and loosely corroborated by RESEARCH-LOG's own candidate table grouping Pipe with other dark technical styles surfaced in the same result set (\"Andercore, Pipe, Inngest, Outsource Consultants\", §2 'Why Fingerprint is the foundation') that are independently described there as having '0px radius' (Outsource Consultants) and 'dark industrial control panel' (Andercore) postures — a sharp/border reading is consistent with that neighbouring cluster, not with Ambrook's soft/tactile one."
+    }
+  },
+  "rejects": [
+    {
+      "rule": "No warm/pastel softening of the palette — canvas stays near-black, the single accent stays a saturated molten orange",
+      "provenance": {
+        "field": "verdict descriptor",
+        "quote": "\"Near-black canvas, molten orange\" (RESEARCH-LOG §2)."
+      }
+    }
+  ],
+  "assumptions": [
+    { "field": "northStar", "rationale": "Proxied from a human verdict descriptor, not an actual fetched 'North star' field — Pipe's full style record was never read (RESEARCH-LOG explicitly marks it 'Not read in full')." },
+    { "field": "sectionRhythm alternation pattern", "rationale": "Only the dominant canvas colour is documented; the alternation rule itself (which surfaces, in what order) is this contract's own inference, not a transcribed value." },
+    { "field": "surfaceLevels.page.purpose", "rationale": "Not recorded; inferred as a practical necessity for readable body text against a dark-dominant rhythm." },
+    { "field": "surfaceLevels.raised.purpose", "rationale": "Not recorded at all for Pipe." },
+    { "field": "density.class / density.baseGapStep", "rationale": "No spacing values recorded; inferred from the 'technical' aesthetic label only." },
+    { "field": "motion.durationClass / motion.easingClass", "rationale": "No motion field recorded for Pipe at all, unlike Ambrook where the field's existence is at least confirmed." },
+    { "field": "componentPosture.radiusClass / depthMode", "rationale": "No component recipe recorded for Pipe; inferred from its documented canvas/accent plus its neighbouring dark-technical styles in the same search result set." }
+  ]
+}

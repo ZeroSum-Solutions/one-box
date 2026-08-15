@@ -1,0 +1,63 @@
+{
+  "$provenance": "Every field below is copied verbatim, or lightly assembled from verbatim sentences, out of spikes/refero-baseline/BRIEF.md (the frozen canonical WITS intake) and spikes/wits-variants/a-editorial/site/index.html (presentation-trial copy explicitly noted there as unchanged from the refero-baseline spike). No claim here is new; see spikes/refero-baseline/CLAIMS.md for the standing confirm/removed register those source sentences already carry. This file exists only to feed spikes/reference-contract's two contract-driven builds a real, sourced WITS brief in the flat-field shape spikes/layout-ir/build.mjs's normalizeCopy() expects — it is not a new copy pass.",
+  "sections": {
+    "nav": {
+      "logo": "WITS",
+      "phone": "(407) 555-0142"
+    },
+    "hero": {
+      "eyebrow": "Structured cabling — Orlando, Florida",
+      "headline": "Your building's cabling should be the last thing you worry about.",
+      "sub": "WITS designs and installs structured cabling, fiber, and IT rooms for commercial buildings around Orlando. Thirty years in the field, fifteen running this business, and every run labeled and documented so the next person to open the closet can read it.",
+      "cta": "Call for an estimate",
+      "image-alt": "A fiber tester connected to a network switch during commissioning."
+    },
+    "trust-bar": {
+      "stat-1-title": "15",
+      "stat-1-body": "Years in business",
+      "stat-2-title": "30",
+      "stat-2-body": "Years in the trade",
+      "stat-3-title": "Commercial",
+      "stat-3-body": "Offices · New construction"
+    },
+    "services": {
+      "intro": "Three things we lead with.",
+      "card-1-title": "Network structured cabling",
+      "card-1-body": "Copper backbone and horizontal runs for offices, suites, and full floors. Every drop labeled at both ends and recorded on a plan you keep.",
+      "card-2-title": "Fiber optic cabling",
+      "card-2-body": "Single-mode and multimode between closets, floors, and buildings. Terminated, tested, and handed over together with the results.",
+      "card-3-title": "IT room design",
+      "card-3-body": "Racks, pathways, grounding, and cable management laid out before anything gets pulled — so the room is still workable in five years."
+    },
+    "why-us": {
+      "intro": "You should be able to open the closet in five years and still know what every cable does.",
+      "point-1-title": "Quality workmanship",
+      "point-1-body": "Every run installed to be opened and understood five years from now, not just to pass today.",
+      "point-2-title": "Attention to detail",
+      "point-2-body": "Labeling at both ends and a record of the plant that outlives whoever installed it.",
+      "point-3-title": "Reliability",
+      "point-3-body": "Thirty years in the trade, fifteen years running this business — the same person who quotes the job is the one who comes back to it.",
+      "point-4-title": "Personal service",
+      "point-4-body": "The same contact through quoting, install and anything after.",
+      "point-5-title": "Customer satisfaction",
+      "point-5-body": "Written scope agreed in advance, so variations are visible rather than argued about later."
+    },
+    "service-area": {
+      "intro": "Where we work.",
+      "area-1": "Orlando metro — Primary",
+      "area-2": "Florida — Statewide",
+      "area-3": "Colorado — Served"
+    },
+    "contact": {
+      "headline": "Call for an estimate.",
+      "sub": "Tell us what the building needs. We walk the site, then put the scope, the schedule, and the price in writing.",
+      "cta": "Call (407) 555-0142",
+      "telHref": "tel:+14075550142"
+    },
+    "footer": {
+      "business-name": "Wiggins Information Technology Services",
+      "tagline": "Structured cabling · Orlando, FL",
+      "phone": "(407) 555-0142"
+    }
+  }
+}
