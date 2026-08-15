@@ -14,6 +14,7 @@ import { mkdir, readFile, writeFile, copyFile, rename, stat } from "node:fs/prom
 import path from "node:path";
 import { promisify } from "node:util";
 import { compile } from "tailwindcss";
+import { collectDefinedCssVars, findUnresolvedCssVarRefs } from "./cssVars";
 
 const execFileAsync = promisify(execFile);
 import {
@@ -277,6 +278,28 @@ function stripOneKind(html: string, kind: "SECTION" | "NAVLINK", enabled: Set<st
 
 // ---------- tokens.css ----------
 
+/**
+ * Finds var() references inside the emitted token declarations that no
+ * declaration defines.
+ *
+ * Most token values are literals, but borders and shadows are free-form model
+ * output and legitimately reference other tokens — `--border-subtle: 1px solid
+ * var(--color-border)`. When the referenced name is never emitted, the browser
+ * treats the WHOLE declaration as invalid at computed-value time: the property
+ * silently falls back to its initial value and the border simply disappears.
+ * Nothing else catches this — token-drift inspects colour and font only — so it
+ * ships looking fine (ENG-008: `var(--color-stone-grey)`, never defined).
+ *
+ * A reference carrying a fallback, `var(--x, 1px)`, still renders and is not
+ * reported. The check is deliberately confined to this sheet, which
+ * tokens.css.tpl documents as a self-contained flat value sheet; a token value
+ * reaching into another stylesheet is itself a contract break.
+ */
+export function findDanglingTokenRefs(declarations: string[]): string[] {
+  const sheet = declarations.join("\n");
+  return findUnresolvedCssVarRefs(sheet, collectDefinedCssVars(sheet));
+}
+
 async function renderTokensCss(tokens: DesignTokens): Promise<string> {
   const template = await readFile(path.join(TEMPLATE_DIR, "tokens.css.tpl"), "utf8");
   const lines: string[] = [];
@@ -315,6 +338,15 @@ async function renderTokensCss(tokens: DesignTokens): Promise<string> {
   lines.push(`  --motion-ease: ${tokens.motion.easing};`);
   lines.push(`  --motion-duration-micro: ${tokens.motion.durationMs.micro}ms;`);
   lines.push(`  --motion-duration-reveal: ${tokens.motion.durationMs.reveal}ms;`);
+
+  const dangling = findDanglingTokenRefs(lines);
+  if (dangling.length) {
+    throw new Error(
+      `tokens.css references undefined custom ${
+        dangling.length === 1 ? "property" : "properties"
+      }: ${dangling.join(", ")}. Every declaration using one would be dropped by the browser.`
+    );
+  }
 
   return template.replace("{{tokenDeclarations}}", lines.join("\n"));
 }

@@ -164,7 +164,12 @@ describe("local API authorization", () => {
     ) as { scripts: Record<string, string> };
     expect(scripts.dev).toBe("./scripts/dev.sh");
     expect(scripts["dev:next"]).toContain("--hostname 127.0.0.1");
-    expect(scripts["dev:next"]).toContain("--port 3000");
+    // Loopback-only is what this test guards, and --hostname carries it; the
+    // port is not a security property. It became overridable in ENG-007
+    // (./scripts/dev.sh <port>) but stays explicitly specified, so a busy port
+    // still fails loudly instead of Next silently retrying onto another one —
+    // which would leave you auditing a site the server isn't serving.
+    expect(scripts["dev:next"]).toContain("--port ${PORT:-3000}");
     expect(scripts.start).toContain("--hostname 127.0.0.1");
   });
 });

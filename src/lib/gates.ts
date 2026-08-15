@@ -3,7 +3,9 @@
  * BUILT SITE, not the design contract (audit E24) — everything runs against
  * a real Playwright page load, never a static grep of DESIGN.md.
  *
- * (a) token-drift   BLOCKING — every rendered color/font traces to tokens.css
+ * (a) token-drift   BLOCKING — every rendered color/font traces to tokens.css,
+ *                    and every custom property the stylesheets reference is
+ *                    actually defined (ENG-006)
  * (b) axe           BLOCKING — zero serious/critical a11y violations
  * (c) console-errors BLOCKING — no console errors on load
  * (d) assets        BLOCKING — every img/stylesheet/script resolves, every
@@ -27,6 +29,7 @@ import {
   IntakeSchema,
   type GateReport,
 } from "./contracts";
+import { findUnresolvedSheetRefs } from "./cssVars";
 
 export interface RunGatesOptions {
   afterEdit?: boolean;
@@ -50,6 +53,7 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   const tokensCssText = await readFile(path.join(siteDir, "tokens.css"), "utf8");
   const allowed = parseAllowedTokens(tokensCssText);
   const phone = await readIntakePhone(runRoot);
+  const unresolvedRefs = await findUnresolvedSheetRefs(siteDir, tokensCssText);
 
   // afterEdit re-checks only the two invariants amendment B8 calls out by
   // name (token lint + axe) — the full suite still runs on a fresh build.
@@ -61,7 +65,7 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   const reports: GateReport[] = [];
   try {
     for (const name of gateNames) {
-      const report = await runOne(browser, name, url, { allowed, phone });
+      const report = await runOne(browser, name, url, { allowed, phone, unresolvedRefs });
       reports.push(GateReportSchema.parse(report));
     }
   } finally {
@@ -77,11 +81,11 @@ async function runOne(
   browser: import("playwright").Browser,
   name: string,
   url: string,
-  ctx: { allowed: AllowedTokens; phone?: string }
+  ctx: { allowed: AllowedTokens; phone?: string; unresolvedRefs: string[] }
 ): Promise<GateReport> {
   switch (name) {
     case "token-drift":
-      return withPage(browser, (page) => gateTokenDrift(page, url, ctx.allowed));
+      return withPage(browser, (page) => gateTokenDrift(page, url, ctx.allowed, ctx.unresolvedRefs));
     case "axe":
       return withPage(browser, (page) => gateAxe(page, url));
     case "console-errors":
@@ -188,7 +192,12 @@ function colorToRgbString(value: string): string | undefined {
   return undefined;
 }
 
-async function gateTokenDrift(page: Page, url: string, allowed: AllowedTokens): Promise<GateReport> {
+async function gateTokenDrift(
+  page: Page,
+  url: string,
+  allowed: AllowedTokens,
+  unresolvedRefs: string[] = []
+): Promise<GateReport> {
   await page.goto(url, { waitUntil: "load" });
   const elements = await page.$$eval("body *", (els) =>
     els.map((el) => {
@@ -203,7 +212,11 @@ async function gateTokenDrift(page: Page, url: string, allowed: AllowedTokens): 
     })
   );
 
-  const details: string[] = [];
+  // Listed first: an unresolved reference explains the computed-value
+  // failures below it, rather than being buried under forty of them.
+  const details: string[] = unresolvedRefs.map(
+    (name) => `${name} is referenced by the stylesheets but defined nowhere — every declaration using it is dropped`
+  );
   for (const el of elements) {
     if (["script", "style"].includes(el.tag)) continue;
     if (!isAllowedColor(el.color, allowed)) {

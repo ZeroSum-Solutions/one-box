@@ -27,14 +27,58 @@ evidence; **none are fixed yet.**
 | ENG-003 | S1 | OPEN | The `css-architecture` human-approval gate is **inert**. The approved artifact is existence-checked and then never read; theme CSS is rendered from the inventory and plan instead. A human approves something that has no effect. | `src/lib/pipeline.ts:883` |
 | ENG-004 | S2 | OPEN | Refero is wired only into the token layer. It cannot influence composition. | `pipeline.ts` (token synthesis stage) |
 | ENG-005 | S2 | OPEN | `buildSite` writes `complete:false` into the **active** site directory. Publication is not atomic; a failed build leaves a half-written live site. | `src/lib/builder.ts:69` |
-| ENG-006 | S2 | OPEN | The `token-drift` gate only inspects computed `color`, `backgroundColor`, `fontFamily`. Spacing, radius, shadow and type-scale drift pass unnoticed. | `src/lib/gates.ts:137` |
-| ENG-007 | S3 | OPEN | `scripts/dev.sh` ignores its port argument — `exec npm run dev:next` hardcodes 3000. | `scripts/dev.sh` |
-| ENG-008 | S2 | OPEN | Shipped `tokens.css` declares `--border-subtle: 1px solid var(--color-stone-grey)`; `--color-stone-grey` is never defined anywhere. A dangling token reference in production output. | generated `tokens.css` |
+| ENG-006 | S2 | **FIXED** | The `token-drift` gate only inspects computed `color`, `backgroundColor`, `fontFamily`. Spacing, radius, shadow and type-scale drift pass unnoticed. | `src/lib/gates.ts:137` |
+| ENG-007 | S3 | **FIXED** | `scripts/dev.sh` ignores its port argument — `exec npm run dev:next` hardcodes 3000. | `scripts/dev.sh` |
+| ENG-008 | S2 | **FIXED** | Shipped `tokens.css` declares `--border-subtle: 1px solid var(--color-stone-grey)`; `--color-stone-grey` is never defined anywhere. A dangling token reference in production output. | generated `tokens.css` |
 | ENG-009 | S3 | OPEN | Evidence workspace 404s — absolute filesystem paths are rendered as image URLs. | evidence workspace UI |
 
 **The architectural consequence, stated once:** ENG-001 and ENG-002 together mean
 the brief cannot reach composition, and ENG-003 means the human gate that should
 have caught it does nothing. Fixing tokens alone cannot fix sameness.
+
+### Resolutions — 2026-08-15
+
+**ENG-008** — root cause was wider than first recorded. `renderTokensCss`
+(`builder.ts`) writes model-authored free-form strings for `radii`, `spacing`,
+`borders`, `shadows` and `layers` straight into `tokens.css`. A `var()` inside
+one of those values naming a property nothing defines makes the **whole
+declaration** invalid at computed-value time, so the property reverts to its
+initial value: the border does not render wrong, it disappears. `buildSite` now
+refuses to emit such a sheet, naming the properties.
+
+**ENG-006** — widened, but **not** the way the entry assumed. Comparing computed
+spacing, radius and font-size against token values was tried on paper and
+rejected, for two reasons found in the stylesheet itself:
+
+- Fluid type is composed as `clamp(var(--text-a), 3vw + 0.5rem, var(--text-b))`
+  in 5 places, so a correct rendered `font-size` is routinely a value that
+  equals **no token at all**.
+- The frozen `site.css` legitimately contains its own composition scalars
+  (`50%` radii on avatars, `padding: 10px` in the iOS rules) — D-004 already
+  established that Refero supplies a vocabulary, not a layout.
+
+An equality check would have failed both, on every run. Per H-003 that gate
+would have been switched off within a week. What shipped instead resolves every
+`var()` the stylesheets reference against every `var()` they define — which
+catches spacing, radius, shadow and type-scale drift at its **source** rather
+than in its symptoms, with no viewport or serialisation ambiguity.
+
+Measured against the real frozen `site.css`: 36 bare references, all satisfied
+by the documented token contract, and exactly 3 references that could dangle
+(`--border-subtle`, `--layer-overlay`, `--layer-sticky`) all carry fallbacks and
+so are correctly ignored. Negative-tested: removing `--radius-md` and
+`--text-heading` from a token sheet fails the gate; removing the three
+fallback-guarded properties does not.
+
+**ENG-007** — `dev:next` now reads `${PORT:-3000}` and `dev.sh` exports `PORT`
+from an optional first argument. The port stays **explicitly** specified rather
+than left to Next's default, because an unspecified port lets Next retry onto a
+different one when 3000 is busy — and auditing a site the server is not serving
+is a failure mode this ledger already knows too well. Verified: `PORT=5199`
+binds `http://127.0.0.1:5199`.
+
+The security test that pinned `--port 3000` was updated, not weakened: its
+stated invariant is loopback-only, which `--hostname 127.0.0.1` carries.
 
 ---
 
