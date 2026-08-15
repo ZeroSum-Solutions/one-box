@@ -17,13 +17,35 @@
 //
 // Output: <out>/outside-grade.md (+ screenshots and the raw codex log).
 
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import { chromium } from "playwright";
 
-const execFileAsync = promisify(execFile);
+// stdin MUST be closed ("ignore"): with an open empty pipe, codex waits on
+// "Reading additional input from stdin..." forever instead of running.
+function runCodex(args, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("codex", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      reject(Object.assign(new Error(`codex timed out after ${timeoutMs}ms`), { out, err }));
+    }, timeoutMs);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      reject(Object.assign(e, { out, err }));
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve({ out, err });
+      else reject(Object.assign(new Error(`codex exited ${code}`), { out, err }));
+    });
+  });
+}
 
 function arg(name, fallback) {
   const at = process.argv.indexOf(`--${name}`);
@@ -127,12 +149,12 @@ const logFile = path.join(outDir, "outside-grade-log.txt");
 console.log("outside-grade: invoking codex (this takes a few minutes)…");
 let log = "";
 try {
-  const { stdout, stderr } = await execFileAsync(
-    "codex",
+  const { out, err } = await runCodex(
     [
       "exec",
       "--sandbox", "read-only",
       "--skip-git-repo-check",
+      "-c", 'model_reasoning_effort="high"',
       "-C", srcDir,
       "-i", desktopShot,
       "-i", mobileShot,
@@ -140,11 +162,11 @@ try {
       "--color", "never",
       prompt,
     ],
-    { timeout: 20 * 60_000, maxBuffer: 64 * 1024 * 1024 }
+    15 * 60_000
   );
-  log = `${stdout}\n${stderr}`;
+  log = `${out}\n${err}`;
 } catch (error) {
-  log = `${error.stdout ?? ""}\n${error.stderr ?? ""}\n${error.message}`;
+  log = `${error.out ?? ""}\n${error.err ?? ""}\n${error.message}`;
   await writeFile(logFile, log);
   console.error(`outside-grade: codex failed — transcript at ${logFile}`);
   process.exit(1);
