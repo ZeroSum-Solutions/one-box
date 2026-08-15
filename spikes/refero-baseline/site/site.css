@@ -1,0 +1,669 @@
+/**
+ * WITS — composition
+ *
+ * Built only from tokens.css. No raw colour, no raw font, no invented scalar.
+ * Layout rules and their Refero sources are in DESIGN.md §4–§9.
+ */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--surface-0);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-lh);
+  font-weight: var(--weight-regular);
+}
+
+/* ---- Primitives -------------------------------------------------------- */
+
+.shell {
+  max-inline-size: var(--page-max);           /* [F] 1232px */
+  margin-inline: auto;
+  padding-inline: var(--page-gutter);
+}
+
+/* [O] mono annotation label — the technical register of the whole page */
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  line-height: var(--text-label-lh);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+  margin: 0;
+}
+
+h1, h2, h3 { margin: 0; font-weight: var(--weight-strong); }
+
+h1 {
+  font-size: var(--text-display);
+  line-height: var(--text-display-lh);
+  letter-spacing: var(--text-display-ls);
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: var(--text-heading);
+  line-height: var(--text-heading-lh);
+  text-wrap: balance;
+}
+
+h3 {
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-lh);
+}
+
+p { margin: 0; }
+
+.lede {
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-lh);
+  color: var(--color-ink-secondary);
+  max-inline-size: 54ch;
+  text-wrap: pretty;
+}
+
+/* ---- Actions ----------------------------------------------------------- */
+
+/* [F] Primary Action Button. Text colour is a documented accessibility
+ * override: [F] specifies white on Accent Orange, which measures 3.34:1 and
+ * fails WCAG AA for normal text. Ink on accent measures 5.57:1 and passes.
+ * [A]'s own primary button uses dark text on its accent, so the override has
+ * precedent inside the reference set. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  min-block-size: 44px;
+  padding: 8px var(--space-md);
+  border-radius: var(--radius-button);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-lg);
+  font-weight: var(--weight-strong);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--motion-ease),
+              color var(--motion-fast) var(--motion-ease),
+              border-color var(--motion-fast) var(--motion-ease);
+}
+
+.btn--primary {
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent-edge);
+  color: var(--color-ink);
+  box-shadow: var(--shadow-interactive);
+}
+
+.btn--primary:hover { background: var(--color-accent-edge); color: var(--surface-1); }
+
+/* [F] Secondary Ghost Button */
+.btn--ghost {
+  background: transparent;
+  border: 1px solid var(--color-ink-secondary);
+  color: var(--color-ink-secondary);
+}
+
+.btn--ghost:hover { border-color: var(--color-ink); color: var(--color-ink); }
+
+.btn--on-dark {
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent-edge);
+  color: var(--color-ink);
+}
+
+.btn--on-dark:hover { background: var(--surface-1); border-color: var(--surface-1); }
+
+:where(a, button, summary):focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+/* ---- Masthead · [O] mono nav, [F] sticky ------------------------------- */
+
+.masthead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--surface-0) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-block-end: var(--border-hairline);
+}
+
+.masthead__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  min-block-size: 64px;
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  text-decoration: none;
+  color: var(--color-ink);
+  /* Does not grow. Fixing the header defect where the logo took all the
+   * free space and pushed the nav off the end. */
+  flex: 0 0 auto;
+}
+
+.wordmark__mark {
+  font-family: var(--font-mono);
+  font-size: var(--text-body-lg);
+  font-weight: var(--weight-strong);
+  letter-spacing: 0.02em;
+}
+
+.wordmark__expand {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--text-caption-lh);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.masthead__nav {
+  display: flex;
+  gap: var(--space-lg);
+  margin-inline-start: auto;
+}
+
+.masthead__nav a {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  color: var(--color-ink-secondary);
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+
+.masthead__nav a:hover { color: var(--color-accent); }
+
+.masthead__call {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  font-weight: var(--weight-strong);
+  color: var(--color-ink);
+  text-decoration: none;
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--border-strong);
+  border-radius: var(--radius-button);
+  white-space: nowrap;
+  transition: background-color var(--motion-fast) var(--motion-ease),
+              color var(--motion-fast) var(--motion-ease);
+}
+
+.masthead__call:hover { background: var(--color-ink); color: var(--surface-1); }
+
+/* ---- Bands ------------------------------------------------------------- */
+
+.band { padding-block: var(--space-band); }        /* 2 × [F] sectionGap */
+.band--sunk { background: var(--surface-2); }
+.band--tight { padding-block: var(--space-section); }
+
+.band__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-block-end: var(--space-2xl);
+  max-inline-size: 62ch;
+}
+
+/* ---- Hero · [F] split, proposition left, structured visual right -------- */
+
+.hero { padding-block: var(--space-band) var(--space-band); }
+
+.hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: var(--space-2xl);
+  align-items: center;
+}
+
+.hero__copy { display: flex; flex-direction: column; gap: var(--space-lg); }
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-block-start: var(--space-xs);
+}
+
+.hero__aside {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  color: var(--color-ink-muted);
+  text-transform: uppercase;
+}
+
+/* ---- Spec panel · [F] Data Display Console, [O] 0px radius -------------- */
+
+.spec {
+  background: var(--surface-inverted);
+  border-radius: var(--radius-data);
+  padding: var(--space-lg);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  line-height: 1.5;
+}
+
+.spec__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-block-end: var(--space-sm);
+  margin-block-end: var(--space-sm);
+  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 30%, transparent);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  color: var(--color-console-ink);
+}
+
+.spec__signal { color: var(--color-signal); }
+
+.spec__row {
+  display: grid;
+  grid-template-columns: 13ch minmax(0, 1fr);
+  gap: var(--space-sm);
+  padding-block: 7px;
+  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 16%, transparent);
+}
+
+.spec__row:last-of-type { border-block-end: 0; }
+
+.spec__key {
+  color: var(--color-console-ink);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  padding-block-start: 2px;
+}
+
+.spec__val { color: var(--surface-1); }
+
+/* ---- Scope · [F] grid, [O] mono index ---------------------------------- */
+
+.scope__primary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-xl);
+}
+
+.scope__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding-block-start: var(--space-md);
+  border-block-start: 2px solid var(--color-ink);   /* [O] index rule, 0 radius */
+}
+
+.scope__index {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  color: var(--color-accent);
+}
+
+.scope__item h3 {
+  font-size: var(--text-subheading);
+  line-height: var(--text-subheading-lh);
+  letter-spacing: var(--text-subheading-ls);
+}
+
+.scope__item p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+
+.scope__also {
+  margin-block-start: var(--space-2xl);
+  padding-block-start: var(--space-lg);
+  border-block-start: var(--border-hairline);
+  display: grid;
+  grid-template-columns: 13ch minmax(0, 1fr);
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.scope__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* Five services, one row. auto-fit produced a 4+1 split that orphaned the
+   * last item and left a ragged gap. */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-xs) var(--space-lg);
+}
+
+.scope__list li {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  color: var(--color-ink-secondary);
+  padding-block: 6px;
+  border-block-end: var(--border-hairline);
+}
+
+/* ---- Accent band · [O] full-bleed hard divider -------------------------- */
+
+.creed {
+  background: var(--color-accent);
+  color: var(--color-ink);
+  padding-block: var(--space-band);
+}
+
+.creed__statement {
+  font-size: var(--text-heading);
+  line-height: 1.25;
+  font-weight: var(--weight-strong);
+  letter-spacing: -0.4px;
+  max-inline-size: 20ch;
+  margin: 0;
+}
+
+.creed__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2xl);
+  align-items: end;
+}
+
+.creed__note {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  line-height: 1.7;
+  color: color-mix(in srgb, var(--color-ink) 78%, transparent);
+  max-inline-size: 44ch;
+}
+
+.creed__rule {
+  border: 0;
+  border-block-start: 1px solid color-mix(in srgb, var(--color-ink) 30%, transparent);
+  margin-block: var(--space-lg);
+}
+
+/* ---- Process ----------------------------------------------------------- */
+
+.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xl); }
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-block-start: var(--space-sm);
+  border-block-start: var(--border-hairline);
+}
+
+.step__n {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  color: var(--color-accent);
+}
+
+.step h3 { font-weight: var(--weight-strong); }
+.step p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+
+/* ---- Coverage ---------------------------------------------------------- */
+
+.coverage__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2xl);
+  align-items: start;
+}
+
+.coverage__card {
+  background: var(--surface-1);
+  border: var(--border-hairline);
+  border-radius: var(--radius-card);       /* [F] soft — this is content */
+  box-shadow: var(--shadow-card);
+  padding: var(--space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.coverage__primary {
+  font-size: var(--text-subheading);
+  line-height: var(--text-subheading-lh);
+  letter-spacing: var(--text-subheading-ls);
+  font-weight: var(--weight-strong);
+}
+
+.coverage__regions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.coverage__regions li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  padding-block: 10px;
+  border-block-end: var(--border-hairline);
+}
+
+.coverage__regions li:last-child { border-block-end: 0; }
+.coverage__regions span:last-child { color: var(--color-ink-muted); }
+
+/* ---- Photography plate · [A] art direction ----------------------------- */
+
+/* The plate is a specification, not a missing image. At full width it read as
+ * a hole in the page, so it is sized as a callout and the direction copy sits
+ * beside it as the actual content. */
+.plate-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: var(--space-2xl);
+  align-items: center;
+}
+
+.plate {
+  border: 1px dashed var(--color-ink-muted);
+  border-radius: var(--radius-data);       /* [O] sharp — this is a spec */
+  aspect-ratio: 4 / 3;
+  max-block-size: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  background: var(--surface-2);
+}
+
+.plate__ratio {
+  font-family: var(--font-mono);
+  font-size: var(--text-heading);
+  line-height: 1;
+  color: var(--color-border);
+  margin-block: auto;
+  align-self: center;
+}
+
+.plate__tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.plate__brief {
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  line-height: 1.6;
+  color: var(--color-ink-secondary);
+  max-inline-size: 60ch;
+}
+
+/* ---- FAQ · [O] 0 radius, hairline rules -------------------------------- */
+
+.faq { border-block-start: var(--border-hairline); }
+
+.faq details {
+  border-block-end: var(--border-hairline);
+  border-radius: var(--radius-data);
+}
+
+.faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding-block: var(--space-lg);
+  cursor: pointer;
+  list-style: none;
+  font-size: var(--text-body-lg);
+  font-weight: var(--weight-strong);
+  transition: color var(--motion-fast) var(--motion-ease);
+}
+
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary:hover { color: var(--color-accent); }
+
+.faq summary::after {
+  content: "+";
+  font-family: var(--font-mono);
+  font-size: var(--text-body-lg);
+  color: var(--color-accent);
+  flex: 0 0 auto;
+}
+
+.faq details[open] summary::after { content: "\2212"; }
+
+.faq p {
+  padding-block-end: var(--space-lg);
+  font-size: var(--text-body);
+  line-height: var(--text-body-lh);
+  color: var(--color-ink-secondary);
+  max-inline-size: 68ch;
+}
+
+/* ---- Contact · [N] the one dark band ----------------------------------- */
+
+.contact {
+  background: var(--surface-inverted);
+  color: var(--surface-1);
+  padding-block: var(--space-band);
+}
+
+.contact__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2xl);
+  align-items: center;
+}
+
+.contact h2 { font-size: var(--text-heading); line-height: var(--text-heading-lh); }
+
+.contact__lede {
+  color: var(--color-console-ink);
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-lh);
+  max-inline-size: 46ch;
+  margin-block-start: var(--space-md);
+}
+
+.contact__lines { display: flex; flex-direction: column; gap: var(--space-md); }
+
+.contact__line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding-block: var(--space-md);
+  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 26%, transparent);
+}
+
+.contact__line .label { color: var(--color-console-ink); }
+
+.contact__value {
+  font-family: var(--font-mono);
+  font-size: var(--text-subheading);
+  line-height: 1.2;
+  letter-spacing: var(--text-subheading-ls);
+  color: var(--surface-1);
+  text-decoration: none;
+  transition: color var(--motion-fast) var(--motion-ease);
+  overflow-wrap: anywhere;
+}
+
+.contact__value:hover { color: var(--color-accent); }
+
+.contact__actions { margin-block-start: var(--space-lg); }
+
+/* ---- Footer ------------------------------------------------------------ */
+
+.footer { padding-block: var(--space-section); border-block-start: var(--border-hairline); }
+
+.footer__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-lg);
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: var(--text-label);
+  letter-spacing: var(--text-label-ls);
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+/* ---- Responsive -------------------------------------------------------- */
+
+@media (max-width: 960px) {
+  .hero__grid,
+  .creed__grid,
+  .coverage__grid,
+  .contact__grid { grid-template-columns: minmax(0, 1fr); }
+
+  .scope__primary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scope__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .plate-grid { grid-template-columns: minmax(0, 1fr); }
+  .masthead__nav { display: none; }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --text-display: 34px;
+    --text-heading: 27px;
+    --text-subheading: 22px;
+    --space-band: 64px;
+    --page-gutter: 20px;
+  }
+
+  .scope__primary { grid-template-columns: minmax(0, 1fr); }
+  .steps { grid-template-columns: minmax(0, 1fr); }
+  .scope__list { grid-template-columns: minmax(0, 1fr); }
+  .scope__also { grid-template-columns: minmax(0, 1fr); gap: var(--space-sm); }
+  .spec__row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .spec { padding: var(--space-md); }
+  .wordmark__expand { display: none; }
+  .contact__value { font-size: var(--text-body-lg); }
+  .plate { aspect-ratio: 4 / 3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}

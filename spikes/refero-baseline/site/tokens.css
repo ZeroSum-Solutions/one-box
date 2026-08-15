@@ -1,0 +1,113 @@
+/**
+ * WITS — design tokens
+ *
+ * Every value traces to a Refero style reference. Provenance is marked inline:
+ *   [F] Fingerprint            74adbdf2-822b-4df3-80d1-3c5a1b263a90
+ *   [O] Outsource Consultants  63db7f14-d256-47a7-aa0c-337555022b6b
+ *   [T] Tailscale              5d884659-1d6b-4b82-8ccd-dbb0434667a8
+ *   [A] Ambrook                b11e1e78-3c62-45df-bf28-17c97718ed7d
+ *   [N] Andercore              15fd028d-c493-47a9-8e69-0a59c6fdb14b
+ *
+ * Rules in DESIGN.md. Do not add a token here without a source.
+ */
+
+:root {
+  /* ---- Colour · all [F] ------------------------------------------------ */
+  --color-canvas: #fafaf8;         /* [F] Canvas White   — page background   */
+  --color-surface: #ffffff;        /* [F] Warm White     — card surfaces     */
+  --color-surface-sunk: #f0f0ef;   /* [F] Light Gray     — quiet bands       */
+  --color-ink: #141415;            /* [F] Ink Black      — primary text      */
+  --color-ink-secondary: #454542;  /* [F] Graphite       — secondary text    */
+  --color-ink-muted: #8c8c89;      /* [F] Faded Stone    — labels, tertiary  */
+  --color-border: #e4e5e1;         /* [F] Border Ash     — borders, dividers */
+  --color-console: #2e2e2c;        /* [F] Code Block Dark — data panel       */
+  --color-console-ink: #abb2bf;    /* [F] Monitor Grey   — text in console   */
+
+  /* Brand swap point. Holds [F] Accent Orange until WITS brand files land.
+   * Changing these two values re-brands the site. Nothing else moves. */
+  --color-accent: #f35b22;         /* [F] Accent Orange  — sole interaction  */
+  --color-accent-edge: #be400f;    /* [F] button border  — depth on CTA      */
+
+  --color-signal: #88d2c3;         /* [F] Deep Teal — data emphasis ONLY,
+                                    * never an interactive element           */
+
+  /* ---- Surface levels · system [T], values [F] ------------------------- */
+  --surface-0: var(--color-canvas);
+  --surface-1: var(--color-surface);
+  --surface-2: var(--color-surface-sunk);
+  --surface-inverted: var(--color-console);
+
+  /* ---- Type families · [F] --------------------------------------------- */
+  /* Licensed faces named for fidelity; substitutes are what actually ship.
+   * See DESIGN.md §3 and RESEARCH-LOG.md §4.3. */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* ---- Type scale · [F], verbatim -------------------------------------- */
+  --text-caption: 10px;
+  --text-caption-lh: 1.45;
+
+  --text-label: 12px;              /* [F] mono 12px, uppercase annotation    */
+  --text-label-lh: 1.5;
+  --text-label-ls: 0.08em;
+
+  --text-body: 14px;
+  --text-body-lh: 1.6;
+
+  --text-body-lg: 16px;
+  --text-body-lg-lh: 1.6;
+
+  --text-subheading: 30px;
+  --text-subheading-lh: 1.22;
+  --text-subheading-ls: -0.6px;
+
+  --text-heading: 36px;
+  --text-heading-lh: 1.15;
+
+  --text-display: 48px;
+  --text-display-lh: 1.17;
+  --text-display-ls: -0.99px;
+
+  --weight-regular: 400;           /* [F] all body copy                      */
+  --weight-strong: 600;            /* [F] headings + short critical text only*/
+
+  /* ---- Spacing · [F] --------------------------------------------------- */
+  --space-element: 8px;            /* [F] elementGap                         */
+  --space-card: 12px;              /* [F] cardPadding                        */
+  --space-section: 48px;           /* [F] sectionGap                         */
+  --space-band: 96px;              /* 2 × section — documented, DESIGN.md §7 */
+
+  --space-2xs: 4px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 48px;
+
+  /* ---- Shape · [F] soft for people, [O] sharp for data ------------------ */
+  --radius-button: 6px;            /* [F]                                    */
+  --radius-card: 12px;             /* [F]                                    */
+  --radius-default: 4px;           /* [F]                                    */
+  --radius-data: 0px;              /* [O] — console, spec rows, annotations  */
+
+  /* ---- Elevation · [F] inset hairlines, [T] restraint ------------------- */
+  --shadow-card:
+    rgba(228, 229, 225, 0.3) 0 1px 0 0 inset,
+    rgba(110, 111, 109, 0.1) 0 -1px 0 0 inset;
+  --shadow-interactive: rgba(24, 25, 22, 0.06) 0 1px 2px 0;
+  /* No drop shadows. [F], [T], [O] and [N] all forbid them. */
+
+  /* ---- Borders --------------------------------------------------------- */
+  --border-hairline: 1px solid var(--color-border);
+  --border-strong: 1px solid var(--color-ink);
+
+  /* ---- Layout · [F] ---------------------------------------------------- */
+  --page-max: 1232px;              /* [F] pageMaxWidth                       */
+  --page-gutter: 24px;
+
+  /* ---- Motion · [A], the only reference that specifies it --------------- */
+  --motion-fast: 0.15s;
+  --motion-deliberate: 0.3s;
+  --motion-ease: ease;
+}
