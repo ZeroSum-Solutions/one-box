@@ -8,10 +8,15 @@ import { STAGE_LABEL, StageCard, type StageCardStatus } from "@/components/Stage
 import {
   buildChatRequest,
   completedChatReplayRunId,
+  researchConfigurationForCapability,
   type IntakeChatContext,
 } from "@/components/intakeRequest";
 import { readSSE } from "@/components/sse";
-import { consumePipelineRunStream, resumedRunId } from "@/components/resumeRun";
+import {
+  consumePipelineRunStream,
+  pipelineStatusLabel,
+  resumedRunId,
+} from "@/components/resumeRun";
 import type {
   PipelineEvent,
   ProjectTarget,
@@ -460,12 +465,9 @@ export default function Home() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [input, setInput] = useState("");
   const [projectTarget, setProjectTarget] = useState<ProjectTarget>("website");
-  const [research, setResearch] = useState<ResearchConfiguration>({
-    enabled: true,
-    businessIntelligence: true,
-    referoDesignEvidence: false,
-    allowPaidFirecrawlFallback: false,
-  });
+  const [research, setResearch] = useState<ResearchConfiguration>(
+    () => researchConfigurationForCapability(false)
+  );
   const [runtimeCapabilities, setRuntimeCapabilities] =
     useState<RuntimeCapabilities>({
       referoDesignEvidence: false,
@@ -495,12 +497,13 @@ export default function Home() {
       .then((capabilities) => {
         if (!capabilities) return;
         setRuntimeCapabilities(capabilities);
-        if (!capabilities.referoDesignEvidence) {
-          setResearch((current) => ({
-            ...current,
-            referoDesignEvidence: false,
-          }));
-        }
+        setResearch((current) => ({
+          ...current,
+          referoDesignEvidence:
+            researchConfigurationForCapability(
+              capabilities.referoDesignEvidence
+            ).referoDesignEvidence,
+        }));
       })
       .catch(() => undefined);
     return () => controller.abort();
@@ -773,7 +776,7 @@ export default function Home() {
       {state.phase === "pipeline" && state.runId && (
         <section className="timeline-view" aria-label="Build progress">
           <header className="timeline-header">
-            <p className="eyebrow">{"{ building }"}</p>
+            <p className="eyebrow">{pipelineStatusLabel(latestPipelineEvent)}</p>
             <CostChip usd={state.costUsd} />
           </header>
           <div className="timeline">{state.timeline.map((item) => timelineNode(item, state.runId!))}</div>

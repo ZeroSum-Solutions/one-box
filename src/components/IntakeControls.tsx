@@ -164,7 +164,7 @@ export function IntakeControls({
                 <span>
                   <strong>Use research before generation</strong>
                   <small>
-                    Gather business, competitor, and design-reference evidence before the build.
+                    Gather the research lanes selected below before the build.
                   </small>
                 </span>
               </label>
@@ -181,7 +181,12 @@ export function IntakeControls({
                     }
                     disabled={disabled || !research.enabled}
                   />
-                  Business and competitor context
+                  <span>
+                    Business and competitor context
+                    <small>
+                      Runs only when paid Firecrawl discovery is separately approved below.
+                    </small>
+                  </span>
                 </label>
                 <label>
                   <input
@@ -228,6 +233,13 @@ export function IntakeControls({
                     <small>{FIRECRAWL_CONSENT_HELP}</small>
                   </span>
                 </label>
+                {research.enabled &&
+                  research.businessIntelligence &&
+                  !research.allowPaidFirecrawlFallback && (
+                    <p role="status">
+                      Competitor discovery will be skipped unless paid Firecrawl discovery is approved.
+                    </p>
+                  )}
               </div>
             </div>
           </details>

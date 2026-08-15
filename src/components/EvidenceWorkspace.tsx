@@ -83,6 +83,15 @@ function artifactUrl(runId: string, artifactPath: string): string {
   return `/api/sites/${runId}/${servedPath}`;
 }
 
+function safeExternalHref(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function versionJsonUrl(runId: string, artifact: WorkflowArtifactVersion): string {
   return artifactUrl(
     runId,
@@ -131,13 +140,35 @@ export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifac
           {groups.map(([title, group]) => (
             <section key={title}>
               <h3>{title}</h3>
+              {group.sources.length === 0 &&
+                group.claims.length === 0 &&
+                (!("references" in group) || group.references.length === 0) &&
+                (!("competitors" in group) ||
+                  (group.competitors.length === 0 &&
+                    group.marketExpectations.length === 0 &&
+                    group.differentiationOpportunities.length === 0)) && (
+                <p>
+                  {title === "Business intelligence"
+                    ? "No competitors or other business intelligence evidence were recorded for this run."
+                    : "No Refero design evidence was recorded for this run."}
+                </p>
+              )}
               <ul>{group.claims.map((claim) => <li key={claim.id}><strong>{claim.classification}</strong> · {Math.round(claim.confidence * 100)}% — {claim.statement}</li>)}</ul>
-              {group.sources.map((source) => <div key={source.id}><p><a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.title ?? source.sourceUrl}</a> · {Math.round(source.confidence * 100)}% · {source.capturedAt}</p>{source.screenshotPaths.map((screenshot) => <figure key={screenshot}><EvidenceImage src={`/api/sites/${runId}/${screenshot}`} alt={`${source.title ?? source.id} evidence`} /><figcaption>{screenshot}</figcaption></figure>)}{source.extractedArtifactPaths.map((extracted) => <p key={extracted}><a href={`/api/sites/${runId}/${extracted}`}>Extracted artifact: {extracted}</a></p>)}{source.crawlAttempts.map((attempt, index) => <p key={`${attempt.provider}-${index}`}>Crawl {index + 1}: {attempt.provider} · {attempt.outcome} · {attempt.confidence} · {attempt.failureReason ?? "succeeded"}</p>)}</div>)}
+              {group.sources.map((source) => { const href = safeExternalHref(source.sourceUrl); return <div key={source.id}><p>{href ? <a href={href} target="_blank" rel="noreferrer">{source.title ?? source.sourceUrl}</a> : <>{source.title ?? source.sourceUrl} · {source.sourceUrl}</>} · {Math.round(source.confidence * 100)}% · {source.capturedAt}</p>{source.screenshotPaths.map((screenshot) => <figure key={screenshot}><EvidenceImage src={`/api/sites/${runId}/${screenshot}`} alt={`${source.title ?? source.id} evidence`} /><figcaption>{screenshot}</figcaption></figure>)}{source.extractedArtifactPaths.map((extracted) => <p key={extracted}><a href={`/api/sites/${runId}/${extracted}`}>Extracted artifact: {extracted}</a></p>)}{source.crawlAttempts.map((attempt, index) => <p key={`${attempt.provider}-${index}`}>Crawl {index + 1}: {attempt.provider} · {attempt.outcome} · {attempt.confidence} · {attempt.failureReason ?? "succeeded"}</p>)}</div>; })}
+              {"competitors" in group && group.competitors.length > 0 && <><h4>Selected competitors</h4><ul>{group.competitors.map((competitor) => { const href = safeExternalHref(competitor.url); return <li key={competitor.url}>{href ? <a href={href} target="_blank" rel="noreferrer">{competitor.name}</a> : <>{competitor.name} · {competitor.url}</>} — {competitor.selectionRationale}{competitor.strengths.length > 0 ? ` · Strengths: ${competitor.strengths.join("; ")}` : ""}{competitor.gaps.length > 0 ? ` · Gaps: ${competitor.gaps.join("; ")}` : ""}</li>; })}</ul></>}
+              {"marketExpectations" in group && group.marketExpectations.length > 0 && <><h4>Market expectations</h4><ul>{group.marketExpectations.map((expectation) => <li key={expectation}>{expectation}</li>)}</ul></>}
+              {"differentiationOpportunities" in group && group.differentiationOpportunities.length > 0 && <><h4>Differentiation opportunities</h4><ul>{group.differentiationOpportunities.map((opportunity) => <li key={opportunity}>{opportunity}</li>)}</ul></>}
               {"references" in group && group.references.map((reference) => <p key={reference.referoId}><strong>{reference.name}</strong> — {reference.learningRationale}<br />Reusable: {reference.reusablePatterns.join("; ")}</p>)}
             </section>
           ))}
           <section>
             <h3>Client-provided evidence</h3>
+            {artifact.artifact.clientEvidence.sources.length === 0 &&
+              artifact.artifact.clientEvidence.claims.length === 0 &&
+              artifact.artifact.clientEvidence.unsupportedUploadIds.length === 0 &&
+              artifact.artifact.clientEvidence.artifactRelationships.length === 0 && (
+                <p>No client-provided evidence was attached to this run.</p>
+              )}
             <ul>
               {artifact.artifact.clientEvidence.claims.map((claim) => (
                 <li key={claim.id}><strong>{claim.classification}</strong> · {Math.round(claim.confidence * 100)}% — {claim.statement}</li>

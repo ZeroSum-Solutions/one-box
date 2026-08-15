@@ -1,5 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { completedChatReplayRunId } from "./intakeRequest";
+import {
+  completedChatReplayRunId,
+  defaultResearchConfiguration,
+  researchConfigurationForCapability,
+} from "./intakeRequest";
+
+describe("intake research defaults", () => {
+  it("requests both evidence lanes without silently approving paid discovery", () => {
+    expect(defaultResearchConfiguration()).toEqual({
+      enabled: true,
+      businessIntelligence: true,
+      referoDesignEvidence: true,
+      allowPaidFirecrawlFallback: false,
+    });
+  });
+
+  it("fails closed until Refero capability is confirmed", () => {
+    expect(researchConfigurationForCapability(false).referoDesignEvidence).toBe(false);
+    expect(researchConfigurationForCapability(true).referoDesignEvidence).toBe(true);
+  });
+});
 
 describe("completed chat replay transport", () => {
   it("extracts the original run from the pre-model JSON response", async () => {

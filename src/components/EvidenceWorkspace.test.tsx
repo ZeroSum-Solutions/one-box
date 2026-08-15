@@ -21,6 +21,157 @@ function render(artifact: unknown): string {
 }
 
 describe("EvidenceWorkspace artifact previews", () => {
+  it("renders explicit empty states when a research group collected no evidence", () => {
+    const ledger = render({
+      ...base,
+      artifactType: "ledger",
+      artifact: {
+        projectTarget: "website",
+        businessIntelligence: {
+          kind: "business-intelligence",
+          sources: [],
+          competitors: [],
+          marketExpectations: [],
+          differentiationOpportunities: [],
+          claims: [],
+        },
+        referoDesignEvidence: {
+          kind: "refero-design-evidence",
+          sources: [],
+          references: [],
+          claims: [],
+        },
+        clientEvidence: {
+          sources: [],
+          claims: [],
+          unsupportedUploadIds: [],
+          artifactRelationships: [],
+        },
+      },
+    });
+
+    expect(ledger).toContain(
+      "No competitors or other business intelligence evidence were recorded for this run."
+    );
+    expect(ledger).toContain("No Refero design evidence was recorded for this run.");
+    expect(ledger).toContain("No client-provided evidence was attached to this run.");
+  });
+
+  it("does not call a references-only Refero group empty", () => {
+    const ledger = render({
+      ...base,
+      artifactType: "ledger",
+      artifact: {
+        projectTarget: "website",
+        businessIntelligence: {
+          kind: "business-intelligence",
+          sources: [],
+          competitors: [],
+          marketExpectations: [],
+          differentiationOpportunities: [],
+          claims: [],
+        },
+        referoDesignEvidence: {
+          kind: "refero-design-evidence",
+          sources: [],
+          references: [
+            {
+              referoId: "reference-1",
+              name: "Reference one",
+              learningRationale: "Clear hierarchy",
+              reusablePatterns: ["Strong heading rhythm"],
+            },
+          ],
+          claims: [],
+        },
+        clientEvidence: {
+          sources: [],
+          claims: [],
+          unsupportedUploadIds: [],
+          artifactRelationships: [],
+        },
+      },
+    });
+
+    expect(ledger).not.toContain("No Refero design evidence was recorded for this run.");
+    expect(ledger).toContain("Reference one");
+  });
+
+  it("does not call recorded business or client artifact relationships empty", () => {
+    const ledger = render({
+      ...base,
+      artifactType: "ledger",
+      artifact: {
+        projectTarget: "website",
+        businessIntelligence: {
+          kind: "business-intelligence",
+          sources: [
+            {
+              id: "unsafe-source",
+              sourceUrl: "javascript:alert(2)",
+              title: "Unsafe source link",
+              screenshotPaths: [],
+              extractedArtifactPaths: [],
+              capturedAt: "2026-08-13T12:00:00.000Z",
+              confidence: 0.5,
+              crawlAttempts: [],
+            },
+          ],
+          competitors: [
+            {
+              name: "Competitor one",
+              url: "https://competitor.example",
+              selectionRationale: "Local operator",
+              strengths: [],
+              gaps: [],
+            },
+            {
+              name: "Unsafe competitor link",
+              url: "javascript:alert(1)",
+              selectionRationale: "Imported legacy record",
+              strengths: [],
+              gaps: [],
+            },
+          ],
+          marketExpectations: ["Clear service navigation"],
+          differentiationOpportunities: ["Stronger proof near the primary action"],
+          claims: [],
+        },
+        referoDesignEvidence: {
+          kind: "refero-design-evidence",
+          sources: [],
+          references: [],
+          claims: [],
+        },
+        clientEvidence: {
+          sources: [],
+          claims: [],
+          unsupportedUploadIds: [],
+          artifactRelationships: [
+            {
+              uploadId: "upload-1",
+              kind: "logo",
+              status: "asset-referenced",
+              consumer: "design",
+            },
+          ],
+        },
+      },
+    });
+
+    expect(ledger).not.toContain(
+      "No competitors or other business intelligence evidence were recorded for this run."
+    );
+    expect(ledger).toContain("Competitor one");
+    expect(ledger).toContain("Unsafe competitor link");
+    expect(ledger).toContain("Unsafe source link");
+    expect(ledger).not.toMatch(/href="javascript:/);
+    expect(ledger).toContain("Clear service navigation");
+    expect(ledger).toContain("Stronger proof near the primary action");
+    expect(ledger).not.toContain("No client-provided evidence was attached to this run.");
+    expect(ledger).toContain("Client artifact upload-1");
+  });
+
   it("resets the entire human-review draft when visual-QA version or build hash changes", () => {
     const firstIdentity = `1:${"a".repeat(64)}`;
     const dirty = syncHumanVisualReviewDraft(undefined, firstIdentity);
