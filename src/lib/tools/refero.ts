@@ -189,11 +189,16 @@ async function invokeRefero(
   const state = getState();
   state.callCount += 1;
   // Durable month ledger — the in-memory count above resets on every restart,
-  // so budget enforcement/reporting must come from the ledger, never from it.
-  const usage = await recordReferoCall(name).catch(() => null);
-  console.log(
-    `[refero] call #${usage?.count ?? state.callCount}/8000 (${usage?.month ?? "month n/a"}) → ${name}`
-  );
+  // so budget reporting must come from the ledger, never from it. Recorded
+  // off the critical path: a ledger disk stall must never delay or fail the
+  // MCP call itself.
+  void recordReferoCall(name)
+    .then((usage) =>
+      console.log(`[refero] call #${usage.count}/8000 (${usage.month}) → ${name}`)
+    )
+    .catch(() =>
+      console.log(`[refero] call #${state.callCount} (ledger unavailable) → ${name}`)
+    );
 
   const result = await client.callTool({ name, arguments: args });
   if (result.isError) {

@@ -45,6 +45,17 @@ describe("refero durable budget ledger", () => {
     });
   });
 
+  it("loses no increments under concurrent in-process calls", async () => {
+    const storePath = await tempStore();
+    const august = () => new Date("2026-08-15T12:00:00Z");
+    await Promise.all(
+      Array.from({ length: 10 }, () =>
+        recordReferoCall("refero_search_styles", { storePath, now: august })
+      )
+    );
+    expect(await readReferoUsage({ storePath })).toEqual({ "2026-08": 10 });
+  });
+
   it("survives a corrupt ledger file by starting a fresh ledger instead of throwing", async () => {
     const storePath = await tempStore();
     await fs.mkdir(path.dirname(storePath), { recursive: true });

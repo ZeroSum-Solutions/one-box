@@ -1,5 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
 /**
  * Durable month-bucketed ledger for Refero MCP calls. The in-memory
@@ -45,18 +46,33 @@ export async function readReferoUsage(
   return readLedger(opts.storePath ?? defaultStorePath());
 }
 
+// Concurrent Refero calls are normal (stageLock fans searches out via
+// Promise.all), so read-modify-write must be serialized in-process or
+// increments are lost and same-pid temp paths collide. Cross-process safety
+// is out of scope here: the app runs one server process, and the singleton
+// MCP client already assumes that.
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function serialized<T>(job: () => Promise<T>): Promise<T> {
+  const next = writeChain.then(job, job);
+  writeChain = next.catch(() => undefined);
+  return next;
+}
+
 export async function recordReferoCall(
   _tool: string,
   opts: ReferoBudgetOptions = {}
 ): Promise<{ month: string; count: number }> {
-  const storePath = opts.storePath ?? defaultStorePath();
-  const month = monthKey(opts.now ?? (() => new Date()));
-  const ledger = await readLedger(storePath);
-  const count = (ledger[month] ?? 0) + 1;
-  ledger[month] = count;
-  await fs.mkdir(path.dirname(storePath), { recursive: true });
-  const tmpPath = `${storePath}.${process.pid}.tmp`;
-  await fs.writeFile(tmpPath, JSON.stringify(ledger, null, 2), "utf8");
-  await fs.rename(tmpPath, storePath);
-  return { month, count };
+  return serialized(async () => {
+    const storePath = opts.storePath ?? defaultStorePath();
+    const month = monthKey(opts.now ?? (() => new Date()));
+    const ledger = await readLedger(storePath);
+    const count = (ledger[month] ?? 0) + 1;
+    ledger[month] = count;
+    await fs.mkdir(path.dirname(storePath), { recursive: true });
+    const tmpPath = `${storePath}.${randomUUID()}.tmp`;
+    await fs.writeFile(tmpPath, JSON.stringify(ledger, null, 2), "utf8");
+    await fs.rename(tmpPath, storePath);
+    return { month, count };
+  });
 }
