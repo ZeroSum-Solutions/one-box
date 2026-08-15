@@ -25,6 +25,7 @@ function pendingRun(id: string): RunState {
     modelSlugs: {},
     referenceMode: "refero",
     evidenceWorkflow: { currentStage: "evidence", artifacts: [] },
+    referencePickerEnabled: false,
   };
 }
 
@@ -79,6 +80,7 @@ describe("pipeline replay", () => {
         id: "run-test",
         pipelineVersion: "evidence-gated-v2",
         currentStage: "contract",
+        referencePending: false,
       })
     ).toBe(true);
     expect(
@@ -86,8 +88,58 @@ describe("pipeline replay", () => {
         id: "run-test",
         pipelineVersion: "evidence-gated-v2",
         currentStage: "tokens",
+        referencePending: false,
       })
     ).toBe(false);
+  });
+
+  it("stops a reconnect at a still-pending reference pick and resumes after it", () => {
+    const pause: PipelineEvent = {
+      type: "reference-paused",
+      runId: "run-test",
+      workspaceUrl: "/evidence/run-test",
+      note: "pick a look",
+      at: "2026-08-15T12:00:00.000Z",
+    };
+
+    // Still pending: the pause is current — replay, don't re-execute.
+    expect(
+      replayedPauseIsCurrent([pause], {
+        id: "run-test",
+        pipelineVersion: "evidence-gated-v2",
+        currentStage: "evidence",
+        referencePending: true,
+      })
+    ).toBe(true);
+
+    // Pick recorded: the stale pause must NOT block re-execution (the
+    // rev-1 verifier blocker — currentStage alone never changes here).
+    expect(
+      replayedPauseIsCurrent([pause], {
+        id: "run-test",
+        pipelineVersion: "evidence-gated-v2",
+        currentStage: "evidence",
+        referencePending: false,
+      })
+    ).toBe(false);
+  });
+
+  it("keeps evidence-stage pauses current regardless of picker state", () => {
+    const pause: PipelineEvent = {
+      type: "paused",
+      runId: "run-test",
+      workflowStage: "contract",
+      workspaceUrl: "/evidence/run-test",
+      note: "ready",
+    };
+    expect(
+      replayedPauseIsCurrent([pause], {
+        id: "run-test",
+        pipelineVersion: "evidence-gated-v2",
+        currentStage: "contract",
+        referencePending: false,
+      })
+    ).toBe(true);
   });
 
   it("stops only while the same configuration error is still current", () => {

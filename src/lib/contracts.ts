@@ -688,6 +688,188 @@ export const StageStatusSchema = z.object({
   gateRepairAttempts: z.number().default(0),
 });
 
+// ---------- Reference selection (picker pilot, plan rev 2) ----------
+
+/** Preview images must come from Refero's own hosts over https — candidate
+ * cards render these URLs directly, so the schema is the injection boundary. */
+const REFERO_ASSET_HOSTS = new Set([
+  "refero.design",
+  "www.refero.design",
+  "images.refero.design",
+]);
+
+function isReferoAssetUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && REFERO_ASSET_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export const CandidatePaletteEntrySchema = z.object({
+  hex: z.string().regex(/^#[0-9a-fA-F]{6}$/), // extracted, never model-invented
+  plainLabel: z.string().min(1).max(60), // "the button color", never a token name
+});
+
+export const CandidateProfileSchema = z.object({
+  referoId: z.string().min(1).max(80),
+  kind: z.literal("style"), // screens are a borrow pool, never picker options
+  name: z.string().min(1).max(120),
+  sourceUrl: z.string().refine(isHttpsUrl, "https URLs only").optional(),
+  previewImageUrl: z
+    .string()
+    .refine(isReferoAssetUrl, "must be a https refero.design asset URL")
+    .optional(),
+  /** Run-relative, confined to the research dir — served via /api/sites. */
+  screenshotPath: z
+    .string()
+    .regex(/^research\/refero\/[a-zA-Z0-9._-]+$/)
+    .optional(),
+  foundVia: z.string().min(1).max(200),
+  palette: z.array(CandidatePaletteEntrySchema).min(2).max(6),
+  plainLanguageProfile: z.object({
+    headline: z.string().min(1).max(80),
+    feelSummary: z.string().min(1).max(320),
+    bestFor: z.array(z.string().min(1).max(80)).max(4),
+    headsUp: z.array(z.string().min(1).max(160)).max(3).default(() => []),
+  }),
+  composition: z.object({
+    northStar: z.string().min(1).max(200),
+    preserveTraits: z.array(z.string().min(1).max(160)).min(2).max(5),
+    rhythmNote: z.string().min(1).max(240),
+  }),
+  recommended: z.boolean().default(false),
+  recommendedWhy: z.string().max(200).optional(),
+});
+export type CandidateProfile = z.infer<typeof CandidateProfileSchema>;
+
+export const ReferenceSelectionVersionSchema = z
+  .object({
+    version: z.number().int().min(1).max(3),
+    createdAt: z.string(),
+    searchAngles: z.array(z.string().min(1).max(200)).min(3).max(5),
+    candidates: z.array(CandidateProfileSchema).min(2).max(3),
+    revisionNote: z.string().max(2_000).optional(),
+    excludedFromPrior: z.array(z.string()).default(() => []),
+  })
+  .superRefine((version, context) => {
+    const ids = version.candidates.map((candidate) => candidate.referoId);
+    if (new Set(ids).size !== ids.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["candidates"],
+        message: "candidate referoIds must be unique within a version",
+      });
+    }
+    const recommended = version.candidates.filter((c) => c.recommended);
+    if (recommended.length !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["candidates"],
+        message: "exactly one candidate must carry the advisory recommendation",
+      });
+    }
+  });
+
+export const ReferenceSelectionStateSchema = z
+  .object({
+    status: z.enum(["pending", "selected"]),
+    /** Server-side reroll reservation: versions.length === rerollsUsed + 1. */
+    rerollsUsed: z.number().int().min(0).max(2).default(0),
+    recommendedBy: z.literal("advisory-model").default("advisory-model"),
+    versions: z.array(ReferenceSelectionVersionSchema).min(1).max(3),
+    selection: z
+      .object({
+        selectedId: z.string().min(1),
+        selectionKind: z.enum(["user-picked-recommended", "user-picked-other"]),
+        version: z.number().int().min(1).max(3),
+        at: z.string(),
+        note: z.string().max(2_000).optional(),
+      })
+      .optional(),
+  })
+  .superRefine((state, context) => {
+    if (state.versions.length !== state.rerollsUsed + 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["versions"],
+        message: "versions.length must equal rerollsUsed + 1",
+      });
+    }
+    const seen = new Set<string>();
+    for (const [index, version] of state.versions.entries()) {
+      if (version.version !== index + 1) {
+        context.addIssue({
+          code: "custom",
+          path: ["versions", index, "version"],
+          message: "versions must be linear starting at 1",
+        });
+      }
+      for (const candidate of version.candidates) {
+        if (seen.has(candidate.referoId)) {
+          context.addIssue({
+            code: "custom",
+            path: ["versions", index, "candidates"],
+            message: `reroll repeats an earlier candidate: ${candidate.referoId}`,
+          });
+        }
+      }
+      for (const candidate of version.candidates) seen.add(candidate.referoId);
+    }
+    if (state.status === "selected" && !state.selection) {
+      context.addIssue({
+        code: "custom",
+        path: ["selection"],
+        message: "selected status requires a selection record",
+      });
+    }
+    if (state.status === "pending" && state.selection) {
+      context.addIssue({
+        code: "custom",
+        path: ["selection"],
+        message: "pending status cannot carry a selection record",
+      });
+    }
+    if (state.selection) {
+      const version = state.versions.find(
+        (v) => v.version === state.selection?.version
+      );
+      const candidate = version?.candidates.find(
+        (c) => c.referoId === state.selection?.selectedId
+      );
+      if (!candidate) {
+        context.addIssue({
+          code: "custom",
+          path: ["selection", "selectedId"],
+          message: "selection must name a candidate in the referenced version",
+        });
+      } else {
+        const expectedKind = candidate.recommended
+          ? "user-picked-recommended"
+          : "user-picked-other";
+        if (state.selection.selectionKind !== expectedKind) {
+          context.addIssue({
+            code: "custom",
+            path: ["selection", "selectionKind"],
+            message: `selectionKind must be ${expectedKind} for this candidate`,
+          });
+        }
+      }
+    }
+  });
+export type ReferenceSelectionState = z.infer<
+  typeof ReferenceSelectionStateSchema
+>;
+
 export const RunStateSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
@@ -709,6 +891,13 @@ export const RunStateSchema = z.object({
     currentStage: "evidence" as const,
     artifacts: [],
   })),
+  /** Picker pilot flag, persisted at creation so a mid-run env change can
+   * never alter resume semantics (plan rev 2 §A). Default false = today's
+   * behavior for every pre-existing run. */
+  referencePickerEnabled: z.boolean().default(false),
+  /** Sibling picker state — deliberately NOT an evidence-workflow stage, so
+   * every persisted run parses unchanged (Sol audit blocker 1). */
+  referenceSelection: ReferenceSelectionStateSchema.optional(),
 }).superRefine((state, context) => {
   if (state.pipelineVersion !== "evidence-gated-v2") return;
   for (const [index, artifact] of state.evidenceWorkflow.artifacts.entries()) {
@@ -1042,6 +1231,18 @@ export type PipelineEvent =
       workflowStage: EvidenceWorkflowStage;
       workspaceUrl: string;
       note: string;
+      /** ISO timestamp; optional so historical events.jsonl lines still parse. */
+      at?: string;
+    }
+  | {
+      /** Picker pause. Distinct from "paused": workflowStage is a closed
+       * 6-value union and its UI copy derives from EVIDENCE_STAGE_ARTIFACT —
+       * reusing it would render "evidence ready for review" for a pick. */
+      type: "reference-paused";
+      runId: string;
+      workspaceUrl: string;
+      note: string;
+      at?: string;
     }
   | { type: "error"; message: string };
 

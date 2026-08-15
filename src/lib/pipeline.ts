@@ -338,10 +338,17 @@ interface ReplayCheckpoint {
   id: string;
   pipelineVersion: string;
   currentStage: string;
+  /** True while run.referenceSelection exists with status "pending" — the
+   * signal that invalidates a replayed reference-paused event after a pick. */
+  referencePending: boolean;
 }
 
 /** A reconnect at an unchanged human approval gate is replay-only. Once the
- * workspace advances currentStage, the same run is eligible to execute again. */
+ * workspace advances currentStage — or the reference pick is recorded — the
+ * same run is eligible to execute again. The picker pause must be compared
+ * against referenceSelection state, NOT currentStage: the sibling picker
+ * state never moves currentStage, so a currentStage-only comparison would
+ * replay the stale picker pause forever after the user picks. */
 export function replayedPauseIsCurrent(
   history: PipelineEvent[],
   checkpoint: ReplayCheckpoint
@@ -353,9 +360,15 @@ export function replayedPauseIsCurrent(
     .find(
       (event) =>
         event.type === "paused" ||
+        event.type === "reference-paused" ||
         event.type === "complete" ||
         event.type === "error"
     );
+  if (latestTerminal?.type === "reference-paused") {
+    return (
+      latestTerminal.runId === checkpoint.id && checkpoint.referencePending
+    );
+  }
   return (
     latestTerminal?.type === "paused" &&
     latestTerminal.runId === checkpoint.id &&
@@ -503,6 +516,7 @@ export async function runPipeline(
       id: run.id,
       pipelineVersion: run.pipelineVersion,
       currentStage: run.evidenceWorkflow.currentStage,
+      referencePending: run.referenceSelection?.status === "pending",
     })
   ) {
     replayHistory(true);
@@ -667,6 +681,7 @@ function pauseForApproval(
     workflowStage,
     workspaceUrl: `/evidence/${runId}`,
     note: `${EVIDENCE_STAGE_ARTIFACT[workflowStage]} is ready for review.`,
+    at: new Date().toISOString(),
   });
 }
 

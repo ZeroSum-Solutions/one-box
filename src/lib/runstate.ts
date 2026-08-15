@@ -148,6 +148,9 @@ export interface CreateRunOptions {
   /** defaults to the pinned MODELS from contracts.ts (audit #3: record the
    * exact slugs a run used in its own manifest). */
   modelSlugs?: Record<string, string>;
+  /** Picker pilot flag, captured once at creation so a mid-run env change can
+   * never alter resume semantics (plan rev 2 §A). */
+  referencePickerEnabled?: boolean;
 }
 
 /** Create a new run directory + run.json. Returns the new run's id. */
@@ -168,21 +171,27 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
     stages,
     costCapUsd: opts.costCapUsd,
     modelSlugs: opts.modelSlugs ?? { ...MODELS },
+    referencePickerEnabled: opts.referencePickerEnabled,
   });
 
   await saveRun(state);
   return id;
 }
 
-/** Create a pre-reserved run exactly once, or resume its existing state. */
-export async function ensureRun(runId: string): Promise<string> {
+/** Create a pre-reserved run exactly once, or resume its existing state.
+ * Options apply only on first creation — an existing run's persisted flags
+ * are authoritative and never rewritten here. */
+export async function ensureRun(
+  runId: string,
+  opts: Omit<CreateRunOptions, "id"> = {}
+): Promise<string> {
   try {
     await loadRun(runId);
     return runId;
   } catch (error) {
     if (!(error instanceof RunNotFoundError)) throw error;
   }
-  return createRun({ id: runId });
+  return createRun({ ...opts, id: runId });
 }
 
 /** Remove only a validated run root. Used when setup fails before a run can be
