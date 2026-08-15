@@ -14,6 +14,7 @@ import {
   PipelineEvent,
   ReferenceLockDraftSchema,
   ReferenceLockSchema,
+  ReferenceSelectionStateSchema,
   ScanResultSchema,
   SkeletonSpecSchema,
   type CardLink,
@@ -46,6 +47,12 @@ import {
   withRunTransaction,
 } from "./runstate";
 import { generateJson } from "./openrouter";
+import {
+  finalizeReferenceLock,
+  referenceGateApplies,
+  referenceSearchAnglesPrompt,
+  stageLockCandidates,
+} from "./referenceStage";
 import { serializeReferenceRecordForPrompt } from "./referenceRecordPrompt";
 import { ConfigError, preflight } from "./preflight";
 import { findCompetitors } from "./tools/maps";
@@ -685,6 +692,16 @@ function pauseForApproval(
   });
 }
 
+function pauseForReferenceSelection(runId: string, emit: Emit): void {
+  emit({
+    type: "reference-paused",
+    runId,
+    workspaceUrl: `/evidence/${runId}`,
+    note: "Choose one design direction before the site design is locked.",
+    at: new Date().toISOString(),
+  });
+}
+
 function latestWorkflowArtifact<T extends WorkflowArtifactType>(
   run: Awaited<ReturnType<typeof loadRun>>,
   artifactType: T
@@ -726,9 +743,48 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
     const scan = await stage(runId, "scanned", emit, () =>
       stageScan(runId, intake, emit)
     );
-    const lock = await stage(runId, "locked", emit, () =>
-      stageLock(runId, intake, scan, emit, mode)
-    );
+    const runAtLock = await loadRun(runId);
+    let lock: ReferenceLock;
+    if (referenceGateApplies(mode, intake.research, runAtLock.referencePickerEnabled)) {
+      const selection = runAtLock.referenceSelection;
+      if (!selection) {
+        const version = await stageLockCandidates(runId, intake, emit);
+        if (!version) {
+          emit({
+            type: "card",
+            stage: "locked",
+            title: "Reference picker needs more distinct directions",
+            body: "The picker found too few distinct usable directions, so this run will use the standard automatic reference choice.",
+          });
+          lock = await stage(runId, "locked", emit, () =>
+            stageLock(runId, intake, scan, emit, mode)
+          );
+        } else {
+          await withRunTransaction(runId, async (transaction) => {
+            transaction.state.referenceSelection = ReferenceSelectionStateSchema.parse({
+              status: "pending",
+              rerollsUsed: 0,
+              versions: [version],
+            });
+          });
+          pauseForReferenceSelection(runId, emit);
+          return;
+        }
+      } else if (selection.status === "pending") {
+        pauseForReferenceSelection(runId, emit);
+        return;
+      } else {
+        lock = await stage(runId, "locked", emit, async () => {
+          const finalized = await finalizeReferenceLock(runId, intake, selection, emit);
+          await saveArtifact(runId, ARTIFACTS.lock, finalized);
+          return finalized;
+        });
+      }
+    } else {
+      lock = await stage(runId, "locked", emit, () =>
+        stageLock(runId, intake, scan, emit, mode)
+      );
+    }
     const run = await loadRun(runId);
     const workflowStage = run.evidenceWorkflow.currentStage;
     const expectedType = EVIDENCE_STAGE_ARTIFACT[workflowStage];
@@ -1300,7 +1356,7 @@ export async function stageLock(
     runId,
     MODELS.orchestrator,
     z.object({ angles: z.array(z.string()).min(3).max(5) }),
-    `Per the refero_skill methodology, write 3-5 distinct design-search angles for a ${intake.category} ${targetCriteria.outputLabel} in ${intake.location}. Judge ${targetCriteria.researchLens}. Vibe words: ${intake.vibeWords.join(", ") || "none given"}. Angles must use different lenses, not synonyms.`
+    referenceSearchAnglesPrompt(intake)
   );
 
   // Candidates keep their sourceUrl/previewImageUrl. Dropping them (the old
