@@ -53,7 +53,15 @@ describe("IntakeComposer", () => {
     expect(html).toContain("An interactive browser product with screens, workflows, and application behavior.");
     expect(html).toContain("A touch-first iPhone experience with mobile navigation and platform-appropriate interactions.");
     expect(html).toContain("Research settings");
+    expect(html).toContain("Gather the research lanes selected below before the build.");
+    expect(html).toContain("Business and competitor context");
+    expect(html).toContain(
+      "Runs only when paid Firecrawl discovery is separately approved below."
+    );
     expect(html).toContain("Allow paid Firecrawl discovery and fallback");
+    expect(html).toContain(
+      "Competitor discovery will be skipped unless paid Firecrawl discovery is approved."
+    );
     expect(html).toContain("Website selected. Describe the company, audience, pages, and action you want visitors to take.");
   });
 

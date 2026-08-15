@@ -17,6 +17,24 @@ export interface IntakeChatContext {
   uploadSession: string | null;
 }
 
+export function defaultResearchConfiguration(): ResearchConfiguration {
+  return {
+    enabled: true,
+    businessIntelligence: true,
+    referoDesignEvidence: true,
+    allowPaidFirecrawlFallback: false,
+  };
+}
+
+export function researchConfigurationForCapability(
+  referoDesignEvidenceAvailable: boolean
+): ResearchConfiguration {
+  return {
+    ...defaultResearchConfiguration(),
+    referoDesignEvidence: referoDesignEvidenceAvailable,
+  };
+}
+
 export function buildChatRequest(
   history: IntakeChatMessage[],
   intakeContext: IntakeChatContext,

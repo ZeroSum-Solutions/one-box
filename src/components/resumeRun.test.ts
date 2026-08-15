@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { consumePipelineRunStream, resumedRunId } from "./resumeRun";
+import {
+  consumePipelineRunStream,
+  pipelineStatusLabel,
+  resumedRunId,
+} from "./resumeRun";
 
 describe("resumedRunId", () => {
+  it("labels a paused pipeline as waiting for evidence review", () => {
+    expect(
+      pipelineStatusLabel({
+        type: "paused",
+        runId: "abcd",
+        workflowStage: "evidence",
+        workspaceUrl: "/evidence/abcd",
+        note: "review",
+      })
+    ).toBe("{ review required }");
+  });
+
+  it("labels completed and failed pipelines as terminal", () => {
+    expect(
+      pipelineStatusLabel({
+        type: "complete",
+        runId: "abcd",
+        previewUrl: "/preview/abcd",
+      })
+    ).toBe("{ complete }");
+    expect(
+      pipelineStatusLabel({ type: "error", message: "failed" })
+    ).toBe("{ blocked }");
+  });
+
   it("restores a valid evidence workspace continuation link", () => {
     expect(resumedRunId("?run=abcd_1234")).toBe("abcd_1234");
   });

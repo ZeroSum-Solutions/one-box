@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-15T01:54:48.827Z",
+  "request": {
+    "task": "run-research-state-remediation-check",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "main",
+    "head": "f8233f9d0d6453a3083cf6c341204f2f0cad62dc",
+    "files": [
+      "src/app/page.tsx",
+      "src/components/EvidenceWorkspace.test.tsx",
+      "src/components/EvidenceWorkspace.tsx",
+      "src/components/IntakeComposer.test.tsx",
+      "src/components/IntakeControls.tsx",
+      "src/components/intakeRequest.test.ts",
+      "src/components/intakeRequest.ts",
+      "src/components/resumeRun.test.ts",
+      "src/components/resumeRun.ts"
+    ],
+    "proofs": [],
+    "diffBytes": 61052
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15571,
+      "completion_tokens": 16942,
+      "total_tokens": 32513,
+      "cost": 0.132602,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.132602,
+        "upstream_inference_prompt_cost": 0.03095,
+        "upstream_inference_completions_cost": 0.101652
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 16648,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "No execution proof was supplied. Remediation was checked only against the allowlisted diff: page init uses researchConfigurationForCapability(false) and enables Refero only after a boolean capability confirmation; ledger empty-state predicates treat references-only as non-empty and render competitors, market expectations, differentiation, and client artifact relationships; source/competitor hrefs pass through safeExternalHref; Firecrawl copy is present; pipelineStatusLabel maps paused/complete/error. Unit tests cover those helpers/markup but are not an executed authority.",
+    "residual_risks": [
+      "Capabilities fetch failures stay silent and fail closed; a slow or flaky /api/capabilities leaves Refero off until confirmation.",
+      "safeExternalHref allowlists http(s) via URL.protocol but returns the raw string, and EvidenceWorkspace tests only forbid href=\"javascript: — other non-http(s) schemes are implementation-blocked, not oracle-locked.",
+      "pipelineStatusLabel is unit-tested, but page wiring depends on pre-existing latestPipelineEvent; a later non-terminal timeline item would show { building } after a replayed terminal event.",
+      "No page-level test locks fail-closed initial research state; only intakeRequest helpers are asserted.",
+      "Business-lane helper text says the lane runs only with paid Firecrawl, while the status line says only competitor discovery is skipped."
+    ]
+  }
+}
