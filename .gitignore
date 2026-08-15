@@ -53,3 +53,4 @@ next-env.d.ts
 spikes/layout-ir/out/
 spikes/layout-ir/shots/
 spikes/layout-ir/verify-report.json
+references/
