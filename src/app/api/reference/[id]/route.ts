@@ -126,6 +126,15 @@ export async function POST(
       });
     }
 
+    // Cheap pre-checks so obvious rejections don't depend on intake loading;
+    // the authoritative status/cap check re-runs inside the locked transaction.
+    const beforeReservation = pickerState(await loadRun(id));
+    if (beforeReservation.status !== "pending") {
+      throw new ReferenceSelectionError("a reference candidate has already been selected");
+    }
+    if (beforeReservation.rerollsUsed >= 2) {
+      throw new ReferenceSelectionError("no rerolls remaining");
+    }
     const intake = await loadArtifact<Intake>(id, ARTIFACTS.intake);
     if (!intake) {
       throw new ReferenceSelectionError("reference picker intake is unavailable");
