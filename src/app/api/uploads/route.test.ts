@@ -3,7 +3,7 @@ import { mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promi
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MAX_UPLOAD_BYTES } from "../../../components/uploadPolicy";
+import { MAX_UPLOAD_BYTES } from "../../../features/uploads/policy";
 import {
   claimUploadSession,
   buildRunUploadContext,

@@ -7,7 +7,7 @@ import {
   MAX_UPLOAD_FILES,
   UPLOAD_ACCEPT_ATTRIBUTE,
   UPLOAD_TYPE_COPY,
-} from "./uploadPolicy";
+} from "../features/uploads/policy";
 
 interface UploadPanelProps {
   uploads: UploadMetadata[];
