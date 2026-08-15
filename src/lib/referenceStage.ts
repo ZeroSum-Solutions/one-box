@@ -298,6 +298,10 @@ export async function stageLockCandidates(
     screenshotPath: screenshots.get(candidate.id),
   }));
 
+  // Persistent profile defects (jargon, recommendation-count violations)
+  // degrade to null → the caller's honest legacy auto-pick fallback — a
+  // malformed model response must never kill the run (review finding,
+  // 2026-08-15).
   let profiles: ReferenceSelectionVersion["candidates"] | undefined;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const raw = PROFILE_RESPONSE_SCHEMA.parse(
@@ -310,16 +314,18 @@ export async function stageLockCandidates(
     );
     if (hasReferenceProfileJargon(raw)) {
       if (attempt === 0) continue;
-      throw new Error("reference profile contains technical jargon after retry");
+      return null;
     }
-    profiles = mergeProfiles(candidates, raw);
+    const merged = mergeProfiles(candidates, raw);
+    const recommended = merged.filter((candidate) => candidate.recommended);
+    if (recommended.length !== 1 || !recommended[0].recommendedWhy) {
+      if (attempt === 0) continue;
+      return null;
+    }
+    profiles = merged;
     break;
   }
-  if (!profiles) throw new Error("reference profile generation failed");
-  const recommended = profiles.filter((candidate) => candidate.recommended);
-  if (recommended.length === 1 && !recommended[0].recommendedWhy) {
-    throw new Error("recommended candidate requires recommendedWhy");
-  }
+  if (!profiles) return null;
 
   return ReferenceSelectionVersionSchema.parse({
     version: opts.version ?? 1,

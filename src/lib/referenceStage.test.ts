@@ -214,23 +214,51 @@ describe("stageLockCandidates", () => {
     expect(version?.candidates[0].plainLanguageProfile.feelSummary).not.toMatch(/CSS/i);
   });
 
-  it("rejects model output that tries to recommend more than one option", async () => {
-    await expect(
-      stageLockCandidates(
-        "run-1234",
-        intake,
-        () => undefined,
-        undefined,
-        deps({
-          generateJson: async (_runId, _model, _schema, prompt) =>
-            prompt.includes("design-search angles")
-              ? { angles }
-              : {
-                  candidates: [profile("ambrook", true), profile("pipe", true), profile("apron")],
-                },
-        })
-      )
-    ).rejects.toThrow("exactly one candidate must carry the advisory recommendation");
+  it("retries a double recommendation once, then degrades to the null fallback", async () => {
+    let profileCalls = 0;
+    const version = await stageLockCandidates(
+      "run-1234",
+      intake,
+      () => undefined,
+      undefined,
+      deps({
+        generateJson: async (_runId, _model, _schema, prompt) => {
+          if (prompt.includes("design-search angles")) return { angles };
+          profileCalls += 1;
+          return {
+            candidates: [profile("ambrook", true), profile("pipe", true), profile("apron")],
+          };
+        },
+      })
+    );
+
+    expect(profileCalls).toBe(2);
+    expect(version).toBeNull();
+  });
+
+  it("accepts a corrected recommendation on the retry attempt", async () => {
+    let profileCalls = 0;
+    const version = await stageLockCandidates(
+      "run-1234",
+      intake,
+      () => undefined,
+      undefined,
+      deps({
+        generateJson: async (_runId, _model, _schema, prompt) => {
+          if (prompt.includes("design-search angles")) return { angles };
+          profileCalls += 1;
+          return {
+            candidates:
+              profileCalls === 1
+                ? [profile("ambrook", true), profile("pipe", true), profile("apron")]
+                : [profile("ambrook", true), profile("pipe"), profile("apron")],
+          };
+        },
+      })
+    );
+
+    expect(profileCalls).toBe(2);
+    expect(version?.candidates.filter((c) => c.recommended)).toHaveLength(1);
   });
 });
 
