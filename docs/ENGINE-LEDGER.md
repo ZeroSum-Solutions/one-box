@@ -26,11 +26,11 @@ evidence; **none are fixed yet.**
 | ENG-002 | S1 | OPEN | One frozen template is copied per run. `site.css` is **byte-identical across every run**; only `tokens.css` varies. | `src/lib/builder.ts:35`, `:106` |
 | ENG-003 | S1 | OPEN | The `css-architecture` human-approval gate is **inert**. The approved artifact is existence-checked and then never read; theme CSS is rendered from the inventory and plan instead. A human approves something that has no effect. | `src/lib/pipeline.ts:883` |
 | ENG-004 | S2 | OPEN | Refero is wired only into the token layer. It cannot influence composition. | `pipeline.ts` (token synthesis stage) |
-| ENG-005 | S2 | OPEN | `buildSite` writes `complete:false` into the **active** site directory. Publication is not atomic; a failed build leaves a half-written live site. | `src/lib/builder.ts:69` |
+| ENG-005 | S2 | **FIXED** | `buildSite` writes `complete:false` into the **active** site directory. Publication is not atomic; a failed build leaves a half-written live site. | `src/lib/builder.ts:69` |
 | ENG-006 | S2 | **FIXED** | The `token-drift` gate only inspects computed `color`, `backgroundColor`, `fontFamily`. Spacing, radius, shadow and type-scale drift pass unnoticed. | `src/lib/gates.ts:137` |
 | ENG-007 | S3 | **FIXED** | `scripts/dev.sh` ignores its port argument — `exec npm run dev:next` hardcodes 3000. | `scripts/dev.sh` |
 | ENG-008 | S2 | **FIXED** | Shipped `tokens.css` declares `--border-subtle: 1px solid var(--color-stone-grey)`; `--color-stone-grey` is never defined anywhere. A dangling token reference in production output. | generated `tokens.css` |
-| ENG-009 | S3 | OPEN | Evidence workspace 404s — absolute filesystem paths are rendered as image URLs. | evidence workspace UI |
+| ENG-009 | S3 | **FIXED** | Evidence workspace 404s — absolute filesystem paths are rendered as image URLs. | evidence workspace UI |
 
 **The architectural consequence, stated once:** ENG-001 and ENG-002 together mean
 the brief cannot reach composition, and ENG-003 means the human gate that should
@@ -79,6 +79,26 @@ binds `http://127.0.0.1:5199`.
 
 The security test that pinned `--port 3000` was updated, not weakened: its
 stated invariant is loopback-only, which `--hostname 127.0.0.1` carries.
+
+**ENG-005** — the build now runs in `site.building/` and is swapped over the
+live directory only after the manifest flips to `complete:true`. The swap is
+two renames (POSIX `rename()` refuses to replace a non-empty directory): live
+moves aside, staging moves in, the retired copy is deleted last — and put back
+if the second rename fails. A failed build now leaves the **previous** site
+serving, which is the property the entry was actually about. The
+`complete:false` stub is kept inside staging so a crash leaves a directory that
+is unmistakably incomplete rather than plausible. Covered by three
+`publishBuild` tests, including replace-not-merge (a copy-over would leave
+stale files the manifest no longer lists).
+
+**ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
+and `capture()` record **absolute** filesystem paths in the scan artifact, and
+the workspace concatenated them into `/api/sites/<id>//Users/…`. Fixed at the
+render boundary (`artifactUrl` now recovers the run-relative path from any of
+the three recorded shapes), because runs already on disk hold absolute values
+and a writer-side fix would have left every existing run broken. Absolute paths
+in artifacts also leak the machine's home-directory layout into anything
+exported — a second reason not to trust the stored shape.
 
 ---
 

@@ -4,6 +4,7 @@ import type { WorkflowArtifactVersion } from "../lib/contracts";
 import {
   ArtifactPreview,
   EvidenceWorkspace,
+  artifactUrl,
   syncHumanVisualReviewDraft,
 } from "./EvidenceWorkspace";
 import type { RunState } from "../lib/contracts";
@@ -339,5 +340,30 @@ describe("EvidenceWorkspace artifact previews", () => {
     });
     expect(qa).toContain("Reviewed by Devin");
     expect(qa).toContain("Too generic");
+  });
+});
+
+// ENG-009: crawlSite and capture() record ABSOLUTE filesystem paths in the
+// scan artifact, and rendering one as a URL produced /api/sites/<id>//Users/…
+// and a 404. Existing runs still hold absolute values on disk, so the URL
+// builder must normalise all three shapes, not trust its input.
+describe("artifactUrl", () => {
+  it("passes a run-relative path through", () => {
+    expect(artifactUrl("run-1", "research/acme-com/desktop.png")).toBe(
+      "/api/sites/run-1/research/acme-com/desktop.png"
+    );
+  });
+
+  it("strips the site/ prefix the site route serves from its own root", () => {
+    expect(artifactUrl("run-1", "site/tokens.css")).toBe("/api/sites/run-1/tokens.css");
+  });
+
+  it("recovers the run-relative path from a recorded absolute path", () => {
+    expect(
+      artifactUrl(
+        "run-1",
+        "/Users/someone/projects/one-box/sites/run-1/research/acme-com/acme-com.md"
+      )
+    ).toBe("/api/sites/run-1/research/acme-com/acme-com.md");
   });
 });

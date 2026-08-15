@@ -10,7 +10,7 @@
  * scripts/smoke/gates-smoke.mjs regardless of build order across waves.
  */
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile, copyFile, rename, stat } from "node:fs/promises";
+import { mkdir, readFile, writeFile, copyFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { compile } from "tailwindcss";
@@ -71,11 +71,16 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   const runId = assertSafeRunId(input.runId);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
   await assertBuildAuthorized(runRoot);
-  const siteDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
+  const publishDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
+  // Build into a staging directory and swap it in at the end (ENG-005).
+  // Writing into the live directory meant a rebuild dismantled the site that
+  // was being served, and a build that failed halfway left it that way.
+  const siteDir = `${publishDir}.building`;
+  await rm(siteDir, { recursive: true, force: true }); // discard a crashed build's leftovers
   await mkdir(path.join(siteDir, "assets"), { recursive: true });
 
-  // Stub first — a concurrent reader must see "building", never a
-  // half-written manifest. Flipped atomically to complete:true at the end.
+  // Stub first, so a crash between here and the swap leaves a staging
+  // directory that is unmistakably incomplete rather than plausible.
   await writeManifest(siteDir, SiteManifestSchema.parse({
     entry: "index.html",
     files: [],
@@ -181,8 +186,31 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     builtAt: new Date().toISOString(),
     complete: true,
   });
-  await writeManifest(siteDir, manifest); // atomic flip
+  await writeManifest(siteDir, manifest);
+  await publishBuild(siteDir, publishDir);
   return manifest;
+}
+
+/**
+ * Swaps the staged build over the live one.
+ *
+ * Two renames rather than one, because POSIX rename() refuses to replace a
+ * non-empty directory. The live copy is moved aside first and only deleted
+ * once the new one is in place; if the second rename fails, the old site is
+ * put back. A build that fails must leave the previous site serving — that is
+ * the entire reason the staging directory exists.
+ */
+export async function publishBuild(stagingDir: string, publishDir: string): Promise<void> {
+  const retired = `${publishDir}.retired-${process.pid}`;
+  const hadPrevious = await stat(publishDir).then(() => true).catch(() => false);
+  if (hadPrevious) await rename(publishDir, retired);
+  try {
+    await rename(stagingDir, publishDir);
+  } catch (error) {
+    if (hadPrevious) await rename(retired, publishDir).catch(() => {});
+    throw error;
+  }
+  if (hadPrevious) await rm(retired, { recursive: true, force: true });
 }
 
 export function decorateTargetMarkup(

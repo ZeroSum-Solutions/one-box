@@ -76,10 +76,23 @@ function EvidenceImage({ src, alt }: { src: string; alt: string }) {
   return <img src={src} alt={alt} loading="lazy" />;
 }
 
-function artifactUrl(runId: string, artifactPath: string): string {
-  const servedPath = artifactPath.startsWith("site/")
-    ? artifactPath.slice("site/".length)
-    : artifactPath;
+/**
+ * Turns a recorded artifact path into a URL the site route can serve.
+ *
+ * Not every recorded path is run-relative: `crawlSite` builds its markdown path
+ * from an absolute output directory, so the scan artifact stores an absolute
+ * filesystem path. Concatenating one produced `/api/sites/<id>//Users/…` and a
+ * 404 (ENG-009). Runs already on disk still hold those values, so this
+ * normalises the path rather than assuming every writer has been corrected.
+ */
+export function artifactUrl(runId: string, artifactPath: string): string {
+  const marker = `/sites/${runId}/`;
+  const markerAt = artifactPath.indexOf(marker);
+  const runRelative =
+    markerAt >= 0 ? artifactPath.slice(markerAt + marker.length) : artifactPath;
+  const servedPath = runRelative.startsWith("site/")
+    ? runRelative.slice("site/".length)
+    : runRelative;
   return `/api/sites/${runId}/${servedPath}`;
 }
 
@@ -154,7 +167,7 @@ export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifac
                 </p>
               )}
               <ul>{group.claims.map((claim) => <li key={claim.id}><strong>{claim.classification}</strong> · {Math.round(claim.confidence * 100)}% — {claim.statement}</li>)}</ul>
-              {group.sources.map((source) => { const href = safeExternalHref(source.sourceUrl); return <div key={source.id}><p>{href ? <a href={href} target="_blank" rel="noreferrer">{source.title ?? source.sourceUrl}</a> : <>{source.title ?? source.sourceUrl} · {source.sourceUrl}</>} · {Math.round(source.confidence * 100)}% · {source.capturedAt}</p>{source.screenshotPaths.map((screenshot) => <figure key={screenshot}><EvidenceImage src={`/api/sites/${runId}/${screenshot}`} alt={`${source.title ?? source.id} evidence`} /><figcaption>{screenshot}</figcaption></figure>)}{source.extractedArtifactPaths.map((extracted) => <p key={extracted}><a href={`/api/sites/${runId}/${extracted}`}>Extracted artifact: {extracted}</a></p>)}{source.crawlAttempts.map((attempt, index) => <p key={`${attempt.provider}-${index}`}>Crawl {index + 1}: {attempt.provider} · {attempt.outcome} · {attempt.confidence} · {attempt.failureReason ?? "succeeded"}</p>)}</div>; })}
+              {group.sources.map((source) => { const href = safeExternalHref(source.sourceUrl); return <div key={source.id}><p>{href ? <a href={href} target="_blank" rel="noreferrer">{source.title ?? source.sourceUrl}</a> : <>{source.title ?? source.sourceUrl} · {source.sourceUrl}</>} · {Math.round(source.confidence * 100)}% · {source.capturedAt}</p>{source.screenshotPaths.map((screenshot) => <figure key={screenshot}><EvidenceImage src={artifactUrl(runId, screenshot)} alt={`${source.title ?? source.id} evidence`} /><figcaption>{screenshot}</figcaption></figure>)}{source.extractedArtifactPaths.map((extracted) => <p key={extracted}><a href={artifactUrl(runId, extracted)}>Extracted artifact: {extracted}</a></p>)}{source.crawlAttempts.map((attempt, index) => <p key={`${attempt.provider}-${index}`}>Crawl {index + 1}: {attempt.provider} · {attempt.outcome} · {attempt.confidence} · {attempt.failureReason ?? "succeeded"}</p>)}</div>; })}
               {"competitors" in group && group.competitors.length > 0 && <><h4>Selected competitors</h4><ul>{group.competitors.map((competitor) => { const href = safeExternalHref(competitor.url); return <li key={competitor.url}>{href ? <a href={href} target="_blank" rel="noreferrer">{competitor.name}</a> : <>{competitor.name} · {competitor.url}</>} — {competitor.selectionRationale}{competitor.strengths.length > 0 ? ` · Strengths: ${competitor.strengths.join("; ")}` : ""}{competitor.gaps.length > 0 ? ` · Gaps: ${competitor.gaps.join("; ")}` : ""}</li>; })}</ul></>}
               {"marketExpectations" in group && group.marketExpectations.length > 0 && <><h4>Market expectations</h4><ul>{group.marketExpectations.map((expectation) => <li key={expectation}>{expectation}</li>)}</ul></>}
               {"differentiationOpportunities" in group && group.differentiationOpportunities.length > 0 && <><h4>Differentiation opportunities</h4><ul>{group.differentiationOpportunities.map((opportunity) => <li key={opportunity}>{opportunity}</li>)}</ul></>}
