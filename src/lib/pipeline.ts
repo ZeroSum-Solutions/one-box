@@ -1445,7 +1445,11 @@ export async function stageLock(
     runId,
     MODELS.orchestrator,
     ReferenceLockDraftSchema,
-    `You are enforcing the reference-lock discipline (vendor/refero_skill): pick ONE primary reference, borrow at most 2 specific details from others, reject the rest with reasons, and write a decision ledger where every choice cites its source. Anti-averaging is absolute — do not blend.\n\nCLIENT: ${JSON.stringify({ category: intake.category, location: intake.location, vibeWords: intake.vibeWords })}\nMARKET GAPS: ${scan.gaps.join("; ")}\nCANDIDATES:\n${candidates.map((c) => `[${c.kind}] ${c.id} — ${c.name}: ${c.summary}`).join("\n")}${
+    // Design-baseline isolation (2026-08-15): while design quality is being
+    // measured stage-by-stage, the competitor scan is report-only — no scan
+    // data enters design prompts. Reintroduce later only as its own measured
+    // stage, not as a hidden injection here.
+    `You are enforcing the reference-lock discipline (vendor/refero_skill): pick ONE primary reference, borrow at most 2 specific details from others, reject the rest with reasons, and write a decision ledger where every choice cites its source. Anti-averaging is absolute — do not blend.\n\nCLIENT: ${JSON.stringify({ category: intake.category, location: intake.location, vibeWords: intake.vibeWords })}\nCANDIDATES:\n${candidates.map((c) => `[${c.kind}] ${c.id} — ${c.name}: ${c.summary}`).join("\n")}${
       viewed.length
         ? `\n\nATTACHED IMAGES — judge these on what you SEE, and say so in the ledger:\n${imageIndex}`
         : ""
@@ -1839,7 +1843,10 @@ async function stageSynthesize(
       runId,
       MODELS.orchestrator,
       SkeletonSpecSchema,
-      `Choose and order sections for a ${intake.category} ${researchCriteriaForTarget(intake.projectTarget).outputLabel}. Available section ids (the frozen portable prototype registry — only use these): nav, hero, trust-bar, services, why-us, service-area, contact, footer. Adapt their purpose and content needs for ${researchCriteriaForTarget(intake.projectTarget).researchLens}. Use market table stakes (${scan.commonSections.join(", ")}) and gaps (${scan.gaps.join("; ")}). primaryAction=${intake.primaryAction}.`
+      // Design-baseline isolation (2026-08-15): scan.commonSections/scan.gaps
+      // deliberately removed — the competitor report must not shape design
+      // while stages are being measured one variable at a time.
+      `Choose and order sections for a ${intake.category} ${researchCriteriaForTarget(intake.projectTarget).outputLabel}. Available section ids (the frozen portable prototype registry — only use these): nav, hero, trust-bar, services, why-us, service-area, contact, footer. Adapt their purpose and content needs for ${researchCriteriaForTarget(intake.projectTarget).researchLens}. primaryAction=${intake.primaryAction}.`
     );
     await saveArtifact(runId, ARTIFACTS.skeleton, skeleton);
     emit({
