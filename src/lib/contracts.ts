@@ -802,15 +802,12 @@ export const ReferenceSelectionStateSchema = z
       .optional(),
   })
   .superRefine((state, context) => {
-    if (
-      state.versions.length > state.rerollsUsed + 1 ||
-      state.versions.length < state.rerollsUsed
-    ) {
+    if (state.versions.length > state.rerollsUsed + 1) {
       context.addIssue({
         code: "custom",
         path: ["versions"],
         message:
-          "versions.length must be rerollsUsed or rerollsUsed + 1 (a spent reservation may lack its version, never the reverse)",
+          "versions.length may not exceed rerollsUsed + 1 (every extra version needs a spent reservation; spent-but-failed reservations may leave versions short by any amount)",
       });
     }
     const seen = new Set<string>();

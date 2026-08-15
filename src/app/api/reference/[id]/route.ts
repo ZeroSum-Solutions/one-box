@@ -5,14 +5,17 @@ import {
   ReferenceSelectionVersionSchema,
   type Intake,
 } from "../../../../lib/contracts";
+import path from "node:path";
 import {
   RunNotFoundError,
   loadArtifact,
   loadRun,
+  sitePaths,
   withRunTransaction,
 } from "../../../../lib/runstate";
 import { isLocalApiAuthorized } from "../../../../lib/localApiAuth";
 import { stageLockCandidates } from "../../../../lib/referenceStage";
+import { withFileLock } from "../../../../lib/fileLock";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
@@ -123,64 +126,70 @@ export async function POST(
       });
     }
 
-    const beforeReservation = pickerState(await loadRun(id));
-    if (beforeReservation.status !== "pending") {
-      throw new ReferenceSelectionError("a reference candidate has already been selected");
-    }
-    if (beforeReservation.rerollsUsed >= 2) {
-      throw new ReferenceSelectionError("no rerolls remaining");
-    }
     const intake = await loadArtifact<Intake>(id, ARTIFACTS.intake);
     if (!intake) {
       throw new ReferenceSelectionError("reference picker intake is unavailable");
     }
-    const reservation = await withRunTransaction(id, async (transaction) => {
-      const state = pickerState(transaction.state);
-      if (state.status !== "pending") {
-        throw new ReferenceSelectionError("a reference candidate has already been selected");
-      }
-      if (state.rerollsUsed >= 2) {
-        throw new ReferenceSelectionError("no rerolls remaining");
-      }
-      const rerollsUsed = state.rerollsUsed + 1;
-      const excludedIds = state.versions.flatMap((version) =>
-        version.candidates.map((candidate) => candidate.referoId)
-      );
-      transaction.state.referenceSelection = ReferenceSelectionStateSchema.parse({
-        ...state,
-        rerollsUsed,
-      });
-      return { rerollsUsed, excludedIds, versionCount: state.versions.length };
-    });
+    // The whole reroll (reserve → generate → append) is serialized per run:
+    // without this, a double-submit burns two reservations racing for one
+    // append slot and the loser gets a 409 with no refund (review finding,
+    // 2026-08-15). Under the lock, a second submit waits and then sees the
+    // updated counter/cap honestly.
+    return await withFileLock(
+      path.join(sitePaths(id).root, "reference-reroll.lock"),
+      async () => {
+        const reservation = await withRunTransaction(id, async (transaction) => {
+          const state = pickerState(transaction.state);
+          if (state.status !== "pending") {
+            throw new ReferenceSelectionError("a reference candidate has already been selected");
+          }
+          if (state.rerollsUsed >= 2) {
+            throw new ReferenceSelectionError("no rerolls remaining");
+          }
+          const rerollsUsed = state.rerollsUsed + 1;
+          const excludedIds = state.versions.flatMap((version) =>
+            version.candidates.map((candidate) => candidate.referoId)
+          );
+          transaction.state.referenceSelection = ReferenceSelectionStateSchema.parse({
+            ...state,
+            rerollsUsed,
+          });
+          return { rerollsUsed, excludedIds, versionCount: state.versions.length };
+        });
 
-    const version = await stageLockCandidates(id, intake, () => undefined, {
-      version: reservation.rerollsUsed + 1,
-      revisionNote: input.revisionNote,
-      excludedIds: reservation.excludedIds,
-    });
-    if (!version) {
-      // The reservation remains spent: refunding after a failed/freshness-short
-      // generation would let retries bypass the server-side reroll cap.
-      return Response.json({ ok: false, reason: "no-fresh-directions" });
-    }
+        const version = await stageLockCandidates(id, intake, () => undefined, {
+          // Versions stay linear regardless of spent-but-failed reservations:
+          // the next slot comes from the version count, never the reservation
+          // counter (after a failed reroll they diverge).
+          version: reservation.versionCount + 1,
+          revisionNote: input.revisionNote,
+          excludedIds: reservation.excludedIds,
+        });
+        if (!version) {
+          // The reservation remains spent: refunding after a failed/freshness-short
+          // generation would let retries bypass the server-side reroll cap.
+          return Response.json({ ok: false, reason: "no-fresh-directions" });
+        }
 
-    const referenceSelection = await withRunTransaction(id, async (transaction) => {
-      const state = pickerState(transaction.state);
-      if (
-        state.status !== "pending" ||
-        state.rerollsUsed !== reservation.rerollsUsed ||
-        state.versions.length !== reservation.versionCount
-      ) {
-        throw new ReferenceSelectionError("reference picker state changed during reroll");
+        const referenceSelection = await withRunTransaction(id, async (transaction) => {
+          const state = pickerState(transaction.state);
+          if (
+            state.status !== "pending" ||
+            state.rerollsUsed !== reservation.rerollsUsed ||
+            state.versions.length !== reservation.versionCount
+          ) {
+            throw new ReferenceSelectionError("reference picker state changed during reroll");
+          }
+          const next = ReferenceSelectionStateSchema.parse({
+            ...state,
+            versions: [...state.versions, ReferenceSelectionVersionSchema.parse(version)],
+          });
+          transaction.state.referenceSelection = next;
+          return next;
+        });
+        return Response.json({ ok: true, version, referenceSelection });
       }
-      const next = ReferenceSelectionStateSchema.parse({
-        ...state,
-        versions: [...state.versions, ReferenceSelectionVersionSchema.parse(version)],
-      });
-      transaction.state.referenceSelection = next;
-      return next;
-    });
-    return Response.json({ ok: true, version, referenceSelection });
+    );
   } catch (error) {
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });

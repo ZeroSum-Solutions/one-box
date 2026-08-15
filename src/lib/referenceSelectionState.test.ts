@@ -180,6 +180,13 @@ describe("reference selection state invariants", () => {
       ReferenceSelectionStateSchema.safeParse(spentReservation).success
     ).toBe(true);
 
+    // Both reservations spent on failed generations: still valid — blocking
+    // this state would 500 the second reroll (review finding).
+    const doubleSpent = selectionState({ rerollsUsed: 2 });
+    expect(ReferenceSelectionStateSchema.safeParse(doubleSpent).success).toBe(
+      true
+    );
+
     // The reverse — more versions than reservations — is never legal.
     const phantomVersion = selectionState({
       rerollsUsed: 0,

@@ -271,6 +271,32 @@ describe("reference picker route", () => {
     });
   });
 
+  it("allows the second reservation after a failed first reroll and keeps versions linear", async () => {
+    // Regression (review finding): a spent-but-failed reroll used to make the
+    // NEXT reservation unpersistable (versions.length < rerollsUsed rejected)
+    // and would have numbered the next version rerollsUsed+1, breaking
+    // linearity.
+    const runId = await fixtureRun();
+    await savePickerIntake(runId);
+    referenceStageMocks.stageLockCandidates.mockResolvedValueOnce(null);
+    const failed = await POST(request(runId, { action: "reroll" }), context(runId));
+    expect(await failed.json()).toMatchObject({ ok: false, reason: "no-fresh-directions" });
+
+    const nextVersion = rerollVersion();
+    referenceStageMocks.stageLockCandidates.mockResolvedValueOnce(nextVersion);
+    const response = await POST(request(runId, { action: "reroll" }), context(runId));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    const lastCall = referenceStageMocks.stageLockCandidates.mock.calls.at(-1);
+    expect(lastCall?.[3]).toMatchObject({ version: 2 });
+    expect((await loadRun(runId)).referenceSelection).toMatchObject({
+      status: "pending",
+      rerollsUsed: 2,
+      versions: [expect.anything(), expect.objectContaining({ version: 2 })],
+    });
+  });
+
   it("rejects a reroll when both reservations are already spent", async () => {
     const runId = await fixtureRun();
     await withRunTransaction(runId, async (transaction) => {
