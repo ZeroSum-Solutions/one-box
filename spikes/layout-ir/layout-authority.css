@@ -1,0 +1,36 @@
+/**
+ * Layout authority — v1.
+ *
+ * Sol's requirement, verbatim: "Extend the approved token/grammar authority to
+ * include measures, gutters, spacing, type metrics, breakpoints, overlap steps,
+ * crop positions, and layout ratios... If `5fr 7fr` or `object-position:
+ * 65% 25%` is considered a design value, persist it as an approved layout/crop
+ * token. Calling it 'derived' without a recorded authority would weaken the gate."
+ *
+ * These are GLOBAL and VERSIONED — identical for every site, reviewed once,
+ * hashed into the build. They are deliberately NOT per-site: a per-site value
+ * invented by the compiler would be exactly the unexplained literal the
+ * provenance audit exists to catch.
+ *
+ * The IR selects among these. It cannot add to them.
+ */
+:root {
+  /* Page-width scale — how wide the whole canvas is. Distinct from measure:
+     conflating the two is what produced a 670px page on a 1440px screen. */
+  --page-narrow: 60rem;
+  --page-normal: 76rem;
+  --page-wide: 88rem;
+
+  /* Measure scale — line length for TEXT slots only. Never a page width. */
+  --measure-narrow: 46ch;
+  --measure-normal: 62ch;
+  --measure-wide: 78ch;
+
+  /* Section vertical rhythm, indexed by page density. */
+  --rhythm-compact: 3.5rem;
+  --rhythm-regular: 5.5rem;
+  --rhythm-editorial: 8rem;
+
+  /* Hairline. The one approved border width. */
+  --rule-hairline: 1px;
+}

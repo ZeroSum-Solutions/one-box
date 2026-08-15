@@ -1,0 +1,416 @@
+{
+  "$sourceRun": "pKrNnpmPGX6y",
+  "$note": "Brief A / reference 2 \u2014 same business, same copy, same tokens, an editorial reference. Typographic hero with NO side-by-side split, media bleeds off the inline-end edge beneath the headline, proof badge OVERLAPS the media, services run as an alternating rhythm, and proof moves BELOW the offer instead of directly under the hero. This is the layout Grok's section-level composition enum provably could not express.",
+  "schemaVersion": "1",
+  "programId": "gutter-editorial",
+  "inputs": {
+    "designHash": "",
+    "copyHash": "",
+    "assetCatalogHash": ""
+  },
+  "page": {
+    "family": "editorial-asymmetric",
+    "measure": "normal",
+    "density": "editorial",
+    "seam": "flush",
+    "nav": "minimal",
+    "footer": "editorial"
+  },
+  "sections": [
+    {
+      "id": "nav",
+      "role": "nav",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 0
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "nav.logo"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 6
+        }
+      ]
+    },
+    {
+      "id": "hero",
+      "role": "hero",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 3
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "eyebrow",
+          "copyRef": "hero.image-alt"
+        },
+        {
+          "name": "heading",
+          "copyRef": "hero.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "hero.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "hero.cta"
+        },
+        {
+          "name": "media",
+          "assetRef": "assets/hero.jpg"
+        },
+        {
+          "name": "proof",
+          "copyRef": "trust-bar.stat-2-label"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "eyebrow",
+          "from": 2,
+          "to": 8,
+          "row": 1
+        },
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 11,
+          "row": 2
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 2,
+          "to": 7,
+          "row": 3
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 2,
+          "to": 5,
+          "row": 4
+        },
+        {
+          "type": "span",
+          "slot": "media",
+          "from": 6,
+          "to": 13,
+          "row": 3,
+          "rowSpan": 3
+        },
+        {
+          "type": "span",
+          "slot": "proof",
+          "from": 2,
+          "to": 6,
+          "row": 6
+        },
+        {
+          "type": "measure",
+          "slot": "lede",
+          "value": "narrow"
+        },
+        {
+          "type": "bleed",
+          "slot": "media",
+          "side": "inline-end",
+          "step": 3
+        },
+        {
+          "type": "overlap",
+          "slot": "proof",
+          "against": "media",
+          "axis": "block",
+          "step": 2
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 68,
+          "y": 30
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 55,
+          "y": 45,
+          "at": "mobile"
+        },
+        {
+          "type": "order",
+          "slot": "media",
+          "index": 3,
+          "at": "mobile"
+        },
+        {
+          "type": "order",
+          "slot": "actions",
+          "index": 4,
+          "at": "mobile"
+        }
+      ],
+      "artDirection": [
+        {
+          "type": "lineBreakHint",
+          "slot": "heading",
+          "afterWord": 3
+        },
+        {
+          "type": "opticalOffset",
+          "slot": "heading",
+          "axis": "inline",
+          "step": -1
+        }
+      ]
+    },
+    {
+      "id": "offer",
+      "role": "offer",
+      "kernel": {
+        "kind": "grid",
+        "columns": 2,
+        "gap": 3,
+        "rhythm": "alternating"
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "services.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "services.card"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 2
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 3
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "narrow"
+        }
+      ]
+    },
+    {
+      "id": "proof",
+      "role": "proof",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 2
+      },
+      "surface": "inverted",
+      "seam": "overlap",
+      "slots": [
+        {
+          "name": "items",
+          "collectionRef": "trust-bar.stat"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 2,
+          "to": 12
+        }
+      ]
+    },
+    {
+      "id": "why",
+      "role": "story",
+      "kernel": {
+        "kind": "split",
+        "ratio": "4-8",
+        "gap": 3
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "why-us.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "why-us.point"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 2,
+          "row": 1
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 2,
+          "to": 3,
+          "row": 1
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "block",
+          "value": "start"
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "narrow"
+        }
+      ]
+    },
+    {
+      "id": "contact",
+      "role": "contact",
+      "kernel": {
+        "kind": "stack",
+        "align": "center",
+        "gap": 2
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "contact.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "contact.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "contact.cta"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 2,
+          "to": 12,
+          "row": 1
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 4,
+          "to": 10,
+          "row": 2
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 6,
+          "to": 8,
+          "row": 3
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "lede",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "center"
+        }
+      ],
+      "artDirection": [
+        {
+          "type": "lineBreakHint",
+          "slot": "heading",
+          "afterWord": 4
+        }
+      ]
+    },
+    {
+      "id": "footer",
+      "role": "footer",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 1
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "footer.business-name"
+        },
+        {
+          "name": "caption",
+          "copyRef": "footer.tagline"
+        },
+        {
+          "name": "actions",
+          "copyRef": "footer.phone"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 7
+        },
+        {
+          "type": "span",
+          "slot": "caption",
+          "from": 1,
+          "to": 7
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 1,
+          "to": 4
+        }
+      ]
+    }
+  ]
+}
