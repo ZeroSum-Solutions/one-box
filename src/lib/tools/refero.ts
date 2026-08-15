@@ -409,15 +409,42 @@ function validateBatchStyleIds(styleIds: string[]): void {
   }
 }
 
-function mapBatchStylePayload(
+function embeddedStyleId(style: unknown): string | undefined {
+  if (typeof style !== "object" || style === null) return undefined;
+  const record = style as Record<string, unknown>;
+  for (const key of ["uuid", "id", "style_id"]) {
+    const value = record[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
+/** Maps a batched get_style payload back to the requested ids. NEVER zips an
+ * array by index for multi-id requests: a permuted response would silently
+ * attribute the wrong style to an id and poison the 60-day cache (review
+ * finding, 2026-08-15). Arrays map only via an embedded id field; anything
+ * unmappable returns undefined so the caller falls back to per-id fetches.
+ * Exported for direct unit testing. */
+export function mapBatchStylePayload(
   payload: unknown,
   styleIds: string[]
 ): Map<string, unknown> | undefined {
   if (Array.isArray(payload)) {
     if (payload.length !== styleIds.length) return undefined;
-    return new Map(styleIds.map((styleId, index) => [styleId, payload[index]]));
+    if (styleIds.length === 1) {
+      // A single-id request with a single-element array is unambiguous.
+      return new Map([[styleIds[0], payload[0]]]);
+    }
+    const wanted = new Set(styleIds);
+    const byId = new Map<string, unknown>();
+    for (const style of payload) {
+      const id = embeddedStyleId(style);
+      if (!id || !wanted.has(id) || byId.has(id)) return undefined;
+      byId.set(id, style);
+    }
+    return byId.size === styleIds.length ? byId : undefined;
   }
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+  if (typeof payload !== "object" || payload === null) {
     return undefined;
   }
   const record = payload as Record<string, unknown>;

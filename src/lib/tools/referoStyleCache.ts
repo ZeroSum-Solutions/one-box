@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { getStylesBatch } from "./refero";
@@ -13,6 +13,10 @@ export interface ReferoStyleCacheOptions {
 }
 
 interface CacheEntry {
+  /** The id this entry was written for — verified on every read so a
+   * filename collision or copied file can never serve the wrong style
+   * (review finding, 2026-08-15). */
+  styleId: string;
   fetchedAt: string;
   style: unknown;
 }
@@ -21,12 +25,10 @@ function defaultCacheDir(): string {
   return path.join(process.cwd(), ".one-box", "refero-style-cache");
 }
 
+/** Bijective, traversal-safe filename: distinct ids can never collide the
+ * way character-stripping sanitization could ("style/a" vs "stylea"). */
 function cacheFileName(styleId: string): string {
-  const sanitized = styleId.replace(/[^a-zA-Z0-9._-]/g, "");
-  if (!sanitized) {
-    throw new Error("refero style id sanitizes to an empty cache filename");
-  }
-  return `${sanitized}.json`;
+  return `${createHash("sha256").update(styleId).digest("hex")}.json`;
 }
 
 function cachePath(cacheDir: string, styleId: string): string {
@@ -40,14 +42,21 @@ function isFresh(entry: CacheEntry, now: Date, ttlMs: number): boolean {
 
 function isCacheEntry(value: unknown): value is CacheEntry {
   return typeof value === "object" && value !== null && !Array.isArray(value) &&
+    typeof (value as { styleId?: unknown }).styleId === "string" &&
     typeof (value as { fetchedAt?: unknown }).fetchedAt === "string" &&
     Object.hasOwn(value, "style");
 }
 
-async function readCacheEntry(filePath: string): Promise<CacheEntry | undefined> {
+async function readCacheEntry(
+  filePath: string,
+  expectedStyleId: string
+): Promise<CacheEntry | undefined> {
   try {
     const parsed: unknown = JSON.parse(await fs.readFile(filePath, "utf8"));
-    return isCacheEntry(parsed) ? parsed : undefined;
+    if (!isCacheEntry(parsed) || parsed.styleId !== expectedStyleId) {
+      return undefined;
+    }
+    return parsed;
   } catch {
     return undefined;
   }
@@ -66,10 +75,9 @@ async function writeCacheEntry(filePath: string, entry: CacheEntry): Promise<voi
 
 function validateStyleIds(styleIds: string[]): void {
   for (const styleId of styleIds) {
-    if (typeof styleId !== "string") {
-      throw new Error("refero style ids must be strings");
+    if (typeof styleId !== "string" || !styleId) {
+      throw new Error("refero style ids must be non-empty strings");
     }
-    cacheFileName(styleId);
   }
 }
 
@@ -86,7 +94,7 @@ export async function getStylesCached(
   const misses: string[] = [];
 
   for (const styleId of styleIds) {
-    const entry = await readCacheEntry(cachePath(cacheDir, styleId));
+    const entry = await readCacheEntry(cachePath(cacheDir, styleId), styleId);
     if (entry && isFresh(entry, currentTime, ttlMs)) {
       styles.set(styleId, entry.style);
     } else {
@@ -104,6 +112,7 @@ export async function getStylesCached(
       }
       const style = fetchedStyles.get(styleId);
       await writeCacheEntry(cachePath(cacheDir, styleId), {
+        styleId,
         fetchedAt: currentTime.toISOString(),
         style,
       });
