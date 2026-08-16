@@ -211,7 +211,7 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
         previewUrl = ev.previewUrl;
         settled = true;
       }
-      if (ev.type === "paused") {
+      if (ev.type === "paused" || ev.type === "reference-paused") {
         evidenceUrl = ev.workspaceUrl;
         settled = true;
       }
@@ -302,6 +302,15 @@ function timelineNode(item: TimelineItem, runId: string): ReactNode {
           key={key}
           title={`${event.workflowStage} ready for review`}
           body={event.note}
+        />
+      );
+    case "reference-paused":
+      return (
+        <StageCard
+          key={key}
+          title="Pick a look for your site"
+          body={event.note}
+          links={[{ kind: "artifact", label: "Pick a look for your site", href: event.workspaceUrl }]}
         />
       );
     default:

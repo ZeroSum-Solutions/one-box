@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ReferenceSelectionPanel } from "./ReferenceSelectionPanel";
 import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
@@ -364,6 +365,10 @@ export function EvidenceWorkspace({
           </li>
         ))}
       </ol>
+
+      {run.referenceSelection?.status === "pending" && (
+        <ReferenceSelectionPanel runId={run.id} initial={run.referenceSelection} />
+      )}
 
       <section className="evidence-review" aria-live="polite">
         <div className="evidence-review__title">
