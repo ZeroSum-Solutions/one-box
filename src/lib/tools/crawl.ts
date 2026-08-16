@@ -46,7 +46,7 @@ export async function crawlSite(
   url: string,
   outDir: string,
   runId?: string,
-  allowPaidFirecrawlFallback = false,
+  allowPaidFirecrawlFallback = true,
   onPaidFallback?: (reason: string) => void
 ): Promise<CrawlResult> {
   const capturedAt = new Date().toISOString();

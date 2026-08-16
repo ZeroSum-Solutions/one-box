@@ -25,6 +25,7 @@ import {
   type DesignTokens,
   type ReferenceLock,
   type ScanResult,
+  type YelpMarket,
   type SkeletonSpec,
   type CopyDoc,
   type ReferenceMode,
@@ -62,6 +63,7 @@ import {
 } from "./referoStyleProjection";
 import { ConfigError, preflight } from "./preflight";
 import { findCompetitors } from "./tools/maps";
+import { fetchYelpMarket } from "./tools/yelp";
 import { embedSearchUrl, mapsSearchUrl } from "./tools/places";
 import { crawlSite } from "./tools/crawl";
 import { capture } from "./tools/capture";
@@ -156,6 +158,61 @@ export function referoPlatformForTarget(
   target: Intake["projectTarget"]
 ): "web" | "ios" {
   return target === "ios-app" ? "ios" : "web";
+}
+
+/**
+ * Yelp market intel as its own scan card. Report-only — this is a market
+ * readout for the operator, not an input to design or copy. The medians are
+ * the point: they say what a new entrant has to clear to look credible.
+ */
+function emitYelpCard(emit: Emit, yelp: YelpMarket): void {
+  if (yelp.unavailable) {
+    emit({
+      type: "card",
+      stage: "scanned",
+      title: "Yelp market intel unavailable",
+      body: yelp.unavailable,
+      links: [
+        { label: "Yelp search", href: yelp.searchUrl, kind: "site", external: true },
+      ],
+    });
+    return;
+  }
+
+  const { rosterSize, ratingMedian, reviewCountMedian } = yelp.summary;
+  const bar =
+    ratingMedian === undefined
+      ? "No ratings published for this roster."
+      : `Market bar: ${ratingMedian}★ median across ${rosterSize} operators` +
+        (reviewCountMedian === undefined
+          ? "."
+          : `, median ${reviewCountMedian} reviews.`);
+
+  emit({
+    type: "card",
+    stage: "scanned",
+    title: `Yelp market: ${rosterSize} operators`,
+    body: `${bar}\n${yelp.listings
+      .map(
+        (l) =>
+          `${l.rank}. ${l.name}${l.rating === undefined ? "" : ` — ${l.rating}★`}` +
+          `${l.reviewCount === undefined ? "" : ` (${l.reviewCount} reviews)`}` +
+          `${l.priceRange ? ` ${l.priceRange}` : ""}`
+      )
+      .join("\n")}`,
+    links: [
+      { label: "Yelp search", href: yelp.searchUrl, kind: "site", external: true },
+      ...yelp.listings
+        .filter((l) => l.yelpUrl)
+        .map((l): CardLink => ({
+          label: l.name,
+          href: l.yelpUrl!,
+          kind: "site",
+          external: true,
+          sub: l.categories.join(", ") || undefined,
+        })),
+    ],
+  });
 }
 
 function disabledReferenceLock(intake: Intake): ReferenceLock {
@@ -1068,12 +1125,28 @@ export async function stageScan(
   const rel = (p: string) => path.relative(paths.root, p);
 
   const targetCriteria = researchCriteriaForTarget(intake.projectTarget);
-  const { competitors: found, excluded, mapsNote } = await findCompetitors(runId, {
-    category: `${intake.category} ${targetCriteria.marketQuerySuffix}`,
-    location: intake.location,
-    excludeUrl: intake.prospectUrl,
-    allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
-  });
+  // Independent network lanes — web discovery and the Yelp directory read have
+  // nothing to say to each other, so they run together rather than in series.
+  const [{ competitors: found, excluded, mapsNote }, yelp] = await Promise.all([
+    findCompetitors(runId, {
+      category: `${intake.category} ${targetCriteria.marketQuerySuffix}`,
+      location: intake.location,
+      excludeUrl: intake.prospectUrl,
+      allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
+    }),
+    // Yelp indexes local operators, so it only says something true about a
+    // local-business market. For a web app or an iOS app its roster would be
+    // noise, and the scrape would be spend with no signal.
+    intake.projectTarget === "website"
+      ? fetchYelpMarket(runId, {
+          category: intake.category,
+          location: intake.location,
+          allowPaidFirecrawlFallback: intake.research.allowPaidFirecrawlFallback,
+        })
+      : Promise.resolve(undefined),
+  ]);
+
+  if (yelp) emitYelpCard(emit, yelp);
 
   if (found.length === 0) {
     const scan = ScanResultSchema.parse({
@@ -1081,6 +1154,7 @@ export async function stageScan(
       commonSections: [],
       gaps: [],
       excluded,
+      yelp,
     });
     await saveArtifact(runId, ARTIFACTS.scan, scan);
     emit({
@@ -1246,6 +1320,7 @@ export async function stageScan(
     commonSections: agg.commonSections,
     gaps: agg.gaps,
     excluded,
+    yelp,
   });
   await saveArtifact(runId, ARTIFACTS.scan, scan);
 

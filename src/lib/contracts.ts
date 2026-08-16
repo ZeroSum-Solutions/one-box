@@ -14,7 +14,11 @@ export const ResearchConfigurationSchema = z.object({
   enabled: z.boolean().default(true),
   businessIntelligence: z.boolean().default(true),
   referoDesignEvidence: z.boolean().default(true),
-  allowPaidFirecrawlFallback: z.boolean().default(false),
+  /** Firecrawl is the standing fallback tier (owner decision 2026-08-16): the
+   * free local scraper still goes first, but a run no longer has to opt in for
+   * the paid tier to catch what it misses. The flag stays so a run can still be
+   * forced off from the intake UI, and so every metered path remains auditable. */
+  allowPaidFirecrawlFallback: z.boolean().default(true),
 });
 export type ResearchConfiguration = z.infer<
   typeof ResearchConfigurationSchema
@@ -940,7 +944,7 @@ export const IntakeSchema = z.object({
     enabled: true,
     businessIntelligence: true,
     referoDesignEvidence: true,
-    allowPaidFirecrawlFallback: false,
+    allowPaidFirecrawlFallback: true,
   }),
   uploads: z.array(UploadMetadataSchema).default([]),
 });
@@ -986,6 +990,42 @@ export const CompetitorSchema = z.object({
 });
 export type Competitor = z.infer<typeof CompetitorSchema>;
 
+/** One organic Yelp search result. Sponsored placements are dropped upstream
+ * in tools/yelp.ts — an advertiser's rating is not a market fact. */
+export const YelpListingSchema = z.object({
+  rank: z.number(), // position in Yelp's organic ordering
+  name: z.string(),
+  rating: z.number().optional(),
+  reviewCount: z.number().optional(),
+  categories: z.array(z.string()).default([]),
+  priceRange: z.string().optional(), // "$".."$$$$"
+  yelpUrl: z.string().optional(),
+});
+export type YelpListing = z.infer<typeof YelpListingSchema>;
+
+/** The derived market bar. Kept in its own object, NOT spread across the
+ * market, so a consumer can be handed the aggregates without also being handed
+ * the named roster. */
+export const YelpMarketSummarySchema = z.object({
+  rosterSize: z.number(),
+  ratingMedian: z.number().optional(),
+  reviewCountMedian: z.number().optional(),
+});
+export type YelpMarketSummary = z.infer<typeof YelpMarketSummarySchema>;
+
+/** Yelp market intelligence for the scan. Report-only: Yelp stays on
+ * DIRECTORY_DOMAINS, so it is never a competitor site, a crawl target, or a
+ * design input. `unavailable` explains an empty roster so a Yelp miss reads as
+ * "not reachable" rather than "no competitors". */
+export const YelpMarketSchema = z.object({
+  searchUrl: z.string(),
+  fetchedAt: z.string(),
+  listings: z.array(YelpListingSchema).max(10).default([]),
+  summary: YelpMarketSummarySchema,
+  unavailable: z.string().optional(),
+});
+export type YelpMarket = z.infer<typeof YelpMarketSchema>;
+
 export const ScanResultSchema = z.object({
   competitors: z.array(CompetitorSchema).max(4),
   commonSections: z.array(z.string()), // structure signal, NOT style input
@@ -996,6 +1036,8 @@ export const ScanResultSchema = z.object({
   excluded: z
     .array(z.object({ url: z.string(), title: z.string(), why: z.string() }))
     .default([]),
+  /** Optional so scans saved before the Yelp lane existed still parse. */
+  yelp: YelpMarketSchema.optional(),
 });
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 

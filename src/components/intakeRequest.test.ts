@@ -6,12 +6,12 @@ import {
 } from "./intakeRequest";
 
 describe("intake research defaults", () => {
-  it("requests both evidence lanes without silently approving paid discovery", () => {
+  it("requests both evidence lanes and keeps Firecrawl available as the fallback", () => {
     expect(defaultResearchConfiguration()).toEqual({
       enabled: true,
       businessIntelligence: true,
       referoDesignEvidence: true,
-      allowPaidFirecrawlFallback: false,
+      allowPaidFirecrawlFallback: true,
     });
   });
 

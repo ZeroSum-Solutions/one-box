@@ -18,8 +18,13 @@ fi
 if [[ -z "${FIRECRAWL_API_KEY:-}" ]]; then
   export FIRECRAWL_API_KEY="$(zsvault get firecrawl_api_key 2>/dev/null || true)"
 fi
+if [[ -z "${GOOGLE_MAPS_API_KEY:-}" ]]; then
+  export GOOGLE_MAPS_API_KEY="$(zsvault get google_maps_api_key 2>/dev/null || true)"
+fi
 : "${OPENROUTER_API_KEY:?missing; run zsvault unlock before starting OneBox}"
 [[ -n "${FIRECRAWL_API_KEY:-}" ]] ||
   print -u2 "one-box: FIRECRAWL_API_KEY missing; paid fallback is unavailable."
+[[ -n "${GOOGLE_MAPS_API_KEY:-}" ]] ||
+  print -u2 "one-box: GOOGLE_MAPS_API_KEY missing; Places verification and embed maps stay off."
 
 exec npm run dev:next

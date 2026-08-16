@@ -17,14 +17,19 @@
  * that silently eats a real competitor is worse than no filter.
  */
 import { addCost, CostCapExceeded } from "../runstate";
+import {
+  FIRECRAWL_BASE,
+  FIRECRAWL_CALL_COST_USD,
+  postJson,
+  requireFirecrawlKey,
+} from "./firecrawl";
 import { findPlace, mapsConfigured, mapsSearchUrl } from "./places";
 import type { CrawlProvenance, Place } from "../contracts";
 
-const FIRECRAWL_BASE = "https://api.firecrawl.dev";
 const RESULTS_PER_QUERY = 10;
 const MAX_COMPETITORS = 4;
 /** Firecrawl credit cost per search call, tracked into the run's costUsd. */
-const FIRECRAWL_SEARCH_COST_USD = 0.01;
+const FIRECRAWL_SEARCH_COST_USD = FIRECRAWL_CALL_COST_USD;
 
 // Directories/aggregators are structure noise, not real competitors — never
 // count as a market signal, never worth crawling for design reference.
@@ -180,29 +185,6 @@ interface FirecrawlSearchHit {
   title: string;
   url: string;
   description?: string;
-}
-
-function requireFirecrawlKey(): string {
-  const apiKey = process.env.FIRECRAWL_API_KEY;
-  if (!apiKey) throw new Error("FIRECRAWL_API_KEY is not set");
-  return apiKey;
-}
-
-async function postJson(
-  url: string,
-  apiKey: string,
-  body: unknown
-): Promise<{ ok: boolean; status: number; body: unknown }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
-  const json = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, body: json };
 }
 
 function toHit(raw: unknown): FirecrawlSearchHit {
