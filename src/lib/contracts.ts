@@ -1067,6 +1067,55 @@ export const ReferenceLockDraftSchema = ReferenceLockSchema.omit({
 
 // ---------- Stage 4: synthesis ----------
 
+const ReferenceStyleDigestDraftShape = z.object({
+  northStar: z.string().max(200),
+  preserveTraits: z.array(z.string()).min(3).max(5),
+  sectionRhythm: z.string().max(500),
+  surfaces: z
+    .array(
+      z.object({
+        level: z.number().int().min(0).max(3),
+        purpose: z.string().max(160),
+      })
+    )
+    .min(1)
+    .max(4),
+  componentRecipes: z.array(z.string()).min(1).max(8),
+  imageryTreatment: z.string().max(400),
+  motionPersonality: z.string().max(200),
+  dosDonts: z
+    .array(
+      z.object({
+        polarity: z.enum(["do", "dont"]),
+        rule: z.string().max(200),
+      })
+    )
+    .min(4)
+    .max(14),
+});
+
+function requireDigestDont(
+  digest: z.infer<typeof ReferenceStyleDigestDraftShape>,
+  context: z.RefinementCtx
+) {
+  if (digest.dosDonts.some((rule) => rule.polarity === "dont")) return;
+  context.addIssue({
+    code: "custom",
+    path: ["dosDonts"],
+    message: "style digest must include at least one don't rule",
+  });
+}
+
+export const ReferenceStyleDigestDraftSchema = ReferenceStyleDigestDraftShape.superRefine(
+  requireDigestDont
+);
+
+export const ReferenceStyleDigestSchema = ReferenceStyleDigestDraftShape.extend({
+  sourceStyleId: z.string().min(1),
+  designContractVersion: z.number().int().min(1),
+}).superRefine(requireDigestDont);
+export type ReferenceStyleDigest = z.infer<typeof ReferenceStyleDigestSchema>;
+
 export const DesignTokensSchema = z.object({
   colors: z.array(
     z.object({
@@ -1268,6 +1317,7 @@ export const ARTIFACTS = {
   scan: "scan.json",
   lock: "reference-lock.json",
   designMd: "DESIGN.md",
+  referenceStyleDigest: "reference-style-digest.json",
   evidenceLedger: "evidence/ledger.json",
   designContractMeta: "evidence/design-contract.json",
   designTailwindExport: "evidence/design-tailwind.css",
