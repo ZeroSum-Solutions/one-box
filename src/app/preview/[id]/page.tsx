@@ -52,6 +52,7 @@ const WORKBENCH_TOOLS: WorkbenchTool[] = [
   "text",
   "assets",
   "research",
+  "assistant",
   "tokens",
   "motion",
 ];

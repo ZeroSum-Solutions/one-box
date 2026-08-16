@@ -4,6 +4,7 @@ import type { PointerEvent } from "react";
 import { ChatComposer } from "@/components/ChatComposer";
 import { GateStrip } from "@/components/GateStrip";
 import { AssetControls } from "./AssetControls";
+import { AssistantPanel } from "./AssistantPanel";
 import { ElementControls } from "./ElementControls";
 import { MotionControls } from "./MotionControls";
 import { ResearchFindings } from "./ResearchFindings";
@@ -23,13 +24,14 @@ interface EditGuardrail {
 }
 
 export type WorkbenchTool =
-  "selection" | "text" | "assets" | "research" | "tokens" | "motion";
+  "selection" | "text" | "assets" | "research" | "assistant" | "tokens" | "motion";
 
 const TOOLS: Array<{ id: WorkbenchTool; label: string }> = [
   { id: "selection", label: "Selection and layout" },
   { id: "text", label: "Text and button" },
   { id: "assets", label: "Assets" },
   { id: "research", label: "Research" },
+  { id: "assistant", label: "Ask about your site" },
   { id: "tokens", label: "Tokens" },
   { id: "motion", label: "Motion" },
 ];
@@ -81,6 +83,13 @@ function ToolIcon({ tool }: { tool: WorkbenchTool }) {
       <svg {...common}>
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="m15.5 15.5 4.5 4.5M8.5 10.5h4M10.5 8.5v4" />
+      </svg>
+    );
+  if (tool === "assistant")
+    return (
+      <svg {...common}>
+        <path d="M5 5.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H10l-5 3v-13a2 2 0 0 1 2-2Z" />
+        <path d="M8.5 11.5h7M8.5 14.5h4" />
       </svg>
     );
   if (tool === "tokens")
@@ -217,6 +226,15 @@ export function Workbench(props: WorkbenchProps) {
     props.selection?.behavior === "interactive";
 
   function panelContent() {
+    if (props.activeTool === "assistant") {
+      return (
+        <AssistantPanel
+          runId={props.runId}
+          onMutationComplete={props.onStructuredMutationComplete}
+        />
+      );
+    }
+
     if (props.mode === "view") {
       return (
         <ToolState kind="unsupported" title="Editing is paused">

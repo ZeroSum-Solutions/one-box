@@ -1785,10 +1785,108 @@ textarea {
 }
 
 .token-controls,
-.motion-controls {
+.motion-controls,
+.assistant-panel {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-16);
+}
+
+.assistant-thread,
+.assistant-evidence,
+.assistant-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.assistant-message,
+.assistant-evidence__card,
+.assistant-suggestion {
+  margin: 0;
+  padding: var(--spacing-12);
+  border: 1px solid var(--color-surface-25);
+  border-radius: var(--radius-lg);
+  background: var(--color-off-black);
+}
+
+.assistant-message--owner {
+  border-color: color-mix(in srgb, var(--color-blue) 42%, var(--color-surface-25));
+}
+
+.assistant-message__label,
+.assistant-evidence__card strong {
+  display: block;
+  color: var(--color-surface-50);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.assistant-message__text,
+.assistant-suggestion p,
+.assistant-evidence__card p {
+  margin: 8px 0 0;
+  color: var(--color-surface-cream);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  white-space: pre-wrap;
+}
+
+.assistant-evidence__card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--spacing-12);
+}
+
+.assistant-evidence__card img {
+  width: 72px;
+  height: 54px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.assistant-evidence__card figcaption span {
+  display: block;
+  margin-top: 4px;
+  color: var(--color-surface-cream);
+  font-size: var(--text-caption);
+}
+
+.assistant-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.assistant-suggestion p {
+  margin: 0;
+  color: var(--color-surface-50);
+}
+
+.assistant-suggestion button {
+  min-height: 44px;
+  align-self: flex-start;
+  border: 1px solid var(--color-surface-25);
+  border-radius: var(--radius-pills);
+  background: transparent;
+  padding: 8px 12px;
+  color: var(--color-surface-cream);
+}
+
+.assistant-suggestion__done {
+  color: var(--color-blue) !important;
+}
+
+.assistant-suggestion__error {
+  color: var(--color-orangey) !important;
+}
+
+.assistant-turn-error {
+  margin: 0;
+  color: var(--color-orangey);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
 }
 
 .token-scope,
