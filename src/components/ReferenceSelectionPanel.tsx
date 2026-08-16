@@ -173,6 +173,60 @@ export function ReferenceSelectionPanel({
 
   if (!version || !recommendation) return null;
 
+  // Every direction from BEFORE the latest reroll stays choosable (soak
+  // feedback 2026-08-15) — newest earlier set first.
+  const earlierCandidates = selection.versions
+    .slice(0, -1)
+    .reverse()
+    .flatMap((entry) => entry.candidates);
+
+  function renderCard(candidate: CandidateProfile) {
+    const imageUrl = candidateImageUrl(runId, candidate);
+    return (
+      <article className="reference-selection__card" key={candidate.referoId}>
+        <div className="reference-selection__card-header">
+          <h3>{candidate.name}</h3>
+          {candidate.recommended && <span className="reference-selection__badge">Our recommendation</span>}
+        </div>
+        <div className="reference-selection__swatches" aria-label={"Colors in " + candidate.name}>
+          {candidate.palette.map((swatch) => (
+            <span
+              key={candidate.referoId + "-" + swatch.hex}
+              className="reference-selection__swatch"
+              role="img"
+              aria-label={swatch.plainLabel}
+              title={swatch.plainLabel}
+              style={{ backgroundColor: swatch.hex }}
+            />
+          ))}
+        </div>
+        <div className="reference-selection__profile">
+          <h4>{candidate.plainLanguageProfile.headline}</h4>
+          <p>{candidate.plainLanguageProfile.feelSummary}</p>
+          <h5>Best for</h5>
+          <ul>{candidate.plainLanguageProfile.bestFor.map((item) => <li key={item}>{item}</li>)}</ul>
+          {candidate.plainLanguageProfile.headsUp.length > 0 && (
+            <>
+              <h5>Heads up</h5>
+              <ul>{candidate.plainLanguageProfile.headsUp.map((item) => <li key={item}>{item}</li>)}</ul>
+            </>
+          )}
+        </div>
+        {imageUrl && (
+          <figure className="reference-selection__image">
+            {/* Runtime images can come from a remote reference or run artifact. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt="" loading="lazy" />
+            <figcaption>A real business site with this feel — for inspiration, not a preview of your site</figcaption>
+          </figure>
+        )}
+        <button type="button" disabled={action !== null} onClick={() => void choose(candidate)}>
+          {action === "select" ? "Choosing this look…" : "Choose this look"}
+        </button>
+      </article>
+    );
+  }
+
   return (
     <section className="reference-selection" aria-labelledby="reference-selection-title">
       <p className="eyebrow">{"{ choose a look }"}</p>
@@ -190,52 +244,7 @@ export function ReferenceSelectionPanel({
       </button>
 
       <div className="reference-selection__gallery">
-        {version.candidates.map((candidate) => {
-          const imageUrl = candidateImageUrl(runId, candidate);
-          return (
-            <article className="reference-selection__card" key={candidate.referoId}>
-              <div className="reference-selection__card-header">
-                <h3>{candidate.name}</h3>
-                {candidate.recommended && <span className="reference-selection__badge">Our recommendation</span>}
-              </div>
-              <div className="reference-selection__swatches" aria-label={"Colors in " + candidate.name}>
-                {candidate.palette.map((swatch) => (
-                  <span
-                    key={candidate.referoId + "-" + swatch.hex}
-                    className="reference-selection__swatch"
-                    role="img"
-                    aria-label={swatch.plainLabel}
-                    title={swatch.plainLabel}
-                    style={{ backgroundColor: swatch.hex }}
-                  />
-                ))}
-              </div>
-              <div className="reference-selection__profile">
-                <h4>{candidate.plainLanguageProfile.headline}</h4>
-                <p>{candidate.plainLanguageProfile.feelSummary}</p>
-                <h5>Best for</h5>
-                <ul>{candidate.plainLanguageProfile.bestFor.map((item) => <li key={item}>{item}</li>)}</ul>
-                {candidate.plainLanguageProfile.headsUp.length > 0 && (
-                  <>
-                    <h5>Heads up</h5>
-                    <ul>{candidate.plainLanguageProfile.headsUp.map((item) => <li key={item}>{item}</li>)}</ul>
-                  </>
-                )}
-              </div>
-              {imageUrl && (
-                <figure className="reference-selection__image">
-                  {/* Runtime images can come from a remote reference or run artifact. */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageUrl} alt="" loading="lazy" />
-                  <figcaption>A real business site with this feel — for inspiration, not a preview of your site</figcaption>
-                </figure>
-              )}
-              <button type="button" disabled={action !== null} onClick={() => void choose(candidate)}>
-                {action === "select" ? "Choosing this look…" : "Choose this look"}
-              </button>
-            </article>
-          );
-        })}
+        {version.candidates.map((candidate) => renderCard(candidate))}
       </div>
 
       <p className="reference-selection__disclosure">
@@ -246,6 +255,16 @@ export function ReferenceSelectionPanel({
         <button type="button" disabled={action === "reroll"} onClick={() => void reroll()}>
           {action === "reroll" ? "Finding different directions…" : "Show me different directions"}
         </button>
+      )}
+
+      {earlierCandidates.length > 0 && (
+        <div className="reference-selection__earlier">
+          <h3>Earlier directions you saw</h3>
+          <p>Changed your mind? Any look we showed you before is still yours to pick.</p>
+          <div className="reference-selection__gallery">
+            {earlierCandidates.map((candidate) => renderCard(candidate))}
+          </div>
+        </div>
       )}
       {rerollNote && <p className="reference-selection__message" role="status">{rerollNote}</p>}
       {error && <p className="chat-error" role="alert">{error}</p>}

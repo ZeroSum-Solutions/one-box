@@ -95,12 +95,17 @@ export async function POST(
           if (state.selection?.selectedId === input.selectedId) return state;
           throw new ReferenceSelectionError("a reference candidate has already been selected");
         }
-        const version = state.versions.at(-1);
+        // Every shown direction stays choosable — including ones from before
+        // a reroll (soak feedback 2026-08-15: "you can't go back"). Candidate
+        // ids are unique across versions by schema invariant.
+        const version = state.versions.find((entry) =>
+          entry.candidates.some((c) => c.referoId === input.selectedId)
+        );
         const candidate = version?.candidates.find(
           (entry) => entry.referoId === input.selectedId
         );
         if (!version || !candidate) {
-          throw new ReferenceSelectionError("selected candidate is not in the latest version");
+          throw new ReferenceSelectionError("selected candidate is not among the shown options");
         }
         const next = ReferenceSelectionStateSchema.parse({
           ...state,
@@ -204,7 +209,7 @@ export async function POST(
       return Response.json({ error: "run not found" }, { status: 404 });
     }
     if (error instanceof ReferenceSelectionError) {
-      const status = error.message === "selected candidate is not in the latest version" ? 400 : 409;
+      const status = error.message === "selected candidate is not among the shown options" ? 400 : 409;
       return Response.json({ error: error.message }, { status });
     }
     throw error;

@@ -271,6 +271,30 @@ describe("reference picker route", () => {
     });
   });
 
+  it("lets the owner go back and pick a direction from an earlier version", async () => {
+    // Soak feedback 2026-08-15: after a reroll, earlier looks must stay
+    // choosable — the selection binds to the version that contains the pick.
+    const runId = await fixtureRun();
+    await withRunTransaction(runId, async (transaction) => {
+      transaction.state.referenceSelection = ReferenceSelectionStateSchema.parse({
+        status: "pending",
+        rerollsUsed: 1,
+        versions: [initialVersion(), rerollVersion()],
+      });
+    });
+
+    const response = await POST(
+      request(runId, { action: "select", selectedId: "other" }),
+      context(runId)
+    );
+
+    expect(response.status).toBe(200);
+    expect((await loadRun(runId)).referenceSelection).toMatchObject({
+      status: "selected",
+      selection: { selectedId: "other", version: 1, selectionKind: "user-picked-other" },
+    });
+  });
+
   it("allows the second reservation after a failed first reroll and keeps versions linear", async () => {
     // Regression (review finding): a spent-but-failed reroll used to make the
     // NEXT reservation unpersistable (versions.length < rerollsUsed rejected)
