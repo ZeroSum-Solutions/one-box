@@ -41,6 +41,12 @@ interface EditApiGate {
   blocking: boolean;
 }
 
+interface EditGuardrail {
+  decision: "redirect" | "refuse";
+  reason: string;
+  suggestedAlternative?: string;
+}
+
 const WORKBENCH_TOOLS: WorkbenchTool[] = [
   "selection",
   "text",
@@ -78,6 +84,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   const [isEditing, setIsEditing] = useState(false);
   const [editResult, setEditResult] = useState<string | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
+  const [editGuardrail, setEditGuardrail] = useState<EditGuardrail | null>(null);
   const [gateRefreshToken, setGateRefreshToken] = useState(0);
   const [iframeVersion, setIframeVersion] = useState(0);
   const [previewBreakpoint, setPreviewBreakpoint] =
@@ -404,8 +411,9 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     }
   }
 
-  async function submitEdit() {
-    if (!restored || !selection || !instruction.trim() || isEditing) return;
+  async function submitEdit(options: { confirmRedirect?: boolean; instruction?: string } = {}) {
+    const submittedInstruction = options.instruction ?? instruction.trim();
+    if (!restored || !selection || !submittedInstruction || isEditing) return;
     const requestRunId = id;
     const controller = new AbortController();
     pendingEditAbortRef.current?.abort();
@@ -413,6 +421,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     setIsEditing(true);
     setEditError(null);
     setEditResult(null);
+    setEditGuardrail(null);
     try {
       const response = await fetch("/api/edit", {
         method: "POST",
@@ -421,17 +430,24 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         body: JSON.stringify({
           runId: id,
           editId: selection.editId,
-          instruction: instruction.trim(),
+          instruction: submittedInstruction,
           imageIntent,
+          ...(options.confirmRedirect ? { confirmRedirect: true } : {}),
           ...(imageIntent ? { requestId: crypto.randomUUID() } : {}),
         }),
       });
       const data = (await response.json().catch(() => null)) as
         | { ok: true; gates: EditApiGate[]; gatesClean: boolean }
+        | { ok: false; guardrail: EditGuardrail }
         | { error: string }
         | null;
 
       if (!isRunBoundRequestCurrent(requestRunId, activeRunIdRef.current)) {
+        return;
+      }
+
+      if (data && "guardrail" in data) {
+        setEditGuardrail(data.guardrail);
         return;
       }
 
@@ -570,13 +586,25 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           isEditing={isEditing}
           editResult={editResult}
           editError={editError}
+          editGuardrail={editGuardrail}
           gateRefreshToken={gateRefreshToken}
           onActiveToolChange={(activeTool) =>
             setWorkbench((current) => ({ ...current, activeTool }))
           }
-          onInstructionChange={setInstruction}
+          onInstructionChange={(value) => {
+            setInstruction(value);
+            setEditGuardrail(null);
+          }}
           onImageIntentChange={setImageIntent}
           onSubmitEdit={submitEdit}
+          onApplySuggestedRedirect={() => {
+            if (editGuardrail?.decision !== "redirect" || !editGuardrail.suggestedAlternative) return;
+            setInstruction(editGuardrail.suggestedAlternative);
+            void submitEdit({
+              confirmRedirect: true,
+              instruction: editGuardrail.suggestedAlternative,
+            });
+          }}
           onSizeChange={setWorkbenchSize}
           onWidthMenuToggle={toggleWidthMenu}
           onWidthMenuClose={() => setWidthMenuOpen(false)}

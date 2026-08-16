@@ -1240,8 +1240,24 @@ export const EditRequestSchema = z.object({
   instruction: z.string(),
   imageIntent: z.boolean().default(false), // route to Higgsfield swap
   requestId: z.string().uuid().optional(),
+  confirmRedirect: z.boolean().optional(),
 });
 export type EditRequest = z.infer<typeof EditRequestSchema>;
+
+export const EditClassificationSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("apply") }),
+  z.object({
+    decision: z.literal("redirect"),
+    reason: z.string().min(1).max(400),
+    suggestedAlternative: z.string().min(1).max(400),
+  }),
+  z.object({
+    decision: z.literal("refuse"),
+    reason: z.string().min(1).max(400),
+    suggestedAlternative: z.string().max(400).optional(),
+  }),
+]);
+export type EditClassification = z.infer<typeof EditClassificationSchema>;
 
 // ---------- Pipeline progress events (SSE to the chat UI) ----------
 

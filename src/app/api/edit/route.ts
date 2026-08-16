@@ -5,6 +5,7 @@
  */
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import {
@@ -12,6 +13,7 @@ import {
   ARTIFACTS,
   MODELS,
   type DesignTokens,
+  ReferenceStyleDigestSchema,
 } from "../../../lib/contracts";
 import { sitePaths, loadArtifact, loadRun } from "../../../lib/runstate";
 import { generateJson } from "../../../lib/openrouter";
@@ -28,8 +30,22 @@ import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEdit
 import { describeTokensForEdit } from "../../../lib/editorPromptContext";
 import { BlockingMutationError } from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
+import { classifyEditInstruction } from "../../../lib/editPreflight";
 
 export const maxDuration = 300;
+
+async function readPreflightElementContext(runId: string, editId: string) {
+  const html = await readFile(path.join(sitePaths(runId).site, "index.html"), "utf8");
+  const $ = cheerio.load(html);
+  const element = $("[data-edit-id]").filter(
+    (_, candidate) => $(candidate).attr("data-edit-id") === editId,
+  );
+  if (element.length !== 1) return undefined;
+  return {
+    elementTag: element[0].tagName.toLowerCase(),
+    elementRole: element.attr("role") || undefined,
+  };
+}
 
 export async function POST(req: Request) {
   if (!isLocalApiAuthorized(req)) {
@@ -39,12 +55,38 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: parsed.error.message }, { status: 400 });
   }
-  const { runId, editId, instruction, imageIntent, requestId } = parsed.data;
+  const { runId, editId, instruction, imageIntent, requestId, confirmRedirect } = parsed.data;
   if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) {
     return Response.json({ error: "bad runId" }, { status: 400 });
   }
 
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
+  if (!imageIntent) {
+    try {
+      const element = await readPreflightElementContext(runId, editId);
+      if (element && element.elementTag !== "img") {
+        const digest = ReferenceStyleDigestSchema.safeParse(
+          await loadArtifact(runId, ARTIFACTS.referenceStyleDigest),
+        );
+        const classification = await classifyEditInstruction(runId, {
+          instruction,
+          ...element,
+          tokens,
+          ...(digest.success ? { digest: digest.data } : {}),
+        });
+        if (classification.decision === "refuse") {
+          return Response.json({ ok: false, guardrail: classification });
+        }
+        if (classification.decision === "redirect" && !confirmRedirect) {
+          return Response.json({ ok: false, guardrail: classification });
+        }
+      }
+    } catch (error) {
+      console.warn(
+        `[edit-preflight] run ${runId}: unable to read edit context; applying edit through deterministic gates: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
   const assetName = `edit-${randomUUID()}.jpg`;
   const outPath = path.join(sitePaths(runId).site, "assets", assetName);
   const generationLedgerPath = path.join(

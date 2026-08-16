@@ -16,6 +16,12 @@ import type {
   WorkbenchSize,
 } from "./previewState";
 
+interface EditGuardrail {
+  decision: "redirect" | "refuse";
+  reason: string;
+  suggestedAlternative?: string;
+}
+
 export type WorkbenchTool =
   "selection" | "text" | "assets" | "research" | "tokens" | "motion";
 
@@ -147,11 +153,13 @@ interface WorkbenchProps {
   isEditing: boolean;
   editResult: string | null;
   editError: string | null;
+  editGuardrail: EditGuardrail | null;
   gateRefreshToken: number;
   onActiveToolChange: (tool: WorkbenchTool) => void;
   onInstructionChange: (value: string) => void;
   onImageIntentChange: (value: boolean) => void;
   onSubmitEdit: () => void;
+  onApplySuggestedRedirect: () => void;
   onSizeChange: (size: WorkbenchSize) => void;
   onWidthMenuToggle: () => void;
   onWidthMenuClose: () => void;
@@ -322,6 +330,20 @@ export function Workbench(props: WorkbenchProps) {
           />
           {props.editResult && (
             <p className="edit-status">{props.editResult}</p>
+          )}
+          {props.editGuardrail && (
+            <div className="workbench-state workbench-state--error" role="alert">
+              <span className="workbench-state__label">{props.editGuardrail.decision}</span>
+              <strong>{props.editGuardrail.reason}</strong>
+              {props.editGuardrail.suggestedAlternative && (
+                <p>{props.editGuardrail.suggestedAlternative}</p>
+              )}
+              {props.editGuardrail.decision === "redirect" && props.editGuardrail.suggestedAlternative && (
+                <button type="button" onClick={props.onApplySuggestedRedirect}>
+                  Apply the suggested version instead
+                </button>
+              )}
+            </div>
           )}
         </>
       );
