@@ -1234,6 +1234,49 @@ export type GateReport = z.infer<typeof GateReportSchema>;
 
 // ---------- Editor ----------
 
+const EditorEvidenceSchema = z.object({
+  screenId: z.string().min(1).max(160),
+  /** Run-relative Refero thumbnail path, never an arbitrary URL. */
+  thumbnailPath: z.string().regex(/^research\/refero\/assistant\/[a-zA-Z0-9._-]+$/),
+  siteName: z.string().min(1).max(160),
+  takeaway: z.string().min(1).max(200),
+});
+
+const EditorSuggestionSchema = z.object({
+  id: z.string().min(1).max(120),
+  /** Live data-edit-id, validated against the generated site at turn time. */
+  editId: z.string().min(1).max(160),
+  instruction: z.string().min(1).max(400),
+  summary: z.string().min(1).max(160),
+});
+
+const EditorOwnerMessageSchema = z.object({
+  id: z.string().min(1).max(120),
+  role: z.literal("owner"),
+  text: z.string().min(1).max(2_000),
+  at: z.string().datetime(),
+});
+
+const EditorAssistantMessageSchema = z.object({
+  id: z.string().min(1).max(120),
+  role: z.literal("assistant"),
+  reply: z.string().min(1).max(4_000),
+  at: z.string().datetime(),
+  evidence: z.array(EditorEvidenceSchema).max(4).default([]),
+  suggestions: z.array(EditorSuggestionSchema).max(3).default([]),
+});
+
+/** Persisted, advice-only assistant conversation. The writer prunes before
+ * saving, so the bound remains a durable storage limit rather than a failure. */
+export const EditorThreadSchema = z.object({
+  messages: z
+    .array(z.discriminatedUnion("role", [EditorOwnerMessageSchema, EditorAssistantMessageSchema]))
+    .max(60),
+  updatedAt: z.string().datetime(),
+});
+export type EditorThread = z.infer<typeof EditorThreadSchema>;
+export type EditorThreadMessage = EditorThread["messages"][number];
+
 export const EditRequestSchema = z.object({
   runId: z.string(),
   editId: z.string(), // data-edit-id — the ONLY selector the editor accepts
@@ -1357,6 +1400,7 @@ export const ARTIFACTS = {
   copy: "copy.json",
   manifest: "site/manifest.json",
   gates: "gates.json",
+  editorThread: "editor-thread.json",
 } as const;
 
 // ---------- Model slugs (verified live 2026-08-12; re-verify in Phase 0 smoke) ----------
