@@ -46,6 +46,7 @@ import {
   stageDone,
   appendEvent,
   claimBuildGateRepair,
+  releaseBuildGateRepair,
   readEvents,
   saveEvidenceArtifactVersion,
   withRunTransaction,
@@ -2293,12 +2294,20 @@ async function stageBuild(
     const css = path.join(sitePaths(runId).site, "tokens.css");
     const html = await fs.readFile(sitePath, "utf8");
     const cssText = await fs.readFile(css, "utf8");
-    const fix = await generateJson(
-      runId,
-      MODELS.builder,
-      z.object({ files: z.array(z.object({ path: z.enum(["index.html", "tokens.css"]), content: z.string() })) }),
-      `Fix ONLY these gate failures with minimal diffs. Preserve every data-edit-id. Failures:\n${JSON.stringify(failing)}\n\nindex.html:\n${html}\n\ntokens.css:\n${cssText}`
-    );
+    // A repair call that throws bought no fix, so it must not spend the one
+    // allowance — otherwise a transient timeout makes the run unfinishable.
+    let fix;
+    try {
+      fix = await generateJson(
+        runId,
+        MODELS.builder,
+        z.object({ files: z.array(z.object({ path: z.enum(["index.html", "tokens.css"]), content: z.string() })) }),
+        `Fix ONLY these gate failures with minimal diffs. Preserve every data-edit-id. Failures:\n${JSON.stringify(failing)}\n\nindex.html:\n${html}\n\ntokens.css:\n${cssText}`
+      );
+    } catch (cause) {
+      await releaseBuildGateRepair(runId);
+      throw cause;
+    }
     for (const f of fix.files) {
       await fs.writeFile(path.join(sitePaths(runId).site, f.path), f.content);
     }

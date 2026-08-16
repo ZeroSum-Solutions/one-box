@@ -821,6 +821,21 @@ export function claimBuildGateRepair(runId: string): Promise<boolean> {
   });
 }
 
+/**
+ * Hand the allowance back when the repair call itself failed and bought no
+ * fix. The allowance exists to cap paid repair attempts per build, so only a
+ * repair that actually ran may spend it. A crashed or timed-out call that kept
+ * the claim left the run unfinishable: each resume re-ran the gates, hit the
+ * same failures, could not claim a repair, and failed the build again.
+ */
+export function releaseBuildGateRepair(runId: string): Promise<void> {
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    state.stages.built.gateRepairAttempts = 0;
+    await saveRun(state);
+  });
+}
+
 export async function stageDone(runId: string, stage: Stage): Promise<boolean> {
   const state = await loadRun(runId);
   return state.stages[stage]?.status === "done";

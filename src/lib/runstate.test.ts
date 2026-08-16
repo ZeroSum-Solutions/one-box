@@ -14,6 +14,7 @@ import {
   advanceEvidenceWorkflow,
   artifactApprovalState,
   claimBuildGateRepair,
+  releaseBuildGateRepair,
   createRun,
   invalidateApprovedVisualQa,
   loadEvidenceWorkflow,
@@ -659,6 +660,20 @@ describe("evidence workflow persistence", () => {
     expect(await claimBuildGateRepair(runId)).toBe(true);
     expect(await claimBuildGateRepair(runId)).toBe(false);
     expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(1);
+  });
+
+  // A repair call that throws — the observed case was an OpenRouter timeout —
+  // buys no fix, so it must not spend the allowance. Leaving it spent stranded
+  // the run permanently: every later resume re-ran the gates, found the same
+  // failures, could not claim a repair, and failed the build again.
+  it("returns the gate-repair allowance when the attempt bought no fix", async () => {
+    const runId = await createTestRun();
+    expect(await claimBuildGateRepair(runId)).toBe(true);
+
+    await releaseBuildGateRepair(runId);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expect(await claimBuildGateRepair(runId)).toBe(true);
   });
 });
 

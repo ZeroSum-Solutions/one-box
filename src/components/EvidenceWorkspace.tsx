@@ -248,6 +248,19 @@ export function EvidenceWorkspace({
   const [draftText, setDraftText] = useState(
     current ? JSON.stringify(current.artifact, null, 2) : ""
   );
+
+  // router.refresh() re-runs the server page and hands down fresh run state,
+  // but useState keeps its first value forever. That is how a resumed run's
+  // newly written draft stayed invisible behind "Draft not generated". Adopt
+  // each new server snapshot; local approvals keep updating run in between.
+  const [serverRun, setServerRun] = useState(initialRun);
+  if (serverRun !== initialRun) {
+    const refreshed = latestCurrentArtifact(initialRun);
+    setServerRun(initialRun);
+    setRun(initialRun);
+    setDraftText(refreshed ? JSON.stringify(refreshed.artifact, null, 2) : "");
+  }
+
   const currentIndex = EVIDENCE_WORKFLOW_STAGES.indexOf(
     run.evidenceWorkflow.currentStage
   );
@@ -395,7 +408,9 @@ export function EvidenceWorkspace({
           <p>Advance or resume the run to generate this stage’s deterministic draft.</p>
         )}
 
-        {!(approval === "in-review" && current?.artifactType === "visual-qa") && <label className="evidence-note">
+        {/* Every action that reads the note is gated on an artifact, so a
+            stage with no draft must not show the field at all. */}
+        {current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
           Review note
           <textarea value={note} onChange={(event) => setNote(event.target.value)} />
         </label>}

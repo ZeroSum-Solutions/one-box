@@ -343,6 +343,37 @@ describe("EvidenceWorkspace artifact previews", () => {
   });
 });
 
+// A stage whose draft has not been written yet still rendered the review note
+// box, but no action consumes that note — every button that reads it is gated
+// on an artifact. Reviewers were left typing into a field with no way to send
+// it. Offer the one action that applies instead.
+describe("EvidenceWorkspace with no draft for the current stage", () => {
+  const run = {
+    id: "run-test",
+    createdAt: "2026-08-13T12:00:00.000Z",
+    pipelineVersion: "evidence-gated-v2",
+    stages: {},
+    costUsd: 0,
+    costCapUsd: 3,
+    modelSlugs: {},
+    referenceMode: "none",
+    evidenceWorkflow: { currentStage: "evidence", artifacts: [] },
+  } as unknown as RunState;
+
+  it("does not offer a review note there is no action to submit", () => {
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+
+    expect(html).toContain("Draft not generated");
+    expect(html).not.toContain("Review note");
+  });
+
+  it("still offers the resume link that does apply", () => {
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+
+    expect(html).toContain("Resume generation");
+  });
+});
+
 // ENG-009: crawlSite and capture() record ABSOLUTE filesystem paths in the
 // scan artifact, and rendering one as a URL produced /api/sites/<id>//Users/…
 // and a 404. Existing runs still hold absolute values on disk, so the URL

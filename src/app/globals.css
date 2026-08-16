@@ -131,21 +131,24 @@
   list-style: none;
 }
 
+/* The step strip sits on the black page shell, not on a card, so its ink has
+   to be light. The earlier values were authored for a light page: the current
+   step resolved to near-black on black and disappeared. */
 .evidence-steps li {
   display: flex;
   min-height: 48px;
   align-items: center;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--line, #d8d8d4);
+  border: 1px solid #4a4a45;
   border-radius: 10px;
-  color: var(--muted, #65655f);
+  color: #a8a8a0;
   text-transform: capitalize;
 }
 
 .evidence-steps li[data-state="current"] {
   border-color: currentColor;
-  color: var(--ink, #151513);
+  color: var(--color-surface-cream);
 }
 
 .evidence-steps li[data-state="complete"] {
@@ -153,11 +156,26 @@
   color: #245d2c;
 }
 
+/* A white card inside a dark shell must state its own ink. Without this the
+   card inherited the cream body colour and every word on it was invisible. */
 .evidence-review {
   padding: clamp(18px, 3vw, 32px);
   border: 1px solid var(--line, #d8d8d4);
   border-radius: 18px;
   background: #fff;
+  color: #1b1b18;
+}
+
+/* .pill-button and .eyebrow are drawn for the dark shell (cream ink). On the
+   white card they need the inverse. */
+.evidence-review .pill-button {
+  color: #1b1b18;
+  border-color: #1b1b18;
+}
+
+.evidence-review .eyebrow,
+.reference-selection .eyebrow {
+  color: #5a5a52;
 }
 
 .reference-selection {

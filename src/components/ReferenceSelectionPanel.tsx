@@ -1,10 +1,12 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type {
   CandidateProfile,
   ReferenceSelectionState,
 } from "@/lib/contracts";
+import { consumePipelineRunStream } from "./resumeRun";
 
 type PickerAction = "select" | "reroll" | null;
 
@@ -60,6 +62,7 @@ export function ReferenceSelectionPanel({
   runId: string;
   initial: ReferenceSelectionState;
 }) {
+  const router = useRouter();
   const [selection, setSelection] = useState(initial);
   const [action, setAction] = useState<PickerAction>(null);
   const [error, setError] = useState<string | null>(null);
@@ -121,6 +124,8 @@ export function ReferenceSelectionPanel({
         throw new Error(result.error ?? "We couldn't save that choice.");
       }
 
+      setSelection(result.referenceSelection);
+
       // Only the known resume endpoint may be followed, always as POST
       // (review finding: a response body must not be able to steer the
       // browser at arbitrary loopback write APIs).
@@ -132,10 +137,16 @@ export function ReferenceSelectionPanel({
         });
         if (!resumeResponse.ok) {
           setError("Your choice is saved, but we couldn't continue the build yet.");
+          return;
         }
+        // /api/run answers with an SSE stream, so an ok response only means
+        // the pipeline started. Reading it to its terminal event is what tells
+        // us the next gate's draft exists; refreshing then is what puts that
+        // draft on screen. Without this the page kept its pre-selection
+        // snapshot and stranded the reviewer on "Draft not generated".
+        await consumePipelineRunStream(resumeResponse, () => {});
+        router.refresh();
       }
-
-      setSelection(result.referenceSelection);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn't save that choice.");
     } finally {
