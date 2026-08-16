@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   CandidateProfile,
   ReferenceSelectionState,
@@ -22,10 +22,26 @@ function latestVersion(state: ReferenceSelectionState) {
   return state.versions.at(-1);
 }
 
+/** Client-side mirror of the contract's injection boundary (review finding):
+ * remote previews must be https Refero assets; local paths get encoded per
+ * segment before entering the sites API URL. */
 function candidateImageUrl(runId: string, candidate: CandidateProfile): string | undefined {
-  if (candidate.previewImageUrl) return candidate.previewImageUrl;
+  if (candidate.previewImageUrl) {
+    try {
+      const url = new URL(candidate.previewImageUrl);
+      if (url.protocol === "https:" && (url.hostname === "refero.design" || url.hostname.endsWith(".refero.design"))) {
+        return candidate.previewImageUrl;
+      }
+    } catch {
+      // fall through to the screenshot artifact
+    }
+  }
   if (!candidate.screenshotPath) return undefined;
-  return "/api/sites/" + runId + "/" + candidate.screenshotPath;
+  const encodedPath = candidate.screenshotPath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return "/api/sites/" + encodeURIComponent(runId) + "/" + encodedPath;
 }
 
 function selectedCandidate(state: ReferenceSelectionState): CandidateProfile | undefined {
@@ -46,6 +62,9 @@ export function ReferenceSelectionPanel({
   const [action, setAction] = useState<PickerAction>(null);
   const [error, setError] = useState<string | null>(null);
   const [rerollNote, setRerollNote] = useState<string | null>(null);
+  // Synchronous lock (review finding): two clicks can both pass the React
+  // disabled state before the re-render lands; the ref closes that window.
+  const inFlight = useRef(false);
   const version = latestVersion(selection);
   const recommendation = version?.candidates.find((candidate) => candidate.recommended);
   const selected = selectedCandidate(selection);
@@ -84,6 +103,8 @@ export function ReferenceSelectionPanel({
   }, [runId]);
 
   async function choose(candidate: CandidateProfile) {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setAction("select");
     setError(null);
     setRerollNote(null);
@@ -98,15 +119,17 @@ export function ReferenceSelectionPanel({
         throw new Error(result.error ?? "We couldn't save that choice.");
       }
 
-      if (result.resumeUrl && result.resumeMethod) {
+      // Only follow a same-origin relative resume path, always as POST
+      // (review finding: never let a response body steer the browser to
+      // another origin or method).
+      if (result.resumeUrl && result.resumeUrl.startsWith("/") && !result.resumeUrl.startsWith("//")) {
         const resumeResponse = await fetch(result.resumeUrl, {
-          method: result.resumeMethod,
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ runId }),
         });
         if (!resumeResponse.ok) {
-          const resumeResult = (await resumeResponse.json().catch(() => ({}))) as { error?: string };
-          setError(resumeResult.error ?? "Your choice is saved, but we couldn't continue the build yet.");
+          setError("Your choice is saved, but we couldn't continue the build yet.");
         }
       }
 
@@ -114,11 +137,14 @@ export function ReferenceSelectionPanel({
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn't save that choice.");
     } finally {
+      inFlight.current = false;
       setAction(null);
     }
   }
 
   async function reroll() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setAction("reroll");
     setError(null);
     setRerollNote(null);
@@ -128,23 +154,31 @@ export function ReferenceSelectionPanel({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "reroll" }),
       });
-      const result = (await response.json()) as ReferenceResponse & {
+      const result = (await response.json().catch(() => ({}))) as ReferenceResponse & {
         ok?: boolean;
         reason?: string;
       };
-      if (!response.ok) throw new Error(result.error ?? "We couldn't find different directions.");
+      // Friendly outcomes come before the generic error throw (review
+      // finding): exhaustion can arrive as a 2xx reason or as a 409 when a
+      // second tab spent the last reroll first.
       if (result.ok === false && result.reason === "no-fresh-directions") {
         setRerollNote("We couldn't find enough new directions — these are still your options.");
         await refresh();
         return;
       }
-      if (!result.referenceSelection) {
-        throw new Error("We couldn't find different directions.");
+      if (response.status === 409) {
+        setRerollNote("You've seen all the different directions we can offer — every look shown is still yours to pick.");
+        await refresh();
+        return;
+      }
+      if (!response.ok || !result.referenceSelection) {
+        throw new Error("We couldn't find different directions right now. Please try again.");
       }
       setSelection(result.referenceSelection);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn't find different directions.");
     } finally {
+      inFlight.current = false;
       setAction(null);
     }
   }
@@ -171,7 +205,7 @@ export function ReferenceSelectionPanel({
     );
   }
 
-  if (!version || !recommendation) return null;
+  if (!version) return null;
 
   // Every direction from BEFORE the latest reroll stays choosable (soak
   // feedback 2026-08-15) — newest earlier set first.
@@ -234,14 +268,18 @@ export function ReferenceSelectionPanel({
       <p className="reference-selection__framing">
         We found a few different looks for your site. Pick the one that feels most like your business — or let us pick for you.
       </p>
-      <button
-        type="button"
-        className="reference-selection__recommendation"
-        disabled={action !== null}
-        onClick={() => void choose(recommendation)}
-      >
-        {action === "select" ? "Choosing this look…" : "Not sure? Use our recommendation"}
-      </button>
+      {/* Contract guarantees exactly one recommended candidate, but a picker
+          with cards and no shortcut beats a blank panel if that ever breaks. */}
+      {recommendation && (
+        <button
+          type="button"
+          className="reference-selection__recommendation"
+          disabled={action !== null}
+          onClick={() => void choose(recommendation)}
+        >
+          {action === "select" ? "Choosing this look…" : "Not sure? Use our recommendation"}
+        </button>
+      )}
 
       <div className="reference-selection__gallery">
         {version.candidates.map((candidate) => renderCard(candidate))}
@@ -252,7 +290,7 @@ export function ReferenceSelectionPanel({
       </p>
 
       {selection.rerollsUsed < 2 && (
-        <button type="button" disabled={action === "reroll"} onClick={() => void reroll()}>
+        <button type="button" disabled={action !== null} onClick={() => void reroll()}>
           {action === "reroll" ? "Finding different directions…" : "Show me different directions"}
         </button>
       )}
