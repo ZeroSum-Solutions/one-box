@@ -201,7 +201,7 @@ describe("reference picker route", () => {
 
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
-      error: expect.stringMatching(/latest version/i),
+      error: expect.stringMatching(/among the shown options/i),
     });
   });
 

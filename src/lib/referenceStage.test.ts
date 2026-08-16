@@ -161,6 +161,20 @@ describe("stageLockCandidates", () => {
       () => undefined,
       undefined,
       deps({
+        // The default stub keys off the short fixture angles; long angles need
+        // their own mapping so each still yields a distinct candidate.
+        searchStyles: async (angle) => {
+          const id = angle.endsWith(" B") ? "pipe" : angle.endsWith(" C") ? "apron" : "ambrook";
+          return [
+            {
+              id,
+              name: id[0].toUpperCase() + id.slice(1),
+              summary: `${id} summary`,
+              sourceUrl: `https://${id}.example`,
+              previewImageUrl: `https://images.refero.design/styles/${id}/preview.jpg`,
+            },
+          ];
+        },
         generateJson: async (_runId, _model, _schema, prompt) =>
           prompt.includes("design-search angles")
             ? { angles: [longAngle, `${longAngle} B`, `${longAngle} C`] }
