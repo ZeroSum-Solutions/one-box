@@ -272,13 +272,23 @@ export function AssistantPanel({ runId, onMutationComplete }: { runId: string; o
   const [turnError, setTurnError] = useState<string | null>(null);
   const [suggestionStates, setSuggestionStates] = useState<Record<string, AssistantSuggestionState | undefined>>({});
 
+  useEffect(() => {
+    // No synchronous setState in the effect (lint: cascading renders); the
+    // active flag also drops stale responses after unmount or a runId change.
+    let active = true;
+    void loadAssistantThread(runId).then((next) => {
+      if (active) setState(next);
+    });
+    return () => {
+      active = false;
+    };
+  }, [runId]);
+
   async function reload() {
     setState({ kind: "loading" });
     setTurnError(null);
     setState(await loadAssistantThread(runId));
   }
-
-  useEffect(() => { void reload(); }, [runId]);
 
   async function handleSend() {
     if (isSending) return;
