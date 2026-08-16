@@ -87,7 +87,51 @@ DONE. Both lanes are live and proven against real markets:
   Pin an element to `position:fixed; top:0` to capture it. Devin denied computer-use access to
   Chrome, so his real browser cannot be screenshotted.
 
+## Follow-on 2026-08-16: run mPHVbkER-Qu8 driven to a built site (commit d671e43)
+Devin got stranded on `/evidence/<id>`: a card saying "Your look is chosen. We're continuing
+with the build" above a card saying "Draft not generated", with unreadable text. Four defects,
+all fixed and committed:
+- **Workspace never re-read run state.** `useState(initialRun)` plus a reference panel that
+  POSTed `/api/run` and abandoned the SSE stream. The resume DID write the ledger draft; nothing
+  put it on screen. Panel now uses `consumePipelineRunStream` then `router.refresh()`; the
+  workspace adopts each new server snapshot.
+- **Evidence CSS was authored for a light page on a black shell.** `--ink`/`--muted`/`--line`
+  are *never defined* anywhere — every use falls back to light-theme values. `.evidence-review`
+  set `background:#fff` with no `color` (cream ink on white); the current step chip resolved to
+  #151513 on black. Both now state their own ink, plus `.eyebrow`/`.pill-button` on white cards.
+- **Orphan review-note box** rendered with no artifact and no button that consumes it.
+- **Gate-repair allowance was spent by a repair that threw.** A transient OpenRouter timeout
+  made the run permanently unfinishable. `releaseBuildGateRepair` hands it back.
+
+### The build does NOT pass its gates — root cause found, NOT fixed
+Site builds and renders correctly at `/api/sites/mPHVbkER-Qu8/index.html` (screenshotted, all
+8 sections). Two blocking gates fail identically on every repair cycle (verified twice — this
+is structural, not transient):
+- `color-role-compliance`: contact section uses Ink Black as section-background and Canvas
+  White for heading/body/border, all forbidden by the contract's `forbiddenContexts`.
+- `contrast`: `a.btn.btn--primary` hover is 1:1 desktop and mobile.
+
+**Root cause:** the design-contract model authors `componentStates` as raw CSS declaration
+strings that invent their own variable namespace — `var(--colors-primary)`,
+`var(--colors-primaryContrast)`, `var(--radii-sm)`, `var(--fonts-display-family)`,
+`var(--layout-cardPaddingPx)`. The generator pastes them verbatim into `tailwind-theme.css`
+as `--ds-state-button-*`. The token emitter produces `--color-primary` (singular), so every one
+of those references is undefined and its declaration is dropped — which is also why the button
+hover has no colours and measures 1:1. Nothing validates model-authored variable names against
+the token inventory. Fixing that is a design change, not a patch.
+
+**Also structural:** each `built` retry re-runs `buildSite` from the synth artifacts, discarding
+the previous repair's patch. Repairs can never accumulate, so a build needing two fixes can
+never converge.
+
+Beware two screenshot phantoms in the in-app pane: its tab is `visibilityState: hidden`, which
+freezes CSS transitions mid-flight (reveals read `opacity: 0.0033`) and throttles rAF (the
+trust-bar counter reads `0` / `0/7` while the served HTML correctly says `15` / `24/7`). Neither
+is a site bug. Force with a transitions-off style and re-read values from the served HTML.
+
 ## Next Action
 Decide the two owner calls: attach Cloud billing, and whether to enable the synthesis→aggregates
-channel (currently severed by design). Then Phase C (renderer expressivity promotion bar, CLI
-task #34) is still queued from the earlier refero goal run.
+channel (currently severed by design). Then decide how `componentStates` should reach the
+stylesheet — map the model's names onto real tokens, or constrain the contract schema so it can
+only emit token names that exist. Phase C (renderer expressivity promotion bar, CLI task #34) is
+still queued from the earlier refero goal run.
