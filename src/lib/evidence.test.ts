@@ -352,14 +352,14 @@ describe("evidence artifact derivation", () => {
       const productionColorTokens = {
         ...tokens,
         colors: [
-          { name: "Background", value: "#ffffff", cssVar: "--color-bg", role: "Page background" },
-          { name: "Surface", value: "#f7f5f2", cssVar: "--color-surface", role: "Primary surface" },
-          { name: "Surface alt", value: "#ebe8e2", cssVar: "--color-surface-alt", role: "Alternate surface" },
-          { name: "Text", value: "#151719", cssVar: "--color-text", role: "Body text" },
-          { name: "Text muted", value: "#555b61", cssVar: "--color-text-muted", role: "Secondary text" },
-          { name: "Primary", value: "#174ea6", cssVar: "--color-primary", role: "Actions and headings" },
-          { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary" },
-          { name: "Border", value: "#c8c4bc", cssVar: "--color-border", role: "Dividers" },
+          { name: "Background", value: "#ffffff", cssVar: "--color-bg", role: "Page background", forbiddenContexts: [] },
+          { name: "Surface", value: "#f7f5f2", cssVar: "--color-surface", role: "Primary surface", forbiddenContexts: [] },
+          { name: "Surface alt", value: "#ebe8e2", cssVar: "--color-surface-alt", role: "Alternate surface", forbiddenContexts: [] },
+          { name: "Text", value: "#151719", cssVar: "--color-text", role: "Body text", forbiddenContexts: [] },
+          { name: "Text muted", value: "#555b61", cssVar: "--color-text-muted", role: "Secondary text", forbiddenContexts: [] },
+          { name: "Primary", value: "#174ea6", cssVar: "--color-primary", role: "Actions and headings", forbiddenContexts: [] },
+          { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary", forbiddenContexts: [] },
+          { name: "Border", value: "#c8c4bc", cssVar: "--color-border", role: "Dividers", forbiddenContexts: [] },
         ],
       };
       await fs.writeFile(
@@ -388,12 +388,12 @@ describe("evidence artifact derivation", () => {
       ...tokens,
       colors: [
         ...tokens.colors,
-        { name: "Background", value: "#111315", cssVar: "--color-bg", role: "Page background" },
-        { name: "Text", value: "#faf9f7", cssVar: "--color-text", role: "Body text" },
-        { name: "Muted", value: "#c9c5bf", cssVar: "--color-text-muted", role: "Secondary text" },
-        { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary" },
-        { name: "Border", value: "#77716a", cssVar: "--color-border", role: "Dividers" },
-        { name: "Surface alt", value: "#24282c", cssVar: "--color-surface-alt", role: "Alternate surface" },
+        { name: "Background", value: "#111315", cssVar: "--color-bg", role: "Page background", forbiddenContexts: [] },
+        { name: "Text", value: "#faf9f7", cssVar: "--color-text", role: "Body text", forbiddenContexts: [] },
+        { name: "Muted", value: "#c9c5bf", cssVar: "--color-text-muted", role: "Secondary text", forbiddenContexts: [] },
+        { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary", forbiddenContexts: [] },
+        { name: "Border", value: "#77716a", cssVar: "--color-border", role: "Dividers", forbiddenContexts: [] },
+        { name: "Surface alt", value: "#24282c", cssVar: "--color-surface-alt", role: "Alternate surface", forbiddenContexts: [] },
       ],
     };
     const inventory = buildTokenInventory(runtimeTokens, 1, ["fixture"]);

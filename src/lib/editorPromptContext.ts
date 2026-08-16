@@ -10,7 +10,13 @@ import type { DesignTokens } from "./contracts";
 export function describeTokensForEdit(tokens: DesignTokens): string {
   const colors = tokens.colors.map((c) => {
     const never = c.forbidden ? `; never: ${c.forbidden}` : "";
-    return `- ${c.cssVar} (${c.name}): role — ${c.role}${never}`;
+    // Persisted pre-tag artifacts can still be loaded by older test/preview
+    // paths; their absent field has the schema's default meaning of no ban.
+    const forbiddenContexts = c.forbiddenContexts ?? [];
+    const hardBanned = forbiddenContexts.length
+      ? `; hard-banned contexts: ${forbiddenContexts.join(", ")}`
+      : "";
+    return `- ${c.cssVar} (${c.name}): role — ${c.role}${never}${hardBanned}`;
   });
   const fonts = tokens.fonts.map(
     (f) => `- ${f.cssVar} (${f.family}): role — ${f.role}`

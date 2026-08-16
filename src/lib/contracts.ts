@@ -1116,6 +1116,15 @@ export const ReferenceStyleDigestSchema = ReferenceStyleDigestDraftShape.extend(
 }).superRefine(requireDigestDont);
 export type ReferenceStyleDigest = z.infer<typeof ReferenceStyleDigestSchema>;
 
+export const FORBIDDEN_CONTEXTS = [
+  "section-background",
+  "body-text",
+  "heading-text",
+  "border",
+  "button-background",
+  "large-surface",
+] as const;
+
 export const DesignTokensSchema = z.object({
   colors: z.array(
     z.object({
@@ -1124,6 +1133,7 @@ export const DesignTokensSchema = z.object({
       cssVar: z.string(), // --color-*
       role: z.string(), // where it lives
       forbidden: z.string().optional(), // where it must NEVER appear
+      forbiddenContexts: z.array(z.enum(FORBIDDEN_CONTEXTS)).default([]),
     })
   ),
   fonts: z.array(

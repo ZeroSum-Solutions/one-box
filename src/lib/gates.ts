@@ -6,6 +6,8 @@
  * (a) token-drift   BLOCKING — every rendered color/font traces to tokens.css,
  *                    and every custom property the stylesheets reference is
  *                    actually defined (ENG-006)
+ * (a2) color-role-compliance BLOCKING — structured token bans are never used
+ *                    in their forbidden rendered contexts
  * (b) axe           BLOCKING — zero serious/critical a11y violations
  * (b2) contrast     BLOCKING — WCAG AA over the rendered page at two widths,
  *                    INCLUDING hover states, which axe does not evaluate
@@ -27,8 +29,11 @@ import {
   SITES_DIR,
   SITE_DIR,
   ARTIFACTS,
+  DesignTokensSchema,
+  FORBIDDEN_CONTEXTS,
   GateReportSchema,
   IntakeSchema,
+  type DesignTokens,
   type GateReport,
 } from "./contracts";
 import { findUnresolvedSheetRefs } from "./cssVars";
@@ -48,6 +53,56 @@ const PERF_BUDGET = {
   cpuThrottleRate: 4,
 };
 
+export type ForbiddenContext = (typeof FORBIDDEN_CONTEXTS)[number];
+
+export interface ColorRoleObservation {
+  editId?: string;
+  selector: string;
+  context: ForbiddenContext;
+  colorHex: string;
+}
+
+export interface ColorRoleViolation {
+  selector: string;
+  context: ForbiddenContext;
+  colorHex: string;
+  tokenName: string;
+}
+
+export function normalizeHexColor(value: string): string | undefined {
+  const match = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return undefined;
+  const hex = match[1].toLowerCase();
+  return `#${hex.length === 3 ? hex.split("").map((digit) => digit + digit).join("") : hex}`;
+}
+
+/** Pure decision core so role enforcement can be tested without Playwright. */
+export function evaluateColorRoleCompliance(
+  observations: readonly ColorRoleObservation[],
+  tokens: DesignTokens
+): ColorRoleViolation[] {
+  const tokenColors = tokens.colors.flatMap((color) => {
+    const value = normalizeHexColor(color.value);
+    return value ? [{ ...color, value }] : [];
+  });
+
+  return observations.flatMap((observation) => {
+    const colorHex = normalizeHexColor(observation.colorHex);
+    if (!colorHex) return [];
+    return tokenColors
+      .filter(
+        (token) =>
+          token.value === colorHex && token.forbiddenContexts.includes(observation.context)
+      )
+      .map((token) => ({
+        selector: observation.selector,
+        context: observation.context,
+        colorHex,
+        tokenName: token.name,
+      }));
+  });
+}
+
 export async function runGates(runId: string, opts: RunGatesOptions = {}): Promise<GateReport[]> {
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
   const siteDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
@@ -55,6 +110,9 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
 
   const tokensCssText = await readFile(path.join(siteDir, "tokens.css"), "utf8");
   const allowed = parseAllowedTokens(tokensCssText);
+  const tokens = DesignTokensSchema.parse(
+    JSON.parse(await readFile(path.join(runRoot, ARTIFACTS.tokens), "utf8"))
+  );
   const phone = await readIntakePhone(runRoot);
   const unresolvedRefs = await findUnresolvedSheetRefs(siteDir, tokensCssText);
 
@@ -63,14 +121,14 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   // contrast runs afterEdit too: a token edit is exactly how a passing pair
   // becomes a failing one, and that is the edit path's whole purpose.
   const gateNames = opts.afterEdit
-    ? (["token-drift", "axe", "contrast", "mobile-layout"] as const)
-    : (["token-drift", "axe", "contrast", "console-errors", "assets", "no-js", "mobile-layout", "perf-budget"] as const);
+    ? (["token-drift", "color-role-compliance", "axe", "contrast", "mobile-layout"] as const)
+    : (["token-drift", "color-role-compliance", "axe", "contrast", "console-errors", "assets", "no-js", "mobile-layout", "perf-budget"] as const);
 
   const browser = await chromium.launch();
   const reports: GateReport[] = [];
   try {
     for (const name of gateNames) {
-      const report = await runOne(browser, name, url, { allowed, phone, unresolvedRefs, siteDir });
+      const report = await runOne(browser, name, url, { allowed, tokens, phone, unresolvedRefs, siteDir });
       reports.push(GateReportSchema.parse(report));
     }
   } finally {
@@ -86,11 +144,19 @@ async function runOne(
   browser: import("playwright").Browser,
   name: string,
   url: string,
-  ctx: { allowed: AllowedTokens; phone?: string; unresolvedRefs: string[]; siteDir: string }
+  ctx: {
+    allowed: AllowedTokens;
+    tokens: DesignTokens;
+    phone?: string;
+    unresolvedRefs: string[];
+    siteDir: string;
+  }
 ): Promise<GateReport> {
   switch (name) {
     case "token-drift":
       return withPage(browser, (page) => gateTokenDrift(page, url, ctx.allowed, ctx.unresolvedRefs));
+    case "color-role-compliance":
+      return withPage(browser, (page) => gateColorRoleCompliance(page, url, ctx.tokens));
     case "axe":
       return withPage(browser, (page) => gateAxe(page, url));
     case "contrast":
@@ -255,6 +321,93 @@ function isAllowedColor(value: string, allowed: AllowedTokens): boolean {
 function isAllowedFont(stack: string, allowed: AllowedTokens): boolean {
   const first = stack.split(",")[0]?.trim().replace(/^["']|["']$/g, "").toLowerCase();
   return !!first && allowed.fontFirstFamilies.has(first);
+}
+
+// ---------- (a2) color-role-compliance ----------
+
+async function gateColorRoleCompliance(
+  page: Page,
+  url: string,
+  tokens: DesignTokens
+): Promise<GateReport> {
+  await page.goto(url, { waitUntil: "load" });
+  const tokenHexes = tokens.colors
+    .map((color) => normalizeHexColor(color.value))
+    .filter((color): color is string => Boolean(color));
+  const observations = await page.evaluate((knownTokenHexes) => {
+    const knownColors = new Set(knownTokenHexes);
+    const observations: Array<{
+      editId?: string;
+      selector: string;
+      context: ForbiddenContext;
+      colorHex: string;
+    }> = [];
+    const seen = new Set<string>();
+
+    const rgbToHex = (value: string): string | undefined => {
+      const channels = value.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*([\d.]+))?\s*\)$/i);
+      if (!channels || (channels[4] !== undefined && Number(channels[4]) !== 1)) return undefined;
+      return `#${[channels[1], channels[2], channels[3]]
+        .map((channel) => Number(channel).toString(16).padStart(2, "0"))
+        .join("")}`;
+    };
+    const selectorFor = (element: Element, editId: string | null): string =>
+      editId ? `[data-edit-id="${editId}"]` : element.tagName.toLowerCase();
+    const add = (element: Element, editId: string | null, context: ForbiddenContext, value: string) => {
+      const colorHex = rgbToHex(value);
+      if (!colorHex || !knownColors.has(colorHex)) return;
+      const selector = selectorFor(element, editId);
+      const key = `${selector}|${context}|${colorHex}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      observations.push({
+        ...(editId ? { editId } : {}),
+        selector,
+        context,
+        colorHex,
+      });
+    };
+
+    for (const element of Array.from(document.querySelectorAll("body *"))) {
+      const tag = element.tagName.toLowerCase();
+      if (["script", "style"].includes(tag)) continue;
+      const styles = getComputedStyle(element);
+      const editId = element.getAttribute("data-edit-id");
+      const rect = element.getBoundingClientRect();
+      const isLargeSurface = rect.width >= window.innerWidth * 0.6 && rect.height >= 200;
+
+      if (tag === "section" || (editId && isLargeSurface)) {
+        add(element, editId, "section-background", styles.backgroundColor);
+      }
+      if (isLargeSurface) add(element, editId, "large-surface", styles.backgroundColor);
+      if (["p", "li", "span"].includes(tag)) add(element, editId, "body-text", styles.color);
+      if (/^h[1-6]$/.test(tag)) add(element, editId, "heading-text", styles.color);
+      if (tag === "button" || element.getAttribute("role") === "button") {
+        add(element, editId, "button-background", styles.backgroundColor);
+      }
+      for (const borderColor of [
+        styles.borderTopColor,
+        styles.borderRightColor,
+        styles.borderBottomColor,
+        styles.borderLeftColor,
+      ]) {
+        add(element, editId, "border", borderColor);
+      }
+    }
+    return observations;
+  }, tokenHexes);
+  const violations = evaluateColorRoleCompliance(observations, tokens);
+
+  return {
+    gate: "color-role-compliance",
+    pass: violations.length === 0,
+    blocking: true,
+    details: violations.map(
+      (violation) =>
+        `${violation.selector} uses ${violation.tokenName} (${violation.colorHex}) in forbidden ${violation.context}`
+    ),
+    ranAt: new Date().toISOString(),
+  };
 }
 
 // ---------- (b) axe ----------

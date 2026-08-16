@@ -130,7 +130,7 @@ async function createVisualQaDraftRun() {
 
 function artifactDrafts(): WorkflowArtifactDraft[] {
   const designTokens = {
-    colors: [{ name: "Primary", value: "#123456", cssVar: "--color-primary", role: "actions" }],
+    colors: [{ name: "Primary", value: "#123456", cssVar: "--color-primary", role: "actions", forbiddenContexts: [] }],
     fonts: [{ family: "Inter", cssVar: "--font-body", weights: [400], role: "body", substitutes: [] }],
     typeScale: [{ role: "body", sizePx: 16, lineHeight: 1.5, cssVar: "--text-body" }],
     radii: { sm: "4px" }, spacing: { sm: "8px" }, borders: { subtle: "1px solid #ddd" }, shadows: { raised: "0 2px 8px #0002" }, layers: { base: "0" },

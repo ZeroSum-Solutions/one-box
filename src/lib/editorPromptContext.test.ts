@@ -10,6 +10,7 @@ const tokens = {
       cssVar: "--color-accent",
       role: "primary call-to-action buttons only",
       forbidden: "backgrounds, body text, borders",
+      forbiddenContexts: ["section-background", "body-text", "border"],
     },
     {
       name: "Greige Canvas",
@@ -42,6 +43,12 @@ describe("describeTokensForEdit", () => {
     const out = describeTokensForEdit(tokens);
     expect(out).toMatch(/--color-accent.*never: backgrounds, body text, borders/);
     expect(out).not.toMatch(/--color-canvas.*never:/);
+  });
+
+  it("carries structured hard-banned contexts when present", () => {
+    expect(describeTokensForEdit(tokens)).toContain(
+      "hard-banned contexts: section-background, body-text, border"
+    );
   });
 
   it("carries font roles, not just names", () => {
