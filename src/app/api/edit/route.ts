@@ -62,29 +62,41 @@ export async function POST(req: Request) {
 
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
   if (!imageIntent) {
+    // Each context source degrades independently (review finding): a digest
+    // read failure must not skip classification, and only the classifier
+    // itself is allowed to fail open.
+    let element: Awaited<ReturnType<typeof readPreflightElementContext>>;
     try {
-      const element = await readPreflightElementContext(runId, editId);
-      if (element && element.elementTag !== "img") {
-        const digest = ReferenceStyleDigestSchema.safeParse(
-          await loadArtifact(runId, ARTIFACTS.referenceStyleDigest),
-        );
-        const classification = await classifyEditInstruction(runId, {
-          instruction,
-          ...element,
-          tokens,
-          ...(digest.success ? { digest: digest.data } : {}),
-        });
-        if (classification.decision === "refuse") {
-          return Response.json({ ok: false, guardrail: classification });
-        }
-        if (classification.decision === "redirect" && !confirmRedirect) {
-          return Response.json({ ok: false, guardrail: classification });
-        }
-      }
+      element = await readPreflightElementContext(runId, editId);
     } catch (error) {
       console.warn(
         `[edit-preflight] run ${runId}: unable to read edit context; applying edit through deterministic gates: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+    if (element && element.elementTag !== "img") {
+      let digestData;
+      try {
+        const digest = ReferenceStyleDigestSchema.safeParse(
+          await loadArtifact(runId, ARTIFACTS.referenceStyleDigest),
+        );
+        digestData = digest.success ? digest.data : undefined;
+      } catch (error) {
+        console.warn(
+          `[edit-preflight] run ${runId}: style digest unavailable; classifying without it: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      const classification = await classifyEditInstruction(runId, {
+        instruction,
+        ...element,
+        tokens,
+        ...(digestData ? { digest: digestData } : {}),
+      });
+      if (classification.decision === "refuse") {
+        return Response.json({ ok: false, guardrail: classification });
+      }
+      if (classification.decision === "redirect" && !confirmRedirect) {
+        return Response.json({ ok: false, guardrail: classification });
+      }
     }
   }
   const assetName = `edit-${randomUUID()}.jpg`;

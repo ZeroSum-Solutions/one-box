@@ -92,14 +92,6 @@ export const ReferoStyleProjectionSchema = z
       )
       .optional(),
   })
-  .superRefine((record, context) => {
-    if (record.title || record.description) return;
-    context.addIssue({
-      code: "custom",
-      path: ["title"],
-      message: "style projections require a title or description",
-    });
-  })
   .transform((record) => ({
     ...record,
     customSections: record.customSections?.filter(
@@ -109,14 +101,44 @@ export const ReferoStyleProjectionSchema = z
 
 const STYLE_PROMPT_CAP = 32_000;
 
+type Projection = z.infer<typeof ReferoStyleProjectionSchema>;
+
+function hasStyleContent(data: Projection): boolean {
+  return Boolean(data.colors || data.typography || data.surfaces || data.spacing || data.typeScale);
+}
+
+/** Shrink by dropping whole late-value sections, never by cutting mid-token —
+ * a hard slice can leave broken JSON in the prompt (review finding). */
+function boundedProjectionJson(data: Projection): string | undefined {
+  const reductions: Array<(current: Projection) => Projection> = [
+    (current) => current,
+    (current) => ({ ...current, customSections: undefined }),
+    (current) => ({ ...current, customSections: undefined, components: undefined }),
+    (current) => ({
+      ...current,
+      customSections: undefined,
+      components: undefined,
+      typeScale: undefined,
+      dos: undefined,
+      donts: undefined,
+    }),
+  ];
+  for (const reduce of reductions) {
+    const json = JSON.stringify(reduce(data));
+    if (json.length <= STYLE_PROMPT_CAP) return json;
+  }
+  return undefined;
+}
+
 /**
- * Project style records before prompt serialization. Screens and malformed
- * styles preserve the established 24k fallback behavior.
+ * Project style records before prompt serialization. Screens, malformed
+ * styles, and pathological oversize preserve the established 24k fallback
+ * behavior.
  */
 export function projectReferenceRecordForPrompt(record: unknown): string {
   const projection = ReferoStyleProjectionSchema.safeParse(record);
-  if (!projection.success || (!projection.data.colors && !projection.data.typography)) {
+  if (!projection.success || !hasStyleContent(projection.data)) {
     return serializeReferenceRecordForPrompt(record);
   }
-  return JSON.stringify(projection.data).slice(0, STYLE_PROMPT_CAP);
+  return boundedProjectionJson(projection.data) ?? serializeReferenceRecordForPrompt(record);
 }

@@ -70,10 +70,19 @@ export interface ColorRoleViolation {
 }
 
 export function normalizeHexColor(value: string): string | undefined {
-  const match = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (!match) return undefined;
-  const hex = match[1].toLowerCase();
-  return `#${hex.length === 3 ? hex.split("").map((digit) => digit + digit).join("") : hex}`;
+  const trimmed = value.trim();
+  const match = trimmed.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (match) {
+    const hex = match[1].toLowerCase();
+    return `#${hex.length === 3 ? hex.split("").map((digit) => digit + digit).join("") : hex}`;
+  }
+  // rgb()-valued tokens must not silently escape enforcement (review
+  // finding); gradients stay out of scope — no single color to match.
+  const rgb = trimmed.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)(?:\s*,\s*(?:1|1\.0*))?\s*\)$/i);
+  if (!rgb) return undefined;
+  const channels = [rgb[1], rgb[2], rgb[3]].map(Number);
+  if (channels.some((channel) => channel > 255)) return undefined;
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
 }
 
 /** Pure decision core so role enforcement can be tested without Playwright. */
@@ -376,22 +385,39 @@ async function gateColorRoleCompliance(
       const rect = element.getBoundingClientRect();
       const isLargeSurface = rect.width >= window.innerWidth * 0.6 && rect.height >= 200;
 
-      if (tag === "section" || (editId && isLargeSurface)) {
+      // Interactive controls are button surfaces, never section surfaces —
+      // a full-width CTA button must not false-block as a section background
+      // (review finding).
+      const isInteractive =
+        ["button", "a", "input", "select", "textarea"].includes(tag) ||
+        element.getAttribute("role") === "button";
+
+      if (tag === "section" || (editId && isLargeSurface && !isInteractive)) {
         add(element, editId, "section-background", styles.backgroundColor);
       }
-      if (isLargeSurface) add(element, editId, "large-surface", styles.backgroundColor);
-      if (["p", "li", "span"].includes(tag)) add(element, editId, "body-text", styles.color);
+      if (isLargeSurface && !isInteractive) {
+        add(element, editId, "large-surface", styles.backgroundColor);
+      }
+      // span is excluded: eyebrow/badge chrome shares the tag with prose and
+      // false-blocks accent colors (review finding). Real copy lives in p/li.
+      if (["p", "li"].includes(tag)) add(element, editId, "body-text", styles.color);
       if (/^h[1-6]$/.test(tag)) add(element, editId, "heading-text", styles.color);
       if (tag === "button" || element.getAttribute("role") === "button") {
         add(element, editId, "button-background", styles.backgroundColor);
       }
-      for (const borderColor of [
-        styles.borderTopColor,
-        styles.borderRightColor,
-        styles.borderBottomColor,
-        styles.borderLeftColor,
-      ]) {
-        add(element, editId, "border", borderColor);
+      // Zero-width borders still report a computed color (usually
+      // currentColor), which false-blocks text tokens that ban borders
+      // (review finding) — only sample borders that actually paint.
+      const borders: Array<[string, string, string]> = [
+        [styles.borderTopWidth, styles.borderTopStyle, styles.borderTopColor],
+        [styles.borderRightWidth, styles.borderRightStyle, styles.borderRightColor],
+        [styles.borderBottomWidth, styles.borderBottomStyle, styles.borderBottomColor],
+        [styles.borderLeftWidth, styles.borderLeftStyle, styles.borderLeftColor],
+      ];
+      for (const [borderWidth, borderStyle, borderColor] of borders) {
+        if (parseFloat(borderWidth) > 0 && borderStyle !== "none" && borderStyle !== "hidden") {
+          add(element, editId, "border", borderColor);
+        }
       }
     }
     return observations;

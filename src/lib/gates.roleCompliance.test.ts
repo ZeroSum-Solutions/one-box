@@ -12,11 +12,14 @@ const tokens = {
       forbiddenContexts: ["section-background", "body-text", "large-surface"],
     },
     {
+      // A band color's own surface IS a section background — banning it there
+      // would false-block every legitimate render (review finding). Bans are
+      // only for contexts the color must NEVER paint.
       name: "Midnight CTA Band",
       value: "#172033",
       cssVar: "--color-cta-band",
       role: "call-to-action band only",
-      forbiddenContexts: ["section-background", "body-text", "large-surface"],
+      forbiddenContexts: ["body-text"],
     },
     {
       name: "Canvas",
@@ -52,13 +55,33 @@ describe("evaluateColorRoleCompliance", () => {
     ]);
   });
 
-  it("blocks a reserved CTA-band color when it bleeds into another section background", () => {
+  it("allows a band color on the section surface it exists to paint", () => {
     expect(
       evaluateColorRoleCompliance(
         [
           {
-            selector: "section.testimonials",
+            selector: "section.cta-band",
             context: "section-background",
+            colorHex: "#172033",
+          },
+          {
+            selector: "section.cta-band",
+            context: "large-surface",
+            colorHex: "#172033",
+          },
+        ],
+        tokens
+      )
+    ).toEqual([]);
+  });
+
+  it("blocks a band color where its tags do forbid it", () => {
+    expect(
+      evaluateColorRoleCompliance(
+        [
+          {
+            selector: "p.testimonial-quote",
+            context: "body-text",
             colorHex: "#172033",
           },
         ],
@@ -66,8 +89,8 @@ describe("evaluateColorRoleCompliance", () => {
       )
     ).toEqual([
       {
-        selector: "section.testimonials",
-        context: "section-background",
+        selector: "p.testimonial-quote",
+        context: "body-text",
         colorHex: "#172033",
         tokenName: "Midnight CTA Band",
       },

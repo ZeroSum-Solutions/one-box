@@ -71,11 +71,12 @@ export async function POST(
   } catch (error) {
     const response = unavailableResponse(error);
     if (response) return response;
-    // The owner message was saved before the model call. A same-text retry
-    // within two minutes resumes that pending turn instead of duplicating it.
+    // A same-text retry within two minutes resumes a persisted pending turn
+    // instead of duplicating it, so "send again" is always the right advice —
+    // without promising the message survived a pre-persist failure.
     console.error(`[assistant] run ${id}: turn failed`, error);
     return Response.json(
-      { error: "The assistant could not answer just now. Your message is saved; please try again." },
+      { error: "The assistant could not answer just now. Please send your question again." },
       { status: 502 },
     );
   }

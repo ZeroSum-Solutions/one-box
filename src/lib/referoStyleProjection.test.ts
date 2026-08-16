@@ -113,13 +113,36 @@ describe("projectReferenceRecordForPrompt", () => {
     );
   });
 
-  it("keeps projected output below the defensive 32k cap", () => {
+  it("keeps oversized PROJECTED payload under the 32k cap as parseable JSON", () => {
+    // Review finding: the old test stuffed an unknown field Zod strips, so the
+    // cap never bit; and a hard slice could leave broken JSON in the prompt.
+    // The oversize must live in fields the projection keeps.
     const style = {
       ...ambrookStyle(),
-      irrelevantBlob: "x".repeat(100_000),
+      customSections: [
+        { title: "Motion Philosophy", content: "y".repeat(40_000) },
+      ],
+      components: [{ name: "Card", description: "z".repeat(10_000) }],
     };
 
-    expect(projectReferenceRecordForPrompt(style).length).toBeLessThanOrEqual(32_000);
+    const output = projectReferenceRecordForPrompt(style);
+    expect(output.length).toBeLessThanOrEqual(32_000);
+    const parsed = JSON.parse(output) as { colors?: unknown; customSections?: unknown };
+    expect(parsed.colors).toBeDefined();
+    expect(parsed.customSections).toBeUndefined();
+  });
+
+  it("projects a style that has colors but no title or description", () => {
+    // Review finding: requiring title/description sent real styles down the
+    // blind-serialize fallback, reintroducing the Agent Prompt Guide.
+    const style = { ...ambrookStyle() } as Record<string, unknown>;
+    delete style.title;
+    delete style.description;
+
+    const output = projectReferenceRecordForPrompt(style);
+    expect(output).not.toBe(serializeReferenceRecordForPrompt(style));
+    expect(output).not.toMatch(/agent prompt guide/i);
+    expect((JSON.parse(output) as { colors?: unknown }).colors).toBeDefined();
   });
 });
 
