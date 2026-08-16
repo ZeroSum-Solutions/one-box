@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChatComposer } from "../ChatComposer";
 import type { EditorThread } from "../../lib/contracts";
 
@@ -82,8 +82,13 @@ function threadFrom(data: unknown): EditorThread | null {
 }
 
 export function assistantThumbnailUrl(runId: string, thumbnailPath: string) {
-  const encodedPath = thumbnailPath.split("/").map(encodeURIComponent).join("/");
-  return `/api/sites/${encodeURIComponent(runId)}/${encodedPath}`;
+  // encodeURIComponent keeps dots, so dot-segments must be rejected outright
+  // (review finding) — the server rejects them too; this keeps the URL clean.
+  const segments = thumbnailPath.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    return undefined;
+  }
+  return `/api/sites/${encodeURIComponent(runId)}/${segments.map(encodeURIComponent).join("/")}`;
 }
 
 export async function loadAssistantThread(runId: string): Promise<AssistantPanelState> {
@@ -230,12 +235,15 @@ export function AssistantPanelContent({
             <p className="assistant-message__text">{message.role === "owner" ? message.text : message.reply}</p>
             {message.role === "assistant" && message.evidence.length > 0 && (
               <div className="assistant-evidence" aria-label="Inspiration evidence">
-                {message.evidence.map((evidence) => (
-                  <figure key={`${message.id}:${evidence.screenId}`} className="assistant-evidence__card">
-                    <img src={assistantThumbnailUrl(runId, evidence.thumbnailPath)} alt={`Screenshot of ${evidence.siteName}`} />
-                    <figcaption><strong>Real business site used for inspiration</strong><span>{evidence.siteName}</span><p>{evidence.takeaway}</p></figcaption>
-                  </figure>
-                ))}
+                {message.evidence.map((evidence) => {
+                  const thumbnailUrl = assistantThumbnailUrl(runId, evidence.thumbnailPath);
+                  return (
+                    <figure key={`${message.id}:${evidence.screenId}`} className="assistant-evidence__card">
+                      {thumbnailUrl && <img src={thumbnailUrl} alt={`Screenshot of ${evidence.siteName}`} />}
+                      <figcaption><strong>Real business site used for inspiration</strong><span>{evidence.siteName}</span><p>{evidence.takeaway}</p></figcaption>
+                    </figure>
+                  );
+                })}
               </div>
             )}
             {message.role === "assistant" && message.suggestions.length > 0 && (
@@ -271,6 +279,9 @@ export function AssistantPanel({ runId, onMutationComplete }: { runId: string; o
   const [isSending, setIsSending] = useState(false);
   const [turnError, setTurnError] = useState<string | null>(null);
   const [suggestionStates, setSuggestionStates] = useState<Record<string, AssistantSuggestionState | undefined>>({});
+  // Synchronous per-suggestion lock (review finding): a double-click can
+  // enter the handler twice before the "working" state renders.
+  const applying = useRef(new Set<string>());
 
   useEffect(() => {
     // No synchronous setState in the effect (lint: cascading renders); the
@@ -306,16 +317,31 @@ export function AssistantPanel({ runId, onMutationComplete }: { runId: string; o
   }
 
   async function handleApplySuggestion(suggestion: Suggestion, confirmRedirect = false) {
+    if (applying.current.has(suggestion.id)) return;
     const current = suggestionStates[suggestion.id];
-    if (current?.kind === "working") return;
     const alternative =
       confirmRedirect && current?.kind === "guardrail"
         ? current.guardrail.suggestedAlternative
         : undefined;
+    // A confirm without its alternative must never fall back to applying the
+    // original instruction the guardrail redirected away from (review
+    // finding).
+    if (confirmRedirect && !alternative) {
+      setSuggestionStates((states) => ({
+        ...states,
+        [suggestion.id]: { kind: "error", message: "We could not apply the suggested version. Please try the suggestion again." },
+      }));
+      return;
+    }
+    applying.current.add(suggestion.id);
     setSuggestionStates((states) => ({ ...states, [suggestion.id]: { kind: "working" } }));
-    const next = await applyAssistantSuggestion(runId, suggestion, confirmRedirect, alternative);
-    setSuggestionStates((states) => ({ ...states, [suggestion.id]: next }));
-    if (next.kind === "done") onMutationComplete?.("Applied suggestion.");
+    try {
+      const next = await applyAssistantSuggestion(runId, suggestion, confirmRedirect, alternative);
+      setSuggestionStates((states) => ({ ...states, [suggestion.id]: next }));
+      if (next.kind === "done") onMutationComplete?.("Applied suggestion.");
+    } finally {
+      applying.current.delete(suggestion.id);
+    }
   }
 
   return <AssistantPanelContent runId={runId} state={state} turnError={turnError} draft={draft} isSending={isSending} suggestionStates={suggestionStates} onDraftChange={(value) => { setDraft(value); setTurnError(null); }} onSend={() => void handleSend()} onApplySuggestion={(suggestion, confirmRedirect) => void handleApplySuggestion(suggestion, confirmRedirect)} onRetry={() => void reload()} />;

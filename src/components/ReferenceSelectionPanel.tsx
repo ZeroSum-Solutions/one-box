@@ -37,11 +37,13 @@ function candidateImageUrl(runId: string, candidate: CandidateProfile): string |
     }
   }
   if (!candidate.screenshotPath) return undefined;
-  const encodedPath = candidate.screenshotPath
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-  return "/api/sites/" + encodeURIComponent(runId) + "/" + encodedPath;
+  // encodeURIComponent keeps dots, so dot-segments are rejected outright
+  // (review finding) — the sites API rejects them too.
+  const segments = candidate.screenshotPath.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    return undefined;
+  }
+  return "/api/sites/" + encodeURIComponent(runId) + "/" + segments.map(encodeURIComponent).join("/");
 }
 
 function selectedCandidate(state: ReferenceSelectionState): CandidateProfile | undefined {
@@ -119,10 +121,10 @@ export function ReferenceSelectionPanel({
         throw new Error(result.error ?? "We couldn't save that choice.");
       }
 
-      // Only follow a same-origin relative resume path, always as POST
-      // (review finding: never let a response body steer the browser to
-      // another origin or method).
-      if (result.resumeUrl && result.resumeUrl.startsWith("/") && !result.resumeUrl.startsWith("//")) {
+      // Only the known resume endpoint may be followed, always as POST
+      // (review finding: a response body must not be able to steer the
+      // browser at arbitrary loopback write APIs).
+      if (result.resumeUrl === "/api/run") {
         const resumeResponse = await fetch(result.resumeUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -160,8 +162,9 @@ export function ReferenceSelectionPanel({
       };
       // Friendly outcomes come before the generic error throw (review
       // finding): exhaustion can arrive as a 2xx reason or as a 409 when a
-      // second tab spent the last reroll first.
-      if (result.ok === false && result.reason === "no-fresh-directions") {
+      // second tab spent the last reroll first. The reason alone is the
+      // signal — never require the ok flag alongside it.
+      if (result.reason === "no-fresh-directions") {
         setRerollNote("We couldn't find enough new directions — these are still your options.");
         await refresh();
         return;

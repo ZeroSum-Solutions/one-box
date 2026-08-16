@@ -226,21 +226,24 @@ export function Workbench(props: WorkbenchProps) {
     props.selection?.behavior === "interactive";
 
   function panelContent() {
-    if (props.activeTool === "assistant") {
-      return (
-        <AssistantPanel
-          runId={props.runId}
-          onMutationComplete={props.onStructuredMutationComplete}
-        />
-      );
-    }
-
+    // The view-mode pause guards every tool, the assistant included (review
+    // finding): its Apply buttons reach /api/edit, so view mode must not
+    // become an edit side door.
     if (props.mode === "view") {
       return (
         <ToolState kind="unsupported" title="Editing is paused">
           Switch to Edit mode to select or change the rendered site. View mode
           keeps navigation and interactions live.
         </ToolState>
+      );
+    }
+
+    if (props.activeTool === "assistant") {
+      return (
+        <AssistantPanel
+          runId={props.runId}
+          onMutationComplete={props.onStructuredMutationComplete}
+        />
       );
     }
 

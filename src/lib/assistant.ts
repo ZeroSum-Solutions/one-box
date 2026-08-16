@@ -323,20 +323,21 @@ export async function runAssistantTurn(runId: string, ownerText: string, overrid
   const deps = { ...DEFAULT_DEPS, ...overrides };
   const owner = ownerText.trim();
   if (!owner || owner.length > 2_000) throw new Error("assistant text must be between 1 and 2000 characters");
-  const run = await deps.loadRun(runId);
   const paths = deps.sitePaths(runId);
   return withFileLock(path.join(paths.root, "assistant-turn.lock"), () =>
-    runLockedAssistantTurn(runId, owner, run, paths, deps),
+    runLockedAssistantTurn(runId, owner, paths, deps),
   );
 }
 
 async function runLockedAssistantTurn(
   runId: string,
   owner: string,
-  run: Pick<RunState, "id" | "costUsd" | "costCapUsd">,
   paths: SitePaths,
   deps: AssistantDeps,
 ): Promise<EditorThread> {
+  // Cost is read UNDER the lock (review finding): a pre-lock snapshot lets
+  // concurrent turns both judge the budget against pre-spend numbers.
+  const run = await deps.loadRun(runId);
   // Prove the site exists BEFORE persisting the owner message (review
   // finding): an unavailable-site failure must not strand a saved question.
   let html: string;
