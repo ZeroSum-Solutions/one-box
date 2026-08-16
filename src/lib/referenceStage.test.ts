@@ -150,6 +150,32 @@ describe("stageLockCandidates", () => {
     expect(version?.excludedFromPrior).toEqual(["pipe"]);
   });
 
+  it("bounds foundVia provenance when a model-written angle exceeds the schema cap", async () => {
+    // Live failure 2026-08-15: real angle prompts return full paragraphs; the
+    // raw angle text blew CandidateProfileSchema's 200-char foundVia cap and
+    // killed the run mid-candidate-build.
+    const longAngle = "Tech-Forward Infrastructure: ".repeat(20);
+    const version = await stageLockCandidates(
+      "run-1234",
+      intake,
+      () => undefined,
+      undefined,
+      deps({
+        generateJson: async (_runId, _model, _schema, prompt) =>
+          prompt.includes("design-search angles")
+            ? { angles: [longAngle, `${longAngle} B`, `${longAngle} C`] }
+            : {
+                candidates: [profile("ambrook", true), profile("pipe"), profile("apron")],
+              },
+      })
+    );
+
+    expect(version).not.toBeNull();
+    for (const candidate of version?.candidates ?? []) {
+      expect(candidate.foundVia.length).toBeLessThanOrEqual(200);
+    }
+  });
+
   it("returns null instead of presenting a one-option picker", async () => {
     const version = await stageLockCandidates(
       "run-1234",

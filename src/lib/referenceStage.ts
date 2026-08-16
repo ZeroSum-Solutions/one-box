@@ -183,7 +183,9 @@ function shortlistCandidates(
       summary: match.summary,
       sourceUrl: match.sourceUrl,
       previewImageUrl: match.previewImageUrl,
-      foundVia: angle,
+      // Angles are model-written and routinely exceed the schema's 200-char
+      // provenance cap (live failure, 2026-08-15) — record a bounded prefix.
+      foundVia: angle.slice(0, 200),
     });
     if (shortlisted.length === 3) break;
   }
