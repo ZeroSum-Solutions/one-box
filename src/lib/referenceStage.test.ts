@@ -174,6 +174,9 @@ describe("stageLockCandidates", () => {
     for (const candidate of version?.candidates ?? []) {
       expect(candidate.foundVia.length).toBeLessThanOrEqual(200);
     }
+    for (const angle of version?.searchAngles ?? []) {
+      expect(angle.length).toBeLessThanOrEqual(200);
+    }
   });
 
   it("returns null instead of presenting a one-option picker", async () => {

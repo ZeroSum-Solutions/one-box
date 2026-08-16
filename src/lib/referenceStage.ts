@@ -332,7 +332,9 @@ export async function stageLockCandidates(
   return ReferenceSelectionVersionSchema.parse({
     version: opts.version ?? 1,
     createdAt: deps.now().toISOString(),
-    searchAngles: angles,
+    // Same bounding as foundVia: full angle text drives the search, a
+    // 200-char prefix is what the version records as provenance.
+    searchAngles: angles.map((angle) => angle.slice(0, 200)),
     candidates: profiles,
     revisionNote: opts.revisionNote,
     excludedFromPrior: opts.excludedIds ?? [],
