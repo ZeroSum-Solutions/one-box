@@ -639,17 +639,25 @@ function renderItemMarkup(
 ): string {
   const idA = `${sectionId}.${prefix}-${i}-${parts[0]}`;
   const idB = `${sectionId}.${prefix}-${i}-${parts[1]}`;
+  // Every list item gets its own id too, not just its two leaf fields: a
+  // click on the <li>'s own padding — outside both leaves — would otherwise
+  // land on nothing, the same unreachable-chrome gap the bare <section>
+  // elements had (A2 recon). This applies uniformly across all four item
+  // shapes (stat/card/review/point) — an earlier pass stamped it on "stat"
+  // only, which left the container model applied inconsistently across item
+  // kinds that are otherwise structurally identical (a two-leaf <li>).
+  const itemId = `${sectionId}.item-${i}`;
   if (itemClass === "stat") {
-    return `<li class="stat" data-reveal="up"><span class="stat__value" data-edit-id="${idA}">${a}</span><span class="stat__label" data-edit-id="${idB}">${b}</span></li>`;
+    return `<li class="stat" data-reveal="up" data-edit-id="${itemId}"><span class="stat__value" data-edit-id="${idA}">${a}</span><span class="stat__label" data-edit-id="${idB}">${b}</span></li>`;
   }
   if (itemClass === "card" && parts[0] === "quote") {
-    return `<li class="card review" data-reveal="up"><p class="review__quote" data-edit-id="${idA}">${a}</p><p class="review__author" data-edit-id="${idB}">${b}</p></li>`;
+    return `<li class="card review" data-reveal="up" data-edit-id="${itemId}"><p class="review__quote" data-edit-id="${idA}">${a}</p><p class="review__author" data-edit-id="${idB}">${b}</p></li>`;
   }
   if (itemClass === "card") {
-    return `<li class="card" data-reveal="up"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="${idA}">${a}</h3><p class="card__body" data-edit-id="${idB}">${b}</p></li>`;
+    return `<li class="card" data-reveal="up" data-edit-id="${itemId}"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="${idA}">${a}</h3><p class="card__body" data-edit-id="${idB}">${b}</p></li>`;
   }
   // "point" (why-us)
-  return `<li class="point" data-reveal="up"><h3 class="point__title" data-edit-id="${idA}">${a}</h3><p class="point__body" data-edit-id="${idB}">${b}</p></li>`;
+  return `<li class="point" data-reveal="up" data-edit-id="${itemId}"><h3 class="point__title" data-edit-id="${idA}">${a}</h3><p class="point__body" data-edit-id="${idB}">${b}</p></li>`;
 }
 
 function buildAreaItems(copy: CopyDoc): string {

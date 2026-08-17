@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChatComposer } from "../ChatComposer";
 import type { EditorThread } from "../../lib/contracts";
+import type { PreviewSelection } from "./previewState";
 
 type Guardrail = {
   decision: "redirect" | "refuse";
@@ -110,7 +111,11 @@ export async function loadAssistantThread(runId: string): Promise<AssistantPanel
   }
 }
 
-export async function sendAssistantTurn(runId: string, text: string): Promise<AssistantPanelState> {
+export async function sendAssistantTurn(
+  runId: string,
+  text: string,
+  scopeEditId?: string,
+): Promise<AssistantPanelState> {
   const trimmed = text.trim();
   if (trimmed.length < 1 || trimmed.length > 2_000) {
     return { kind: "error", message: "Write a message between 1 and 2,000 characters." };
@@ -119,7 +124,11 @@ export async function sendAssistantTurn(runId: string, text: string): Promise<As
     const response = await fetch(`/api/assistant/${encodeURIComponent(runId)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: trimmed }),
+      // Selection-Scoped Assistant References (canvas-upgrade Wave 6, Play
+      // 5d): a canvas selection rides along in the SAME composer request,
+      // the v0 bar's own mechanic -- never a separate lookup. No selection
+      // means no key at all, so the turn stays unscoped exactly as before.
+      body: JSON.stringify({ text: trimmed, ...(scopeEditId ? { scopeEditId } : {}) }),
     });
     const data = await jsonFrom(response);
     if (response.status === 409) return { kind: "unavailable" };
@@ -195,6 +204,7 @@ export async function applyAssistantSuggestion(
 export function AssistantPanelContent({
   runId,
   state,
+  selection,
   turnError,
   draft,
   isSending,
@@ -206,6 +216,10 @@ export function AssistantPanelContent({
 }: {
   runId: string;
   state: AssistantPanelState;
+  /** The canvas selection this turn will be scoped to (canvas-upgrade Wave
+   * 6, Play 5) — undefined/null both mean "unscoped", matching every other
+   * optional-selection prop in the workbench. */
+  selection?: PreviewSelection | null;
   turnError?: string | null;
   draft: string;
   isSending: boolean;
@@ -223,6 +237,23 @@ export function AssistantPanelContent({
   }
   if (state.kind === "error") {
     return <div className="workbench-state workbench-state--error" role="alert"><strong>Conversation unavailable</strong><p>{state.message}</p>{onRetry && <button type="button" onClick={onRetry}>Try again</button>}</div>;
+  }
+
+  // Exactly one lime action per tool state (DESIGN.md): of every suggestion
+  // still awaiting a decision, only the first — in thread order — is the
+  // assistant tool's promoted commit action. The rest, and any guardrail
+  // redirect, stay ghost/coral so a reply with several suggestions never
+  // shows two lime buttons at once.
+  let primarySuggestionId: string | null = null;
+  for (const message of state.thread.messages) {
+    if (message.role !== "assistant") continue;
+    const pending = message.suggestions.find(
+      (suggestion) => suggestionStates[suggestion.id]?.kind !== "done",
+    );
+    if (pending) {
+      primarySuggestionId = pending.id;
+      break;
+    }
   }
 
   return (
@@ -250,14 +281,15 @@ export function AssistantPanelContent({
               <div className="assistant-suggestions" aria-label="Suggested changes">
                 {message.suggestions.map((suggestion) => {
                   const action = suggestionStates[suggestion.id];
+                  const isPrimary = suggestion.id === primarySuggestionId;
                   return (
                     <section key={suggestion.id} className="assistant-suggestion">
                       <strong>{suggestion.summary}</strong>
                       <p>{suggestion.instruction}</p>
                       {action?.kind === "guardrail" ? (
-                        <div className="workbench-state workbench-state--error" role="alert"><strong>{action.guardrail.reason}</strong>{action.guardrail.suggestedAlternative && <p>{action.guardrail.suggestedAlternative}</p>}{action.guardrail.decision === "redirect" && action.guardrail.suggestedAlternative && <button type="button" onClick={() => onApplySuggestion(suggestion, true)}>Apply the suggested version instead</button>}</div>
+                        <div className="workbench-state workbench-state--error" role="alert"><strong>{action.guardrail.reason}</strong>{action.guardrail.suggestedAlternative && <p>{action.guardrail.suggestedAlternative}</p>}{action.guardrail.decision === "redirect" && action.guardrail.suggestedAlternative && <button type="button" className="btn-coral" onClick={() => onApplySuggestion(suggestion, true)}>Apply the suggested version instead</button>}</div>
                       ) : action?.kind === "done" ? <p className="assistant-suggestion__done">Applied to your site.</p> : (
-                        <><button type="button" disabled={action?.kind === "working"} onClick={() => onApplySuggestion(suggestion)}>{action?.kind === "working" ? "Applying…" : "Apply"}</button>{action?.kind === "error" && <p className="assistant-suggestion__error" role="alert">{action.message}</p>}</>
+                        <><button type="button" className={isPrimary ? "btn-primary" : "btn-ghost"} disabled={action?.kind === "working"} onClick={() => onApplySuggestion(suggestion)}>{action?.kind === "working" ? "Applying…" : "Apply"}</button>{action?.kind === "error" && <p className="assistant-suggestion__error" role="alert">{action.message}</p>}</>
                       )}
                     </section>
                   );
@@ -268,12 +300,45 @@ export function AssistantPanelContent({
         ))}
       </div>
       {turnError && <p className="assistant-turn-error" role="alert">{turnError}</p>}
-      <ChatComposer value={draft} onChange={onDraftChange} onSubmit={onSend} placeholder="Ask a question about your site" disabled={isSending} submitLabel={isSending ? "Working…" : "Send"} rows={4} />
+      {
+        // Selection-Scoped Assistant References (canvas-upgrade Wave 6, Play
+        // 5d): the scope has to be VISIBLE, not invisible magic -- reuses
+        // the same .selection-chip shape the persistent composer already
+        // shows for its own selection, so "make this punchier" reads
+        // exactly as scoped as it is.
+        selection ? (
+          <div className="selection-chip" aria-label="This question is scoped to">
+            <span className="selection-chip__tag">Scoped to {selection.tag}</span>
+            {selection.editId}
+          </div>
+        ) : (
+          <p className="workbench-note">
+            No element selected — this question is about the whole site.
+          </p>
+        )
+      }
+      <ChatComposer
+        value={draft}
+        onChange={onDraftChange}
+        onSubmit={onSend}
+        placeholder={selection ? `Ask about ${selection.tag} ${selection.editId}…` : "Ask a question about your site"}
+        disabled={isSending}
+        submitLabel={isSending ? "Working…" : "Send"}
+        rows={4}
+      />
     </div>
   );
 }
 
-export function AssistantPanel({ runId, onMutationComplete }: { runId: string; onMutationComplete?: (message?: string) => void }) {
+export function AssistantPanel({
+  runId,
+  selection,
+  onMutationComplete,
+}: {
+  runId: string;
+  selection?: PreviewSelection | null;
+  onMutationComplete?: (message?: string) => void;
+}) {
   const [state, setState] = useState<AssistantPanelState>({ kind: "loading" });
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -305,7 +370,7 @@ export function AssistantPanel({ runId, onMutationComplete }: { runId: string; o
     if (isSending) return;
     setTurnError(null);
     setIsSending(true);
-    const next = await sendAssistantTurn(runId, draft);
+    const next = await sendAssistantTurn(runId, draft, selection?.editId);
     if (next.kind === "error" && state.kind === "ready") {
       setTurnError(next.message);
     } else {
@@ -344,5 +409,5 @@ export function AssistantPanel({ runId, onMutationComplete }: { runId: string; o
     }
   }
 
-  return <AssistantPanelContent runId={runId} state={state} turnError={turnError} draft={draft} isSending={isSending} suggestionStates={suggestionStates} onDraftChange={(value) => { setDraft(value); setTurnError(null); }} onSend={() => void handleSend()} onApplySuggestion={(suggestion, confirmRedirect) => void handleApplySuggestion(suggestion, confirmRedirect)} onRetry={() => void reload()} />;
+  return <AssistantPanelContent runId={runId} state={state} selection={selection} turnError={turnError} draft={draft} isSending={isSending} suggestionStates={suggestionStates} onDraftChange={(value) => { setDraft(value); setTurnError(null); }} onSend={() => void handleSend()} onApplySuggestion={(suggestion, confirmRedirect) => void handleApplySuggestion(suggestion, confirmRedirect)} onRetry={() => void reload()} />;
 }

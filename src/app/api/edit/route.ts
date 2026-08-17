@@ -27,6 +27,7 @@ import {
   reserveImageGeneration,
 } from "../../../lib/imageGenerationBudget";
 import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEditor";
+import { listProjectImages } from "../../../lib/imageLibrary";
 import { describeTokensForEdit } from "../../../lib/editorPromptContext";
 import { BlockingMutationError } from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
@@ -55,7 +56,15 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: parsed.error.message }, { status: 400 });
   }
-  const { runId, editId, instruction, imageIntent, requestId, confirmRedirect } = parsed.data;
+  const {
+    runId,
+    editId,
+    instruction,
+    imageIntent,
+    requestId,
+    confirmRedirect,
+    referenceAssetId,
+  } = parsed.data;
   if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) {
     return Response.json({ error: "bad runId" }, { status: 400 });
   }
@@ -107,6 +116,29 @@ export async function POST(req: Request) {
   );
   let imageCredits: { used: number; cap: number } | undefined;
   try {
+    // Play 11 (canvas-upgrade B3): a referenceAssetId is an id, never trusted
+    // on its own — it is resolved against THIS run's own image library
+    // before it can influence anything, the same validate-against-own-
+    // library convention imageLibrary.ts already uses for sourceAssetId.
+    // Resolved here, before applyElementHtmlEdit takes the run's site-
+    // authority lock, because listProjectImages takes that same lock itself
+    // (withImageAuthority) and the two are not reentrant.
+    let referenceItem:
+      | Awaited<ReturnType<typeof listProjectImages>>["items"][number]
+      | null = null;
+    if (imageIntent && referenceAssetId) {
+      const library = await listProjectImages(runId).catch(() => {
+        throw new ElementEditError("reference image library unavailable", 502);
+      });
+      referenceItem =
+        library.items.find((item) => item.id === referenceAssetId) ?? null;
+      if (!referenceItem || referenceItem.status !== "completed") {
+        throw new ElementEditError(
+          "reference image not found or not ready",
+          404,
+        );
+      }
+    }
     const mutation = await applyElementHtmlEdit(
       runId,
       editId,
@@ -135,8 +167,11 @@ export async function POST(req: Request) {
             );
           }
           const b = tokens.imageryBrief;
+          const referenceClause = referenceItem?.prompt
+            ? ` Match the visual style of this earlier generated image: "${referenceItem.prompt}".`
+            : "";
           const generationOptions = {
-            prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}. No text, no logos.`,
+            prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}.${referenceClause} No text, no logos.`,
             aspectRatio: el.attr("data-aspect") ?? "16:9",
             outPath,
           };

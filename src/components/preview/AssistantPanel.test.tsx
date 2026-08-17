@@ -87,6 +87,65 @@ describe("AssistantPanel", () => {
     });
   });
 
+  // Selection-Scoped Assistant References (canvas-upgrade Wave 6, Play 5d):
+  // the outgoing half of this play's own verification — a canvas selection
+  // rides along in the SAME request as the typed text.
+  it("includes the selection scope in the outgoing request when a selection is present", async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ runId: "run-1", thread }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await sendAssistantTurn("run-1", "Make this punchier.", "services");
+
+    expect(result).toEqual({ kind: "ready", thread });
+    expect(fetch).toHaveBeenCalledWith("/api/assistant/run-1", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "Make this punchier.", scopeEditId: "services" }),
+    });
+  });
+
+  it("shows what the turn is scoped to when an element is selected", () => {
+    const html = renderToStaticMarkup(
+      <AssistantPanelContent
+        runId="run-1"
+        state={{ kind: "ready", thread }}
+        selection={{ editId: "services", tag: "section", text: "Services", behavior: "container" }}
+        draft=""
+        isSending={false}
+        suggestionStates={{}}
+        onDraftChange={() => undefined}
+        onSend={() => undefined}
+        onApplySuggestion={() => undefined}
+      />,
+    );
+
+    expect(html).toContain("Scoped to");
+    expect(html).toContain("services");
+    expect(html).toContain('aria-label="Ask about section services…"');
+  });
+
+  it("stays unscoped and says so when nothing is selected", () => {
+    const html = renderToStaticMarkup(
+      <AssistantPanelContent
+        runId="run-1"
+        state={{ kind: "ready", thread }}
+        selection={null}
+        draft=""
+        isSending={false}
+        suggestionStates={{}}
+        onDraftChange={() => undefined}
+        onSend={() => undefined}
+        onApplySuggestion={() => undefined}
+      />,
+    );
+
+    expect(html).not.toContain("Scoped to");
+    expect(html).toContain("No element selected");
+    expect(html).toContain('aria-label="Ask a question about your site"');
+  });
+
   it("keeps the composer available when a saved message needs a retry", async () => {
     const fetch = vi.fn().mockResolvedValue(
       new Response(

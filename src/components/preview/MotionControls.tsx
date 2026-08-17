@@ -184,7 +184,7 @@ export function MotionControls({ runId, selection, onMutationComplete, onPreview
       </>}
       {propertyFields.map((field) => <label key={field.key}>{field.label}<input type="number" min={field.min} max={field.max} step={field.step} value={form[field.key]} onChange={(event) => setForm({ ...form, [field.key]: Number(event.target.value) })} /></label>)}
     </div>
-    <div className="motion-actions"><button type="button" disabled={pending} onClick={() => void act("preview")}>Preview motion</button><button type="button" disabled={pending} onClick={onReset}>Reset preview</button><button type="button" disabled={pending} onClick={() => void act("apply")}>Apply motion</button><button type="button" disabled={pending || !entries.some((entry) => entry.kind === form.kind)} onClick={() => void act("remove")}>Remove kind</button><button type="button" disabled={pending || !canRevert} onClick={() => void act("revert")}>Revert last motion</button></div>
+    <div className="motion-actions"><button type="button" className="btn-ghost" disabled={pending} onClick={() => void act("preview")}>Preview motion</button><button type="button" className="btn-ghost" disabled={pending} onClick={onReset}>Reset preview</button><button type="button" className="btn-primary" disabled={pending} onClick={() => void act("apply")}>Apply motion</button><button type="button" className="btn-ghost" disabled={pending || !entries.some((entry) => entry.kind === form.kind)} onClick={() => void act("remove")}>Remove kind</button><button type="button" className="btn-ghost" disabled={pending || !canRevert} onClick={() => void act("revert")}>Revert last motion</button></div>
     {error && <p className="edit-error" role="alert">{error}</p>}
   </div>;
 }

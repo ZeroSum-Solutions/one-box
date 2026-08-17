@@ -21,10 +21,13 @@ import {
   ScanResultSchema,
   SkeletonSpecSchema,
   type CardLink,
+  type CardMap,
   type ReferenceCandidate,
   type DesignTokens,
   type ReferenceLock,
   type ScanResult,
+  type ScanMarketSummary,
+  type ScanRosterItem,
   type YelpMarket,
   type SkeletonSpec,
   type CopyDoc,
@@ -33,6 +36,8 @@ import {
   type WorkflowArtifactVersion,
   EVIDENCE_STAGE_ARTIFACT,
   MODELS,
+  RESUMED_NOTE,
+  isResumeNoise,
 } from "./contracts";
 import {
   artifactApprovalState,
@@ -161,12 +166,35 @@ export function referoPlatformForTarget(
   return target === "ios-app" ? "ios" : "web";
 }
 
+/** Lowercased, punctuation-stripped business name for cross-source matching.
+ * Not a fuzzy matcher — an exact normalized match only, so "verified" stays a
+ * true statement (two independent sources named the same operator) rather
+ * than a guess. */
+function normalizedBusinessName(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
 /**
  * Yelp market intel as its own scan card. Report-only — this is a market
  * readout for the operator, not an input to design or copy. The medians are
  * the point: they say what a new entrant has to clear to look credible.
+ *
+ * `googleVerifiedNames` and `directoriesFiltered` come from the same web
+ * discovery pass that already ran alongside the Yelp fetch (see stageScan) —
+ * passed in rather than looked up so this stays a pure presentation shaping
+ * step, not a second data source. `map` is the joined competitor-locations
+ * panel (DESIGN.md §Map panel wants ONE scan view, not roster and map on two
+ * separate cards) — optional so the card still renders when the caller has
+ * no places to plot (findCompetitors turned up nothing, or the Maps lane
+ * isn't configured).
  */
-function emitYelpCard(emit: Emit, yelp: YelpMarket): void {
+function emitYelpCard(
+  emit: Emit,
+  yelp: YelpMarket,
+  googleVerifiedNames: ReadonlySet<string>,
+  directoriesFiltered: number,
+  map?: CardMap
+): void {
   if (yelp.unavailable) {
     emit({
       type: "card",
@@ -176,6 +204,7 @@ function emitYelpCard(emit: Emit, yelp: YelpMarket): void {
       links: [
         { label: "Yelp search", href: yelp.searchUrl, kind: "site", external: true },
       ],
+      map,
     });
     return;
   }
@@ -189,30 +218,32 @@ function emitYelpCard(emit: Emit, yelp: YelpMarket): void {
           ? "."
           : `, median ${reviewCountMedian} reviews.`);
 
+  const roster: ScanRosterItem[] = yelp.listings.map((l) => ({
+    rank: l.rank,
+    name: l.name,
+    rating: l.rating,
+    reviewCount: l.reviewCount,
+    url: l.yelpUrl,
+    verified: googleVerifiedNames.has(normalizedBusinessName(l.name)),
+  }));
+  const market: ScanMarketSummary = {
+    rosterSize,
+    ratingMedian,
+    reviewCountMedian,
+    directoriesFiltered,
+  };
+
   emit({
     type: "card",
     stage: "scanned",
     title: `Yelp market: ${rosterSize} operators`,
-    body: `${bar}\n${yelp.listings
-      .map(
-        (l) =>
-          `${l.rank}. ${l.name}${l.rating === undefined ? "" : ` — ${l.rating}★`}` +
-          `${l.reviewCount === undefined ? "" : ` (${l.reviewCount} reviews)`}` +
-          `${l.priceRange ? ` ${l.priceRange}` : ""}`
-      )
-      .join("\n")}`,
-    links: [
-      { label: "Yelp search", href: yelp.searchUrl, kind: "site", external: true },
-      ...yelp.listings
-        .filter((l) => l.yelpUrl)
-        .map((l): CardLink => ({
-          label: l.name,
-          href: l.yelpUrl!,
-          kind: "site",
-          external: true,
-          sub: l.categories.join(", ") || undefined,
-        })),
-    ],
+    // The per-operator detail lives in the roster rows below now — repeating
+    // it as numbered body text and per-listing links duplicated every row.
+    body: bar,
+    links: [{ label: "Yelp search", href: yelp.searchUrl, kind: "site", external: true }],
+    roster,
+    market,
+    map,
   });
 }
 
@@ -479,10 +510,9 @@ function pipelinePreflight(mode: ReferenceMode, intake: Intake) {
   });
 }
 
-/** Transport-only note: a stage the controller skipped because it was already
- * checkpointed. Never logged — otherwise every reload of a partially-finished
- * run appends another set of them and the history grows without new work. */
-const RESUMED_NOTE = "resumed from checkpoint";
+// RESUMED_NOTE / isResumeNoise live in contracts.ts (not here) so RunTimeline,
+// a client component, can import the predicate without pulling pipeline.ts's
+// server-only node:fs/node:path graph into the browser bundle.
 
 interface RunPipelineDependencies {
   readEvents: typeof readEvents;
@@ -654,9 +684,8 @@ export async function runPipeline(
     // Persist before fan-out: the log is the durable record, listeners are not.
     // "cost" is skipped — it is a running total replayed from run.json, and
     // logging every tick would bury the narrative.
-    const isResumeNoise = ev.type === "stage" && ev.note === RESUMED_NOTE;
     active.events.push(ev);
-    if (ev.type !== "cost" && !isResumeNoise) {
+    if (ev.type !== "cost" && !isResumeNoise(ev)) {
       eventWriteTail = eventWriteTail.then(() =>
         dependencies.appendEvent(runId, ev)
       );
@@ -1069,19 +1098,19 @@ async function stage<T>(
 ): Promise<T> {
   if (await stageDone(runId, name)) {
     const cached = await cachedResult(runId, name);
-    emit({ type: "stage", stage: name, status: "done", note: RESUMED_NOTE });
+    emit({ type: "stage", stage: name, status: "done", note: RESUMED_NOTE, at: new Date().toISOString() });
     return cached as T;
   }
   await startStage(runId, name);
-  emit({ type: "stage", stage: name, status: "running", note: STAGE_NOTES[name] });
+  emit({ type: "stage", stage: name, status: "running", note: STAGE_NOTES[name], at: new Date().toISOString() });
   try {
     const out = await fn();
     await finishStage(runId, name);
-    emit({ type: "stage", stage: name, status: "done" });
+    emit({ type: "stage", stage: name, status: "done", at: new Date().toISOString() });
     return out;
   } catch (e) {
     await failStage(runId, name, e instanceof Error ? e.message : String(e));
-    emit({ type: "stage", stage: name, status: "failed", note: String(e) });
+    emit({ type: "stage", stage: name, status: "failed", note: String(e), at: new Date().toISOString() });
     throw e;
   }
 }
@@ -1147,7 +1176,37 @@ export async function stageScan(
       : Promise.resolve(undefined),
   ]);
 
-  if (yelp) emitYelpCard(emit, yelp);
+  // Every route to the map goes through this same target-market query, so the
+  // pins on whichever card renders it always describe the same search.
+  const marketQuery = `${intake.category} in ${intake.location}`;
+
+  if (yelp) {
+    const googleVerifiedNames = new Set(
+      found
+        .filter((c) => c.place)
+        .map((c) => normalizedBusinessName(c.name))
+    );
+    // Join point (DESIGN.md §Map panel): the roster and the map are ONE scan
+    // view, not a roster card followed by a separate, later, roster-less map
+    // card. Built from the same `found` places the "Found N competitors" card
+    // below already links out to.
+    const joinedPins = found
+      .filter((c) => c.place)
+      .map((c) => ({ name: c.place!.name, lat: c.place!.lat, lng: c.place!.lng }));
+    const joinedMap: CardMap = {
+      embedUrl: embedSearchUrl(marketQuery),
+      fallbackUrl: mapsSearchUrl(marketQuery),
+      pins: joinedPins,
+      note:
+        mapsNote ??
+        (joinedPins.length ? undefined : "No competitor resolved to a Google Places listing."),
+    };
+    emitYelpCard(emit, yelp, googleVerifiedNames, excluded.length, joinedMap);
+  }
+  // The "Market structure" card further below draws its own map only when
+  // this run had no Yelp roster to join it to (web-app/iOS targets, or a
+  // Yelp fetch that came back unavailable) — never a second, duplicate map.
+  const mapJoinedToRoster = Boolean(yelp);
 
   if (found.length === 0) {
     const scan = ScanResultSchema.parse({
@@ -1325,11 +1384,6 @@ export async function stageScan(
   });
   await saveArtifact(runId, ARTIFACTS.scan, scan);
 
-  const marketQuery = `${intake.category} in ${intake.location}`;
-  const pins = scan.competitors
-    .filter((c) => c.place)
-    .map((c) => ({ name: c.place!.name, lat: c.place!.lat, lng: c.place!.lng }));
-
   emit({
     type: "card",
     stage: "scanned",
@@ -1372,16 +1426,24 @@ export async function stageScan(
         sub: "every competitor, section inventory, and exclusion reason",
       },
     ],
-    map: {
-      embedUrl: embedSearchUrl(marketQuery),
-      fallbackUrl: mapsSearchUrl(marketQuery),
-      pins,
-      note:
-        mapsNote ??
-        (pins.length
-          ? undefined
-          : "No competitor resolved to a Google Places listing."),
-    },
+    // Yelp-roster runs already got their map on the joined roster card above;
+    // a second map here would be the exact duplicate DESIGN.md's single scan
+    // view rules out. Non-Yelp targets (web-app/iOS) never got that card, so
+    // this is their only map.
+    map: mapJoinedToRoster
+      ? undefined
+      : {
+          embedUrl: embedSearchUrl(marketQuery),
+          fallbackUrl: mapsSearchUrl(marketQuery),
+          pins: scan.competitors
+            .filter((c) => c.place)
+            .map((c) => ({ name: c.place!.name, lat: c.place!.lat, lng: c.place!.lng })),
+          note:
+            mapsNote ??
+            (scan.competitors.some((c) => c.place)
+              ? undefined
+              : "No competitor resolved to a Google Places listing."),
+        },
   });
   return scan;
 }
@@ -1819,7 +1881,61 @@ const SCALE_SLOT_VAR: Record<keyof TokenTransport["typeScale"], string> = {
   display: "--text-display",
 };
 
-function foldTokens(t: TokenTransport): DesignTokens {
+/**
+ * componentState CSS is free text, so the model sometimes references a token by
+ * the transport path it just filled — `var(--colors-primary)` for what the
+ * builder emits as `--color-primary`. Nothing defines the path form, so the
+ * whole declaration is dropped and the token-drift gate fails the build. The
+ * build's one repair cycle cannot rescue it either: the repair may only patch
+ * index.html and tokens.css, while these strings reach the site through the
+ * theme sheet generated from tokens.json.
+ *
+ * Folding already owns the slot -> property mapping, so it is also the place to
+ * rewrite the references it can name with certainty. A name outside this map is
+ * left exactly as written, for token-drift to report — silently dropping it
+ * would hide real drift.
+ */
+function componentStateVarAliases(t: TokenTransport): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const [slot, cssVar] of Object.entries(COLOR_SLOT_VAR)) {
+    aliases.set(`--colors-${slot}`, cssVar);
+  }
+  for (const [slot, cssVar] of Object.entries(SCALE_SLOT_VAR)) {
+    aliases.set(`--typeScale-${slot}`, cssVar);
+  }
+  aliases.set("--fonts-body-family", "--font-body");
+  aliases.set("--fonts-display-family", "--font-display");
+  // renderTokensCss emits these record-shaped groups under a singular prefix.
+  const groups: Array<[string, string, Record<string, string>]> = [
+    ["radii", "radius", t.radii],
+    ["spacing", "space", t.spacing],
+    ["borders", "border", t.borders],
+    ["shadows", "shadow", t.shadows],
+    ["layers", "layer", t.layers],
+  ];
+  for (const [transportKey, emittedPrefix, group] of groups) {
+    for (const key of Object.keys(group)) {
+      aliases.set(`--${transportKey}-${key}`, `--${emittedPrefix}-${key}`);
+    }
+  }
+  aliases.set("--layout-maxWidthPx", "--layout-max-width");
+  aliases.set("--layout-sectionGapPx", "--layout-section-gap");
+  aliases.set("--layout-cardPaddingPx", "--layout-card-padding");
+  aliases.set("--motion-easing", "--motion-ease");
+  aliases.set("--motion-durationMs-micro", "--motion-duration-micro");
+  aliases.set("--motion-durationMs-reveal", "--motion-duration-reveal");
+  return aliases;
+}
+
+function canonicalizeStateCss(css: string, aliases: Map<string, string>): string {
+  return css.replace(/var\(\s*(--[\w-]+)/g, (match, name: string) => {
+    const canonical = aliases.get(name);
+    return canonical ? match.replace(name, canonical) : match;
+  });
+}
+
+export function foldTokens(t: TokenTransport): DesignTokens {
+  const aliases = componentStateVarAliases(t);
   return DesignTokensSchema.parse({
     colors: (Object.keys(COLOR_SLOT_VAR) as Array<keyof TokenTransport["colors"]>).map(
       (slot) => ({ ...t.colors[slot], cssVar: COLOR_SLOT_VAR[slot] })
@@ -1840,7 +1956,9 @@ function foldTokens(t: TokenTransport): DesignTokens {
     motion: t.motion,
     componentStates: t.componentStates.map((c) => ({
       component: c.component,
-      states: Object.fromEntries(c.states.map((s) => [s.state, s.css])),
+      states: Object.fromEntries(
+        c.states.map((s) => [s.state, canonicalizeStateCss(s.css, aliases)])
+      ),
     })),
     imageryBrief: t.imageryBrief,
   });
@@ -2318,7 +2436,11 @@ async function stageBuild(
     type: "card",
     stage: "built",
     title: stillFailing.length ? `Gates: ${stillFailing.length} still failing after repair` : "All blocking gates green",
+    // `gates` renders the structured pass/fail row list; `body` stays as the
+    // plain-text fallback for any consumer replaying an events.jsonl line
+    // recorded before this field existed.
     body: reports.map((r) => `${r.pass ? "✓" : "✗"} ${r.gate}${r.blocking ? "" : " (advisory)"}`).join("\n"),
+    gates: reports,
   });
   // Blocking gates are invariants — a build that fails them is not done
   // (audit P1). The stage stays failed and resumable, never published green.

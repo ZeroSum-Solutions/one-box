@@ -5,13 +5,15 @@ export interface CostChipProps {
   capUsd?: number;
 }
 
+/** One cell of the run's mono meta line — spend against its cap. The market
+ * panel below owns this screen's big-number KPI grammar, so run meta stays
+ * quiet (DESIGN.md §Typography: mono for run ids, versions and figures). */
 export function CostChip({ usd, capUsd = 3 }: CostChipProps) {
   const overCap = usd >= capUsd;
   return (
-    <div className="cost-chip" role="status" aria-live="polite">
-      <span className="cost-chip__amount">${usd.toFixed(2)}</span>
-      <span className="cost-chip__cap"> / ${capUsd.toFixed(2)} cap</span>
+    <span role="status" aria-live="polite">
+      ${usd.toFixed(2)} of ${capUsd.toFixed(2)}
       {overCap && <span className="cost-chip__warn"> · cap reached</span>}
-    </div>
+    </span>
   );
 }

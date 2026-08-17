@@ -120,4 +120,31 @@ describe("findUnresolvedSheetRefs against the shipped template", () => {
     await fs.writeFile(path.join(dir, "tailwind-theme.css"), "@theme{--color-primary:#123456;}");
     expect(await findUnresolvedSheetRefs(dir, tokensCss)).toEqual([]);
   });
+
+  // Tailwind emits its own shadow/ring internals as @property registrations in
+  // the utilities sheet and then bare-references them from the same file. The
+  // registration carries an initial value, so those declarations are valid —
+  // reporting them made token-drift fail every build that used a shadow
+  // utility, on five names no token stage has any say over.
+  it("resolves a bare reference registered by @property with an initial value", async () => {
+    const { dir, tokensCss } = await siteDirWithout();
+    await fs.writeFile(
+      path.join(dir, "tailwind-utilities.css"),
+      '@property --tw-shadow{syntax:"*";inherits:false;initial-value:0 0 #0000;}\n' +
+        ".shadow-sm{box-shadow:var(--tw-shadow);}"
+    );
+    expect(await findUnresolvedSheetRefs(dir, tokensCss)).toEqual([]);
+  });
+
+  // A registration without initial-value gives syntax:"*" no initial value, so
+  // a bare reference to it stays guaranteed-invalid and must still be reported.
+  it("still reports a reference whose @property omits an initial value", async () => {
+    const { dir, tokensCss } = await siteDirWithout();
+    await fs.writeFile(
+      path.join(dir, "tailwind-utilities.css"),
+      '@property --tw-ring-color{syntax:"*";inherits:false;}\n' +
+        ".ring{--x:var(--tw-ring-color);}"
+    );
+    expect(await findUnresolvedSheetRefs(dir, tokensCss)).toEqual(["--tw-ring-color"]);
+  });
 });

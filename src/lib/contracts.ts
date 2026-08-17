@@ -1326,6 +1326,10 @@ export const EditRequestSchema = z.object({
   imageIntent: z.boolean().default(false), // route to Higgsfield swap
   requestId: z.string().uuid().optional(),
   confirmRedirect: z.boolean().optional(),
+  // Same id-format contract as GenerateImageRequestSchema's sourceAssetId
+  // (src/lib/imageLibrary.ts) — an id, never a URL, and only ever trusted
+  // after api/edit/route.ts checks it against the run's OWN image library.
+  referenceAssetId: z.string().min(8).max(80).optional(),
 });
 export type EditRequest = z.infer<typeof EditRequestSchema>;
 
@@ -1377,8 +1381,40 @@ export interface CardMap {
   note?: string;
 }
 
+/** One ranked Yelp roster row, presentation-shaped from YelpListing.
+ * `verified` means this operator was independently corroborated by the
+ * Google Places-resolved competitor scan — two sources agreeing, not a
+ * platform badge. */
+export interface ScanRosterItem {
+  rank: number;
+  name: string;
+  rating?: number;
+  reviewCount?: number;
+  url?: string;
+  verified: boolean;
+}
+
+/** The scan card's KPI-strip source. `directoriesFiltered` is the web
+ * discovery exclusion count known at Yelp-card emit time — the same number
+ * the later "Filtered out" card reports, surfaced here so the roster's KPI
+ * strip does not need to wait on it. */
+export interface ScanMarketSummary {
+  rosterSize: number;
+  ratingMedian?: number;
+  reviewCountMedian?: number;
+  directoriesFiltered: number;
+}
+
 export type PipelineEvent =
-  | { type: "stage"; stage: Stage; status: "running" | "done" | "failed"; note?: string }
+  | {
+      type: "stage";
+      stage: Stage;
+      status: "running" | "done" | "failed";
+      note?: string;
+      /** ISO timestamp; optional so historical events.jsonl lines still parse.
+       * Lets the timeline's collapsed stage row show a mono elapsed duration. */
+      at?: string;
+    }
   | {
       type: "card";
       stage: Stage;
@@ -1387,6 +1423,11 @@ export type PipelineEvent =
       images?: CardImage[];
       links?: CardLink[];
       map?: CardMap;
+      /** Additive, Yelp-roster-only presentation fields — see ScanRosterItem. */
+      roster?: ScanRosterItem[];
+      market?: ScanMarketSummary;
+      /** Additive, build-gate-repair-card-only presentation field. */
+      gates?: GateReport[];
     }
   | { type: "cost"; usd: number }
   | { type: "complete"; runId: string; previewUrl: string }
@@ -1410,6 +1451,20 @@ export type PipelineEvent =
       at?: string;
     }
   | { type: "error"; message: string };
+
+/** Transport-only note: a stage the controller skipped because it was
+ * already checkpointed (pipeline.ts's `stage()` helper). The durable event
+ * log never records these — pipeline.ts's broadcast filters them out before
+ * appending — but the live SSE stream still replays one per already-done
+ * stage on every reconnect, so the timeline UI needs to recognize and
+ * collapse them too. Lives here, not in pipeline.ts, so a client component
+ * (RunTimeline) can import the predicate without pulling in pipeline.ts's
+ * server-only `node:fs`/`node:path` graph. */
+export const RESUMED_NOTE = "resumed from checkpoint";
+
+export function isResumeNoise(event: PipelineEvent): boolean {
+  return event.type === "stage" && event.note === RESUMED_NOTE;
+}
 
 // ---------- Paths ----------
 

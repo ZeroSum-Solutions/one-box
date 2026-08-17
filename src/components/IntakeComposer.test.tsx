@@ -41,7 +41,7 @@ describe("IntakeComposer", () => {
     expect(html).toContain('rows="6"');
     expect(html).toContain('aria-label="Add files"');
     expect(html).toContain('class="intake-target__summary"');
-    expect(html).toContain('class="intake-composer__send"');
+    expect(html).toContain('class="btn-primary intake-composer__send"');
     expect(html).not.toContain("Describe the business.");
     expect(html).not.toContain('class="hero-display"');
   });

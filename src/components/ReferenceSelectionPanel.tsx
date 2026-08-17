@@ -268,7 +268,7 @@ export function ReferenceSelectionPanel({
             <figcaption>A real business site with this feel — for inspiration, not a preview of your site</figcaption>
           </figure>
         )}
-        <button type="button" disabled={action !== null} onClick={() => void choose(candidate)}>
+        <button className="btn-ghost" type="button" disabled={action !== null} onClick={() => void choose(candidate)}>
           {action === "select" ? "Choosing this look…" : "Choose this look"}
         </button>
       </article>
@@ -287,7 +287,7 @@ export function ReferenceSelectionPanel({
       {recommendation && (
         <button
           type="button"
-          className="reference-selection__recommendation"
+          className="btn-primary"
           disabled={action !== null}
           onClick={() => void choose(recommendation)}
         >
@@ -304,7 +304,7 @@ export function ReferenceSelectionPanel({
       </p>
 
       {selection.rerollsUsed < 2 && (
-        <button type="button" disabled={action !== null} onClick={() => void reroll()}>
+        <button className="btn-ghost" type="button" disabled={action !== null} onClick={() => void reroll()}>
           {action === "reroll" ? "Finding different directions…" : "Show me different directions"}
         </button>
       )}

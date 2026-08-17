@@ -306,6 +306,11 @@ export function UploadPanel({
           )}
         </button>
       </div>
+      {/* A click proxy, not a control: the button above opens it and already
+        carries the accessible name. Leaving it in the a11y tree publishes a
+        second, unreachable "choose files" input (axe: form elements must have
+        labels) — it is hidden from assistive tech instead, which is safe
+        because tabIndex={-1} keeps it out of the tab order too. */}
       <input
         ref={inputRef}
         className="visually-hidden"
@@ -316,6 +321,7 @@ export function UploadPanel({
         onChange={handleFiles}
         disabled={addFilesDisabled}
         tabIndex={-1}
+        aria-hidden="true"
       />
       {compact ? (
         (uploads.length > 0 || failedFiles.length > 0 || visibleError) && (

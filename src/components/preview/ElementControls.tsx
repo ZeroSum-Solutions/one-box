@@ -11,11 +11,6 @@ interface ElementControlsProps {
   onMutationComplete: () => void;
 }
 
-interface HistoryState {
-  canUndo: boolean;
-  canRedo: boolean;
-}
-
 type Typography = {
   fontFamily: "untouched" | "inherit" | "display" | "body";
   fontSize:
@@ -61,10 +56,6 @@ export function ElementControls({
   const [buttonTarget, setButtonTarget] = useState(
     selection.buttonAction?.target ?? "",
   );
-  const [history, setHistory] = useState<HistoryState>({
-    canUndo: false,
-    canRedo: false,
-  });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -98,25 +89,10 @@ export function ElementControls({
     selection.typography,
   ]);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/elements?runId=${encodeURIComponent(runId)}`, {
-      cache: "no-store",
-    })
-      .then(async (response) => {
-        if (!response.ok)
-          throw new Error(`history unavailable (${response.status})`);
-        return (await response.json()) as HistoryState;
-      })
-      .then((next) => {
-        if (!cancelled) setHistory(next);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [runId]);
-
+  // Undo/redo for the shared element-history.json now lives in the
+  // page-level UndoRedoRail (canvas-upgrade Wave 4, Play 8) -- it is reached
+  // from every tool and with no selection, not only from here. This
+  // component only issues its own structured mutations.
   async function mutate(body: Record<string, unknown>, success: string) {
     if (pending) return;
     setPending(true);
@@ -129,14 +105,15 @@ export function ElementControls({
         body: JSON.stringify({ runId, ...body }),
       });
       const data = (await response.json().catch(() => null)) as
-        ({ ok: true } & HistoryState) | { error: string } | null;
+        | { ok: true }
+        | { error: string }
+        | null;
       if (!response.ok || !data || "error" in data) {
         throw new Error(
           (data && "error" in data && data.error) ||
             `element edit failed (${response.status})`,
         );
       }
-      setHistory({ canUndo: data.canUndo, canRedo: data.canRedo });
       setStatus(success);
       onMutationComplete();
     } catch (mutationError) {
@@ -180,25 +157,101 @@ export function ElementControls({
     setStatus("Preview draft canceled.");
   }
 
-  return (
-    <div className="element-controls">
-      <div className="element-history" aria-label="Element edit history">
+  // Shared between the container branch and the ordinary branch below: a
+  // section can always be reordered among its editable siblings, container
+  // or not. moveTargets (overlay.js selectionFor(), canvas-upgrade Wave 5,
+  // Play 7) mirrors elementEditor.ts's own refusal rules -- a control
+  // guaranteed to fail (the first section moving earlier, fixed page chrome
+  // in either direction, ...) is disabled here rather than left to round-
+  // trip to the server to learn that. A fixture with no moveTargets at all
+  // (only hand-built tests take this path; every real overlay.js selection
+  // sets it) falls back to enabled -- the server's own guard still refuses
+  // an impossible move, this is only the earlier, cheaper signal.
+  const canMoveEarlier = selection.moveTargets?.earlier !== false;
+  const canMoveLater = selection.moveTargets?.later !== false;
+  const layoutControls = (
+    <fieldset className="layout-controls">
+      <legend>Layout order</legend>
+      <p>
+        Drag beside an editable sibling, press Alt+Arrow Up/Down in the
+        preview, or use these controls.
+      </p>
+      <div>
         <button
           type="button"
-          disabled={!history.canUndo || pending}
-          onClick={() => void mutate({ action: "undo" }, "Undone.")}
+          disabled={pending || !canMoveEarlier}
+          title={canMoveEarlier ? undefined : "Nothing earlier to swap with here."}
+          onClick={() =>
+            void mutate(
+              {
+                action: "apply",
+                editId: selection.editId,
+                patch: { move: "previous" },
+              },
+              "Moved earlier.",
+            )
+          }
         >
-          Undo
+          Move earlier
         </button>
         <button
           type="button"
-          disabled={!history.canRedo || pending}
-          onClick={() => void mutate({ action: "redo" }, "Redone.")}
+          disabled={pending || !canMoveLater}
+          title={canMoveLater ? undefined : "Nothing later to swap with here."}
+          onClick={() =>
+            void mutate(
+              {
+                action: "apply",
+                editId: selection.editId,
+                patch: { move: "next" },
+              },
+              "Moved later.",
+            )
+          }
         >
-          Redo
+          Move later
         </button>
       </div>
+    </fieldset>
+  );
 
+  // A container groups other editable elements rather than holding text of
+  // its own -- elementEditor.ts's setDirectText() 409s unconditionally on
+  // any target with a descendant data-edit-id, so the structured text-
+  // replace box, the href field, and the button-action fieldset below are
+  // guaranteed to fail here and are never worth offering (canvas-upgrade
+  // Wave 4, Play 10: a control that cannot succeed is the defect, not a
+  // convenience). Typography is left out too -- it is not the whole
+  // section's typography, it is one inline style declaration on the section
+  // element itself, which is not what "Typography" reads as here. What DOES
+  // work on a section is the composer (plain-language instructions, always
+  // present below this panel) and reordering it among its siblings.
+  if (selection.behavior === "container") {
+    return (
+      <div className="element-controls">
+        <p className="workbench-note">
+          {selection.tag} is a section, not a single piece of text or link --
+          structured value edits can&rsquo;t rewrite a whole section at once.
+          Describe the change in the composer below, or reorder this section
+          among its siblings here.
+        </p>
+        {layoutControls}
+        {status && (
+          <p className="edit-status" role="status">
+            {status}
+          </p>
+        )}
+        {error && (
+          <p className="edit-error" role="alert">
+            {error}
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="element-controls">
       <label className="workbench-field">
         <span>
           {selection.tag === "a" || selection.tag === "button"
@@ -259,47 +312,7 @@ export function ElementControls({
         </fieldset>
       )}
 
-      <fieldset className="layout-controls">
-        <legend>Layout order</legend>
-        <p>
-          Drag beside an editable sibling, press Alt+Arrow Up/Down in the
-          preview, or use these controls.
-        </p>
-        <div>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              void mutate(
-                {
-                  action: "apply",
-                  editId: selection.editId,
-                  patch: { move: "previous" },
-                },
-                "Moved earlier.",
-              )
-            }
-          >
-            Move earlier
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() =>
-              void mutate(
-                {
-                  action: "apply",
-                  editId: selection.editId,
-                  patch: { move: "next" },
-                },
-                "Moved later.",
-              )
-            }
-          >
-            Move later
-          </button>
-        </div>
-      </fieldset>
+      {layoutControls}
 
       <fieldset className="typography-controls">
         <legend>Typography</legend>
@@ -408,7 +421,7 @@ export function ElementControls({
         )}
         <button
           type="button"
-          className="pill-button"
+          className="btn-primary"
           disabled={pending}
           onClick={applyStructuredValue}
         >

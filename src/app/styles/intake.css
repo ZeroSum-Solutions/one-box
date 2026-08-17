@@ -1,0 +1,757 @@
+/* ==========================================================================
+   Intake screen + pipeline timeline/scan — One-Box Midnight Instrument
+   (DESIGN.md §Composer, §Roster row, §Map panel, §KPI strip). Owns:
+   nav + hero + composer + transcript (page.tsx intake phase, IntakeComposer,
+   IntakeControls) and the pipeline timeline + stage cards + scan presentation
+   (page.tsx pipeline phase, StageCard, CostChip).
+   ========================================================================== */
+
+/* ---------- Nav ---------- */
+
+.ob-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) 0;
+}
+
+.ob-nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-paper);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+}
+
+.ob-nav__glyph {
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-badge);
+  background: linear-gradient(135deg, var(--text-bone), var(--text-fog));
+}
+
+.ob-nav__links {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-16);
+}
+
+.ob-nav__links > span {
+  color: var(--text-mist);
+  font-size: var(--text-label-size);
+}
+
+/* The "New project" pill inherits .btn-white-pill (globals.css); no rule there
+   stops its two-word label from wrapping when the row runs short on space, so
+   the wrapped second line spills below the pill's fixed 30px height. */
+.ob-nav .btn-white-pill {
+  white-space: nowrap;
+}
+
+/* ---------- Hero ---------- */
+
+.ob-hero {
+  padding: var(--spacing-48) 0 0;
+}
+
+/* Matches the { braces } eyebrow grammar used everywhere else (GateStrip,
+   ReferenceSelectionPanel, EvidenceWorkspace, Workbench) — see DESIGN.md
+   §Eyebrow. The coral-dash span is retired; the markup swap to literal
+   "{ … }" text lives in page.tsx (lead's file — see notesForLead). */
+.ob-hero__tick {
+  margin: 0 0 var(--spacing-12);
+  color: var(--text-fog);
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-regular);
+}
+
+.ob-hero__title {
+  margin: 0;
+  max-width: 14ch;
+  color: var(--text-paper);
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 6vw, var(--text-display-size));
+  font-weight: var(--weight-display);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+  text-wrap: balance;
+}
+
+.ob-hero__sub {
+  max-width: 52ch;
+  margin: var(--spacing-20) 0 var(--spacing-32);
+  color: var(--text-fog);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* ---------- Intake shell ---------- */
+
+.intake-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  overflow-y: auto;
+  padding: 0 clamp(16px, 4vw, 32px) clamp(48px, 8vw, 96px);
+  background: var(--surface-canvas);
+  color: var(--text-mist);
+}
+
+/* Auto margins on the sole flex child centre short content in the viewport;
+   once the transcript grows past the fold the margins collapse to 0 instead
+   of going negative, so the nav stays pinned at the top — never clipped. */
+.intake-view__inner {
+  width: min(100%, 760px);
+  margin: auto;
+}
+
+/* ---------- Transcript ---------- */
+
+.transcript {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  margin: 0 0 var(--spacing-16);
+  padding: 0 4px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.transcript__line {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--text-mist);
+  font-size: var(--text-body-size);
+}
+
+.transcript__role {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.intake-view .chat-error {
+  margin-top: 10px;
+}
+
+.intake-view .chat-error details {
+  margin-top: var(--spacing-8);
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+}
+
+.intake-view .chat-error summary {
+  cursor: pointer;
+}
+
+.intake-view .chat-error code {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-fog);
+  font-family: var(--font-mono-app), ui-monospace, monospace;
+  font-size: var(--text-mono-size);
+}
+
+.intake-view .chat-error div {
+  display: flex;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+}
+
+/* Prepared for the pending attempt status ("Starting your project…"), which
+   still renders as a bare <p> on canvas in page.tsx — see notesForLead. */
+.intake-view .state-card {
+  margin-top: 10px;
+}
+
+/* ---------- Composer card ---------- */
+
+.intake-composer {
+  position: relative;
+  width: 100%;
+  padding: var(--card-padding);
+  background: var(--surface-carbon);
+  border-radius: var(--radius-card);
+  box-shadow: var(--ring-subtle);
+  color: var(--text-mist);
+  transition: box-shadow 140ms ease;
+}
+
+/* The textarea gives up its own outline (below) so the card carries the one
+   focus system instead — keyboard users still see exactly where they are. */
+.intake-composer:focus-within {
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.intake-composer__input {
+  display: block;
+  width: 100%;
+  min-height: 72px;
+  max-height: min(360px, 50dvh);
+  resize: none;
+  overscroll-behavior: contain;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 var(--spacing-12);
+  color: var(--text-bone);
+  font-family: var(--font-body);
+  font-size: var(--text-body-size);
+  line-height: 1.5;
+  caret-color: var(--text-bone);
+}
+
+/* The card's :focus-within ring (above) is the visible focus signal. */
+.intake-composer__input:focus {
+  outline: 0;
+}
+
+.intake-composer__input::placeholder {
+  color: var(--text-fog);
+}
+
+.intake-composer__input:disabled {
+  opacity: 0.62;
+}
+
+.intake-composer__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border-graphite);
+  padding-top: 14px;
+}
+
+.intake-composer .intake-controls {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  min-width: 0;
+  margin: 0;
+}
+
+.intake-target__context {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+/* Visual treatment is the shared .btn-primary (globals.css) — this class is
+   layout-only so the button doesn't shrink in the footer's flex row. */
+.intake-composer__send {
+  min-width: 64px;
+  flex: 0 0 auto;
+}
+
+/* ---------- Upload badge (compact, inside the composer row) ---------- */
+
+.intake-composer .intake-upload--compact {
+  position: relative;
+  display: block;
+  width: auto;
+  min-width: var(--control-h-primary);
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.intake-composer .intake-upload--compact .intake-control__heading {
+  display: block;
+}
+
+.intake-composer .intake-upload--compact .intake-upload__button {
+  width: var(--control-h-primary);
+  height: var(--control-h-primary);
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-graphite);
+  border-radius: 50%;
+  background: transparent;
+  padding: 0;
+  color: var(--text-mist);
+  font-size: 20px;
+  font-weight: var(--weight-regular);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+.intake-composer .intake-upload--compact .intake-upload__button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 4%);
+}
+
+.intake-upload__disclosure {
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.intake-upload__disclosure summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.intake-upload__disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.intake-upload__disclosure summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--accent-lavender);
+}
+
+.intake-composer .intake-upload--compact .intake-upload__disclosure {
+  position: absolute;
+  z-index: 12;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: max-content;
+  max-width: min(440px, calc(100vw - 56px));
+}
+
+.intake-composer .intake-upload--compact .intake-upload__disclosure > summary {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-badge);
+  background: rgb(255 255 255 / 5%);
+  padding: 1px 8px 1px 6px;
+  color: var(--text-fog);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intake-composer .intake-upload--compact .intake-upload__disclosure[open] {
+  width: min(440px, calc(100vw - 56px));
+  max-height: min(58dvh, 460px);
+  overflow-y: auto;
+  border-radius: var(--radius-card);
+  background: var(--surface-obsidian);
+  box-shadow: var(--shadow-float), var(--ring-subtle);
+}
+
+.intake-composer .intake-upload--compact .intake-upload__disclosure[open] > summary {
+  width: 100%;
+  border-bottom: 1px solid var(--border-graphite);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--spacing-12) var(--spacing-16);
+}
+
+.intake-upload__disclosure-body {
+  padding: 4px 16px 16px;
+}
+
+.intake-composer .intake-upload__policy {
+  color: var(--text-ash);
+}
+
+.intake-composer .intake-upload__list,
+.intake-composer .intake-upload__error {
+  width: min(440px, calc(100vw - 56px));
+  color: var(--text-mist);
+}
+
+.intake-composer .intake-upload__list small {
+  color: var(--text-ash);
+}
+
+.intake-composer .intake-upload__list button,
+.intake-composer .intake-upload__error button {
+  border-color: var(--border-graphite);
+  color: var(--text-mist);
+}
+
+.intake-upload__list {
+  list-style: none;
+  display: grid;
+  gap: var(--spacing-8);
+  padding: 0;
+  margin: var(--spacing-12) 0 0;
+}
+
+.intake-upload__list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  min-width: 0;
+  font-size: var(--text-caption-size);
+}
+
+.intake-upload__list span {
+  overflow-wrap: anywhere;
+}
+
+.intake-upload__list small {
+  display: block;
+  margin-top: 2px;
+}
+
+.intake-upload__list button {
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.intake-upload__error {
+  margin: var(--spacing-12) 0 0;
+  border-left: 2px solid var(--accent-coral);
+  padding-left: var(--spacing-12);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.intake-upload__error p {
+  margin: 0;
+}
+
+.intake-upload__error button {
+  margin-top: var(--spacing-8);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: transparent;
+  padding: var(--spacing-8) var(--spacing-16);
+  cursor: pointer;
+  font: inherit;
+}
+
+.intake-control__heading p,
+.intake-upload__policy {
+  margin: 4px 0 0;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+/* ---------- Target selector — closed trigger reads as a filter pill ---------- */
+
+.intake-target {
+  position: relative;
+}
+
+.intake-target > summary,
+.intake-research > summary {
+  list-style: none;
+}
+
+.intake-target > summary::-webkit-details-marker,
+.intake-research > summary::-webkit-details-marker {
+  display: none;
+}
+
+.intake-target__summary {
+  height: var(--control-h-mini);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 255 255 / 5%);
+  padding: 0 var(--spacing-12);
+  color: var(--text-mist);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.intake-target[open] > .intake-target__summary {
+  background: rgb(255 255 255 / 10%);
+  color: var(--text-paper);
+  box-shadow: 0 0 0 1px var(--border-smoke) inset;
+}
+
+.intake-target__menu {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: min(540px, calc(100vw - 32px));
+  max-height: min(68dvh, 540px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-card);
+  background: var(--surface-obsidian);
+  box-shadow: var(--shadow-float), var(--ring-subtle);
+  padding: var(--spacing-8);
+}
+
+.intake-target__options {
+  display: grid;
+  gap: 4px;
+}
+
+.intake-target__option {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+.intake-target__option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.intake-target__option > span {
+  display: block;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  padding: 10px var(--spacing-12);
+}
+
+.intake-target__option strong,
+.intake-target__option small {
+  display: block;
+}
+
+.intake-target__option strong {
+  color: var(--text-bone);
+  font-size: 14px;
+  font-weight: var(--weight-medium);
+}
+
+.intake-target__option small {
+  margin-top: 4px;
+  color: var(--text-ash);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.intake-target__option input:checked + span {
+  border-color: var(--border-smoke);
+  background: rgb(255 255 255 / 5%);
+}
+
+.intake-target__option input:focus-visible + span {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Visual treatment is the shared .btn-ghost (globals.css) — this class is
+   layout-only so the button spans the popover's width. */
+.intake-target__done {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* Disabled controls read via the ash label, not a dimmed fill — dimming an
+   already-neutral ghost control reads no differently than dimming a filled
+   one, and DESIGN.md rules opacity out entirely (§Controls). */
+.intake-composer .intake-upload__button:disabled,
+.intake-target__summary[aria-disabled="true"] {
+  color: var(--text-ash);
+  cursor: not-allowed;
+}
+
+/* ---------- Research popover — dot-badge trigger ----------
+   A first-class sibling of .intake-target in the composer row (not nested in
+   its menu), so its own panel floats independently, the same way the target
+   menu does. */
+
+.intake-research {
+  position: relative;
+}
+
+.intake-research > summary {
+  height: var(--control-h-mini);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-badge);
+  background: rgb(255 255 255 / 5%);
+  padding: 0 8px 0 6px;
+  color: var(--text-fog);
+  font-family: var(--font-body);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* The dot is the shared .badge__dot (globals.css) — colour it here instead
+   of duplicating it as a generated ::before. */
+.intake-research .badge__dot {
+  background: var(--text-ash);
+}
+
+.intake-research__summary--active .badge__dot {
+  background: var(--accent-pulse);
+}
+
+.intake-research__panel {
+  position: absolute;
+  z-index: 20;
+  bottom: calc(100% + 10px);
+  left: 0;
+  width: min(400px, calc(100vw - 32px));
+  max-height: min(68dvh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--spacing-16);
+  border-radius: var(--radius-card);
+  background: var(--surface-obsidian);
+  box-shadow: var(--shadow-float), var(--ring-subtle);
+}
+
+.intake-toggle {
+  display: flex;
+  gap: var(--spacing-12);
+  align-items: flex-start;
+  margin-top: var(--spacing-12);
+}
+
+.intake-composer .intake-toggle {
+  margin-top: 0;
+}
+
+.intake-toggle input,
+.intake-research__options input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  accent-color: var(--color-primary);
+}
+
+.intake-toggle span,
+.intake-toggle small {
+  display: block;
+}
+
+.intake-toggle strong {
+  color: var(--text-bone);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+
+.intake-toggle small,
+.intake-research__options {
+  margin-top: 4px;
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.intake-research__options {
+  display: grid;
+  gap: var(--spacing-8);
+  margin-left: var(--spacing-32);
+}
+
+.intake-research__options label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.intake-research__options span,
+.intake-research__options small {
+  display: block;
+}
+
+.intake-research__options small {
+  margin-top: 2px;
+}
+
+.intake-research__options [role="status"] {
+  margin: var(--spacing-8) 0 0;
+  color: var(--accent-coral);
+  font-size: var(--text-caption-size);
+}
+
+/* ---------- Example prompts ---------- */
+
+.ob-hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  margin-top: 14px;
+}
+
+.ob-hints__pill {
+  color: var(--text-fog);
+  cursor: pointer;
+}
+
+.ob-hints__pill:hover:not(:disabled) {
+  color: var(--text-mist);
+  background: rgb(255 255 255 / 10%);
+}
+
+.ob-hints__pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (max-width: 700px) {
+  .intake-view {
+    padding-top: var(--spacing-16);
+  }
+
+  .intake-composer .intake-controls,
+  .intake-composer__footer {
+    align-items: flex-start;
+  }
+
+  /* Brand + links no longer fit one row once "New project" stops wrapping
+     internally (below) — give the nav its own row each instead of letting
+     either overflow the viewport. */
+  .ob-nav {
+    flex-wrap: wrap;
+  }
+
+  .ob-nav__links {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .intake-target__summary,
+  .intake-research > summary,
+  .intake-composer .intake-upload--compact .intake-upload__button,
+  .intake-composer__send {
+    min-height: 44px;
+  }
+
+  .intake-target__menu,
+  .intake-research__panel {
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    width: auto;
+    max-height: calc(100dvh - 32px);
+  }
+}

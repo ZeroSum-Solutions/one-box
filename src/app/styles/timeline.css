@@ -1,0 +1,894 @@
+/* ==========================================================================
+   Pipeline timeline — Midnight Instrument (DESIGN.md "App components" §KPI
+   strip / §Roster row / §Map panel). Split out of the former
+   intake-timeline.css so the intake screen and the run timeline own separate
+   files.
+   ========================================================================== */
+
+.timeline-view {
+  min-height: 100dvh;
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--spacing-32);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  background: var(--surface-canvas);
+}
+
+/* Run-header KPI strip (DESIGN.md §KPI strip): the eyebrow keeps the panel's
+   own "{ building }" self-naming; the row below it is the flat status/cost/
+   elapsed/stage-count readout. Sticky with a canvas backdrop so both survive
+   a long scroll through a many-stage run. */
+.timeline-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface-canvas);
+  padding-top: var(--spacing-8);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.timeline-complete {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-24) 0;
+}
+
+/* ---------- Run meta line ---------- */
+
+.run-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  margin: 0;
+  padding-bottom: var(--spacing-8);
+  color: var(--text-ash);
+  border-bottom: 1px solid var(--border-graphite);
+}
+
+/* Middle-dot separators, not a divider per cell — the line should read as one
+   sentence of metadata rather than four competing chips. */
+.run-meta > * + *::before {
+  content: "·";
+  margin-right: var(--spacing-8);
+  color: var(--border-smoke);
+}
+
+.run-meta__status {
+  color: var(--text-mist);
+  text-transform: lowercase;
+}
+
+/* The only status that earns a mark: a failed run is structural, not
+   chromatic (DESIGN.md §Error state), so it steps to bone rather than coral. */
+.run-meta__status--error {
+  color: var(--text-bone);
+}
+
+.run-meta__status--complete {
+  color: var(--accent-pulse);
+}
+
+.cost-chip__warn {
+  color: var(--accent-coral);
+}
+
+/* ---------- Generic flat KPI strip (scan roster card) ---------- */
+
+.kpi-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-32);
+  padding: var(--spacing-16) 0 var(--spacing-20);
+  border-bottom: 1px solid var(--border-graphite);
+  margin-bottom: var(--spacing-16);
+}
+
+.kpi-strip__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kpi-strip__stat b {
+  color: var(--text-paper);
+  font-size: 22px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.012em;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-strip__stat span {
+  color: var(--text-ash);
+  font-size: 12px;
+}
+
+/* ==========================================================================
+   Market feature — the competitive scan's payload, promoted out of the
+   collapsed run log (DESIGN.md §Map panel / §Roster row / §KPI strip).
+   Everything else on this screen is a log entry; this is the answer.
+   ========================================================================== */
+
+.market-feature {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.market-feature__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-12);
+  flex-wrap: wrap;
+}
+
+.market-feature__lede {
+  margin: 0;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.market-feature__kpis {
+  margin-bottom: 0;
+  padding: 0 0 var(--spacing-16);
+}
+
+/* Coral's "dropped/flagged count" role — the only chromatic mark the strip
+   earns. Every other value stays on the paper→ash ramp. */
+.market-feature__flag-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent-coral);
+  vertical-align: 1px;
+}
+
+/* Map left, podium right: the ranked cards sit beside the pins they match, so
+   rank and pin read as one object without needing a colour to bind them. */
+.market-feature__split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--spacing-16);
+  align-items: start;
+}
+
+.market-feature__split .stage-card__map {
+  margin-top: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.market-feature__split .stage-card__map-body {
+  flex: 1;
+}
+
+.market-feature__split .stage-card__map-frame {
+  height: 100%;
+  aspect-ratio: auto;
+  min-height: 300px;
+}
+
+/* Google's embed renders light-mode only — the Embed API exposes no styling,
+   and dark tiles need the JS/Static APIs with a keyed custom style. Until the
+   Maps lane moves to one of those, tone the frame down so a white rectangle
+   does not detonate in the middle of a void canvas. Brightness and saturation
+   only: no inversion, no hue rotation, so roads, labels, the Google mark and
+   the attribution line all stay exactly the colours Google served. */
+.market-feature__split .stage-card__map-frame {
+  filter: brightness(0.66) saturate(0.58) contrast(1.06);
+  transition: filter 140ms ease;
+}
+
+/* Interacting with the map is a deliberate act — hand back the untouched
+   render the moment the pointer or keyboard arrives. */
+.market-feature__split .stage-card__map-body:hover .stage-card__map-frame,
+.market-feature__split .stage-card__map-frame:focus-within {
+  filter: none;
+}
+
+.market-feature__no-map {
+  min-height: 300px;
+}
+
+.market-feature__podium {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.market-feature__podium .eyebrow {
+  margin-bottom: 4px;
+}
+
+/* ---------- Competitor card (top 3) ---------- */
+
+.competitor-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) var(--spacing-16);
+  background: var(--surface-carbon);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  transition: border-color 140ms ease;
+}
+
+.competitor-card:hover {
+  border-color: var(--border-smoke);
+}
+
+.competitor-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-12);
+  min-width: 0;
+}
+
+/* The loudest glyph on the card, and deliberately so: it is the same numeral
+   the map pin carries. Clash at 24px is within the contract's heading range. */
+.competitor-card__rank {
+  flex: none;
+  color: var(--text-paper);
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: var(--weight-heading);
+  letter-spacing: -0.022em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.competitor-card__name {
+  margin: 0;
+  min-width: 0;
+  color: var(--text-bone);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.25;
+  letter-spacing: -0.011em;
+  overflow-wrap: anywhere;
+}
+
+.competitor-card__rating {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.competitor-card__rating b {
+  color: var(--text-mist);
+  font-size: 18px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.012em;
+}
+
+.competitor-card__rating--none {
+  font-size: 13px !important;
+  color: var(--text-ash) !important;
+}
+
+.competitor-card__rating span {
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+/* Ash, not gold: a yellow star would be a sixth accent with no contract role,
+   and the number already reads as a rating. */
+.competitor-card__star {
+  color: var(--text-ash);
+  font-size: 11px;
+}
+
+.competitor-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  padding-top: var(--spacing-8);
+  border-top: 1px solid var(--border-graphite);
+}
+
+.competitor-card__verified,
+.competitor-card__unverified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-caption-size);
+}
+
+.competitor-card__verified {
+  color: var(--text-fog);
+}
+
+.competitor-card__verified .badge__dot {
+  background: var(--accent-pulse);
+}
+
+.competitor-card__unverified {
+  color: var(--text-ash);
+}
+
+.competitor-card__hollow {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--border-smoke);
+}
+
+.competitor-card__link {
+  color: var(--text-mist);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 140ms ease;
+}
+
+.competitor-card__link:hover,
+.competitor-card__link:focus-visible {
+  color: var(--text-paper);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Ranks 4–N ---------- */
+
+.market-feature__more {
+  border-top: 1px solid var(--border-graphite);
+  border-bottom: 1px solid var(--border-graphite);
+}
+
+.market-feature__more > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  height: var(--control-h);
+  cursor: pointer;
+  list-style: none;
+  color: var(--text-fog);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+
+.market-feature__more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.market-feature__more > summary::after {
+  content: "";
+  margin-left: auto;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--text-ash);
+  border-bottom: 1px solid var(--text-ash);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 140ms ease;
+}
+
+.market-feature__more[open] > summary::after {
+  transform: rotate(-135deg) translate(-2px, -2px);
+}
+
+.market-feature__more .scan-roster {
+  padding-bottom: var(--spacing-8);
+}
+
+@media (max-width: 860px) {
+  .market-feature__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Stage groups (DESIGN.md §Long-run disclosure) ---------- */
+/* One <details> per pipeline stage. Only the currently-running stage opens
+   by default; every other stage — including all of them once the run has
+   settled to a terminal outcome — collapses to this one-line summary row,
+   keeping a many-retry run's page height bounded regardless of how many
+   cards a stage produced. */
+
+.stage-group {
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-card);
+  background: var(--surface-carbon);
+}
+
+/* The disclosure toggle is interactive, so it stays inside DESIGN.md's 34px
+   desktop control cap same as every button — 6px padding + the badge's own
+   ~19px content height lands at ~31px. */
+.stage-group__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-height: var(--control-h-mini);
+  padding: 6px var(--card-padding);
+  cursor: pointer;
+  list-style: none;
+}
+
+.stage-group__summary::-webkit-details-marker {
+  display: none;
+}
+
+.stage-group:hover {
+  border-color: var(--border-smoke);
+}
+
+.stage-group {
+  transition: border-color 140ms ease;
+}
+
+.stage-group__badge {
+  flex: none;
+  min-width: 132px;
+}
+
+.stage-group__outcome {
+  flex: none;
+  color: var(--text-mist);
+  font-size: 13px;
+}
+
+/* Without this a collapsed row says only "done", and the reader has to open
+   every stage to find the one they wanted — which defeats the collapse. */
+.stage-group__detail {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-fog);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stage-group__elapsed {
+  margin-left: auto;
+  flex: none;
+  color: var(--text-ash);
+}
+
+.stage-group__chevron {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--text-ash);
+  border-bottom: 1px solid var(--text-ash);
+  transform: rotate(-45deg);
+  transition: transform 140ms ease;
+}
+
+.stage-group[open] .stage-group__chevron {
+  transform: rotate(45deg);
+}
+
+.timeline__eyebrow {
+  margin-bottom: 0;
+}
+
+.stage-group__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-16) var(--card-padding) var(--card-padding);
+  border-top: 1px solid var(--border-graphite);
+}
+
+.stage-group__body .stage-card {
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.stage-group__body .stage-card + .stage-card {
+  padding-top: var(--card-padding);
+  border-top: 1px solid var(--border-graphite);
+}
+
+.stage-group__resume-note {
+  margin: 0;
+  color: var(--text-ash);
+}
+
+/* ---------- Stage card ---------- */
+
+.stage-card {
+  padding: var(--card-padding);
+}
+
+/* Errors are structural, not chromatic (DESIGN.md §Error state): an
+   obsidian well behind a stepped smoke border, never the same graphite ring
+   every other card carries. The compound selector wins the cascade over
+   `.card-surface` regardless of import order. */
+.stage-card.stage-card--error {
+  background: var(--surface-obsidian);
+  box-shadow: 0 0 0 1px var(--border-smoke) inset;
+}
+
+.stage-card__error-chip {
+  color: var(--text-bone);
+}
+
+.stage-card__error-glyph {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-bone);
+  color: var(--surface-canvas);
+  font-size: 10px;
+  font-weight: var(--weight-medium);
+  line-height: 1;
+}
+
+.stage-card__eyebrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-8);
+}
+
+.stage-card__title {
+  margin: 0 0 var(--spacing-8);
+  color: var(--text-bone);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.011em;
+}
+
+.stage-card__title--flagged {
+  color: var(--accent-coral);
+}
+
+.stage-card__lede {
+  margin: 0 0 var(--spacing-8);
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.stage-card__body p {
+  margin: 0 0 4px;
+  color: var(--text-fog);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.stage-card__bullet {
+  padding-left: var(--spacing-16);
+}
+
+.stage-card__images {
+  display: flex;
+  gap: var(--spacing-12);
+  margin-top: var(--spacing-16);
+  overflow-x: auto;
+}
+
+/* Fixed box, not height-only: a full-page capture can run 4,000px tall, and
+   `height` alone with no `width` scales the sliver down to it — a 1440x4000
+   screenshot renders ~35px wide. `object-position: top` keeps the crop on
+   the above-the-fold slice, the only part worth previewing at this size. */
+.stage-card__images img {
+  width: 160px;
+  height: 96px;
+  border-radius: var(--radius-small);
+  flex-shrink: 0;
+  object-fit: cover;
+  object-position: top center;
+  box-shadow: var(--ring-subtle);
+  display: block;
+}
+
+.stage-card__thumb-link {
+  display: inline-flex;
+  border-radius: var(--radius-small);
+  transition: opacity 120ms ease;
+}
+
+.stage-card__thumb-link:hover img,
+.stage-card__thumb-link:focus-visible img {
+  opacity: 0.78;
+}
+
+/* ---------- Scan roster (DESIGN.md §Roster row) ---------- */
+
+.scan-roster {
+  display: flex;
+  flex-direction: column;
+}
+
+.scan-roster__row {
+  display: grid;
+  grid-template-columns: 24px 1fr auto auto;
+  align-items: center;
+  gap: var(--spacing-12);
+  padding: 7px 4px;
+  border-bottom: 1px solid rgb(35 37 42 / 60%);
+  font-size: 13.5px;
+}
+
+.scan-roster__row:last-child {
+  border-bottom: 0;
+}
+
+.scan-roster__row:hover {
+  background: rgb(255 255 255 / 2%);
+}
+
+.scan-roster__rank {
+  color: var(--text-ash);
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-roster__name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+  color: var(--text-mist);
+  font-weight: var(--weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.scan-roster__verified {
+  flex: none;
+}
+
+.scan-roster__verified .badge__dot {
+  background: var(--accent-pulse);
+}
+
+.scan-roster__rating {
+  color: var(--text-fog);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.scan-roster__rating strong {
+  color: var(--text-mist);
+  font-weight: var(--weight-medium);
+}
+
+.scan-roster__site {
+  justify-self: end;
+}
+
+/* Fallback line for a legacy scan card whose numbered body didn't parse as a
+   roster row — same rhythm as a roster row, plain text. */
+.scan-roster__fallback-line {
+  margin: 0;
+  padding: 7px 4px;
+  color: var(--text-fog);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ---------- card links (competitor sites, maps, artifacts) ---------- */
+
+.stage-card__links {
+  list-style: none;
+  margin: var(--spacing-16) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* One line, not two: label and sub share a row and truncate together rather
+   than stacking, which is what pushed this to 53px against DESIGN.md's 34px
+   desktop control cap (`.card-link` is a real anchor — it counts). */
+.card-link {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  height: var(--control-h-mini);
+  padding: 0 var(--spacing-8);
+  border-radius: var(--radius-small);
+  text-decoration: none;
+  color: var(--text-mist);
+  transition: background-color 140ms ease;
+  overflow: hidden;
+}
+
+.card-link:hover,
+.card-link:focus-visible {
+  background: rgb(255 255 255 / 4%);
+}
+
+.card-link__icon {
+  font-size: var(--text-caption-size);
+  flex-shrink: 0;
+  opacity: 0.75;
+}
+
+.card-link--site .card-link__icon {
+  color: var(--stage-scanned);
+}
+.card-link--maps .card-link__icon {
+  color: var(--stage-built);
+}
+.card-link--reference .card-link__icon {
+  color: var(--stage-locked);
+}
+.card-link--artifact .card-link__icon {
+  color: var(--stage-synthesized);
+}
+
+.card-link__text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card-link__label {
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.card-link__sub {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ---------- Market map panel (DESIGN.md §Map panel) ---------- */
+
+.stage-card__map {
+  margin-top: var(--spacing-16);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  box-shadow: var(--ring-subtle);
+}
+
+.stage-card__map-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--surface-carbon);
+}
+
+.stage-card__map-meta a {
+  transition: color 140ms ease;
+}
+
+.stage-card__map-heading {
+  color: var(--text-mist);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+
+.stage-card__map-body {
+  background: var(--surface-obsidian);
+}
+
+.stage-card__map-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+  border: 0;
+  display: block;
+}
+
+.stage-card__map-note {
+  margin: 0;
+  padding: var(--spacing-16);
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.stage-card__map-meta {
+  margin: 0;
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--surface-carbon);
+  color: var(--text-ash);
+}
+
+.stage-card__map-meta a {
+  color: var(--text-fog);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---------- Status dot ---------- */
+
+.status-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.status-dot--running {
+  border: 1.5px solid var(--text-mist);
+  animation: onebox-pulse 1.2s ease-in-out infinite;
+}
+
+/* A hidden tab still composites this at the display refresh rate. */
+[data-page-hidden] .status-dot--running {
+  animation-play-state: paused;
+}
+
+.status-dot--done {
+  border: 1.5px solid var(--accent-pulse);
+  color: var(--accent-pulse);
+}
+
+/* Filled bone circle + void glyph — the same failure recipe as the eyebrow's
+   error chip, not the fog-bordered/fog-glyph ("fog-on-fog") treatment that
+   barely read against the carbon card behind it. */
+.status-dot--failed {
+  background: var(--text-bone);
+  border: 1.5px solid var(--text-bone);
+  color: var(--surface-canvas);
+}
+
+/* ---------- Gate rows (build stage's gate-repair card) ---------- */
+
+.gate-row-list {
+  list-style: none;
+  margin: var(--spacing-8) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gate-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  color: var(--text-mist);
+  font-size: 13px;
+}
+
+.gate-row__name {
+  overflow-wrap: anywhere;
+}
+
+.gate-row__advisory {
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+@keyframes onebox-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}

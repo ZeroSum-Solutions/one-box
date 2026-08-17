@@ -33,6 +33,27 @@ export function collectDefinedCssVars(css: string): Set<string> {
 }
 
 /**
+ * Collects `@property --x { … initial-value: … }` registrations.
+ *
+ * A registration that supplies an initial value defines the property globally,
+ * so a bare reference to it resolves wherever the block sits — unlike an
+ * ordinary declaration, which only reaches elements its selector matches.
+ * A registration WITHOUT initial-value is not a definition: for `syntax: "*"`
+ * there is no initial value to fall back to, so a bare reference to it stays
+ * guaranteed-invalid and still counts as drift.
+ */
+export function collectRegisteredCssVars(css: string): Set<string> {
+  const registered = new Set<string>();
+  const blockRe = /@property\s+(--[\w-]+)\s*\{([^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  const text = stripComments(css);
+  while ((m = blockRe.exec(text))) {
+    if (/initial-value\s*:/.test(m[2])) registered.add(m[1]);
+  }
+  return registered;
+}
+
+/**
  * Returns the referenced properties that carry no fallback and that `defined`
  * does not cover, sorted and deduplicated.
  *
@@ -79,6 +100,11 @@ export async function findUnresolvedSheetRefs(
     if (name === "tailwind-theme.css") {
       for (const declared of collectDefinedCssVars(text)) defined.add(declared);
     }
+    // Every sheet's own @property registrations count, wherever they sit:
+    // Tailwind registers its shadow/ring internals in the utilities sheet and
+    // bare-references them from the same file, and those names are not token
+    // drift — no token stage chooses or supplies them.
+    for (const registered of collectRegisteredCssVars(text)) defined.add(registered);
     sheets.push(text);
   }
   return findUnresolvedCssVarRefs(sheets.join("\n"), defined);

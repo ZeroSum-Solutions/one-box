@@ -2,17 +2,73 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { ReferenceSelectionPanel } from "./ReferenceSelectionPanel";
+import { consumePipelineRunStream } from "./resumeRun";
 import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
   ARTIFACTS,
   workflowArtifactApprovalState,
+  type ArtifactApprovalState,
   type RunState,
+  type EvidenceWorkflowStage,
   type HumanVisualReviewCriteria,
+  type WorkflowArtifactType,
   type WorkflowArtifactVersion,
 } from "../lib/contracts";
 import type { RequiredReferenceContext } from "../lib/referenceContext";
+import {
+  ArtifactSource,
+  CheckTable,
+  ConfidenceTrack,
+  ContractDocument,
+  PaletteGrid,
+  ThemeMappingTable,
+  TokenSpecList,
+  UsageMap,
+  VariableHierarchy,
+} from "./evidence/ArtifactViewers";
+
+const GATE_LABELS: Record<EvidenceWorkflowStage, string> = {
+  evidence: "Evidence",
+  contract: "Contract",
+  tokens: "Tokens",
+  tailwind: "Tailwind",
+  css: "CSS",
+  build: "Build",
+};
+
+const ARTIFACT_TITLES: Record<WorkflowArtifactType, string> = {
+  ledger: "Evidence ledger",
+  "design-contract": "Design contract",
+  "token-inventory": "Semantic token inventory",
+  "tailwind-plan": "Tailwind v4 mapping",
+  "css-architecture": "CSS architecture",
+  "visual-qa": "Visual QA",
+};
+
+/** Highest version recorded for a gate's artifact type, or null before any
+ * draft exists — used by the gate rail's mono metadata and the pre-build
+ * recap line. */
+function stageVersion(run: RunState, stage: EvidenceWorkflowStage): number | null {
+  const artifactType = EVIDENCE_STAGE_ARTIFACT[stage];
+  const latest = run.evidenceWorkflow.artifacts
+    .filter((artifact) => artifact.artifactType === artifactType)
+    .sort((left, right) => right.version - left.version)[0];
+  return latest ? latest.version : null;
+}
+
+/** Compact "Evidence v3 · Contract v3 · …" line for the five gates that must
+ * already be approved by the time the build gate is in view. */
+function priorApprovalsRecap(run: RunState): string {
+  return EVIDENCE_WORKFLOW_STAGES.filter((stage) => stage !== "build")
+    .map((stage) => {
+      const version = stageVersion(run, stage);
+      return `${GATE_LABELS[stage]} ${version !== null ? `v${version}` : "—"}`;
+    })
+    .join(" · ");
+}
 
 type HumanReviewCriterionKey = Exclude<
   keyof HumanVisualReviewCriteria,
@@ -64,11 +120,56 @@ export function syncHumanVisualReviewDraft(
   };
 }
 
-function latestCurrentArtifact(run: RunState): WorkflowArtifactVersion | undefined {
-  const expected = EVIDENCE_STAGE_ARTIFACT[run.evidenceWorkflow.currentStage];
+/** Rail meta text for the current gate mirrors the same approval state the
+ * artifact panel already computes, so the two never disagree — the coral
+ * "in review" label only earns its colour when the gate really is in review
+ * (see the matching `data-approval` selector in evidence.css). */
+function gateRailMeta(
+  isCurrentGate: boolean,
+  approval: ArtifactApprovalState | null,
+  version: number | null
+): string | null {
+  if (isCurrentGate) {
+    if (approval === "in-review") return "in review";
+    if (approval === "revision-requested") return "changes requested";
+    if (approval === "draft") return "draft";
+  }
+  return version !== null ? `v${version}` : null;
+}
+
+function latestArtifactForStage(
+  run: RunState,
+  stage: EvidenceWorkflowStage
+): WorkflowArtifactVersion | undefined {
+  const expected = EVIDENCE_STAGE_ARTIFACT[stage];
   return run.evidenceWorkflow.artifacts
     .filter((artifact) => artifact.artifactType === expected)
     .sort((left, right) => right.version - left.version)[0];
+}
+
+function latestCurrentArtifact(run: RunState): WorkflowArtifactVersion | undefined {
+  return latestArtifactForStage(run, run.evidenceWorkflow.currentStage);
+}
+
+/** Theme/CSS variable → the client colour behind it, read off the approved
+ * token inventory. The Tailwind and CSS gates are separate artifacts that
+ * carry names but no values, so without this their viewers can only show
+ * identifiers; with it a mapping row shows the colour it actually produces. */
+function buildPaletteLookup(run: RunState): (name: string) => string | undefined {
+  const inventory = latestArtifactForStage(run, "tokens");
+  if (inventory?.artifactType !== "token-inventory") return () => undefined;
+  const byName = new Map<string, string>();
+  for (const token of inventory.artifact.tokens) {
+    if (token.category !== "color") continue;
+    byName.set(token.semanticName, token.value);
+    // Tailwind names drop the pipeline's `--ds-` source prefix, and CSS
+    // architecture rows quote the bare variable; index every form so a lookup
+    // from any of the three viewers hits.
+    byName.set(token.semanticName.replace(/^--(ds-)?/, "--"), token.value);
+    byName.set(token.semanticName.replace(/^--/, ""), token.value);
+  }
+  return (name) =>
+    byName.get(name) ?? byName.get(`--${name}`) ?? byName.get(name.replace(/^--ds-/, "--"));
 }
 
 function EvidenceImage({ src, alt }: { src: string; alt: string }) {
@@ -113,34 +214,58 @@ function versionJsonUrl(runId: string, artifact: WorkflowArtifactVersion): strin
   );
 }
 
-function ArtifactTextPreview({ runId, artifactPath, label }: { runId: string; artifactPath: string; label: string }) {
-  const href = artifactUrl(runId, artifactPath);
-  const [result, setResult] = useState<{
-    href: string;
-    text: string | null;
-    failed: boolean;
-  }>({ href: "", text: null, failed: false });
-  useEffect(() => {
-    let active = true;
-    fetch(href)
-      .then((response) => {
-        if (!response.ok) throw new Error(`artifact returned ${response.status}`);
-        return response.text();
-      })
-      .then((value) => { if (active) setResult({ href, text: value, failed: false }); })
-      .catch(() => { if (active) setResult({ href, text: null, failed: true }); });
-    return () => { active = false; };
-  }, [href]);
+/** Header line every viewer shares: what this artifact derives from, and the
+ * escape hatch to the bytes underneath. */
+function ViewerHead({
+  title,
+  meta,
+  jsonHref,
+  jsonLabel,
+}: {
+  /** Omitted when the panel head above already names this artifact — only
+   * the design contract carries a different title (the client's own). */
+  title?: string;
+  meta?: ReactNode;
+  jsonHref: string;
+  /** Names the bytes behind the link — "Raw JSON" alone is six identical
+   * links across six gates to a screen reader. */
+  jsonLabel: string;
+}) {
   return (
-    <section aria-label={`${label} preview`}>
-      <h4>{label}</h4>
-      <p><a href={href}>Open {label}</a></p>
-      {result.href !== href ? <p role="status">Loading preview…</p> : result.failed ? <p role="alert">Preview unavailable; open the versioned artifact directly.</p> : <pre tabIndex={0}>{result.text}</pre>}
-    </section>
+    <div className="viewer-head">
+      <div>
+        {title && <h3>{title}</h3>}
+        {meta && <p className="viewer-head__meta mono-meta">{meta}</p>}
+      </div>
+      <a
+        className="btn-ghost btn-mini"
+        href={jsonHref}
+        aria-label={`Open versioned ${jsonLabel} JSON`}
+      >
+        Raw JSON
+      </a>
+    </div>
   );
 }
 
-export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifactVersion; runId: string }) {
+/** Maps a theme/CSS variable name to the client colour behind it, so the
+ * Tailwind and CSS viewers can show the colour a mapping actually produces
+ * rather than a bare identifier. Built by the workspace from the approved
+ * token inventory — those two artifacts are separate gates, so neither can
+ * derive it alone. */
+export type PaletteLookup = (name: string) => string | undefined;
+
+const NO_PALETTE: PaletteLookup = () => undefined;
+
+export function ArtifactPreview({
+  artifact,
+  runId,
+  palette = NO_PALETTE,
+}: {
+  artifact: WorkflowArtifactVersion;
+  runId: string;
+  palette?: PaletteLookup;
+}) {
   const jsonHref = versionJsonUrl(runId, artifact);
   switch (artifact.artifactType) {
     case "ledger": {
@@ -150,10 +275,14 @@ export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifac
       ];
       return (
         <div className="evidence-readable">
-          <p><a href={jsonHref}>Open versioned ledger JSON</a></p>
+          <ViewerHead
+            jsonLabel="ledger"
+            meta={`target ${artifact.artifact.projectTarget}`}
+            jsonHref={jsonHref}
+          />
           {groups.map(([title, group]) => (
             <section key={title}>
-              <h3>{title}</h3>
+              <p className="eyebrow">{`{ ${title.toLowerCase()} }`}</p>
               {group.sources.length === 0 &&
                 group.claims.length === 0 &&
                 (!("references" in group) || group.references.length === 0) &&
@@ -161,56 +290,467 @@ export function ArtifactPreview({ artifact, runId }: { artifact: WorkflowArtifac
                   (group.competitors.length === 0 &&
                     group.marketExpectations.length === 0 &&
                     group.differentiationOpportunities.length === 0)) && (
-                <p>
-                  {title === "Business intelligence"
-                    ? "No competitors or other business intelligence evidence were recorded for this run."
-                    : "No Refero design evidence was recorded for this run."}
-                </p>
+                  <div className="state-card">
+                    <p className="state-card__label">empty</p>
+                    <p className="state-card__title">Nothing recorded</p>
+                    <p className="state-card__body">
+                      {title === "Business intelligence"
+                        ? "No competitors or other business intelligence evidence were recorded for this run."
+                        : "No Refero design evidence was recorded for this run."}
+                    </p>
+                  </div>
+                )}
+              {group.claims.length > 0 && (
+                <ul className="claim-list">
+                  {group.claims.map((claim) => (
+                    <li key={claim.id}>
+                      <span className="badge">{claim.classification}</span>
+                      <span className="claim-list__text">{claim.statement}</span>
+                      <ConfidenceTrack value={claim.confidence} />
+                      <span className="claim-list__id mono-meta">{claim.id}</span>
+                    </li>
+                  ))}
+                </ul>
               )}
-              <ul>{group.claims.map((claim) => <li key={claim.id}><strong>{claim.classification}</strong> · {Math.round(claim.confidence * 100)}% — {claim.statement}</li>)}</ul>
-              {group.sources.map((source) => { const href = safeExternalHref(source.sourceUrl); return <div key={source.id}><p>{href ? <a href={href} target="_blank" rel="noreferrer">{source.title ?? source.sourceUrl}</a> : <>{source.title ?? source.sourceUrl} · {source.sourceUrl}</>} · {Math.round(source.confidence * 100)}% · {source.capturedAt}</p>{source.screenshotPaths.map((screenshot) => <figure key={screenshot}><EvidenceImage src={artifactUrl(runId, screenshot)} alt={`${source.title ?? source.id} evidence`} /><figcaption>{screenshot}</figcaption></figure>)}{source.extractedArtifactPaths.map((extracted) => <p key={extracted}><a href={artifactUrl(runId, extracted)}>Extracted artifact: {extracted}</a></p>)}{source.crawlAttempts.map((attempt, index) => <p key={`${attempt.provider}-${index}`}>Crawl {index + 1}: {attempt.provider} · {attempt.outcome} · {attempt.confidence} · {attempt.failureReason ?? "succeeded"}</p>)}</div>; })}
-              {"competitors" in group && group.competitors.length > 0 && <><h4>Selected competitors</h4><ul>{group.competitors.map((competitor) => { const href = safeExternalHref(competitor.url); return <li key={competitor.url}>{href ? <a href={href} target="_blank" rel="noreferrer">{competitor.name}</a> : <>{competitor.name} · {competitor.url}</>} — {competitor.selectionRationale}{competitor.strengths.length > 0 ? ` · Strengths: ${competitor.strengths.join("; ")}` : ""}{competitor.gaps.length > 0 ? ` · Gaps: ${competitor.gaps.join("; ")}` : ""}</li>; })}</ul></>}
-              {"marketExpectations" in group && group.marketExpectations.length > 0 && <><h4>Market expectations</h4><ul>{group.marketExpectations.map((expectation) => <li key={expectation}>{expectation}</li>)}</ul></>}
-              {"differentiationOpportunities" in group && group.differentiationOpportunities.length > 0 && <><h4>Differentiation opportunities</h4><ul>{group.differentiationOpportunities.map((opportunity) => <li key={opportunity}>{opportunity}</li>)}</ul></>}
-              {"references" in group && group.references.map((reference) => <p key={reference.referoId}><strong>{reference.name}</strong> — {reference.learningRationale}<br />Reusable: {reference.reusablePatterns.join("; ")}</p>)}
+              {group.sources.length > 0 && (
+                <div className="source-grid">
+                  {group.sources.map((source) => {
+                    const href = safeExternalHref(source.sourceUrl);
+                    return (
+                      <article className="source-card" key={source.id}>
+                        <h4 className="source-card__title">
+                          {href ? (
+                            <a href={href} target="_blank" rel="noreferrer">
+                              {source.title ?? source.sourceUrl} ↗
+                            </a>
+                          ) : (
+                            (source.title ?? source.sourceUrl)
+                          )}
+                        </h4>
+                        {source.screenshotPaths[0] && (
+                          <a
+                            className="source-card__shot"
+                            href={artifactUrl(runId, source.screenshotPaths[0])}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                          >
+                            <EvidenceImage
+                              src={artifactUrl(runId, source.screenshotPaths[0])}
+                              alt={`${source.title ?? source.id} capture`}
+                            />
+                          </a>
+                        )}
+                        <p className="source-card__prov mono-meta">
+                          <span>{source.id}</span>
+                          <span>{source.capturedAt.slice(0, 10)}</span>
+                          {source.crawl && (
+                            <span>
+                              {source.crawl.provider} · {source.crawl.outcome}
+                            </span>
+                          )}
+                        </p>
+                        <ConfidenceTrack value={source.confidence} />
+                        {source.extractedArtifactPaths.length > 0 && (
+                          <p className="source-card__links mono-meta">
+                            {source.extractedArtifactPaths.map((extracted, index) => (
+                              <a key={extracted} href={artifactUrl(runId, extracted)}>
+                                extract {index + 1}
+                              </a>
+                            ))}
+                          </p>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+              {"competitors" in group && group.competitors.length > 0 && (
+                <>
+                  <p className="eyebrow">{"{ selected competitors }"}</p>
+                  <ul className="finding-list">
+                    {group.competitors.map((competitor) => {
+                      const href = safeExternalHref(competitor.url);
+                      return (
+                        <li key={competitor.url}>
+                          <strong>
+                            {href ? (
+                              <a href={href} target="_blank" rel="noreferrer">
+                                {competitor.name} ↗
+                              </a>
+                            ) : (
+                              competitor.name
+                            )}
+                          </strong>
+                          <span>{competitor.selectionRationale}</span>
+                          {competitor.strengths.length > 0 && (
+                            <span className="finding-list__aside">
+                              Strengths: {competitor.strengths.join("; ")}
+                            </span>
+                          )}
+                          {competitor.gaps.length > 0 && (
+                            <span className="finding-list__aside">
+                              Gaps: {competitor.gaps.join("; ")}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              )}
+              {"marketExpectations" in group && group.marketExpectations.length > 0 && (
+                <>
+                  <p className="eyebrow">{"{ market expectations }"}</p>
+                  <ul className="finding-list">
+                    {group.marketExpectations.map((expectation) => (
+                      <li key={expectation}>
+                        <span>{expectation}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {"differentiationOpportunities" in group &&
+                group.differentiationOpportunities.length > 0 && (
+                  <>
+                    <p className="eyebrow">{"{ differentiation }"}</p>
+                    <ul className="finding-list">
+                      {group.differentiationOpportunities.map((opportunity) => (
+                        <li key={opportunity}>
+                          <span>{opportunity}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              {"references" in group && group.references.length > 0 && (
+                <>
+                  <p className="eyebrow">{"{ references }"}</p>
+                  <ul className="finding-list">
+                    {group.references.map((reference) => (
+                      <li key={reference.referoId}>
+                        <strong>{reference.name}</strong>
+                        <span>{reference.learningRationale}</span>
+                        <span className="finding-list__aside">
+                          Reusable: {reference.reusablePatterns.join("; ")}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
             </section>
           ))}
           <section>
-            <h3>Client-provided evidence</h3>
+            <p className="eyebrow">{"{ client-provided evidence }"}</p>
             {artifact.artifact.clientEvidence.sources.length === 0 &&
               artifact.artifact.clientEvidence.claims.length === 0 &&
               artifact.artifact.clientEvidence.unsupportedUploadIds.length === 0 &&
               artifact.artifact.clientEvidence.artifactRelationships.length === 0 && (
-                <p>No client-provided evidence was attached to this run.</p>
+                <div className="state-card">
+                  <p className="state-card__label">empty</p>
+                  <p className="state-card__title">Nothing attached</p>
+                  <p className="state-card__body">
+                    No client-provided evidence was attached to this run.
+                  </p>
+                </div>
               )}
-            <ul>
-              {artifact.artifact.clientEvidence.claims.map((claim) => (
-                <li key={claim.id}><strong>{claim.classification}</strong> · {Math.round(claim.confidence * 100)}% — {claim.statement}</li>
-              ))}
-            </ul>
-            {artifact.artifact.clientEvidence.sources.map((source) => (
-              <p key={source.id}>{source.title ?? source.id} · {Math.round(source.confidence * 100)}% · {source.capturedAt}</p>
-            ))}
+            {artifact.artifact.clientEvidence.claims.length > 0 && (
+              <ul className="claim-list">
+                {artifact.artifact.clientEvidence.claims.map((claim) => (
+                  <li key={claim.id}>
+                    <span className="badge">{claim.classification}</span>
+                    <span className="claim-list__text">{claim.statement}</span>
+                    <ConfidenceTrack value={claim.confidence} />
+                  </li>
+                ))}
+              </ul>
+            )}
             {artifact.artifact.clientEvidence.unsupportedUploadIds.length > 0 && (
-              <p>Unsupported uploads (recorded, not silently parsed): {artifact.artifact.clientEvidence.unsupportedUploadIds.join(", ")}</p>
+              <p className="mono-meta">
+                Unsupported uploads (recorded, not silently parsed):{" "}
+                {artifact.artifact.clientEvidence.unsupportedUploadIds.join(", ")}
+              </p>
             )}
             {artifact.artifact.clientEvidence.artifactRelationships.map((relationship) => (
-              <p key={relationship.uploadId}>Client artifact {relationship.uploadId}: {relationship.status} · consumer {relationship.consumer ?? "none"} · SHA-256 {relationship.sha256 ?? "not supplied"} · source {relationship.sourceId ?? "unsupported"}</p>
+              <p key={relationship.uploadId} className="mono-meta">
+                Client artifact {relationship.uploadId} · {relationship.status} · consumer{" "}
+                {relationship.consumer ?? "none"} · sha {relationship.sha256?.slice(0, 12) ?? "none"}
+              </p>
             ))}
           </section>
         </div>
       );
     }
-    case "design-contract":
-      return <div className="evidence-readable"><h3>{artifact.artifact.title}</h3><p><a href={jsonHref}>Open versioned contract metadata JSON</a></p><p>Approved evidence: {artifact.artifact.approvedEvidenceIds.join(", ") || "none"}</p><ArtifactTextPreview runId={runId} artifactPath={artifact.artifact.contractPath} label="DESIGN.md" />{artifact.artifact.exportPaths.map((exportPath) => <ArtifactTextPreview key={exportPath} runId={runId} artifactPath={exportPath} label="Tailwind export" />)}</div>;
-    case "token-inventory":
-      return <div className="evidence-readable"><h3>Semantic token inventory</h3><p><a href={jsonHref}>Open versioned token inventory JSON</a></p><table><thead><tr><th>Token</th><th>Value</th><th>Use</th><th>Evidence</th></tr></thead><tbody>{artifact.artifact.tokens.map((token) => <tr key={token.semanticName}><td><code>{token.semanticName}</code></td><td>{token.value}</td><td>{token.usage}</td><td>{token.sourceEvidenceIds.join(", ") || "contract"}</td></tr>)}</tbody></table><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
+
+    case "design-contract": {
+      const colors = artifact.artifact.designTokens?.colors ?? [];
+      return (
+        <div className="evidence-readable">
+          <ViewerHead
+            title={artifact.artifact.title}
+            jsonLabel="contract metadata"
+            meta={
+              <>
+                <span>sha {artifact.artifact.contractSha256?.slice(0, 12) ?? "unrecorded"}</span>
+                {" · "}
+                <span>from ledger v{artifact.artifact.sourceLedgerVersion}</span>
+                {" · "}
+                <span>{(artifact.artifact.approvedEvidenceIds?.length ?? 0)} evidence ids</span>
+              </>
+            }
+            jsonHref={jsonHref}
+          />
+          {colors.length > 0 && (
+            <section>
+              <p className="eyebrow">{"{ palette }"}</p>
+              <PaletteGrid
+                entries={colors.map((color) => ({
+                  name: color.name,
+                  value: color.value,
+                  cssVar: color.cssVar,
+                  role: color.role,
+                  forbidden: color.forbidden,
+                }))}
+              />
+            </section>
+          )}
+          <ContractDocument
+            href={artifactUrl(runId, artifact.artifact.contractPath)}
+            label="DESIGN.md"
+          />
+          {artifact.artifact.exportPaths?.map((exportPath) => (
+            <section key={exportPath}>
+              <p className="eyebrow">{"{ tailwind export }"}</p>
+              <p className="mono-meta">
+                <a href={artifactUrl(runId, exportPath)}>{exportPath}</a> · sha{" "}
+                {artifact.artifact.exportSha256?.slice(0, 12) ?? "unrecorded"}
+              </p>
+              <ArtifactSource href={artifactUrl(runId, exportPath)} label="Tailwind export" />
+            </section>
+          ))}
+        </div>
+      );
+    }
+
+    case "token-inventory": {
+      const tokens = artifact.artifact.tokens;
+      const colors = tokens.filter((token) => token.category === "color");
+      const others = tokens.filter((token) => token.category !== "color");
+      const categories = [...new Set(others.map((token) => token.category))];
+      return (
+        <div className="evidence-readable">
+          <ViewerHead
+            jsonLabel="token inventory"
+            meta={`${tokens.length} tokens · ${colors.length} colours · from contract v${artifact.artifact.sourceContractVersion}`}
+            jsonHref={jsonHref}
+          />
+          {colors.length > 0 && (
+            <section>
+              <p className="eyebrow">{"{ palette }"}</p>
+              <PaletteGrid
+                entries={colors.map((token) => ({
+                  name: token.semanticName.replace(/^--(color-)?/, "").replace(/-/g, " "),
+                  value: token.value,
+                  cssVar: token.semanticName,
+                  role: token.usage.split("Never:")[0].trim(),
+                  forbidden: token.usage.split("Never:")[1]?.trim(),
+                  evidenceIds: token.sourceEvidenceIds,
+                }))}
+              />
+            </section>
+          )}
+          {categories.length > 0 && (
+            <TokenSpecList
+              groups={categories.map((category) => ({
+                category,
+                tokens: others
+                  .filter((token) => token.category === category)
+                  .map((token) => ({
+                    semanticName: token.semanticName,
+                    value: token.value,
+                    usage: token.usage,
+                    evidenceIds: token.sourceEvidenceIds,
+                  })),
+              }))}
+            />
+          )}
+        </div>
+      );
+    }
+
     case "tailwind-plan":
-      return <div className="evidence-readable"><h3>Tailwind v4 mapping</h3><p><a href={jsonHref}>Open versioned Tailwind plan JSON</a></p><ul>{artifact.artifact.themeMappings.map((mapping) => <li key={mapping.tailwindName}><code>{mapping.tailwindName}</code> → <code>{mapping.cssVariable}</code><br />{mapping.rationale}</li>)}</ul><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
+      return (
+        <div className="evidence-readable">
+          <ViewerHead
+            jsonLabel="Tailwind plan"
+            meta={`${artifact.artifact.themeMappings.length} mappings · from tokens v${artifact.artifact.sourceTokenInventoryVersion}`}
+            jsonHref={jsonHref}
+          />
+          <p className="eyebrow">{"{ @theme inline }"}</p>
+          <ThemeMappingTable
+            mappings={artifact.artifact.themeMappings}
+            swatchFor={palette}
+          />
+          {(artifact.artifact.runtimeOnlyVariables?.length ?? 0) > 0 && (
+            <section>
+              <p className="eyebrow">{"{ runtime only }"}</p>
+              <ul className="finding-list">
+                {artifact.artifact.runtimeOnlyVariables!.map((variable) => (
+                  <li key={variable.cssVariable}>
+                    <strong>
+                      <code>{variable.cssVariable}</code>
+                    </strong>
+                    <span>{variable.rationale}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {(artifact.artifact.componentVariants?.length ?? 0) > 0 && (
+            <section>
+              <p className="eyebrow">{"{ component variants }"}</p>
+              <p className="badge-row">
+                {artifact.artifact.componentVariants!.map((variant) => (
+                  <span className="badge" key={variant}>
+                    {variant}
+                  </span>
+                ))}
+              </p>
+            </section>
+          )}
+          {(artifact.artifact.responsiveRules?.length ?? 0) > 0 && (
+            <section>
+              <p className="eyebrow">{"{ responsive rules }"}</p>
+              <ul className="finding-list">
+                {artifact.artifact.responsiveRules!.map((rule) => (
+                  <li key={rule}>
+                    <span>{rule}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      );
+
     case "css-architecture":
-      return <div className="evidence-readable"><h3>CSS architecture</h3><p><a href={jsonHref}>Open versioned CSS architecture JSON</a></p><ol>{artifact.artifact.cssVariableHierarchy.map((layer) => <li key={layer}>{layer}</li>)}</ol><h4>Token to component usage</h4><ul>{Object.entries(artifact.artifact.tokenToComponentUsage).map(([token, uses]) => <li key={token}><code>{token}</code> — {uses.join("; ")}</li>)}</ul><ArtifactTextPreview runId={runId} artifactPath={ARTIFACTS.tailwindTheme} label="Generated Tailwind theme source (@theme mapping)" />{artifact.artifact.generatedCssPath ? <ArtifactTextPreview runId={runId} artifactPath={artifact.artifact.generatedCssPath} label="Compiled Tailwind utility output" /> : <p>Compiled utility output: pending until build.</p>}<p>Exceptions: {artifact.artifact.justifiedExceptions.join(", ") || "none"}</p><pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
+      return (
+        <div className="evidence-readable">
+          <ViewerHead
+            jsonLabel="CSS architecture"
+            meta={`${Object.keys(artifact.artifact.tokenToComponentUsage).length} tokens mapped · from tailwind v${artifact.artifact.sourceTailwindPlanVersion}`}
+            jsonHref={jsonHref}
+          />
+          <section>
+            <p className="eyebrow">{"{ cascade order }"}</p>
+            <VariableHierarchy layers={artifact.artifact.cssVariableHierarchy} />
+          </section>
+          <section>
+            <p className="eyebrow">{"{ token → component }"}</p>
+            <UsageMap usage={artifact.artifact.tokenToComponentUsage} swatchFor={palette} />
+          </section>
+          <section>
+            <p className="eyebrow">{"{ theme source }"}</p>
+            <ArtifactSource
+              href={artifactUrl(runId, ARTIFACTS.tailwindTheme)}
+              label="Generated Tailwind theme source (@theme mapping)"
+            />
+          </section>
+          <section>
+            <p className="eyebrow">{"{ compiled utilities }"}</p>
+            {artifact.artifact.generatedCssPath ? (
+              <ArtifactSource
+                href={artifactUrl(runId, artifact.artifact.generatedCssPath)}
+                label="Compiled Tailwind utility output"
+              />
+            ) : (
+              <div className="state-card">
+                <p className="state-card__label">pending</p>
+                <p className="state-card__title">Not compiled yet</p>
+                <p className="state-card__body">
+                  Compiled utility output is written by the build stage, after this gate.
+                </p>
+              </div>
+            )}
+          </section>
+          {(artifact.artifact.justifiedExceptions?.length ?? 0) > 0 && (
+            <section>
+              <p className="eyebrow">{"{ justified exceptions }"}</p>
+              <ul className="finding-list">
+                {artifact.artifact.justifiedExceptions!.map((exception) => (
+                  <li key={exception}>
+                    <span>{exception}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      );
+
     case "visual-qa":
-      return <div className="evidence-readable"><h3>Automated visual evidence</h3><p>These machine-generated checks and screenshots are separate from the human visual decision.</p><p><a href={jsonHref}>Open versioned visual QA JSON</a></p><ul>{artifact.artifact.checks.map((check) => <li key={check.area}><strong>{check.area}: {check.status}</strong> — {check.notes}{check.evidencePath && <figure><a href={artifactUrl(runId, check.evidencePath)}><EvidenceImage src={artifactUrl(runId, check.evidencePath)} alt={`${check.area} QA evidence`} /></a><figcaption>{check.evidencePath}</figcaption></figure>}</li>)}</ul>{artifact.approvalTransitions.filter((transition) => transition.humanVisualReview).map((transition) => { const review = transition.humanVisualReview!; return <section key={review.reviewedAt} aria-label={`Human visual review by ${review.reviewerName}`}><h4>Reviewed by {review.reviewerName}</h4><p>{review.reviewedAt} · build <code>{review.buildSha256.slice(0, 12)}</code></p><ul>{HUMAN_REVIEW_CRITERIA.map(({ key, label }) => { const criterion = review.criteria[key]; return <li key={key}><strong>{label}: {criterion.status}</strong>{criterion.findings ? ` — ${criterion.findings}` : ""}{key === "designAndReferenceAlignment" && "referenceContext" in criterion ? ` · ${criterion.referenceContext}` : ""}</li>; })}</ul></section>; })}<pre tabIndex={0}>{JSON.stringify(artifact.artifact, null, 2)}</pre></div>;
+      return (
+        <div className="evidence-readable">
+          <ViewerHead
+            jsonLabel="visual QA"
+            meta={`build ${artifact.artifact.buildSha256.slice(0, 12)} · from css v${artifact.artifact.sourceCssArchitectureVersion}`}
+            jsonHref={jsonHref}
+          />
+          <p className="viewer-note">
+            These machine-generated checks are separate from the human visual decision below.
+          </p>
+          <CheckTable
+            checks={artifact.artifact.checks.map((check) => ({
+              area: check.area,
+              status: check.status,
+              notes: check.notes ?? "",
+              evidencePath: check.evidencePath,
+            }))}
+            renderEvidence={(path, area) => (
+              <a
+                className="qa-thumb"
+                href={artifactUrl(runId, path)}
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                <EvidenceImage src={artifactUrl(runId, path)} alt={`${area} QA evidence`} />
+                <span className="qa-thumb__open">Open full size ↗</span>
+              </a>
+            )}
+          />
+          {artifact.approvalTransitions
+            .filter((transition) => transition.humanVisualReview)
+            .map((transition) => {
+              const review = transition.humanVisualReview!;
+              return (
+                <section key={review.reviewedAt} aria-label={`Human visual review by ${review.reviewerName}`}>
+                  <p className="eyebrow">{"{ human review }"}</p>
+                  <h4 className="review-byline">Reviewed by {review.reviewerName}</h4>
+                  <p className="mono-meta">
+                    {review.reviewedAt.slice(0, 16).replace("T", " ")} · build{" "}
+                    {review.buildSha256.slice(0, 12)}
+                  </p>
+                  <CheckTable
+                    checks={HUMAN_REVIEW_CRITERIA.map(({ key, label }) => {
+                      const criterion = review.criteria[key];
+                      return {
+                        area: label,
+                        status: criterion.status,
+                        notes:
+                          criterion.findings ||
+                          (key === "designAndReferenceAlignment" && "referenceContext" in criterion
+                            ? criterion.referenceContext
+                            : ""),
+                      };
+                    })}
+                    renderEvidence={() => null}
+                  />
+                </section>
+              );
+            })}
+        </div>
+      );
   }
 }
 
@@ -265,6 +805,35 @@ export function EvidenceWorkspace({
     run.evidenceWorkflow.currentStage
   );
   const nextStage = EVIDENCE_WORKFLOW_STAGES[currentIndex + 1];
+
+  // Which gate the panel is READING. Null means "follow the run", which is the
+  // reviewing case; picking an earlier gate off the rail opens that artifact
+  // read-only. Approving is never possible from here — the actions stay bound
+  // to the run's own current gate, so browsing the palette cannot advance the
+  // workflow by accident.
+  const [viewStage, setViewStage] = useState<EvidenceWorkflowStage | null>(null);
+  const shownStage = viewStage ?? run.evidenceWorkflow.currentStage;
+  const browsing = shownStage !== run.evidenceWorkflow.currentStage;
+  const shown = useMemo(() => latestArtifactForStage(run, shownStage), [run, shownStage]);
+  const shownApproval = shown ? workflowArtifactApprovalState(shown) : null;
+  const palette = useMemo(() => buildPaletteLookup(run), [run]);
+  const canApproveAndContinue = Boolean(
+    current &&
+      current.artifactType !== "visual-qa" &&
+      (approval === "draft" || approval === "in-review" || (approval === "approved" && nextStage))
+  );
+  // Visual QA drafts have no "approve" path — a human review decides that —
+  // but they still start life in draft and need a way into in-review, or the
+  // gate can be entered and never left (BLOCKER: draft has no exit control).
+  const canSubmitVisualQaDraft = Boolean(
+    current && current.artifactType === "visual-qa" && approval === "draft"
+  );
+  // A revision-requested artifact's only forward move is a new version; give
+  // it the same pinned header spot the other gates get instead of leaving the
+  // header actionless while the save control waits at the panel's bottom.
+  const canSaveRevisionFromHeader = Boolean(
+    current && current.artifactType !== "visual-qa" && approval === "revision-requested"
+  );
   const humanReviewReady =
     reviewerName.trim().length > 0 &&
     humanAttestation &&
@@ -291,6 +860,63 @@ export function EvidenceWorkspace({
       const updatedCurrent = latestCurrentArtifact(updated);
       setDraftText(updatedCurrent ? JSON.stringify(updatedCurrent.artifact, null, 2) : "");
       setNote("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Evidence action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The workspace's one action per gate: chains the existing submit → approve
+   * → advance API calls client-side, then kicks the pipeline so the next
+   * gate's draft materializes without the reviewer leaving the workspace. */
+  async function approveAndContinue() {
+    if (!current || current.artifactType === "visual-qa") return;
+    setBusy(true);
+    setError(null);
+    try {
+      let workflow = run.evidenceWorkflow;
+      const step = async (body: Record<string, unknown>) => {
+        const response = await fetch(`/api/evidence/${run.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const result = (await response.json()) as { error?: string; workflow?: RunState["evidenceWorkflow"] };
+        if (!response.ok || !result.workflow) throw new Error(result.error ?? "Evidence action failed");
+        workflow = result.workflow;
+      };
+
+      if (approval === "draft") await step({ action: "submit", note });
+      if (approval === "draft" || approval === "in-review") await step({ action: "approve", note });
+
+      const stageIndex = EVIDENCE_WORKFLOW_STAGES.indexOf(workflow.currentStage);
+      const next = EVIDENCE_WORKFLOW_STAGES[stageIndex + 1];
+      if (next) await step({ action: "advance", nextStage: next });
+
+      setRun({ ...run, evidenceWorkflow: workflow });
+      setNote("");
+
+      // Materialize the newly-advanced gate's draft without leaving the
+      // workspace: kick the pipeline, read its stream to the terminal event
+      // (mirrors ReferenceSelectionPanel's resume flow), then re-fetch the
+      // workflow so the fresh artifact appears without a page navigation.
+      const resumeResponse = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ runId: run.id }),
+      });
+      if (resumeResponse.ok) {
+        await consumePipelineRunStream(resumeResponse, () => {});
+      }
+      const refreshed = await fetch(`/api/evidence/${run.id}`, { cache: "no-store" });
+      const refreshedResult = (await refreshed.json()) as { workflow?: RunState["evidenceWorkflow"] };
+      if (refreshed.ok && refreshedResult.workflow) {
+        const updatedRun = { ...run, evidenceWorkflow: refreshedResult.workflow };
+        setRun(updatedRun);
+        const updatedCurrent = latestCurrentArtifact(updatedRun);
+        setDraftText(updatedCurrent ? JSON.stringify(updatedCurrent.artifact, null, 2) : "");
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Evidence action failed");
     } finally {
@@ -355,142 +981,229 @@ export function EvidenceWorkspace({
 
   return (
     <main className="evidence-workspace">
-      <header className="evidence-workspace__header">
-        <div>
-          <p className="eyebrow">{"{ evidence workspace }"}</p>
-          <h1>Review before build</h1>
-          <p>Run {run.id}. Every stage is versioned and must be approved in order.</p>
-        </div>
-        <a className="pill-button" href={`/api/evidence/${run.id}/export`}>
+      <div className="evidence-workspace__marker mono-meta">
+        <span>ONE-BOX · {run.id} · gate {currentIndex + 1}/{EVIDENCE_WORKFLOW_STAGES.length}</span>
+        <a className="btn-ghost btn-mini" href={`/api/evidence/${run.id}/export`}>
           Export ledger
         </a>
-      </header>
+      </div>
 
-      <ol className="evidence-steps" aria-label="Evidence workflow stages">
-        {EVIDENCE_WORKFLOW_STAGES.map((stage, index) => (
-          <li
-            key={stage}
-            aria-current={stage === run.evidenceWorkflow.currentStage ? "step" : undefined}
-            data-state={index < currentIndex ? "complete" : index === currentIndex ? "current" : "future"}
-          >
-            <span>{index + 1}</span>
-            {stage}
-          </li>
-        ))}
-      </ol>
+      <header className="evidence-workspace__header">
+        <p className="eyebrow">{"{ evidence workspace }"}</p>
+        <h1>Review before build</h1>
+        <p className="evidence-workspace__sub">Run {run.id}. Every stage is versioned and must be approved in order.</p>
+      </header>
 
       {run.referenceSelection?.status === "pending" && (
         <ReferenceSelectionPanel runId={run.id} initial={run.referenceSelection} />
       )}
 
-      <section className="evidence-review" aria-live="polite">
-        <div className="evidence-review__title">
-          <div>
-            <p className="eyebrow">{run.evidenceWorkflow.currentStage}</p>
-            <h2>{current?.artifactType ?? "Draft not generated"}</h2>
-          </div>
-          {current && <span className="evidence-status">v{current.version} · {approval}</span>}
-        </div>
+      <div className="evidence-grid">
+        <nav className="gate-rail card-surface" aria-label="Evidence workflow stages">
+          <ol>
+            {EVIDENCE_WORKFLOW_STAGES.map((stage, index) => {
+              const state = index < currentIndex ? "complete" : index === currentIndex ? "current" : "future";
+              const version = stageVersion(run, stage);
+              // A gate with a recorded artifact is readable, whether or not it
+              // is the run's current one — this is how the palette, the
+              // Tailwind theme and the CSS architecture get opened at all.
+              const readable = Boolean(latestArtifactForStage(run, stage));
+              const label = (
+                <>
+                  <span className="gate-rail__dot" aria-hidden="true">
+                    {state === "complete" ? "✓" : null}
+                  </span>
+                  <span className="gate-rail__label">{GATE_LABELS[stage]}</span>
+                  <span
+                    className="gate-rail__meta mono-meta"
+                    data-approval={state === "current" ? approval ?? undefined : undefined}
+                  >
+                    {gateRailMeta(state === "current", approval, version)}
+                  </span>
+                </>
+              );
+              return (
+                <li
+                  key={stage}
+                  className="gate-rail__item"
+                  data-state={state}
+                  data-viewing={stage === shownStage ? "" : undefined}
+                  aria-current={stage === run.evidenceWorkflow.currentStage ? "step" : undefined}
+                >
+                  {readable ? (
+                    <button
+                      type="button"
+                      className="gate-rail__open"
+                      aria-pressed={stage === shownStage}
+                      onClick={() =>
+                        setViewStage(stage === run.evidenceWorkflow.currentStage ? null : stage)
+                      }
+                    >
+                      {label}
+                    </button>
+                  ) : (
+                    <span className="gate-rail__open gate-rail__open--static">{label}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
 
-        {current ? (
-          <>
-            <ArtifactPreview artifact={current} runId={run.id} />
-            {approval === "revision-requested" && current.artifactType !== "visual-qa" && (
-              <textarea
-                aria-label="Edit current artifact JSON"
-                value={draftText}
-                onChange={(event) => setDraftText(event.target.value)}
-                spellCheck={false}
-              />
+        <section className="artifact-panel card-surface" aria-live="polite">
+          <div className="artifact-panel__head">
+            <div>
+              <h2>{shown ? ARTIFACT_TITLES[shown.artifactType] : "Draft not generated"}</h2>
+              {shown && (
+                <p className="artifact-panel__prov mono-meta">
+                  {shownStage} · v{shown.version} · {shownApproval}
+                </p>
+              )}
+            </div>
+            {/* Approving is bound to the run's own gate, never to whatever the
+                reader happens to be looking at. */}
+            {browsing && (
+              <div className="artifact-panel__actions">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setViewStage(null)}
+                >
+                  Back to {GATE_LABELS[run.evidenceWorkflow.currentStage]}
+                </button>
+              </div>
             )}
-          </>
-        ) : (
-          <p>Advance or resume the run to generate this stage’s deterministic draft.</p>
-        )}
+            {!browsing && canApproveAndContinue && (
+              <div className="artifact-panel__actions">
+                <button className="btn-primary" disabled={busy} onClick={() => void approveAndContinue()}>
+                  Approve &amp; continue
+                </button>
+                <button className="btn-coral" disabled={busy || !note.trim()} onClick={() => void action({ action: "request-revision", note })}>
+                  Request changes
+                </button>
+              </div>
+            )}
+            {!browsing && canSubmitVisualQaDraft && (
+              <div className="artifact-panel__actions">
+                <button className="btn-primary" disabled={busy} onClick={() => void action({ action: "submit", note })}>
+                  Submit for review
+                </button>
+              </div>
+            )}
+            {!browsing && canSaveRevisionFromHeader && (
+              <div className="artifact-panel__actions">
+                <button className="btn-primary" disabled={busy} onClick={() => void saveVersion()}>
+                  Save new version
+                </button>
+              </div>
+            )}
+          </div>
 
-        {/* Every action that reads the note is gated on an artifact, so a
-            stage with no draft must not show the field at all. */}
-        {current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
-          Review note
-          <textarea value={note} onChange={(event) => setNote(event.target.value)} />
-        </label>}
-        {approval === "in-review" && current?.artifactType === "visual-qa" && (
-          <section className="evidence-readable" aria-labelledby="human-visual-review-title">
-            <h3 id="human-visual-review-title">Human visual review</h3>
-            <p>Only a person can submit this decision. Gemini and other model audits stay advisory and cannot fill this review.</p>
-            <label className="evidence-note">
-              Reviewer name
-              <input value={reviewerName} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, reviewerName: event.target.value })} autoComplete="name" />
-            </label>
-            {HUMAN_REVIEW_CRITERIA.map(({ key, label, description }) => (
-              <fieldset key={key}>
-                <legend>{label}</legend>
-                <p>{description}</p>
-                <label><input type="radio" name={`human-review-${key}`} checked={humanCriteria[key].status === "pass"} onChange={() => updateHumanCriterion(key, { status: "pass" })} /> Pass</label>
-                <label><input type="radio" name={`human-review-${key}`} checked={humanCriteria[key].status === "fail"} onChange={() => updateHumanCriterion(key, { status: "fail" })} /> Needs revision</label>
-                {key === "designAndReferenceAlignment" && (
-                  <label>Reference basis
-                    <select value={referenceContext} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, referenceContext: event.target.value as HumanReviewReferenceContext })}>
-                      <option value="">Choose reference basis…</option>
-                      {requiredReferenceContext === "design-and-references" ? (
-                        <option value="design-and-references">DESIGN.md and selected references</option>
-                      ) : (
-                        <option value="explicit-no-reference">No external reference was selected</option>
-                      )}
-                    </select>
-                  </label>
-                )}
-                <label>Findings {humanCriteria[key].status === "fail" ? "(required)" : "(optional)"}
-                  <textarea value={humanCriteria[key].findings} onChange={(event) => updateHumanCriterion(key, { findings: event.target.value })} />
-                </label>
-              </fieldset>
-            ))}
-            <label><input type="checkbox" checked={humanAttestation} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, humanAttestation: event.target.checked })} /> I attest that I am the human reviewer</label>
-          </section>
-        )}
-        {error && <p className="chat-error">{error}</p>}
+          {browsing && (
+            <p className="artifact-panel__browsing mono-meta" role="status">
+              Reading an approved gate. The run is waiting at{" "}
+              {GATE_LABELS[run.evidenceWorkflow.currentStage]}.
+            </p>
+          )}
 
-        <div className="evidence-actions">
-          {current?.artifactType === "visual-qa" && approval !== "approved" && (
-            <Link className="pill-button" href={`/preview/${run.id}`}>
-              Open build preview
-            </Link>
+          {!browsing && run.evidenceWorkflow.currentStage === "build" && (
+            <p className="artifact-panel__recap mono-meta">Prior approvals: {priorApprovalsRecap(run)}</p>
           )}
-          {!current && (
-            <Link className="pill-button" href={`/?run=${run.id}`}>
-              Resume generation
-            </Link>
-          )}
-          {approval === "draft" && (
+
+          {shown ? (
             <>
-              <button disabled={busy} onClick={() => void action({ action: "submit", note })}>Submit for review</button>
-              <button disabled={busy || !note.trim()} onClick={() => void action({ action: "request-revision", note })}>Request revision</button>
+              <ArtifactPreview artifact={shown} runId={run.id} palette={palette} />
+              {!browsing && approval === "revision-requested" && current?.artifactType !== "visual-qa" && (
+                <textarea
+                  className="evidence-draft-editor"
+                  aria-label="Edit current artifact JSON"
+                  value={draftText}
+                  onChange={(event) => setDraftText(event.target.value)}
+                  spellCheck={false}
+                />
+              )}
             </>
+          ) : (
+            <div className="artifact-panel__empty">
+              <div className="state-card" role="status">
+                <span className="state-card__label">pending</span>
+                <p className="state-card__title">Draft not generated</p>
+                <p className="state-card__body">
+                  This panel fills with the {ARTIFACT_TITLES[EVIDENCE_STAGE_ARTIFACT[run.evidenceWorkflow.currentStage]]} once its
+                  draft is ready. Every run moves through six gates in order:{" "}
+                  {EVIDENCE_WORKFLOW_STAGES.map((stage) => GATE_LABELS[stage]).join(", ")}.
+                </p>
+              </div>
+            </div>
           )}
-          {approval === "in-review" && (
-            current?.artifactType === "visual-qa" ? (
-              <button disabled={busy || !humanReviewReady} onClick={submitHumanReview}>Submit human visual review</button>
-            ) : <>
-                <button disabled={busy} onClick={() => void action({ action: "approve", note })}>Approve</button>
-                <button disabled={busy || !note.trim()} onClick={() => void action({ action: "request-revision", note })}>Request revision</button>
-              </>
+
+          {/* Every action that reads the note is gated on an artifact, so a
+              stage with no draft must not show the field at all. */}
+          {current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
+            Review note
+            <textarea value={note} onChange={(event) => setNote(event.target.value)} />
+          </label>}
+          {approval === "in-review" && current?.artifactType === "visual-qa" && (
+            <section className="evidence-readable" aria-labelledby="human-visual-review-title">
+              <h3 id="human-visual-review-title">Human visual review</h3>
+              <p>Only a person can submit this decision. Gemini and other model audits stay advisory and cannot fill this review.</p>
+              <label className="evidence-note">
+                Reviewer name
+                <input value={reviewerName} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, reviewerName: event.target.value })} autoComplete="name" />
+              </label>
+              {HUMAN_REVIEW_CRITERIA.map(({ key, label, description }) => (
+                <fieldset key={key}>
+                  <legend>{label}</legend>
+                  <p>{description}</p>
+                  <label><input type="radio" name={`human-review-${key}`} checked={humanCriteria[key].status === "pass"} onChange={() => updateHumanCriterion(key, { status: "pass" })} /> Pass</label>
+                  <label><input type="radio" name={`human-review-${key}`} checked={humanCriteria[key].status === "fail"} onChange={() => updateHumanCriterion(key, { status: "fail" })} /> Needs revision</label>
+                  {key === "designAndReferenceAlignment" && (
+                    <label>Reference basis
+                      <select value={referenceContext} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, referenceContext: event.target.value as HumanReviewReferenceContext })}>
+                        <option value="">Choose reference basis…</option>
+                        {requiredReferenceContext === "design-and-references" ? (
+                          <option value="design-and-references">DESIGN.md and selected references</option>
+                        ) : (
+                          <option value="explicit-no-reference">No external reference was selected</option>
+                        )}
+                      </select>
+                    </label>
+                  )}
+                  <label>Findings {humanCriteria[key].status === "fail" ? "(required)" : "(optional)"}
+                    <textarea value={humanCriteria[key].findings} onChange={(event) => updateHumanCriterion(key, { findings: event.target.value })} />
+                  </label>
+                </fieldset>
+              ))}
+              <label><input type="checkbox" checked={humanAttestation} onChange={(event) => setStoredHumanReviewDraft({ ...humanReviewDraft, humanAttestation: event.target.checked })} /> I attest that I am the human reviewer</label>
+            </section>
           )}
-          {approval === "revision-requested" && current?.artifactType !== "visual-qa" && (
-            <button disabled={busy} onClick={() => void saveVersion()}>Save new version</button>
-          )}
-          {approval === "revision-requested" && current?.artifactType === "visual-qa" && (
-            <button disabled={busy} onClick={() => void action({ action: "regenerate-visual-qa" })}>
-              Regenerate visual QA from current build
-            </button>
-          )}
-          {approval === "approved" && nextStage && (
-            <button disabled={busy} onClick={() => void action({ action: "advance", nextStage })}>Advance to {nextStage}</button>
-          )}
-          {approval === "approved" && !nextStage && (
-            <Link className="pill-button" href={`/preview/${run.id}`}>Open approved build</Link>
-          )}
-        </div>
-      </section>
+          {error && <p className="chat-error" role="alert">{error}</p>}
+
+          <div className="evidence-actions">
+            {current?.artifactType === "visual-qa" && approval !== "approved" && (
+              <Link className="btn-ghost" href={`/preview/${run.id}`}>
+                Open build preview
+              </Link>
+            )}
+            {!current && (
+              <Link className="btn-ghost" href={`/?run=${run.id}`}>
+                Resume generation
+              </Link>
+            )}
+            {approval === "in-review" && current?.artifactType === "visual-qa" && (
+              <button className="btn-primary" disabled={busy || !humanReviewReady} onClick={submitHumanReview}>Submit human visual review</button>
+            )}
+            {approval === "revision-requested" && current?.artifactType === "visual-qa" && (
+              <button className="btn-ghost" disabled={busy} onClick={() => void action({ action: "regenerate-visual-qa" })}>
+                Regenerate visual QA from current build
+              </button>
+            )}
+            {approval === "approved" && !nextStage && (
+              <Link className="btn-primary" href={`/preview/${run.id}`}>Open approved build</Link>
+            )}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }

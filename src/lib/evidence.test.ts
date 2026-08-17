@@ -328,7 +328,12 @@ describe("evidence artifact derivation", () => {
     } finally {
       await browser.close();
     }
-  });
+    // This case launches a real browser AND compiles Tailwind, so it lands near
+    // 5s on an idle machine and tips past vitest's 5s default under parallel
+    // load — it failed at 5006ms in one full-suite run while passing 14/14 three
+    // times in isolation. The timeout is the harness, not the assertion; the
+    // assertions above are unchanged.
+  }, 30_000);
 
   it("renders a machine-readable design.md contract in canonical section order", () => {
     const markdown = renderDesignContract(intake, tokens, lock);

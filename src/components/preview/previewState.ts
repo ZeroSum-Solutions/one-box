@@ -9,7 +9,7 @@ export type EditorInteractionState =
   | "unsupported";
 
 export type SelectionBehavior =
-  "text" | "interactive" | "safe-overlay" | "unsupported";
+  "text" | "interactive" | "safe-overlay" | "unsupported" | "container";
 
 export interface PreviewSelection {
   editId: string;
@@ -19,6 +19,17 @@ export interface PreviewSelection {
   assetKind?: "image";
   href?: string;
   originalText?: string;
+  /** Ancestor editIds, closest first (overlay.js selectionFor()). Powers the
+   * breadcrumb strip (canvas-upgrade A3, Play 9) — every entry is itself a
+   * selectable element, never a bare tag name. */
+  parentChain?: string[];
+  /** Whether a Move earlier/later action has a real target in that
+   * direction — mirrors elementEditor.ts's own refusal rules (canvas-upgrade
+   * Wave 5, Play 7), so ElementControls can disable a control that is
+   * guaranteed to fail instead of letting the click round-trip to the
+   * server to learn that. Absent only from a hand-built fixture (tests);
+   * every real overlay.js selection sets it. */
+  moveTargets?: { earlier: boolean; later: boolean };
   typography?: {
     fontFamily?: "inherit" | "display" | "body";
     fontSize?:
@@ -47,6 +58,10 @@ export interface EditorStateMessage {
   state: EditorInteractionState;
   selection: PreviewSelection | null;
   reason?: string;
+  /** True while overlay.js holds a pending Select-Parent Escalation climb it
+   * can still unwind (canvas-upgrade A3, Play 3) — drives the workbench's
+   * "Back" control. */
+  canStepBack?: boolean;
 }
 
 export interface PersistedWorkbenchState {
@@ -61,12 +76,30 @@ export interface PersistedWorkbenchState {
 const DEFAULT_PANEL_WIDTH = 360;
 const DIVIDER_LAYOUT_WIDTH = 1;
 const MAX_PANEL_WIDTH = 960;
+// Below this workspace width the preview and workbench can no longer share
+// width without starving the generated site (see panelWidthBounds); the
+// workbench renders as an overlay sheet instead (workbench.css) and starts
+// collapsed (applyCompactDefault).
+const COMPACT_WORKSPACE_THRESHOLD = 880;
+const COMPACT_OVERLAY_MIN = 240;
+const COMPACT_OVERLAY_MAX = 400;
+const COMPACT_OVERLAY_MARGIN = 32;
 const PREVIEW_SNAP_WIDTHS: Record<PreviewBreakpoint, number> = {
   mobile: 390,
   // Keep the named tablet width inside the existing <768 tablet boundary.
   tablet: 767,
   desktop: 1280,
 };
+// .preview-viewport pads the framed site on both sides (2 x --spacing-16,
+// workbench.css) and .preview-frame itself carries a 1px border on both
+// sides. Neither is visible to the generated site: only the space left
+// over after both is what the iframe actually renders as window.innerWidth.
+// panelWidthForBreakpoint must reserve this chrome on top of the named
+// preset width, or the leftover .preview-viewport space equals the preset
+// while the iframe itself renders preset-minus-chrome.
+const PREVIEW_FRAME_PADDING = 16; // --spacing-16, one side
+const PREVIEW_FRAME_BORDER = 1; // .preview-frame border-width, one side
+const PREVIEW_FRAME_CHROME = 2 * (PREVIEW_FRAME_PADDING + PREVIEW_FRAME_BORDER);
 
 export const DEFAULT_WORKBENCH_STATE: PersistedWorkbenchState = {
   mode: "edit",
@@ -134,6 +167,24 @@ function isSelection(value: unknown): value is PreviewSelection {
       (value.buttonAction.target === undefined ||
         (typeof value.buttonAction.target === "string" &&
           value.buttonAction.target.length <= 100)));
+  // Own shape validation, not a shared one -- the length cap exists so an
+  // untrusted iframe payload cannot force the workbench to render (or this
+  // guard to iterate) an unbounded ancestor trail.
+  const parentChainValid =
+    value.parentChain === undefined ||
+    (Array.isArray(value.parentChain) &&
+      value.parentChain.length <= 20 &&
+      value.parentChain.every(
+        (entry) =>
+          typeof entry === "string" &&
+          /^[a-z0-9][a-z0-9._-]{1,79}$/i.test(entry),
+      ));
+  const moveTargetsValid =
+    value.moveTargets === undefined ||
+    (isRecord(value.moveTargets) &&
+      hasOnlyKeys(value.moveTargets, ["earlier", "later"]) &&
+      typeof value.moveTargets.earlier === "boolean" &&
+      typeof value.moveTargets.later === "boolean");
   return (
     hasOnlyKeys(value, [
       "editId",
@@ -145,6 +196,8 @@ function isSelection(value: unknown): value is PreviewSelection {
       "originalText",
       "typography",
       "buttonAction",
+      "parentChain",
+      "moveTargets",
     ]) &&
     typeof value.editId === "string" &&
     /^[a-z0-9][a-z0-9._-]{1,79}$/i.test(value.editId) &&
@@ -152,7 +205,7 @@ function isSelection(value: unknown): value is PreviewSelection {
     /^[a-z][a-z0-9-]{0,31}$/.test(value.tag) &&
     typeof value.text === "string" &&
     value.text.length <= 4000 &&
-    ["text", "interactive", "safe-overlay", "unsupported"].includes(
+    ["text", "interactive", "safe-overlay", "unsupported", "container"].includes(
       String(value.behavior),
     ) &&
     (value.assetKind === undefined || value.assetKind === "image") &&
@@ -162,7 +215,9 @@ function isSelection(value: unknown): value is PreviewSelection {
       (typeof value.originalText === "string" &&
         value.originalText.length <= 4000)) &&
     typographyValid &&
-    actionValid
+    actionValid &&
+    parentChainValid &&
+    moveTargetsValid
   );
 }
 
@@ -173,7 +228,16 @@ export function readEditorStateMessage(
   if (!isRecord(data)) return null;
 
   if (data.type !== "onebox-editor-state") return null;
-  if (!hasOnlyKeys(data, ["type", "state", "selection", "reason"])) return null;
+  if (
+    !hasOnlyKeys(data, [
+      "type",
+      "state",
+      "selection",
+      "reason",
+      "canStepBack",
+    ])
+  )
+    return null;
   if (
     ![
       "idle",
@@ -191,6 +255,8 @@ export function readEditorStateMessage(
     data.reason !== undefined &&
     (typeof data.reason !== "string" || data.reason.length > 500)
   )
+    return null;
+  if (data.canStepBack !== undefined && typeof data.canStepBack !== "boolean")
     return null;
 
   return data as unknown as EditorStateMessage;
@@ -215,10 +281,28 @@ export function clampPanelWidth(width: number, workspaceWidth: number): number {
   return Math.round(Math.min(Math.max(width, min), max));
 }
 
+/** Below the compact threshold the workbench is an overlay sheet floating on
+ * top of the (always full-width) preview, not a panel sharing space with it —
+ * see the `@media (max-width: 879px)` block in workbench.css. */
+export function isCompactWorkspace(workspaceWidth: number): boolean {
+  return workspaceWidth < COMPACT_WORKSPACE_THRESHOLD;
+}
+
 export function panelWidthBounds(workspaceWidth: number): {
   min: number;
   max: number;
 } {
+  if (isCompactWorkspace(workspaceWidth)) {
+    // An overlay's width is bounded by the viewport itself, not by how much
+    // room the preview needs to keep — the old formula floored at 220px
+    // regardless of viewport, which read as "more than half the screen" on
+    // a phone-sized workspace once the panel shared space with the preview.
+    const max = Math.max(
+      COMPACT_OVERLAY_MIN,
+      Math.min(COMPACT_OVERLAY_MAX, workspaceWidth - COMPACT_OVERLAY_MARGIN),
+    );
+    return { min: Math.min(COMPACT_OVERLAY_MIN, max), max };
+  }
   const min = Math.min(300, Math.max(220, workspaceWidth - 260));
   const max = Math.max(
     min,
@@ -233,8 +317,15 @@ export function panelWidthForBreakpoint(
 ): number {
   const { min } = panelWidthBounds(workspaceWidth);
   if (breakpoint === "desktop") return min;
+  // Reserve the frame chrome (padding + border) on top of the named preset
+  // so the .preview-viewport space left over, once that chrome is
+  // subtracted again inside the CSS box model, is exactly the preset width
+  // -- what previewWidthForBreakpoint promises the generated site.
   return clampPanelWidth(
-    workspaceWidth - DIVIDER_LAYOUT_WIDTH - PREVIEW_SNAP_WIDTHS[breakpoint],
+    workspaceWidth -
+      DIVIDER_LAYOUT_WIDTH -
+      PREVIEW_SNAP_WIDTHS[breakpoint] -
+      PREVIEW_FRAME_CHROME,
     workspaceWidth,
   );
 }
@@ -346,6 +437,25 @@ export function persistWorkbenchState(
   }
 }
 
+/** A run restored on a compact workspace opens with the rail collapsed so the
+ * preview keeps the full viewport — the workbench overlay is on-demand, not
+ * persistent, below the compact threshold. Applied once at restore, not on
+ * every resize, so a panel the user opened mid-session doesn't snap shut
+ * under them on a minor viewport reflow. */
+export function applyCompactDefault(
+  state: PersistedWorkbenchState,
+  workspaceWidth: number,
+): PersistedWorkbenchState {
+  if (!isCompactWorkspace(workspaceWidth) || state.size === "collapsed") {
+    return state;
+  }
+  return {
+    ...state,
+    size: "collapsed",
+    lastOpenSize: state.size === "expanded" ? "expanded" : "normal",
+  };
+}
+
 export function isWorkbenchStateRestoredForRun(
   restoredRunId: string | null,
   currentRunId: string,
@@ -359,4 +469,22 @@ export function isRunBoundRequestCurrent(
   activeRunId: string,
 ): boolean {
   return requestRunId === activeRunId;
+}
+
+/**
+ * The persistent composer (canvas-upgrade Wave 3, Play 2) keeps one
+ * instruction draft alive across tool switches so a half-typed prompt
+ * survives navigating the panel. But that same persistence becomes a
+ * silent-mistarget hazard the moment the SELECTION moves out from under an
+ * unsent draft: text written with element A in mind must not go on to
+ * describe a change for element B just because the user clicked B before
+ * sending. Compare editIds, not selection object identity or contents --
+ * the same element re-selected (or a text/metadata update on the same
+ * element) must not nuke a draft the user is still typing.
+ */
+export function didComposerTargetChange(
+  previousEditId: string | null,
+  nextEditId: string | null,
+): boolean {
+  return previousEditId !== nextEditId;
 }

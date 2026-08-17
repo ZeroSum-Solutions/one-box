@@ -8,6 +8,7 @@ import {
   applyElementHtmlEdit,
   applyStructuredElementEdit,
   elementHistoryState,
+  elementTree,
   moveElementHistory,
 } from "./elementEditor";
 import { BlockingMutationError, type GateRunner } from "./siteMutation";
@@ -119,6 +120,83 @@ describe("structured element patch", () => {
     expect(moved.indexOf("a.two")).toBeLessThan(moved.indexOf("a.one"));
     expect(() =>
       applyElementPatchToHtml(source, "a.two", { move: "next" }),
+    ).toThrow(ElementEditError);
+  });
+
+  // canvas-upgrade Wave 5, Play 7. Sections live inside <main>; moving one
+  // must carry its whole subtree, and every nested data-edit-id inside it
+  // must still resolve afterwards -- not just the section's own id.
+  it("carries a section's entire subtree across a reorder, every nested edit id intact", () => {
+    const source =
+      '<html><body><header data-edit-id="nav"><a data-edit-id="nav.logo">Logo</a></header>' +
+      '<main>' +
+      '<section data-edit-id="hero"><h1 data-edit-id="hero.headline">Hi</h1></section>' +
+      '<section data-edit-id="services"><h2 data-edit-id="services.intro">Services</h2><p data-edit-id="services.card-1">Card</p></section>' +
+      '</main>' +
+      '<footer data-edit-id="footer"><p data-edit-id="footer.tagline">Tag</p></footer>' +
+      '</body></html>';
+    const moved = applyElementPatchToHtml(source, "hero", { move: "next" });
+    // hero now sits after services in document order...
+    expect(moved.indexOf('data-edit-id="services"')).toBeLessThan(
+      moved.indexOf('data-edit-id="hero"'),
+    );
+    // ...and every leaf that traveled with hero, and every leaf that stayed
+    // in services, is still present and still selectable by its own id.
+    expect(moved).toContain('data-edit-id="hero.headline"');
+    expect(moved).toContain('data-edit-id="services.intro"');
+    expect(moved).toContain('data-edit-id="services.card-1"');
+    // nav and footer, outside <main> entirely, are untouched by a move that
+    // only ever looks at siblings within main.
+    expect(moved).toContain('data-edit-id="nav.logo"');
+    expect(moved).toContain('data-edit-id="footer.tagline"');
+  });
+
+  // canvas-upgrade Wave 5, Play 7 (hazard). Fixed page chrome -- nav and
+  // footer, both direct children of <body> -- must refuse a reorder with a
+  // clear reason. nav's "previous" move is the sharp case: the skip-link
+  // immediately before it also carries data-edit-id, so without an explicit
+  // chrome guard the generic sibling check would have silently accepted it
+  // and swapped nav with the accessibility skip-link.
+  it("refuses to reorder fixed page chrome instead of silently swapping it with the skip-link", () => {
+    const source =
+      '<html><body>' +
+      '<a data-edit-id="skip-link" href="#main">Skip</a>' +
+      '<header data-edit-id="nav"><a data-edit-id="nav.logo">Logo</a></header>' +
+      '<main><section data-edit-id="hero"><h1 data-edit-id="hero.headline">Hi</h1></section></main>' +
+      '<footer data-edit-id="footer"><p data-edit-id="footer.tagline">Tag</p></footer>' +
+      '</body></html>';
+    expect(() =>
+      applyElementPatchToHtml(source, "nav", { move: "previous" }),
+    ).toThrow(/fixed page chrome/);
+    expect(() =>
+      applyElementPatchToHtml(source, "nav", { move: "next" }),
+    ).toThrow(/fixed page chrome/);
+    expect(() =>
+      applyElementPatchToHtml(source, "footer", { move: "previous" }),
+    ).toThrow(/fixed page chrome/);
+    expect(() =>
+      applyElementPatchToHtml(source, "footer", { move: "next" }),
+    ).toThrow(/fixed page chrome/);
+  });
+
+  // canvas-upgrade Wave 5, Play 7 (hazard). The hero is the first section in
+  // main and has no valid "earlier" target; the last section before footer
+  // has no valid "later" target. Both must refuse with a clear reason
+  // rather than a silent no-op.
+  it("refuses the first section moving earlier and the last section moving later", () => {
+    const source =
+      '<html><body>' +
+      '<main>' +
+      '<section data-edit-id="hero"><h1 data-edit-id="hero.headline">Hi</h1></section>' +
+      '<section data-edit-id="contact"><p data-edit-id="contact.cta">Call</p></section>' +
+      '</main>' +
+      '<footer data-edit-id="footer"><p data-edit-id="footer.tagline">Tag</p></footer>' +
+      '</body></html>';
+    expect(() =>
+      applyElementPatchToHtml(source, "hero", { move: "previous" }),
+    ).toThrow(ElementEditError);
+    expect(() =>
+      applyElementPatchToHtml(source, "contact", { move: "next" }),
     ).toThrow(ElementEditError);
   });
 
@@ -362,5 +440,25 @@ describe("element persistence history", () => {
       canUndo: false,
       canRedo: false,
     });
+  });
+});
+
+// canvas-upgrade Wave 5, Play 6. elementTree() is the Layers panel's data
+// source -- reads the same on-disk site elementHistoryState reads, through
+// assistant.ts's shared inventoryFromHtml() walker, never a second one.
+describe("elementTree", () => {
+  it("reads the live site's inventory with depth and parent ids, empty before a build", async () => {
+    const { sitesRoot, siteDir } = await fixture();
+    expect(await elementTree("test-run", { sitesRoot: path.join(sitesRoot, "no-such-run") })).toEqual([]);
+
+    const nested =
+      '<!doctype html><html><body><section data-edit-id="hero"><h1 data-edit-id="hero.headline">Hi</h1></section></body></html>';
+    await fs.writeFile(path.join(siteDir, "index.html"), nested);
+
+    const tree = await elementTree("test-run", { sitesRoot });
+    expect(tree).toEqual([
+      { editId: "hero", tag: "section", text: "Hi", depth: 0, parentEditId: null, container: true },
+      { editId: "hero.headline", tag: "h1", text: "Hi", depth: 1, parentEditId: "hero", container: false },
+    ]);
   });
 });

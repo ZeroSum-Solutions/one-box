@@ -4,6 +4,7 @@ import {
   ElementMutationRequestSchema,
   applyStructuredElementEdit,
   elementHistoryState,
+  elementTree,
   moveElementHistory,
 } from "../../../lib/elementEditor";
 import { BlockingMutationError } from "../../../lib/siteMutation";
@@ -20,7 +21,15 @@ export async function GET(request: Request) {
     if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) {
       return Response.json({ error: "bad runId" }, { status: 400 });
     }
-    return Response.json(await elementHistoryState(runId));
+    // tree powers the Layers/Navigator panel (canvas-upgrade Wave 5, Play 6);
+    // history powers UndoRedoRail. Both are cheap reads of the same run's
+    // site, fetched together on the one refreshToken-driven GET this route
+    // already served, rather than adding a second endpoint.
+    const [history, tree] = await Promise.all([
+      elementHistoryState(runId),
+      elementTree(runId),
+    ]);
+    return Response.json({ ...history, tree });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "history unavailable" }, { status: 500 });
   }

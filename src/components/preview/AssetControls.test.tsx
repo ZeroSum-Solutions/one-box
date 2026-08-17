@@ -80,4 +80,29 @@ describe("AssetControls", () => {
     expect(html).toContain("Project images");
     expect(html).not.toContain("Replace selected");
   });
+
+  it("keeps a section out of single-image swap authority even when it wraps an image", () => {
+    // overlay.js selectionFor() sets assetKind "image" whenever the selected
+    // element WRAPS an <img> descendant, container or not (canvas-upgrade
+    // Wave 4, Play 10) -- a section's own assetKind can read "image" this
+    // way without the section itself being one swappable image.
+    const sectionWrappingImage = {
+      ...imageSelection,
+      editId: "hero",
+      tag: "section",
+      behavior: "container" as const,
+    };
+    expect(classifyAssetTarget(sectionWrappingImage)).toMatchObject({
+      supported: false,
+    });
+
+    const html = renderToStaticMarkup(
+      <AssetControls
+        runId="run-1"
+        selection={sectionWrappingImage}
+        onMutationComplete={() => undefined}
+      />,
+    );
+    expect(html).not.toContain("Replace selected");
+  });
 });

@@ -234,6 +234,40 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(qa).toContain('alt="desktop QA evidence"');
   });
 
+  // BLOCKER: every visual-QA version is created in "draft" approval state,
+  // but the header's Approve & continue pair explicitly excludes visual-qa
+  // (a human review decides that, not a generic approve). Draft had no exit
+  // control at all — the gate could be entered and never left.
+  it("offers a way out of the visual-QA draft dead end", () => {
+    const qa = {
+      ...base,
+      artifactType: "visual-qa",
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "c".repeat(64),
+        checks: [{ area: "desktop", status: "pass", notes: "ok" }],
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "build", artifacts: [qa] },
+    } as unknown as RunState;
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    expect(html).toContain("Submit for review");
+    expect(html).not.toContain("Approve &amp; continue");
+    // The gate rail must mirror the panel's real approval state, not a
+    // hardcoded "in review" for whichever gate happens to be current.
+    expect(html).toContain('data-approval="draft"');
+    expect(html).not.toContain(">in review<");
+  });
+
   it("offers server regeneration instead of a forgeable visual-QA JSON editor", () => {
     const qa = {
       ...base,
