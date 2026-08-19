@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { compile } from "tailwindcss";
+import postcss from "postcss";
 import { chromium } from "playwright";
 import { buildSite } from "./builder";
 import { createRun, sitePaths } from "./runstate";
@@ -226,6 +227,58 @@ describe("evidence artifact derivation", () => {
       sourceId: "upload-claim-7",
     });
     expect(JSON.stringify(ledger.clientEvidence)).not.toContain("storagePath");
+  });
+
+  it("quotes a font family carrying an apostrophe so the theme CSS still parses", () => {
+    // Observed live on run PKcE4L_4j7Z1: the orchestrator picked "Suisse Int'l".
+    // Emitted raw, the apostrophe opens a CSS string that never closes and
+    // PostCSS kills the whole build with "Unterminated string: 'l;'".
+    const apostrophized = DesignTokensSchema.parse({
+      ...tokens,
+      fonts: [{ ...tokens.fonts[0], family: "Suisse Int'l" }],
+    });
+    const inventory = buildTokenInventory(apostrophized, 1, ["refero-1"]);
+    const plan = buildTailwindPlan(inventory, 1);
+    const css = renderTailwindThemeCss(inventory, plan);
+
+    expect(css).toContain(`--ds-font-sans: "Suisse Int'l";`);
+    expect(() => postcss.parse(css)).not.toThrow();
+  });
+
+  it("repoints a camelCase var reference in component-state CSS at the kebab-case token", () => {
+    // Observed live on runs PKcE4L_4j7Z1 and mPHVbkER-Qu8: the model writes
+    // var(--color-primaryContrast) into a component-state declaration while the
+    // defined variable is --color-primary-contrast. The reference resolves to
+    // nothing, the declaration is dropped, and token-drift fails the build.
+    const camelCased = DesignTokensSchema.parse({
+      ...tokens,
+      colors: [
+        ...tokens.colors,
+        {
+          name: "Surface alt",
+          value: "#24282c",
+          cssVar: "--color-surface-alt",
+          role: "Alternate surface",
+        },
+      ],
+      componentStates: [
+        {
+          component: "Primary Button",
+          states: {
+            default:
+              "background-color: var(--color-primary); color: var(--color-surfaceAlt); border: none;",
+          },
+        },
+      ],
+    });
+    const inventory = buildTokenInventory(camelCased, 1, ["refero-1"]);
+    const plan = buildTailwindPlan(inventory, 1);
+    const css = renderTailwindThemeCss(inventory, plan);
+
+    expect(css).toContain("var(--color-surface-alt)");
+    expect(css).not.toContain("var(--color-surfaceAlt)");
+    // An unknown variable must still read as drift, not be renamed into a real one.
+    expect(css).toContain("var(--color-primary)");
   });
 
   it("derives traceable token, Tailwind, CSS, and QA artifacts", () => {
