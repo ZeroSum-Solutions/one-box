@@ -332,8 +332,10 @@ async function renderTokensCss(tokens: DesignTokens): Promise<string> {
   const template = await readFile(path.join(TEMPLATE_DIR, "tokens.css.tpl"), "utf8");
   const lines: string[] = [];
 
+  const mutedText = deriveTextMutedFrom(tokens);
   for (const color of tokens.colors) {
-    lines.push(`  ${normalizeCssVarName(color.cssVar)}: ${color.value};`);
+    const name = normalizeCssVarName(color.cssVar);
+    lines.push(`  ${name}: ${name === "--color-text-muted" ? mutedText : color.value};`);
   }
   lines.push(`  --color-primary-text: ${derivePrimaryText(tokens)};`);
   const onAlt = deriveOnSurfaceAlt(tokens);
@@ -422,6 +424,71 @@ function deriveOnSurfaceAlt(tokens: DesignTokens): { strong: string; muted: stri
   // keep the muted tone only when it still clears AA on this surface
   const mutedOk = (contrastRatio(muted, alt) ?? 0) >= 4.5;
   return { strong, muted: mutedOk ? muted : strong };
+}
+
+/**
+ * The template paints --color-text-muted as body copy in eight places, every
+ * one of them on bg or surface (.hero__sub, .card__body, .point__body,
+ * .area-chip, .area-panel__note, .stat__label, .review__author, nav). Nothing
+ * checked that pairing, so a reference-derived tone could miss AA by a hair
+ * and only surface after the build: run PKcE4L_4j7Z1 shipped #895D2F on
+ * #EBE3D4 at 4.49:1 and lost the contrast gate by 0.01.
+ *
+ * Blend the tone toward the text color in small steps and take the first shade
+ * that clears AA against both surfaces, so the reference's hue survives rather
+ * than collapsing to flat text; fall back to the text color when the surface
+ * is too close for any blend to work. Same reconciliation derivePrimaryText
+ * does for primary-as-text, applied to the one text role it missed.
+ */
+export function deriveTextMuted(input: {
+  muted: string;
+  text: string;
+  bg: string;
+  surface: string;
+}): string {
+  const muted = parseHexChannels(input.muted);
+  const text = parseHexChannels(input.text);
+  if (!muted || !text) return input.muted;
+  const clearsAA = (candidate: string) =>
+    (contrastRatio(candidate, input.bg) ?? 0) >= 4.5 &&
+    (contrastRatio(candidate, input.surface) ?? 0) >= 4.5;
+  if (clearsAA(input.muted)) return input.muted;
+  const STEPS = 20;
+  for (let step = 1; step < STEPS; step++) {
+    const candidate = mixChannels(muted, text, step / STEPS);
+    if (clearsAA(candidate)) return candidate;
+  }
+  return input.text;
+}
+
+function deriveTextMutedFrom(tokens: DesignTokens): string {
+  const byVar = (v: string) => tokens.colors.find((c) => normalizeCssVarName(c.cssVar) === v)?.value;
+  const muted = byVar("--color-text-muted");
+  if (muted === undefined) return "";
+  const bg = byVar("--color-bg") ?? "#ffffff";
+  return deriveTextMuted({
+    muted,
+    text: byVar("--color-text") ?? "#111111",
+    bg,
+    surface: byVar("--color-surface") ?? bg,
+  });
+}
+
+function parseHexChannels(value: string): [number, number, number] | undefined {
+  const m = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return undefined;
+  const h = m[1].length === 3 ? m[1].split("").map((c) => c + c).join("") : m[1];
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+}
+
+function mixChannels(
+  from: readonly [number, number, number],
+  to: readonly [number, number, number],
+  amount: number
+): string {
+  return `#${from
+    .map((channel, i) => Math.round(channel + (to[i] - channel) * amount).toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 function contrastRatio(a: string, b: string): number | undefined {

@@ -84,6 +84,7 @@ import { generateImage } from "./tools/higgsfield";
 import { localLibraryCandidates, localLibraryRecord } from "./tools/locallib";
 import { buildSite } from "./builder";
 import { runGates } from "./gates";
+import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
   buildCssArchitecture,
   applyApprovedTokenInventory,
@@ -1044,17 +1045,49 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
       "css-architecture"
     );
     if (!approvedArchitecture) throw new Error("approved CSS architecture missing");
+    // tokens.css loads first and tailwind-theme.css re-declares every palette
+    // name after it, so a contrast correction applied while emitting tokens.css
+    // never reaches the page. Correct the inventory instead — both Tailwind
+    // sheets and tokens.json are generated from it.
+    const { inventory: contrastSafeInventory, corrected: mutedCorrection } =
+      enforceTemplateTextContrast(approvedInventory.artifact);
+    if (mutedCorrection) {
+      emit({
+        type: "card",
+        stage: "synthesized",
+        title: "Raised body text to WCAG AA",
+        body: `--color-text-muted ${mutedCorrection.from} missed 4.5:1 against the surfaces the template pairs it with; using ${mutedCorrection.to}.`,
+      });
+    }
     const themeCss = renderTailwindThemeCss(
-      approvedInventory.artifact,
+      contrastSafeInventory,
       approvedPlan.artifact
     );
     // Implementation artifacts are materialized only after evidence,
     // contract, tokens, Tailwind, and CSS architecture are approved.
-    const runtimeTokens = applyApprovedTokenInventory(
-      approvedDesignTokens,
-      approvedInventory.artifact,
-      approvedContract.artifact.approvedEvidenceIds
+    // The color-role gate judges the frozen template's fixed output against
+    // rules the model wrote without seeing it, so a ban on a role the template
+    // hard-codes fails every build and no repair can clear it. Drop those and
+    // say which — everything the template does not force still reaches the gate.
+    const { tokens: runtimeTokens, dropped: droppedRoleBans } = reconcileTemplateRoles(
+      applyApprovedTokenInventory(
+        approvedDesignTokens,
+        contrastSafeInventory,
+        approvedContract.artifact.approvedEvidenceIds
+      )
     );
+    if (droppedRoleBans.length) {
+      emit({
+        type: "card",
+        stage: "synthesized",
+        title: `Reconciled ${droppedRoleBans.length} role ${
+          droppedRoleBans.length === 1 ? "ban" : "bans"
+        } against the template`,
+        body: `The template paints these roles itself, so the contract cannot ban them: ${droppedRoleBans
+          .map((ban) => `${ban.cssVar} in ${ban.context}`)
+          .join(", ")}.`,
+      });
+    }
     await saveArtifact(runId, ARTIFACTS.tokens, runtimeTokens);
     await saveArtifact(runId, ARTIFACTS.tailwindTheme, themeCss, true);
     const synth = await stage(runId, "synthesized", emit, () =>
