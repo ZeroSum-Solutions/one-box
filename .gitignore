@@ -44,6 +44,9 @@ next-env.d.ts
 # generated runs
 /sites/
 
+# local QA evidence — screenshots are re-capturable from the gate harnesses
+/docs/screenshots/
+
 # private local intake staging; uploads are claimed into ignored run data
 /.one-box/
 
