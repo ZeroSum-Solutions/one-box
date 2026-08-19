@@ -1,0 +1,426 @@
+{
+  "$sourceRun": "ab-medspa-r",
+  "$note": "Brief B / reference 2 \u2014 same med spa, same copy, same tokens, a typographic reference. NO hero image at all: the headline carries the page on a narrow measure, treatments are a quiet single-column list, the image appears late as a full-bleed band, and proof is a two-up. Tests whether dropping the hero media entirely is expressible.",
+  "schemaVersion": "1",
+  "programId": "medspa-typographic",
+  "inputs": {
+    "designHash": "",
+    "copyHash": "",
+    "assetCatalogHash": ""
+  },
+  "page": {
+    "family": "typographic",
+    "measure": "narrow",
+    "density": "editorial",
+    "seam": "flush",
+    "nav": "minimal",
+    "footer": "thin"
+  },
+  "sections": [
+    {
+      "id": "nav",
+      "role": "nav",
+      "kernel": {
+        "kind": "stack",
+        "align": "center",
+        "gap": 0
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "nav.logo"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "inline",
+          "value": "center"
+        }
+      ]
+    },
+    {
+      "id": "hero",
+      "role": "hero",
+      "kernel": {
+        "kind": "stack",
+        "align": "center",
+        "gap": 3
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "eyebrow",
+          "copyRef": "nav.logo"
+        },
+        {
+          "name": "heading",
+          "copyRef": "hero.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "hero.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "hero.cta"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "eyebrow",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 3,
+          "to": 11
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "align",
+          "slot": "eyebrow",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "lede",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "narrow"
+        },
+        {
+          "type": "measure",
+          "slot": "lede",
+          "value": "normal"
+        }
+      ],
+      "artDirection": [
+        {
+          "type": "lineBreakHint",
+          "slot": "heading",
+          "afterWord": 2
+        }
+      ]
+    },
+    {
+      "id": "offer",
+      "role": "offer",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 2
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "services.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "services.card"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 2,
+          "to": 12
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 2,
+          "to": 12
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "narrow"
+        }
+      ]
+    },
+    {
+      "id": "showcase",
+      "role": "gallery",
+      "kernel": {
+        "kind": "stack",
+        "align": "center",
+        "gap": 1
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "media",
+          "assetRef": "assets/hero.jpg"
+        },
+        {
+          "name": "caption",
+          "copyRef": "hero.image-alt"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "media",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "span",
+          "slot": "caption",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "bleed",
+          "slot": "media",
+          "side": "both",
+          "step": 3
+        },
+        {
+          "type": "align",
+          "slot": "caption",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 50,
+          "y": 25
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 50,
+          "y": 40,
+          "at": "mobile"
+        }
+      ]
+    },
+    {
+      "id": "proof",
+      "role": "proof",
+      "kernel": {
+        "kind": "grid",
+        "columns": 2,
+        "gap": 2
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "items",
+          "collectionRef": "trust-bar.stat"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 3
+        }
+      ]
+    },
+    {
+      "id": "why",
+      "role": "story",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 2
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "why-us.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "why-us.point"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 2,
+          "to": 12
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 2,
+          "to": 12
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "narrow"
+        }
+      ]
+    },
+    {
+      "id": "contact",
+      "role": "contact",
+      "kernel": {
+        "kind": "stack",
+        "align": "center",
+        "gap": 2
+      },
+      "surface": "inverted",
+      "seam": "band",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "contact.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "contact.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "contact.cta"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 13,
+          "row": 1
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 3,
+          "to": 11,
+          "row": 2
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 1,
+          "to": 13,
+          "row": 3
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "lede",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "center"
+        }
+      ]
+    },
+    {
+      "id": "footer",
+      "role": "footer",
+      "kernel": {
+        "kind": "stack",
+        "align": "center",
+        "gap": 0
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "footer.business-name"
+        },
+        {
+          "name": "caption",
+          "copyRef": "footer.tagline"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "span",
+          "slot": "caption",
+          "from": 1,
+          "to": 13
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "inline",
+          "value": "center"
+        },
+        {
+          "type": "align",
+          "slot": "caption",
+          "axis": "inline",
+          "value": "center"
+        }
+      ]
+    }
+  ]
+}

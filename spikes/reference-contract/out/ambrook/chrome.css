@@ -1,0 +1,147 @@
+/**
+ * Shared chrome. Compiler-owned, identical for every site, and deliberately
+ * carries NO composition: no grid, no section geometry, no ratios, no spans.
+ *
+ * If layout ever leaks into this file the spike is invalid — the whole thesis
+ * is that composition comes from the per-site layout.css generated from the IR.
+ * Everything here is reset, typography binding, focus, and control affordance.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.55;
+}
+
+img {
+  display: block;
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+figure {
+  margin: 0;
+}
+
+/* A media figure fills the grid area the IR gave it, and the image fills the
+ * figure. Without this the image keeps its intrinsic box, `object-fit: cover`
+ * has nothing to cover, and every focalCrop constraint is silently inert. */
+.slot--media {
+  block-size: 100%;
+  overflow: hidden;
+}
+
+.slot--media img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--text-display);
+}
+
+h2 {
+  font-size: var(--text-heading);
+}
+
+h3 {
+  font-size: var(--text-heading-sm);
+}
+
+p {
+  margin: 0;
+}
+
+.slot--eyebrow {
+  font-size: var(--text-caption);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted, var(--color-text-muted));
+}
+
+.slot--lede {
+  font-size: var(--text-body-lg);
+  color: var(--ink-muted, var(--color-text-muted));
+  text-wrap: pretty;
+}
+
+.slot--proof {
+  font-size: var(--text-body-sm);
+  color: var(--ink-muted, var(--color-text-muted));
+}
+
+.slot--caption {
+  font-size: var(--text-caption);
+  color: var(--ink-muted, var(--color-text-muted));
+}
+
+.item h3 {
+  font-size: var(--text-heading-sm);
+  margin-block-end: var(--space-xs);
+}
+
+.item p {
+  color: var(--ink-muted, var(--color-text-muted));
+  font-size: var(--text-body-sm);
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  padding-inline: var(--space-md);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-family: var(--font-body);
+  font-size: var(--text-body-sm);
+  text-decoration: none;
+  transition: opacity var(--motion-duration-micro) var(--motion-ease);
+}
+
+.cta:hover {
+  opacity: 0.86;
+}
+
+:where(a, button):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}

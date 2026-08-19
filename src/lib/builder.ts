@@ -10,10 +10,11 @@
  * scripts/smoke/gates-smoke.mjs regardless of build order across waves.
  */
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile, copyFile, rename, stat } from "node:fs/promises";
+import { mkdir, readFile, writeFile, copyFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { compile } from "tailwindcss";
+import { collectDefinedCssVars, findUnresolvedCssVarRefs } from "./cssVars";
 
 const execFileAsync = promisify(execFile);
 import {
@@ -70,11 +71,16 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   const runId = assertSafeRunId(input.runId);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
   await assertBuildAuthorized(runRoot);
-  const siteDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
+  const publishDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
+  // Build into a staging directory and swap it in at the end (ENG-005).
+  // Writing into the live directory meant a rebuild dismantled the site that
+  // was being served, and a build that failed halfway left it that way.
+  const siteDir = `${publishDir}.building`;
+  await rm(siteDir, { recursive: true, force: true }); // discard a crashed build's leftovers
   await mkdir(path.join(siteDir, "assets"), { recursive: true });
 
-  // Stub first — a concurrent reader must see "building", never a
-  // half-written manifest. Flipped atomically to complete:true at the end.
+  // Stub first, so a crash between here and the swap leaves a staging
+  // directory that is unmistakably incomplete rather than plausible.
   await writeManifest(siteDir, SiteManifestSchema.parse({
     entry: "index.html",
     files: [],
@@ -180,8 +186,31 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     builtAt: new Date().toISOString(),
     complete: true,
   });
-  await writeManifest(siteDir, manifest); // atomic flip
+  await writeManifest(siteDir, manifest);
+  await publishBuild(siteDir, publishDir);
   return manifest;
+}
+
+/**
+ * Swaps the staged build over the live one.
+ *
+ * Two renames rather than one, because POSIX rename() refuses to replace a
+ * non-empty directory. The live copy is moved aside first and only deleted
+ * once the new one is in place; if the second rename fails, the old site is
+ * put back. A build that fails must leave the previous site serving — that is
+ * the entire reason the staging directory exists.
+ */
+export async function publishBuild(stagingDir: string, publishDir: string): Promise<void> {
+  const retired = `${publishDir}.retired-${process.pid}`;
+  const hadPrevious = await stat(publishDir).then(() => true).catch(() => false);
+  if (hadPrevious) await rename(publishDir, retired);
+  try {
+    await rename(stagingDir, publishDir);
+  } catch (error) {
+    if (hadPrevious) await rename(retired, publishDir).catch(() => {});
+    throw error;
+  }
+  if (hadPrevious) await rm(retired, { recursive: true, force: true });
 }
 
 export function decorateTargetMarkup(
@@ -277,12 +306,36 @@ function stripOneKind(html: string, kind: "SECTION" | "NAVLINK", enabled: Set<st
 
 // ---------- tokens.css ----------
 
+/**
+ * Finds var() references inside the emitted token declarations that no
+ * declaration defines.
+ *
+ * Most token values are literals, but borders and shadows are free-form model
+ * output and legitimately reference other tokens — `--border-subtle: 1px solid
+ * var(--color-border)`. When the referenced name is never emitted, the browser
+ * treats the WHOLE declaration as invalid at computed-value time: the property
+ * silently falls back to its initial value and the border simply disappears.
+ * Nothing else catches this — token-drift inspects colour and font only — so it
+ * ships looking fine (ENG-008: `var(--color-stone-grey)`, never defined).
+ *
+ * A reference carrying a fallback, `var(--x, 1px)`, still renders and is not
+ * reported. The check is deliberately confined to this sheet, which
+ * tokens.css.tpl documents as a self-contained flat value sheet; a token value
+ * reaching into another stylesheet is itself a contract break.
+ */
+export function findDanglingTokenRefs(declarations: string[]): string[] {
+  const sheet = declarations.join("\n");
+  return findUnresolvedCssVarRefs(sheet, collectDefinedCssVars(sheet));
+}
+
 async function renderTokensCss(tokens: DesignTokens): Promise<string> {
   const template = await readFile(path.join(TEMPLATE_DIR, "tokens.css.tpl"), "utf8");
   const lines: string[] = [];
 
+  const mutedText = deriveTextMutedFrom(tokens);
   for (const color of tokens.colors) {
-    lines.push(`  ${normalizeCssVarName(color.cssVar)}: ${color.value};`);
+    const name = normalizeCssVarName(color.cssVar);
+    lines.push(`  ${name}: ${name === "--color-text-muted" ? mutedText : color.value};`);
   }
   lines.push(`  --color-primary-text: ${derivePrimaryText(tokens)};`);
   const onAlt = deriveOnSurfaceAlt(tokens);
@@ -315,6 +368,15 @@ async function renderTokensCss(tokens: DesignTokens): Promise<string> {
   lines.push(`  --motion-ease: ${tokens.motion.easing};`);
   lines.push(`  --motion-duration-micro: ${tokens.motion.durationMs.micro}ms;`);
   lines.push(`  --motion-duration-reveal: ${tokens.motion.durationMs.reveal}ms;`);
+
+  const dangling = findDanglingTokenRefs(lines);
+  if (dangling.length) {
+    throw new Error(
+      `tokens.css references undefined custom ${
+        dangling.length === 1 ? "property" : "properties"
+      }: ${dangling.join(", ")}. Every declaration using one would be dropped by the browser.`
+    );
+  }
 
   return template.replace("{{tokenDeclarations}}", lines.join("\n"));
 }
@@ -362,6 +424,71 @@ function deriveOnSurfaceAlt(tokens: DesignTokens): { strong: string; muted: stri
   // keep the muted tone only when it still clears AA on this surface
   const mutedOk = (contrastRatio(muted, alt) ?? 0) >= 4.5;
   return { strong, muted: mutedOk ? muted : strong };
+}
+
+/**
+ * The template paints --color-text-muted as body copy in eight places, every
+ * one of them on bg or surface (.hero__sub, .card__body, .point__body,
+ * .area-chip, .area-panel__note, .stat__label, .review__author, nav). Nothing
+ * checked that pairing, so a reference-derived tone could miss AA by a hair
+ * and only surface after the build: run PKcE4L_4j7Z1 shipped #895D2F on
+ * #EBE3D4 at 4.49:1 and lost the contrast gate by 0.01.
+ *
+ * Blend the tone toward the text color in small steps and take the first shade
+ * that clears AA against both surfaces, so the reference's hue survives rather
+ * than collapsing to flat text; fall back to the text color when the surface
+ * is too close for any blend to work. Same reconciliation derivePrimaryText
+ * does for primary-as-text, applied to the one text role it missed.
+ */
+export function deriveTextMuted(input: {
+  muted: string;
+  text: string;
+  bg: string;
+  surface: string;
+}): string {
+  const muted = parseHexChannels(input.muted);
+  const text = parseHexChannels(input.text);
+  if (!muted || !text) return input.muted;
+  const clearsAA = (candidate: string) =>
+    (contrastRatio(candidate, input.bg) ?? 0) >= 4.5 &&
+    (contrastRatio(candidate, input.surface) ?? 0) >= 4.5;
+  if (clearsAA(input.muted)) return input.muted;
+  const STEPS = 20;
+  for (let step = 1; step < STEPS; step++) {
+    const candidate = mixChannels(muted, text, step / STEPS);
+    if (clearsAA(candidate)) return candidate;
+  }
+  return input.text;
+}
+
+function deriveTextMutedFrom(tokens: DesignTokens): string {
+  const byVar = (v: string) => tokens.colors.find((c) => normalizeCssVarName(c.cssVar) === v)?.value;
+  const muted = byVar("--color-text-muted");
+  if (muted === undefined) return "";
+  const bg = byVar("--color-bg") ?? "#ffffff";
+  return deriveTextMuted({
+    muted,
+    text: byVar("--color-text") ?? "#111111",
+    bg,
+    surface: byVar("--color-surface") ?? bg,
+  });
+}
+
+function parseHexChannels(value: string): [number, number, number] | undefined {
+  const m = value.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!m) return undefined;
+  const h = m[1].length === 3 ? m[1].split("").map((c) => c + c).join("") : m[1];
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+}
+
+function mixChannels(
+  from: readonly [number, number, number],
+  to: readonly [number, number, number],
+  amount: number
+): string {
+  return `#${from
+    .map((channel, i) => Math.round(channel + (to[i] - channel) * amount).toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 function contrastRatio(a: string, b: string): number | undefined {
@@ -579,17 +706,25 @@ function renderItemMarkup(
 ): string {
   const idA = `${sectionId}.${prefix}-${i}-${parts[0]}`;
   const idB = `${sectionId}.${prefix}-${i}-${parts[1]}`;
+  // Every list item gets its own id too, not just its two leaf fields: a
+  // click on the <li>'s own padding — outside both leaves — would otherwise
+  // land on nothing, the same unreachable-chrome gap the bare <section>
+  // elements had (A2 recon). This applies uniformly across all four item
+  // shapes (stat/card/review/point) — an earlier pass stamped it on "stat"
+  // only, which left the container model applied inconsistently across item
+  // kinds that are otherwise structurally identical (a two-leaf <li>).
+  const itemId = `${sectionId}.item-${i}`;
   if (itemClass === "stat") {
-    return `<li class="stat" data-reveal="up"><span class="stat__value" data-edit-id="${idA}">${a}</span><span class="stat__label" data-edit-id="${idB}">${b}</span></li>`;
+    return `<li class="stat" data-reveal="up" data-edit-id="${itemId}"><span class="stat__value" data-edit-id="${idA}">${a}</span><span class="stat__label" data-edit-id="${idB}">${b}</span></li>`;
   }
   if (itemClass === "card" && parts[0] === "quote") {
-    return `<li class="card review" data-reveal="up"><p class="review__quote" data-edit-id="${idA}">${a}</p><p class="review__author" data-edit-id="${idB}">${b}</p></li>`;
+    return `<li class="card review" data-reveal="up" data-edit-id="${itemId}"><p class="review__quote" data-edit-id="${idA}">${a}</p><p class="review__author" data-edit-id="${idB}">${b}</p></li>`;
   }
   if (itemClass === "card") {
-    return `<li class="card" data-reveal="up"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="${idA}">${a}</h3><p class="card__body" data-edit-id="${idB}">${b}</p></li>`;
+    return `<li class="card" data-reveal="up" data-edit-id="${itemId}"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="${idA}">${a}</h3><p class="card__body" data-edit-id="${idB}">${b}</p></li>`;
   }
   // "point" (why-us)
-  return `<li class="point" data-reveal="up"><h3 class="point__title" data-edit-id="${idA}">${a}</h3><p class="point__body" data-edit-id="${idB}">${b}</p></li>`;
+  return `<li class="point" data-reveal="up" data-edit-id="${itemId}"><h3 class="point__title" data-edit-id="${idA}">${a}</h3><p class="point__body" data-edit-id="${idB}">${b}</p></li>`;
 }
 
 function buildAreaItems(copy: CopyDoc): string {

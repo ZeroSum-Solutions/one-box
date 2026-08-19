@@ -1,0 +1,200 @@
+# Presentation rubric — the bar every generated site is graded against
+
+Created 2026-08-15 from Devin's grading of the WITS refero-baseline spike
+(commit `314da19`, served at the spike's `site/` directory). This rubric is
+separate from the frozen Phase-4 A/B rubric (`rubric.md`) — that one compared
+pipeline arms; this one grades a single site's presentation quality against
+Devin's standard.
+
+## Authority
+
+- **Devin is the judge of record.** A build's grade is his grade. Model grades
+  (self-grades or outside audits) are advisory input to his verdict, never a
+  substitute for it.
+- **Every build gets an outside-model audit** — a model from a different vendor
+  than the builder (current lane: GPT-5.6 Sol via `codex exec`) grades against
+  this rubric before the build reaches Devin. Precedent: the 2026-08-14 GPT-5.6
+  audit caught real WCAG failures and invented policies the builder reported as
+  clean.
+- Engine gates (contrast, axe, token drift, …) are **floors, not grades**. The
+  WITS baseline passes every gate and still grades D. A gate can prove a site
+  is not broken; only this rubric measures whether it is good.
+
+## The benchmark: WITS baseline = D
+
+Devin's verdict, 2026-08-15, verbatim criticisms → gradeable dimensions below.
+"The information on it is pretty good but its presentation is a D." A generated
+site that would tie this baseline fails. The measured facts behind the grade:
+the site's entire CSS contains **1 animation and 6 transitions**; hover
+feedback exists on exactly two element classes (CTA buttons and nav links,
+both a bare color swap); consecutive sections are divided by nothing except
+one orange band.
+
+## Dimensions (grade each A–F, then overall)
+
+### 1. Hero distinctiveness
+*Baseline failure: "the hero's generic."*
+- F–D: headline + subhead + button + photo in a default arrangement any
+  template could produce.
+- B: a deliberate entrance sequence (staged reveals), a composition that
+  responds to the imagery, at least one element that could only belong to this
+  company.
+- A: the hero alone tells you who the company is; layered composition
+  (typography, imagery, motion, background treatment) with a clear focal path.
+
+### 2. Color character
+*Baseline failure: "the colors are generic."*
+- F–D: one brand hue + white/gray applied flatly; accent used identically
+  everywhere it appears.
+- B: a palette with structure — surface tiers, warm/cool tension or tonal
+  depth, accent deployed by rule (interactive-only, or emphasis-only), at
+  least one section that shifts the scheme (dark band, tinted band).
+- A: the palette itself is recognizably the company's; gradients/tints/dark
+  sections orchestrated so no two adjacent sections read as the same surface.
+
+### 3. Motion design
+*Baseline failure: "there is no scrolling animations… only a couple hover
+animations… which just literally changes the color from black to orange."*
+- F–D: static page; hover = color swap only.
+- B: scroll-triggered reveals with stagger on grouped items; hover states that
+  move (lift, scale, glow, icon slide) with tuned duration/easing; a hero
+  entrance. Motion respects `prefers-reduced-motion`.
+- A: a motion *system* — consistent easing/duration vocabulary, choreographed
+  section entrances, at least one signature moment (marquee, parallax,
+  count-up, sticky transition) that fits the brand.
+
+### 4. Section division & rhythm
+*Baseline failure: "the sections are not at all well divided, the
+information's kind of squished together… between sections we only have this
+one orange break."*
+- F–D: uniform white sections separated by padding alone; one divider device
+  reused (or none).
+- B: alternating surface treatments (tint, dark band, contained card-panel),
+  generous and *varied* vertical rhythm, each section boundary legible at a
+  glance while scrolling.
+- A: the page has an arc — sections sequence like scenes (open, build,
+  contrast, close), division devices varied and deliberate (bleed images,
+  band inversions, offset panels), never twice the same trick in a row.
+
+### 5. Card craft
+*Baseline failure: "there aren't any cool cards… they're just information in
+a white box."*
+- F–D: white box, border, text stacked inside.
+- B: cards with anatomy — icon/number treatment, layered background (tint,
+  gradient edge, glow), hover behavior (lift/tilt/reveal), internal hierarchy
+  (eyebrow, title, body, action) that reads in order.
+- A: card design is a signature of the site — a treatment you'd screenshot;
+  variants for different content types instead of one card for everything.
+
+### 6. Visual hierarchy
+*Baseline failure: "there's no visual hierarchy with information."*
+- F–D: headings step down in size but everything carries equal visual weight;
+  nothing tells the eye where to go first.
+- B: strong display-to-body contrast (scale, weight, color), eyebrow labels,
+  clear primary/secondary/tertiary reading order in every section, one focal
+  point per viewport.
+- A: hierarchy survives the squint test at every scroll position — blur the
+  page and the structure of what matters still shows.
+
+### 7. Variety / anti-monotony
+*Baseline failure: "too much monotony within the site."*
+- F–D: every section is the same layout (centered heading → grid of boxes)
+  with different words.
+- B: layout topology varies across the page — asymmetric splits, offset
+  media, full-bleed moments, list vs. grid vs. feature alternation.
+- A: no two consecutive sections share a topology, yet the page still reads
+  as one designed system, not a collage.
+
+### 8. Balance & composition
+*Baseline: "the balance isn't super bad, but I don't think it's ideal."*
+- F–D: visibly lopsided sections, orphaned elements, cramped or cavernous
+  gaps.
+- B: weight distributed deliberately within each section; whitespace used as
+  a design element, not leftover space.
+- A: compositions feel inevitable — nothing could move without getting worse.
+
+### 9. Bespoke-ness (the summary dimension)
+*Baseline failure: "as far as it being like a bespoke website for this
+individual company, I'd lower my grade and say this is more like a D."*
+- F–D: swap the logo and copy and this could be any company in any industry.
+- B: industry-specific composition choices (imagery treatment, section
+  choices, motifs) plus company-specific ones (their palette, their voice,
+  their proof points made visual).
+- A: the site could not be mistaken for a competitor's. Content, imagery,
+  layout and motion all argue for *this* company.
+
+## Reference standard
+
+The motionsites template catalog (`references/motionsites/`, cloned from
+github.com/vikod3 with Devin's authorization, 2026-08-15) is the working
+definition of the bar: **Devin judged every template in that catalog better
+than the WITS baseline.** Template-derived craft standards are appended below
+as they are extracted. License note: these repos are grading references only —
+their code is never shipped into client sites.
+
+### Template-derived standards (extracted 2026-08-15, 9 templates analyzed)
+
+Full per-template reports: `template-craft-notes.md`. The cross-template
+findings, ranked by how consistently the catalog uses them:
+
+1. **A signature-move economy, not blanket polish.** Every template earns its
+   premium feel from 2–4 deliberate devices; several (serein, forge, neon,
+   dental) ship *zero* scroll reveals and still beat our baseline. Grade the
+   presence and quality of signature moves, not a checklist of effects.
+2. **Video-as-life** (7 of 9): full-bleed autoplay muted loop video,
+   *disciplined into the brand* — desaturated (`saturate-0`) and re-tinted via
+   `mix-blend-mode: color` / `color-dodge` / multiply overlays so footage
+   becomes an on-brand texture, not a colorful stock clip. This one device
+   supplies most of the kinetic energy on most of these sites.
+3. **One surface formula, fractally reused.** A single glass/card recipe
+   (translucent fill + backdrop-blur + white hairline border + inset or soft
+   shadow — e.g. glow's `rgba(116,116,116,0.07)` + `border-[1.5px]
+   rgba(255,255,255,0.40)` + `blur(50px)` + `rounded-[32px]`) applied to
+   feature cards, testimonial cards, badges, and icon chips alike. Cohesion
+   comes from reuse; cheapness comes from one-off effects.
+4. **Eyebrow systems.** A consistent pre-headline device on every section:
+   forge/neon's `DM Mono uppercase 0.48px-tracked text-white/50` label,
+   radiant's icon+pill badge. The strongest, cheapest hierarchy move in the
+   whole catalog.
+5. **Display type that commits.** 88–120px display against 12–18px body;
+   often `font-normal` (restraint over boldness); negative tracking scaled to
+   size (glow: −2.5px display → −1.5px H2 → −0.5px H3 → 0 body); two-family
+   pairing (Space Grotesk + DM Mono, Jakarta + Manrope). Our baseline's
+   headings "step down politely" — these commit.
+6. **Accent-by-rule.** Near-monochrome palettes with ONE scoped accent moment:
+   nexora's single gradient headline word; glow's red on interactive elements
+   only, never headings; dental's amber on the five rating stars only. The
+   rule is legible — the viewer can infer where accent will appear next.
+7. **Entrance choreography, hand-tuned.** Where motion exists it is asymmetric
+   and deliberate: nexora's cascade at delays 0 / 0.8 / 1.0 / 1.2s with
+   letter-level stagger (0.07s/char) on the headline; lumen's
+   `staggerChildren: 0.2, delayChildren: 0.3` with `whileInView` +
+   `viewport={{once: true, margin: '-100px'}}`; glow's text-settles-first,
+   image-blooms-at-+0.5s. Uniform simultaneous fade-ins (serein) read as
+   scaffold defaults.
+8. **Hover that moves.** Scale (1.02–1.05), shadow lift, icon reveal, gradient
+   text fill — 200–300ms. Color-swap-only hover is the baseline's failure
+   mode and the catalog's floor.
+9. **Division by rhythm and surface, not walls.** Huge, *varied* vertical
+   padding (`py-[100px]`→`py-[200px]`), 5%-opacity hairline rules, footer as
+   a rounded-top card on a gradient, hairline-seam grids
+   (`gap-px` over a dark backdrop) instead of boxed cards. Uniform `py-24`
+   everywhere (serein) is the tell of a scaffold.
+10. **Layered, art-directed composition.** radiant's image-with-offset-glass-
+    panel motif (reused 5×); dental's product-annotation callout pinned by a
+    JS-positioned connector line to a specific tooth in the photo, and copy
+    right-aligned to interlock with the model's face. Composition responding
+    to the *specific* imagery is the essence of bespoke.
+
+**Anti-lesson:** the catalog is full of dead craft — wired-but-unused stagger
+systems, animation component libraries no page imports. Grade only shipped,
+rendering behavior; never credit intent found in the code.
+
+## How the outside grader uses this
+
+Inputs per build: full-page desktop + mobile screenshots, the brief, the
+site's full source (screenshots cannot show motion — motion is audited from
+code), and this rubric. Output: per-dimension letter grades with one-sentence
+evidence each, an overall letter, and a ranked list of the highest-leverage
+fixes. The report lands in the run's evidence directory next to the gate
+reports.

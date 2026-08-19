@@ -22,7 +22,7 @@ export function defaultResearchConfiguration(): ResearchConfiguration {
     enabled: true,
     businessIntelligence: true,
     referoDesignEvidence: true,
-    allowPaidFirecrawlFallback: false,
+    allowPaidFirecrawlFallback: true,
   };
 }
 

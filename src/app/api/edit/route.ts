@@ -5,6 +5,7 @@
  */
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import {
@@ -12,6 +13,7 @@ import {
   ARTIFACTS,
   MODELS,
   type DesignTokens,
+  ReferenceStyleDigestSchema,
 } from "../../../lib/contracts";
 import { sitePaths, loadArtifact, loadRun } from "../../../lib/runstate";
 import { generateJson } from "../../../lib/openrouter";
@@ -25,10 +27,26 @@ import {
   reserveImageGeneration,
 } from "../../../lib/imageGenerationBudget";
 import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEditor";
+import { listProjectImages } from "../../../lib/imageLibrary";
+import { describeTokensForEdit } from "../../../lib/editorPromptContext";
 import { BlockingMutationError } from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
+import { classifyEditInstruction } from "../../../lib/editPreflight";
 
 export const maxDuration = 300;
+
+async function readPreflightElementContext(runId: string, editId: string) {
+  const html = await readFile(path.join(sitePaths(runId).site, "index.html"), "utf8");
+  const $ = cheerio.load(html);
+  const element = $("[data-edit-id]").filter(
+    (_, candidate) => $(candidate).attr("data-edit-id") === editId,
+  );
+  if (element.length !== 1) return undefined;
+  return {
+    elementTag: element[0].tagName.toLowerCase(),
+    elementRole: element.attr("role") || undefined,
+  };
+}
 
 export async function POST(req: Request) {
   if (!isLocalApiAuthorized(req)) {
@@ -38,12 +56,58 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: parsed.error.message }, { status: 400 });
   }
-  const { runId, editId, instruction, imageIntent, requestId } = parsed.data;
+  const {
+    runId,
+    editId,
+    instruction,
+    imageIntent,
+    requestId,
+    confirmRedirect,
+    referenceAssetId,
+  } = parsed.data;
   if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) {
     return Response.json({ error: "bad runId" }, { status: 400 });
   }
 
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
+  if (!imageIntent) {
+    // Each context source degrades independently (review finding): a digest
+    // read failure must not skip classification, and only the classifier
+    // itself is allowed to fail open.
+    let element: Awaited<ReturnType<typeof readPreflightElementContext>>;
+    try {
+      element = await readPreflightElementContext(runId, editId);
+    } catch (error) {
+      console.warn(
+        `[edit-preflight] run ${runId}: unable to read edit context; applying edit through deterministic gates: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    if (element && element.elementTag !== "img") {
+      let digestData;
+      try {
+        const digest = ReferenceStyleDigestSchema.safeParse(
+          await loadArtifact(runId, ARTIFACTS.referenceStyleDigest),
+        );
+        digestData = digest.success ? digest.data : undefined;
+      } catch (error) {
+        console.warn(
+          `[edit-preflight] run ${runId}: style digest unavailable; classifying without it: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      const classification = await classifyEditInstruction(runId, {
+        instruction,
+        ...element,
+        tokens,
+        ...(digestData ? { digest: digestData } : {}),
+      });
+      if (classification.decision === "refuse") {
+        return Response.json({ ok: false, guardrail: classification });
+      }
+      if (classification.decision === "redirect" && !confirmRedirect) {
+        return Response.json({ ok: false, guardrail: classification });
+      }
+    }
+  }
   const assetName = `edit-${randomUUID()}.jpg`;
   const outPath = path.join(sitePaths(runId).site, "assets", assetName);
   const generationLedgerPath = path.join(
@@ -52,6 +116,29 @@ export async function POST(req: Request) {
   );
   let imageCredits: { used: number; cap: number } | undefined;
   try {
+    // Play 11 (canvas-upgrade B3): a referenceAssetId is an id, never trusted
+    // on its own — it is resolved against THIS run's own image library
+    // before it can influence anything, the same validate-against-own-
+    // library convention imageLibrary.ts already uses for sourceAssetId.
+    // Resolved here, before applyElementHtmlEdit takes the run's site-
+    // authority lock, because listProjectImages takes that same lock itself
+    // (withImageAuthority) and the two are not reentrant.
+    let referenceItem:
+      | Awaited<ReturnType<typeof listProjectImages>>["items"][number]
+      | null = null;
+    if (imageIntent && referenceAssetId) {
+      const library = await listProjectImages(runId).catch(() => {
+        throw new ElementEditError("reference image library unavailable", 502);
+      });
+      referenceItem =
+        library.items.find((item) => item.id === referenceAssetId) ?? null;
+      if (!referenceItem || referenceItem.status !== "completed") {
+        throw new ElementEditError(
+          "reference image not found or not ready",
+          404,
+        );
+      }
+    }
     const mutation = await applyElementHtmlEdit(
       runId,
       editId,
@@ -80,8 +167,11 @@ export async function POST(req: Request) {
             );
           }
           const b = tokens.imageryBrief;
+          const referenceClause = referenceItem?.prompt
+            ? ` Match the visual style of this earlier generated image: "${referenceItem.prompt}".`
+            : "";
           const generationOptions = {
-            prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}. No text, no logos.`,
+            prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}.${referenceClause} No text, no logos.`,
             aspectRatio: el.attr("data-aspect") ?? "16:9",
             outPath,
           };
@@ -130,7 +220,7 @@ export async function POST(req: Request) {
             runId,
             MODELS.builder,
             z.object({ innerHtml: z.string() }),
-            `Rewrite ONLY the inner content of this element per the instruction. Hard rules: keep every data-edit-id attribute on descendants; do not add classes, ids, inline styles, scripts, or new colors — styling comes from the site's token sheet; keep the same tag structure unless the instruction requires otherwise; return innerHtml only (no outer tag).\n\nINSTRUCTION: ${instruction}\n\nELEMENT (outer HTML for context):\n${fragment}\n\nAVAILABLE TOKENS (for reference, do not inline them): ${tokens.colors.map((c) => c.cssVar).join(", ")}`,
+            `Rewrite ONLY the inner content of this element per the instruction. Hard rules: keep every data-edit-id attribute on descendants; do not add classes, ids, inline styles, scripts, or new colors — styling comes from the site's token sheet; keep the same tag structure unless the instruction requires otherwise; return innerHtml only (no outer tag).\n\nINSTRUCTION: ${instruction}\n\nELEMENT (outer HTML for context):\n${fragment}\n\nAVAILABLE TOKENS (for reference, do not inline them):\n${describeTokensForEdit(tokens)}`,
           );
           el.html(out.innerHtml);
           // Descendant edit-ids are the editor's address space — losing one makes

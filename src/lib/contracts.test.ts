@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CrawlProvenanceSchema,
+  ScanResultSchema,
+  YelpMarketSchema,
   DesignResearchLedgerSchema,
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
@@ -25,7 +27,7 @@ describe("additive project contracts", () => {
       enabled: true,
       businessIntelligence: true,
       referoDesignEvidence: true,
-      allowPaidFirecrawlFallback: false,
+      allowPaidFirecrawlFallback: true,
     });
     expect(intake.uploads).toEqual([]);
   });
@@ -172,5 +174,64 @@ describe("evidence contracts", () => {
       css: "css-architecture",
       build: "visual-qa",
     });
+  });
+});
+
+describe("YelpMarketSchema", () => {
+  const market = {
+    searchUrl: "https://www.yelp.com/search?find_desc=bakery&find_loc=Portland%2C+OR",
+    fetchedAt: "2026-08-16T00:00:00.000Z",
+    listings: [
+      { rank: 1, name: "Ken's Artisan Bakery", rating: 4.4, reviewCount: 1100 },
+    ],
+    summary: { rosterSize: 1, ratingMedian: 4.4, reviewCountMedian: 1100 },
+  };
+
+  it("keeps the derived market bar separate from the named roster", () => {
+    const parsed = YelpMarketSchema.parse(market);
+
+    expect(parsed.summary).toEqual({
+      rosterSize: 1,
+      ratingMedian: 4.4,
+      reviewCountMedian: 1100,
+    });
+    expect(parsed.listings[0].categories).toEqual([]);
+  });
+
+  it("records why a roster is empty without failing the parse", () => {
+    const parsed = YelpMarketSchema.parse({
+      searchUrl: market.searchUrl,
+      fetchedAt: market.fetchedAt,
+      summary: { rosterSize: 0 },
+      unavailable: "Yelp returned a page with no listings",
+    });
+
+    expect(parsed.listings).toEqual([]);
+    expect(parsed.unavailable).toContain("no listings");
+  });
+});
+
+describe("ScanResultSchema yelp lane", () => {
+  const baseScan = { competitors: [], commonSections: [], gaps: [] };
+
+  it("still parses a scan saved before the Yelp lane existed", () => {
+    const parsed = ScanResultSchema.parse(baseScan);
+
+    expect(parsed.yelp).toBeUndefined();
+  });
+
+  it("carries the Yelp market when the lane ran", () => {
+    const parsed = ScanResultSchema.parse({
+      ...baseScan,
+      yelp: {
+        searchUrl: "https://www.yelp.com/search?find_desc=bakery&find_loc=Portland%2C+OR",
+        fetchedAt: "2026-08-16T00:00:00.000Z",
+        listings: [{ rank: 1, name: "Ken's Artisan Bakery", rating: 4.4 }],
+        summary: { rosterSize: 1, ratingMedian: 4.4 },
+      },
+    });
+
+    expect(parsed.yelp?.summary.ratingMedian).toBe(4.4);
+    expect(parsed.yelp?.listings[0].name).toBe("Ken's Artisan Bakery");
   });
 });

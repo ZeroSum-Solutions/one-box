@@ -108,7 +108,10 @@ describe("crawlSite", () => {
     expect(await fs.readFile(result.markdownPath!, "utf8")).toBe("# Fallback result");
   });
 
-  it("does not call or bill Firecrawl after ERR without explicit consent", async () => {
+  // Firecrawl is the standing fallback since 2026-08-16, so refusal is now the
+  // explicitly-withheld case rather than the default — the refusal path itself
+  // still has to hold, because the intake UI can still switch it off.
+  it("does not call or bill Firecrawl after ERR when consent is withheld", async () => {
     const tempDir = await makeTempDir("one-box-crawl-no-consent-");
     const scriptPath = path.join(tempDir, "crawl-no-consent.sh");
     await fs.writeFile(scriptPath, '#!/bin/sh\nprintf "ERR\\tbot challenge\\n"\nexit 1\n', { mode: 0o755 });
@@ -117,7 +120,12 @@ describe("crawlSite", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await crawlSite("https://example.com/no-consent", tempDir);
+    const result = await crawlSite(
+      "https://example.com/no-consent",
+      tempDir,
+      undefined,
+      false
+    );
     expect(result.error).toContain("did not authorize metered fallback");
     expect(result.crawlAttempts).toHaveLength(1);
     expect(result.crawlAttempts[0]).toMatchObject({ provider: "crawl4ai", outcome: "failed" });

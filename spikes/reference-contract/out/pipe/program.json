@@ -1,0 +1,464 @@
+{
+  "schemaVersion": "1",
+  "programId": "pipe",
+  "inputs": {
+    "designHash": "7c40eb6587b5f317",
+    "copyHash": "b9945ef5e83a3206",
+    "assetCatalogHash": "4a160aa7638f3bc7"
+  },
+  "page": {
+    "family": "trade-split",
+    "measure": "wide",
+    "density": "compact",
+    "seam": "rule",
+    "nav": "utility",
+    "footer": "thin"
+  },
+  "sections": [
+    {
+      "id": "nav",
+      "role": "nav",
+      "kernel": {
+        "kind": "split",
+        "ratio": "6-6",
+        "gap": 1,
+        "reverseOnMobile": false
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "nav.logo"
+        },
+        {
+          "name": "actions",
+          "copyRef": "nav.phone"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "block",
+          "value": "center",
+          "at": "desktop"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "end",
+          "at": "desktop"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "block",
+          "value": "center",
+          "at": "desktop"
+        }
+      ],
+      "artDirection": []
+    },
+    {
+      "id": "hero",
+      "role": "hero",
+      "kernel": {
+        "kind": "split",
+        "ratio": "6-6",
+        "gap": 3,
+        "reverseOnMobile": true
+      },
+      "surface": "inverted",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "eyebrow",
+          "copyRef": "hero.eyebrow"
+        },
+        {
+          "name": "heading",
+          "copyRef": "hero.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "hero.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "hero.cta"
+        },
+        {
+          "name": "media",
+          "assetRef": "assets/hero-pipe.jpg"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "eyebrow",
+          "from": 1,
+          "to": 2,
+          "row": 1,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 2,
+          "row": 2,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 1,
+          "to": 2,
+          "row": 3,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 1,
+          "to": 2,
+          "row": 4,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "media",
+          "from": 2,
+          "to": 3,
+          "row": 1,
+          "rowSpan": 4,
+          "at": "desktop"
+        },
+        {
+          "type": "measure",
+          "slot": "lede",
+          "value": "narrow"
+        },
+        {
+          "type": "align",
+          "slot": "media",
+          "axis": "block",
+          "value": "center",
+          "at": "desktop"
+        },
+        {
+          "type": "bleed",
+          "slot": "media",
+          "side": "inline-end",
+          "step": 2,
+          "at": "desktop"
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 60,
+          "y": 35,
+          "at": "desktop"
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 50,
+          "y": 50,
+          "at": "mobile"
+        }
+      ],
+      "artDirection": []
+    },
+    {
+      "id": "proof",
+      "role": "proof",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 0
+      },
+      "surface": "inverted",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "items",
+          "collectionRef": "trust-bar.stat"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 2,
+          "to": 12,
+          "at": "desktop"
+        }
+      ],
+      "artDirection": []
+    },
+    {
+      "id": "offer",
+      "role": "offer",
+      "kernel": {
+        "kind": "grid",
+        "columns": 2,
+        "gap": 1,
+        "rhythm": "even"
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "services.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "services.card"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 3,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 3,
+          "at": "desktop"
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "normal"
+        }
+      ],
+      "artDirection": []
+    },
+    {
+      "id": "why",
+      "role": "story",
+      "kernel": {
+        "kind": "grid",
+        "columns": 2,
+        "gap": 1,
+        "rhythm": "even"
+      },
+      "surface": "inverted",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "why-us.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "why-us.point"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 3,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 3,
+          "at": "desktop"
+        }
+      ],
+      "artDirection": []
+    },
+    {
+      "id": "area",
+      "role": "area",
+      "kernel": {
+        "kind": "grid",
+        "columns": 2,
+        "gap": 1,
+        "rhythm": "even"
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "service-area.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "service-area.area"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 3,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 3,
+          "at": "desktop"
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "normal"
+        }
+      ],
+      "artDirection": []
+    },
+    {
+      "id": "contact",
+      "role": "contact",
+      "kernel": {
+        "kind": "stack",
+        "align": "center",
+        "gap": 2
+      },
+      "surface": "accent",
+      "seam": "band",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "contact.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "contact.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "contact.cta"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 13,
+          "row": 1,
+          "at": "desktop"
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "inline",
+          "value": "center",
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 3,
+          "to": 11,
+          "row": 2,
+          "at": "desktop"
+        },
+        {
+          "type": "align",
+          "slot": "lede",
+          "axis": "inline",
+          "value": "center",
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 1,
+          "to": 13,
+          "row": 3,
+          "at": "desktop"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "center",
+          "at": "desktop"
+        }
+      ],
+      "artDirection": []
+    },
+    {
+      "id": "footer",
+      "role": "footer",
+      "kernel": {
+        "kind": "split",
+        "ratio": "8-4",
+        "gap": 1,
+        "reverseOnMobile": false
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "footer.business-name"
+        },
+        {
+          "name": "caption",
+          "copyRef": "footer.tagline"
+        },
+        {
+          "name": "actions",
+          "copyRef": "footer.phone"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 2,
+          "row": 1,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "caption",
+          "from": 1,
+          "to": 2,
+          "row": 2,
+          "at": "desktop"
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 2,
+          "to": 3,
+          "row": 1,
+          "rowSpan": 2,
+          "at": "desktop"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "end",
+          "at": "desktop"
+        }
+      ],
+      "artDirection": []
+    }
+  ]
+}

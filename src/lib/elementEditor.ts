@@ -3,6 +3,7 @@ import path from "node:path";
 import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 import { z } from "zod";
+import { inventoryFromHtml } from "./assistant";
 import {
   atomicWrite,
   assertSafeRunId,
@@ -249,6 +250,24 @@ function moveEditableSibling(
   element: cheerio.Cheerio<Element>,
   direction: "previous" | "next",
 ) {
+  // canvas-upgrade Wave 5, Play 7 (hazard). nav and footer sit directly
+  // under <body>, alongside the skip-link and <main> -- neither of the
+  // latter two is a content section, but the skip-link DOES carry its own
+  // data-edit-id, so without this guard `nav`'s "previous" move would pass
+  // moveEditableSibling's ordinary sibling check and swap places with it
+  // (verified against the real template; <main> itself has no data-edit-id,
+  // so nav/footer's OTHER direction was already refused by the plain
+  // "no editable sibling" case below, but only by accident of that one
+  // attribute being absent -- this makes the refusal deliberate and
+  // consistent in both directions). Fixed page chrome is never a
+  // reorderable section; content sections and nested list items, whose
+  // parent is never <body>, are unaffected.
+  if (element.parent().is("body")) {
+    throw new ElementEditError(
+      "this element is fixed page chrome and cannot be reordered",
+      409,
+    );
+  }
   const sibling = direction === "previous" ? element.prev() : element.next();
   if (sibling.length !== 1 || !sibling.is("[data-edit-id]")) {
     throw new ElementEditError(
@@ -350,6 +369,27 @@ export async function elementHistoryState(
     canUndo: history.cursor > 0,
     canRedo: history.cursor < history.entries.length,
   };
+}
+
+/** The Layers/Navigator panel's data source (canvas-upgrade Wave 5, Play 6):
+ * the live site's data-edit-id inventory, in DOM order, with the
+ * depth/parentEditId assistant.ts's inventoryFromHtml() now also computes --
+ * reusing that one walker rather than a second tree-builder. A site not yet
+ * built (same ENOENT case elementHistoryState's readHistory absorbs) reads
+ * as an empty tree, not an error -- there is nothing to browse yet. */
+export async function elementTree(
+  runId: string,
+  options: ElementEditorOptions = {},
+) {
+  const files = editorPaths(runId, options.sitesRoot);
+  let html: string;
+  try {
+    html = await fs.readFile(/* turbopackIgnore: true */ files.index, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  return inventoryFromHtml(html);
 }
 
 export async function applyStructuredElementEdit(

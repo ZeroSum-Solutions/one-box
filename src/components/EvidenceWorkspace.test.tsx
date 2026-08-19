@@ -4,6 +4,7 @@ import type { WorkflowArtifactVersion } from "../lib/contracts";
 import {
   ArtifactPreview,
   EvidenceWorkspace,
+  artifactUrl,
   syncHumanVisualReviewDraft,
 } from "./EvidenceWorkspace";
 import type { RunState } from "../lib/contracts";
@@ -233,6 +234,40 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(qa).toContain('alt="desktop QA evidence"');
   });
 
+  // BLOCKER: every visual-QA version is created in "draft" approval state,
+  // but the header's Approve & continue pair explicitly excludes visual-qa
+  // (a human review decides that, not a generic approve). Draft had no exit
+  // control at all — the gate could be entered and never left.
+  it("offers a way out of the visual-QA draft dead end", () => {
+    const qa = {
+      ...base,
+      artifactType: "visual-qa",
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "c".repeat(64),
+        checks: [{ area: "desktop", status: "pass", notes: "ok" }],
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "build", artifacts: [qa] },
+    } as unknown as RunState;
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    expect(html).toContain("Submit for review");
+    expect(html).not.toContain("Approve &amp; continue");
+    // The gate rail must mirror the panel's real approval state, not a
+    // hardcoded "in review" for whichever gate happens to be current.
+    expect(html).toContain('data-approval="draft"');
+    expect(html).not.toContain(">in review<");
+  });
+
   it("offers server regeneration instead of a forgeable visual-QA JSON editor", () => {
     const qa = {
       ...base,
@@ -339,5 +374,61 @@ describe("EvidenceWorkspace artifact previews", () => {
     });
     expect(qa).toContain("Reviewed by Devin");
     expect(qa).toContain("Too generic");
+  });
+});
+
+// A stage whose draft has not been written yet still rendered the review note
+// box, but no action consumes that note — every button that reads it is gated
+// on an artifact. Reviewers were left typing into a field with no way to send
+// it. Offer the one action that applies instead.
+describe("EvidenceWorkspace with no draft for the current stage", () => {
+  const run = {
+    id: "run-test",
+    createdAt: "2026-08-13T12:00:00.000Z",
+    pipelineVersion: "evidence-gated-v2",
+    stages: {},
+    costUsd: 0,
+    costCapUsd: 3,
+    modelSlugs: {},
+    referenceMode: "none",
+    evidenceWorkflow: { currentStage: "evidence", artifacts: [] },
+  } as unknown as RunState;
+
+  it("does not offer a review note there is no action to submit", () => {
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+
+    expect(html).toContain("Draft not generated");
+    expect(html).not.toContain("Review note");
+  });
+
+  it("still offers the resume link that does apply", () => {
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+
+    expect(html).toContain("Resume generation");
+  });
+});
+
+// ENG-009: crawlSite and capture() record ABSOLUTE filesystem paths in the
+// scan artifact, and rendering one as a URL produced /api/sites/<id>//Users/…
+// and a 404. Existing runs still hold absolute values on disk, so the URL
+// builder must normalise all three shapes, not trust its input.
+describe("artifactUrl", () => {
+  it("passes a run-relative path through", () => {
+    expect(artifactUrl("run-1", "research/acme-com/desktop.png")).toBe(
+      "/api/sites/run-1/research/acme-com/desktop.png"
+    );
+  });
+
+  it("strips the site/ prefix the site route serves from its own root", () => {
+    expect(artifactUrl("run-1", "site/tokens.css")).toBe("/api/sites/run-1/tokens.css");
+  });
+
+  it("recovers the run-relative path from a recorded absolute path", () => {
+    expect(
+      artifactUrl(
+        "run-1",
+        "/Users/someone/projects/one-box/sites/run-1/research/acme-com/acme-com.md"
+      )
+    ).toBe("/api/sites/run-1/research/acme-com/acme-com.md");
   });
 });

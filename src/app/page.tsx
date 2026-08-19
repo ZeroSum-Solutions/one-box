@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useReducer, useState, type Dispatch, type ReactNode } from "react";
-import Link from "next/link";
-import { CostChip } from "@/components/CostChip";
+import { useEffect, useReducer, useState, type Dispatch } from "react";
 import { IntakeComposer } from "@/components/IntakeComposer";
-import { STAGE_LABEL, StageCard, type StageCardStatus } from "@/components/StageCard";
+import {
+  RunTimeline,
+  type TerminalKind,
+  type TimelineItem as RunTimelineItem,
+} from "@/components/RunTimeline";
 import {
   buildChatRequest,
   completedChatReplayRunId,
@@ -14,16 +16,23 @@ import {
 import { readSSE } from "@/components/sse";
 import {
   consumePipelineRunStream,
-  pipelineStatusLabel,
   resumedRunId,
 } from "@/components/resumeRun";
 import type {
   PipelineEvent,
   ProjectTarget,
   ResearchConfiguration,
-  Stage,
   UploadMetadata,
 } from "@/lib/contracts";
+
+// Static example prompts for the intake hint row — distinct from
+// IntakeComposer's GUIDANCE_PROMPTS, which rotate as the textarea's
+// placeholder rather than fill it on click.
+const EXAMPLE_PROMPTS = [
+  "Rebuild a plumber's site with a modern feel",
+  "New site for a Denton barbershop",
+  "SaaS marketing site for an expense tracker",
+] as const;
 
 // ---------- local state ----------
 
@@ -33,10 +42,7 @@ interface ChatMsg {
   content: string;
 }
 
-interface TimelineItem {
-  key: string;
-  event: PipelineEvent;
-}
+type TimelineItem = RunTimelineItem;
 
 interface AttemptFailure {
   message: string;
@@ -70,6 +76,10 @@ interface OneBoxState {
   costUsd: number;
   previewUrl: string | null;
   evidenceUrl: string | null;
+  /** The LAST terminal event the run reached. previewUrl/evidenceUrl are
+   * sticky once set, so they cannot decide the view's single primary action —
+   * this can. */
+  terminal: TerminalKind;
   settled: boolean; // pipeline reached complete or error
 }
 
@@ -83,6 +93,7 @@ const initialState: OneBoxState = {
   costUsd: 0,
   previewUrl: null,
   evidenceUrl: null,
+  terminal: null,
   settled: false,
 };
 
@@ -205,22 +216,31 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
       let costUsd = state.costUsd;
       let previewUrl = state.previewUrl;
       let evidenceUrl = state.evidenceUrl;
+      let terminal = state.terminal;
       let settled = state.settled;
       if (ev.type === "cost") costUsd = ev.usd;
       if (ev.type === "complete") {
         previewUrl = ev.previewUrl;
+        terminal = "complete";
         settled = true;
       }
-      if (ev.type === "paused") {
+      if (ev.type === "paused" || ev.type === "reference-paused") {
         evidenceUrl = ev.workspaceUrl;
+        terminal = "paused";
         settled = true;
       }
-      if (ev.type === "error") settled = true;
+      if (ev.type === "error") {
+        terminal = "error";
+        settled = true;
+      }
+      // A stage that starts running after a terminal event means the run was
+      // resumed — the outcome row must disappear until it settles again.
+      if (ev.type === "stage" && ev.status === "running") terminal = null;
       const timeline =
         ev.type === "cost"
           ? state.timeline
           : [...state.timeline, { key: `${state.timeline.length}-${ev.type}`, event: ev }];
-      return { ...state, timeline, costUsd, previewUrl, evidenceUrl, settled };
+      return { ...state, timeline, costUsd, previewUrl, evidenceUrl, terminal, settled };
     }
     case "PIPELINE_STREAM_ERROR": {
       if (state.settled) return state;
@@ -231,6 +251,7 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
       return {
         ...state,
         settled: true,
+        terminal: "error",
         timeline: [...state.timeline, { key: `${state.timeline.length}-stream-error`, event: ev }],
       };
     }
@@ -238,74 +259,6 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
       return { ...initialState, messages: action.messages ?? [] };
     default:
       return state;
-  }
-}
-
-// ---------- asset path resolution ----------
-// Pipeline card.images are usually filesystem paths under sites/<runId>/…
-// (see pipeline.ts); the site-serving route only accepts
-// /api/sites/<runId>/<rel>, so strip everything up to and including
-// "sites/<runId>/". Reference-lock cards instead carry remote Refero preview
-// URLs and inline data: URLs — those are already resolvable, pass them through.
-function resolveSiteAsset(runId: string, rawPath: string): string {
-  if (/^(https?:|data:)/i.test(rawPath)) return rawPath;
-  const normalized = rawPath.replace(/\\/g, "/");
-  const marker = `sites/${runId}/`;
-  const idx = normalized.indexOf(marker);
-  const rel = idx >= 0 ? normalized.slice(idx + marker.length) : normalized.replace(/^\/+/, "");
-  return `/api/sites/${runId}/${rel}`;
-}
-
-function stageStatusTitle(stage: Stage, status: StageCardStatus): string {
-  const label = STAGE_LABEL[stage];
-  if (status === "running") return `${label} — in progress`;
-  if (status === "failed") return `${label} — failed`;
-  return `${label} — done`;
-}
-
-function timelineNode(item: TimelineItem, runId: string): ReactNode {
-  const { event, key } = item;
-  switch (event.type) {
-    case "stage":
-      return (
-        <StageCard
-          key={key}
-          stage={event.stage}
-          title={stageStatusTitle(event.stage, event.status)}
-          body={event.note}
-          status={event.status}
-        />
-      );
-    case "card":
-      return (
-        <StageCard
-          key={key}
-          stage={event.stage}
-          title={event.title}
-          body={event.body}
-          images={event.images?.map((img) => ({
-            src: resolveSiteAsset(runId, img.path),
-            // per-image label, not the card title — four screenshots all
-            // reading "Market structure" is useless to a screen reader
-            alt: img.label,
-            href: img.href,
-          }))}
-          links={event.links}
-          map={event.map}
-        />
-      );
-    case "error":
-      return <StageCard key={key} title="Something went wrong" body={event.message} tone="error" />;
-    case "paused":
-      return (
-        <StageCard
-          key={key}
-          title={`${event.workflowStage} ready for review`}
-          body={event.note}
-        />
-      );
-    default:
-      return null; // "cost"/"complete" drive the cost chip and the preview link, not a card
   }
 }
 
@@ -678,13 +631,62 @@ export default function Home() {
     });
   }
 
-  const latestPipelineEvent = state.timeline.at(-1)?.event;
+  function handleNewProject() {
+    if (state.isStreaming) return;
+    setInput("");
+    setUploads([]);
+    setUploadSession(null);
+    setUploadRecoveryMessage(null);
+    setProjectTarget("website");
+    setResearch(researchConfigurationForCapability(runtimeCapabilities.referoDesignEvidence));
+    dispatch({ type: "RESET_TO_INTAKE" });
+    const url = new URL(window.location.href);
+    url.searchParams.delete("run");
+    window.history.replaceState(null, "", url);
+  }
+
+  function handleExamplePrompt(prompt: string) {
+    if (state.isStreaming) return;
+    setInput(prompt);
+    window.requestAnimationFrame(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>(".composer__input");
+      composer?.focus();
+    });
+  }
 
   return (
     <main>
       {state.phase === "intake" && (
         <section className="intake-view" aria-label="Describe your project">
           <div className="intake-view__inner">
+            <nav className="ob-nav">
+              <span className="ob-nav__brand">
+                <span className="ob-nav__glyph" aria-hidden="true" /> ONE BOX
+              </span>
+              {/* "Runs / Evidence / Settings" used to sit here as plain spans
+                  with no handler and no destination — nav that does not
+                  navigate. They stay out until those index routes exist. */}
+              <span className="ob-nav__links">
+                <button
+                  type="button"
+                  className="btn-white-pill"
+                  onClick={handleNewProject}
+                  disabled={state.isStreaming}
+                >
+                  New project
+                </button>
+              </span>
+            </nav>
+            <div className="ob-hero">
+              <p className="ob-hero__tick">
+                <span aria-hidden="true" /> evidence-gated builder
+              </p>
+              <h1 className="ob-hero__title">Describe it. We build the whole box.</h1>
+              <p className="ob-hero__sub">
+                Research, design system, and build — every stage evidence-gated,
+                every claim sourced. One prompt starts the pipeline.
+              </p>
+            </div>
             {state.messages.length > 0 && (
               <div className="transcript">
                 {state.messages
@@ -718,6 +720,7 @@ export default function Home() {
                                   {attempt.failure?.retryable && (
                                     <button
                                       type="button"
+                                      className="btn-ghost btn-mini"
                                       onClick={handleRetry}
                                       disabled={state.isStreaming}
                                     >
@@ -726,6 +729,7 @@ export default function Home() {
                                   )}
                                   <button
                                     type="button"
+                                    className="btn-ghost btn-mini"
                                     onClick={handleEditPrompt}
                                     disabled={state.isStreaming}
                                   >
@@ -767,47 +771,36 @@ export default function Home() {
               uploadRecoveryMessage={uploadRecoveryMessage}
               onUploadRecoveryClear={() => setUploadRecoveryMessage(null)}
               disabled={state.isStreaming}
-              submitLabel={state.isStreaming ? "Thinking…" : "Send"}
+              submitLabel={state.isStreaming ? "Starting…" : "Start the build"}
             />
+            <div className="ob-hints">
+              {EXAMPLE_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  className="seg-pill ob-hints__pill"
+                  onClick={() => handleExamplePrompt(prompt)}
+                  disabled={state.isStreaming}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
           </div>
         </section>
       )}
 
       {state.phase === "pipeline" && state.runId && (
-        <section className="timeline-view" aria-label="Build progress">
-          <header className="timeline-header">
-            <p className="eyebrow">{pipelineStatusLabel(latestPipelineEvent)}</p>
-            <CostChip usd={state.costUsd} />
-          </header>
-          <div className="timeline">{state.timeline.map((item) => timelineNode(item, state.runId!))}</div>
-          {state.previewUrl && (
-            <div className="timeline-complete">
-              <Link href={state.previewUrl} className="pill-button">
-                Open preview
-              </Link>
-            </div>
-          )}
-          {state.evidenceUrl && (
-            <div className="timeline-complete">
-              <Link href={state.evidenceUrl} className="pill-button">
-                Review evidence
-              </Link>
-            </div>
-          )}
-          {latestPipelineEvent?.type === "error" && (
-            <div className="timeline-complete">
-              <button
-                type="button"
-                className="pill-button"
-                onClick={handlePipelineRecovery}
-              >
-                {state.activeAttempt
-                  ? "Edit prompt and settings"
-                  : "Start a new project"}
-              </button>
-            </div>
-          )}
-        </section>
+        <RunTimeline
+          runId={state.runId}
+          timeline={state.timeline}
+          costUsd={state.costUsd}
+          previewUrl={state.previewUrl}
+          evidenceUrl={state.evidenceUrl}
+          terminal={state.terminal}
+          hasActiveAttempt={state.activeAttempt !== null}
+          onRecover={handlePipelineRecovery}
+        />
       )}
     </main>
   );

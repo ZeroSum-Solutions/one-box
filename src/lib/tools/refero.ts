@@ -24,6 +24,10 @@ import {
   referoFetch,
   referoOAuthStorePath,
 } from "../referoAuth";
+import {
+  ReferoLedgerUnavailableError,
+  reserveReferoCall,
+} from "./referoBudget";
 
 const REFERO_MCP_URL = "https://api.refero.design/mcp";
 
@@ -187,7 +191,18 @@ async function invokeRefero(
   const name = pickToolName(toolNames, candidateNames);
   const state = getState();
   state.callCount += 1;
-  console.log(`[refero] call #${state.callCount}/8000 → ${name}`);
+  // Durable month ledger — the in-memory count above resets on every restart.
+  // This deliberately runs on the critical path: budget enforcement must
+  // reserve the call before the MCP network request fires. ONLY a typed
+  // storage failure may proceed unreserved — any other error is a bug in the
+  // budget layer and swallowing it would silently turn the cap off.
+  try {
+    const usage = await reserveReferoCall(name);
+    console.log(`[refero] call #${usage.count}/${usage.cap} (${usage.month}) → ${name}`);
+  } catch (error) {
+    if (!(error instanceof ReferoLedgerUnavailableError)) throw error;
+    console.log(`[refero] call #${state.callCount} (ledger unavailable) → ${name}`);
+  }
 
   const result = await client.callTool({ name, arguments: args });
   if (result.isError) {
@@ -380,6 +395,78 @@ export async function getStyle(styleId: string): Promise<unknown> {
     response_format: "json",
   });
   return parsePayload(result);
+}
+
+function validateBatchStyleIds(styleIds: string[]): void {
+  if (styleIds.length === 0 || styleIds.length > 10) {
+    throw new Error("refero style batch must contain between 1 and 10 ids");
+  }
+  if (styleIds.some((styleId) => typeof styleId !== "string" || styleId.length === 0)) {
+    throw new Error("refero style batch ids must be non-empty strings");
+  }
+  if (new Set(styleIds).size !== styleIds.length) {
+    throw new Error("refero style batch ids must be unique");
+  }
+}
+
+function embeddedStyleId(style: unknown): string | undefined {
+  if (typeof style !== "object" || style === null) return undefined;
+  const record = style as Record<string, unknown>;
+  for (const key of ["uuid", "id", "style_id"]) {
+    const value = record[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
+
+/** Maps a batched get_style payload back to the requested ids. NEVER zips an
+ * array by index for multi-id requests: a permuted response would silently
+ * attribute the wrong style to an id and poison the 60-day cache (review
+ * finding, 2026-08-15). Arrays map only via an embedded id field; anything
+ * unmappable returns undefined so the caller falls back to per-id fetches.
+ * Exported for direct unit testing. */
+export function mapBatchStylePayload(
+  payload: unknown,
+  styleIds: string[]
+): Map<string, unknown> | undefined {
+  if (Array.isArray(payload)) {
+    if (payload.length !== styleIds.length) return undefined;
+    if (styleIds.length === 1) {
+      // A single-id request with a single-element array is unambiguous.
+      return new Map([[styleIds[0], payload[0]]]);
+    }
+    const wanted = new Set(styleIds);
+    const byId = new Map<string, unknown>();
+    for (const style of payload) {
+      const id = embeddedStyleId(style);
+      if (!id || !wanted.has(id) || byId.has(id)) return undefined;
+      byId.set(id, style);
+    }
+    return byId.size === styleIds.length ? byId : undefined;
+  }
+  if (typeof payload !== "object" || payload === null) {
+    return undefined;
+  }
+  const record = payload as Record<string, unknown>;
+  if (!styleIds.every((styleId) => Object.hasOwn(record, styleId))) return undefined;
+  return new Map(styleIds.map((styleId) => [styleId, record[styleId]]));
+}
+
+export async function getStylesBatch(styleIds: string[]): Promise<Map<string, unknown>> {
+  validateBatchStyleIds(styleIds);
+  const result = await invokeRefero(["refero_get_style"], {
+    style_ids: styleIds,
+    response_format: "json",
+  });
+  const styles = mapBatchStylePayload(parsePayload(result), styleIds);
+  if (styles) return styles;
+
+  console.warn("[refero] batch parse fallback");
+  const fallback = new Map<string, unknown>();
+  for (const styleId of styleIds) {
+    fallback.set(styleId, await getStyle(styleId));
+  }
+  return fallback;
 }
 
 export async function getScreen(screenId: string): Promise<unknown> {

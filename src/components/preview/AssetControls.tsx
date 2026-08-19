@@ -89,6 +89,19 @@ export function classifyAssetTarget(selection: PreviewSelection): AssetTarget {
       reason: "This selection is protected from persistent edits.",
     };
   }
+  // A container's own assetKind can read "image" merely because it WRAPS an
+  // <img> descendant somewhere inside it (overlay.js selectionFor() sets
+  // assetKind from el.querySelector("img")) -- that must not be read as "this
+  // whole section is a single swappable image" (canvas-upgrade Wave 4, Play
+  // 10). Select the image itself to replace it.
+  if (selection.behavior === "container") {
+    return {
+      supported: false,
+      summary,
+      reason:
+        "This is a section, not a single image. Select the image inside it to replace that image specifically.",
+    };
+  }
   if (NON_IMAGE_MEDIA_TAGS.has(tag)) {
     return {
       supported: false,
@@ -623,7 +636,7 @@ export function AssetControls({
               </label>
               <button
                 type="button"
-                className="pill-button"
+                className="btn-primary"
                 disabled={
                   Boolean(pendingAction) ||
                   (!generationAttempt && (!prompt.trim() || !meteredConsent))

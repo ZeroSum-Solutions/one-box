@@ -14,7 +14,11 @@ export const ResearchConfigurationSchema = z.object({
   enabled: z.boolean().default(true),
   businessIntelligence: z.boolean().default(true),
   referoDesignEvidence: z.boolean().default(true),
-  allowPaidFirecrawlFallback: z.boolean().default(false),
+  /** Firecrawl is the standing fallback tier (owner decision 2026-08-16): the
+   * free local scraper still goes first, but a run no longer has to opt in for
+   * the paid tier to catch what it misses. The flag stays so a run can still be
+   * forced off from the intake UI, and so every metered path remains auditable. */
+  allowPaidFirecrawlFallback: z.boolean().default(true),
 });
 export type ResearchConfiguration = z.infer<
   typeof ResearchConfigurationSchema
@@ -688,6 +692,193 @@ export const StageStatusSchema = z.object({
   gateRepairAttempts: z.number().default(0),
 });
 
+// ---------- Reference selection (picker pilot, plan rev 2) ----------
+
+/** Preview images must come from Refero's own hosts over https — candidate
+ * cards render these URLs directly, so the schema is the injection boundary. */
+const REFERO_ASSET_HOSTS = new Set([
+  "refero.design",
+  "www.refero.design",
+  "images.refero.design",
+]);
+
+function isReferoAssetUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && REFERO_ASSET_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+export const CandidatePaletteEntrySchema = z.object({
+  hex: z.string().regex(/^#[0-9a-fA-F]{6}$/), // extracted, never model-invented
+  plainLabel: z.string().min(1).max(60), // "the button color", never a token name
+});
+
+export const CandidateProfileSchema = z.object({
+  referoId: z.string().min(1).max(80),
+  kind: z.literal("style"), // screens are a borrow pool, never picker options
+  name: z.string().min(1).max(120),
+  sourceUrl: z.string().refine(isHttpsUrl, "https URLs only").optional(),
+  previewImageUrl: z
+    .string()
+    .refine(isReferoAssetUrl, "must be a https refero.design asset URL")
+    .optional(),
+  /** Run-relative, confined to the research dir — served via /api/sites. */
+  screenshotPath: z
+    .string()
+    .regex(/^research\/refero\/[a-zA-Z0-9._-]+$/)
+    .optional(),
+  foundVia: z.string().min(1).max(200),
+  palette: z.array(CandidatePaletteEntrySchema).min(2).max(6),
+  plainLanguageProfile: z.object({
+    headline: z.string().min(1).max(80),
+    feelSummary: z.string().min(1).max(320),
+    bestFor: z.array(z.string().min(1).max(80)).max(4),
+    headsUp: z.array(z.string().min(1).max(160)).max(3).default(() => []),
+  }),
+  composition: z.object({
+    northStar: z.string().min(1).max(200),
+    preserveTraits: z.array(z.string().min(1).max(160)).min(2).max(5),
+    rhythmNote: z.string().min(1).max(240),
+  }),
+  recommended: z.boolean().default(false),
+  recommendedWhy: z.string().max(200).optional(),
+});
+export type CandidateProfile = z.infer<typeof CandidateProfileSchema>;
+
+export const ReferenceSelectionVersionSchema = z
+  .object({
+    version: z.number().int().min(1).max(3),
+    createdAt: z.string(),
+    searchAngles: z.array(z.string().min(1).max(200)).min(3).max(5),
+    candidates: z.array(CandidateProfileSchema).min(2).max(3),
+    revisionNote: z.string().max(2_000).optional(),
+    excludedFromPrior: z.array(z.string()).default(() => []),
+  })
+  .superRefine((version, context) => {
+    const ids = version.candidates.map((candidate) => candidate.referoId);
+    if (new Set(ids).size !== ids.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["candidates"],
+        message: "candidate referoIds must be unique within a version",
+      });
+    }
+    const recommended = version.candidates.filter((c) => c.recommended);
+    if (recommended.length !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["candidates"],
+        message: "exactly one candidate must carry the advisory recommendation",
+      });
+    }
+  });
+
+export const ReferenceSelectionStateSchema = z
+  .object({
+    status: z.enum(["pending", "selected"]),
+    /** Server-side reroll reservation counter — counts reservations SPENT,
+     * incremented and persisted BEFORE candidate generation so a duplicate
+     * submit sees the spent reservation and a crash never refunds it. A spent
+     * reservation whose generation failed leaves versions one short, so
+     * versions.length is rerollsUsed or rerollsUsed + 1, never more. */
+    rerollsUsed: z.number().int().min(0).max(2).default(0),
+    recommendedBy: z.literal("advisory-model").default("advisory-model"),
+    versions: z.array(ReferenceSelectionVersionSchema).min(1).max(3),
+    selection: z
+      .object({
+        selectedId: z.string().min(1),
+        selectionKind: z.enum(["user-picked-recommended", "user-picked-other"]),
+        version: z.number().int().min(1).max(3),
+        at: z.string(),
+        note: z.string().max(2_000).optional(),
+      })
+      .optional(),
+  })
+  .superRefine((state, context) => {
+    if (state.versions.length > state.rerollsUsed + 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["versions"],
+        message:
+          "versions.length may not exceed rerollsUsed + 1 (every extra version needs a spent reservation; spent-but-failed reservations may leave versions short by any amount)",
+      });
+    }
+    const seen = new Set<string>();
+    for (const [index, version] of state.versions.entries()) {
+      if (version.version !== index + 1) {
+        context.addIssue({
+          code: "custom",
+          path: ["versions", index, "version"],
+          message: "versions must be linear starting at 1",
+        });
+      }
+      for (const candidate of version.candidates) {
+        if (seen.has(candidate.referoId)) {
+          context.addIssue({
+            code: "custom",
+            path: ["versions", index, "candidates"],
+            message: `reroll repeats an earlier candidate: ${candidate.referoId}`,
+          });
+        }
+      }
+      for (const candidate of version.candidates) seen.add(candidate.referoId);
+    }
+    if (state.status === "selected" && !state.selection) {
+      context.addIssue({
+        code: "custom",
+        path: ["selection"],
+        message: "selected status requires a selection record",
+      });
+    }
+    if (state.status === "pending" && state.selection) {
+      context.addIssue({
+        code: "custom",
+        path: ["selection"],
+        message: "pending status cannot carry a selection record",
+      });
+    }
+    if (state.selection) {
+      const version = state.versions.find(
+        (v) => v.version === state.selection?.version
+      );
+      const candidate = version?.candidates.find(
+        (c) => c.referoId === state.selection?.selectedId
+      );
+      if (!candidate) {
+        context.addIssue({
+          code: "custom",
+          path: ["selection", "selectedId"],
+          message: "selection must name a candidate in the referenced version",
+        });
+      } else {
+        const expectedKind = candidate.recommended
+          ? "user-picked-recommended"
+          : "user-picked-other";
+        if (state.selection.selectionKind !== expectedKind) {
+          context.addIssue({
+            code: "custom",
+            path: ["selection", "selectionKind"],
+            message: `selectionKind must be ${expectedKind} for this candidate`,
+          });
+        }
+      }
+    }
+  });
+export type ReferenceSelectionState = z.infer<
+  typeof ReferenceSelectionStateSchema
+>;
+
 export const RunStateSchema = z.object({
   id: z.string(),
   createdAt: z.string(),
@@ -709,6 +900,13 @@ export const RunStateSchema = z.object({
     currentStage: "evidence" as const,
     artifacts: [],
   })),
+  /** Picker pilot flag, persisted at creation so a mid-run env change can
+   * never alter resume semantics (plan rev 2 §A). Default false = today's
+   * behavior for every pre-existing run. */
+  referencePickerEnabled: z.boolean().default(false),
+  /** Sibling picker state — deliberately NOT an evidence-workflow stage, so
+   * every persisted run parses unchanged (Sol audit blocker 1). */
+  referenceSelection: ReferenceSelectionStateSchema.optional(),
 }).superRefine((state, context) => {
   if (state.pipelineVersion !== "evidence-gated-v2") return;
   for (const [index, artifact] of state.evidenceWorkflow.artifacts.entries()) {
@@ -746,7 +944,7 @@ export const IntakeSchema = z.object({
     enabled: true,
     businessIntelligence: true,
     referoDesignEvidence: true,
-    allowPaidFirecrawlFallback: false,
+    allowPaidFirecrawlFallback: true,
   }),
   uploads: z.array(UploadMetadataSchema).default([]),
 });
@@ -792,6 +990,42 @@ export const CompetitorSchema = z.object({
 });
 export type Competitor = z.infer<typeof CompetitorSchema>;
 
+/** One organic Yelp search result. Sponsored placements are dropped upstream
+ * in tools/yelp.ts — an advertiser's rating is not a market fact. */
+export const YelpListingSchema = z.object({
+  rank: z.number(), // position in Yelp's organic ordering
+  name: z.string(),
+  rating: z.number().optional(),
+  reviewCount: z.number().optional(),
+  categories: z.array(z.string()).default([]),
+  priceRange: z.string().optional(), // "$".."$$$$"
+  yelpUrl: z.string().optional(),
+});
+export type YelpListing = z.infer<typeof YelpListingSchema>;
+
+/** The derived market bar. Kept in its own object, NOT spread across the
+ * market, so a consumer can be handed the aggregates without also being handed
+ * the named roster. */
+export const YelpMarketSummarySchema = z.object({
+  rosterSize: z.number(),
+  ratingMedian: z.number().optional(),
+  reviewCountMedian: z.number().optional(),
+});
+export type YelpMarketSummary = z.infer<typeof YelpMarketSummarySchema>;
+
+/** Yelp market intelligence for the scan. Report-only: Yelp stays on
+ * DIRECTORY_DOMAINS, so it is never a competitor site, a crawl target, or a
+ * design input. `unavailable` explains an empty roster so a Yelp miss reads as
+ * "not reachable" rather than "no competitors". */
+export const YelpMarketSchema = z.object({
+  searchUrl: z.string(),
+  fetchedAt: z.string(),
+  listings: z.array(YelpListingSchema).max(10).default([]),
+  summary: YelpMarketSummarySchema,
+  unavailable: z.string().optional(),
+});
+export type YelpMarket = z.infer<typeof YelpMarketSchema>;
+
 export const ScanResultSchema = z.object({
   competitors: z.array(CompetitorSchema).max(4),
   commonSections: z.array(z.string()), // structure signal, NOT style input
@@ -802,6 +1036,8 @@ export const ScanResultSchema = z.object({
   excluded: z
     .array(z.object({ url: z.string(), title: z.string(), why: z.string() }))
     .default([]),
+  /** Optional so scans saved before the Yelp lane existed still parse. */
+  yelp: YelpMarketSchema.optional(),
 });
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 
@@ -873,6 +1109,64 @@ export const ReferenceLockDraftSchema = ReferenceLockSchema.omit({
 
 // ---------- Stage 4: synthesis ----------
 
+const ReferenceStyleDigestDraftShape = z.object({
+  northStar: z.string().max(200),
+  preserveTraits: z.array(z.string()).min(3).max(5),
+  sectionRhythm: z.string().max(500),
+  surfaces: z
+    .array(
+      z.object({
+        level: z.number().int().min(0).max(3),
+        purpose: z.string().max(160),
+      })
+    )
+    .min(1)
+    .max(4),
+  componentRecipes: z.array(z.string()).min(1).max(8),
+  imageryTreatment: z.string().max(400),
+  motionPersonality: z.string().max(200),
+  dosDonts: z
+    .array(
+      z.object({
+        polarity: z.enum(["do", "dont"]),
+        rule: z.string().max(200),
+      })
+    )
+    .min(4)
+    .max(14),
+});
+
+function requireDigestDont(
+  digest: z.infer<typeof ReferenceStyleDigestDraftShape>,
+  context: z.RefinementCtx
+) {
+  if (digest.dosDonts.some((rule) => rule.polarity === "dont")) return;
+  context.addIssue({
+    code: "custom",
+    path: ["dosDonts"],
+    message: "style digest must include at least one don't rule",
+  });
+}
+
+export const ReferenceStyleDigestDraftSchema = ReferenceStyleDigestDraftShape.superRefine(
+  requireDigestDont
+);
+
+export const ReferenceStyleDigestSchema = ReferenceStyleDigestDraftShape.extend({
+  sourceStyleId: z.string().min(1),
+  designContractVersion: z.number().int().min(1),
+}).superRefine(requireDigestDont);
+export type ReferenceStyleDigest = z.infer<typeof ReferenceStyleDigestSchema>;
+
+export const FORBIDDEN_CONTEXTS = [
+  "section-background",
+  "body-text",
+  "heading-text",
+  "border",
+  "button-background",
+  "large-surface",
+] as const;
+
 export const DesignTokensSchema = z.object({
   colors: z.array(
     z.object({
@@ -881,6 +1175,7 @@ export const DesignTokensSchema = z.object({
       cssVar: z.string(), // --color-*
       role: z.string(), // where it lives
       forbidden: z.string().optional(), // where it must NEVER appear
+      forbiddenContexts: z.array(z.enum(FORBIDDEN_CONTEXTS)).default([]),
     })
   ),
   fonts: z.array(
@@ -981,14 +1276,77 @@ export type GateReport = z.infer<typeof GateReportSchema>;
 
 // ---------- Editor ----------
 
+const EditorEvidenceSchema = z.object({
+  screenId: z.string().min(1).max(160),
+  /** Run-relative Refero thumbnail path, never an arbitrary URL. */
+  thumbnailPath: z.string().regex(/^research\/refero\/assistant\/[a-zA-Z0-9._-]+$/),
+  siteName: z.string().min(1).max(160),
+  takeaway: z.string().min(1).max(200),
+});
+
+const EditorSuggestionSchema = z.object({
+  id: z.string().min(1).max(120),
+  /** Live data-edit-id, validated against the generated site at turn time. */
+  editId: z.string().min(1).max(160),
+  instruction: z.string().min(1).max(400),
+  summary: z.string().min(1).max(160),
+});
+
+const EditorOwnerMessageSchema = z.object({
+  id: z.string().min(1).max(120),
+  role: z.literal("owner"),
+  text: z.string().min(1).max(2_000),
+  at: z.string().datetime(),
+});
+
+const EditorAssistantMessageSchema = z.object({
+  id: z.string().min(1).max(120),
+  role: z.literal("assistant"),
+  reply: z.string().min(1).max(4_000),
+  at: z.string().datetime(),
+  evidence: z.array(EditorEvidenceSchema).max(4).default([]),
+  suggestions: z.array(EditorSuggestionSchema).max(3).default([]),
+});
+
+/** Persisted, advice-only assistant conversation. The writer prunes before
+ * saving, so the bound remains a durable storage limit rather than a failure. */
+export const EditorThreadSchema = z.object({
+  messages: z
+    .array(z.discriminatedUnion("role", [EditorOwnerMessageSchema, EditorAssistantMessageSchema]))
+    .max(60),
+  updatedAt: z.string().datetime(),
+});
+export type EditorThread = z.infer<typeof EditorThreadSchema>;
+export type EditorThreadMessage = EditorThread["messages"][number];
+
 export const EditRequestSchema = z.object({
   runId: z.string(),
   editId: z.string(), // data-edit-id — the ONLY selector the editor accepts
   instruction: z.string(),
   imageIntent: z.boolean().default(false), // route to Higgsfield swap
   requestId: z.string().uuid().optional(),
+  confirmRedirect: z.boolean().optional(),
+  // Same id-format contract as GenerateImageRequestSchema's sourceAssetId
+  // (src/lib/imageLibrary.ts) — an id, never a URL, and only ever trusted
+  // after api/edit/route.ts checks it against the run's OWN image library.
+  referenceAssetId: z.string().min(8).max(80).optional(),
 });
 export type EditRequest = z.infer<typeof EditRequestSchema>;
+
+export const EditClassificationSchema = z.discriminatedUnion("decision", [
+  z.object({ decision: z.literal("apply") }),
+  z.object({
+    decision: z.literal("redirect"),
+    reason: z.string().min(1).max(400),
+    suggestedAlternative: z.string().min(1).max(400),
+  }),
+  z.object({
+    decision: z.literal("refuse"),
+    reason: z.string().min(1).max(400),
+    suggestedAlternative: z.string().max(400).optional(),
+  }),
+]);
+export type EditClassification = z.infer<typeof EditClassificationSchema>;
 
 // ---------- Pipeline progress events (SSE to the chat UI) ----------
 
@@ -1023,8 +1381,40 @@ export interface CardMap {
   note?: string;
 }
 
+/** One ranked Yelp roster row, presentation-shaped from YelpListing.
+ * `verified` means this operator was independently corroborated by the
+ * Google Places-resolved competitor scan — two sources agreeing, not a
+ * platform badge. */
+export interface ScanRosterItem {
+  rank: number;
+  name: string;
+  rating?: number;
+  reviewCount?: number;
+  url?: string;
+  verified: boolean;
+}
+
+/** The scan card's KPI-strip source. `directoriesFiltered` is the web
+ * discovery exclusion count known at Yelp-card emit time — the same number
+ * the later "Filtered out" card reports, surfaced here so the roster's KPI
+ * strip does not need to wait on it. */
+export interface ScanMarketSummary {
+  rosterSize: number;
+  ratingMedian?: number;
+  reviewCountMedian?: number;
+  directoriesFiltered: number;
+}
+
 export type PipelineEvent =
-  | { type: "stage"; stage: Stage; status: "running" | "done" | "failed"; note?: string }
+  | {
+      type: "stage";
+      stage: Stage;
+      status: "running" | "done" | "failed";
+      note?: string;
+      /** ISO timestamp; optional so historical events.jsonl lines still parse.
+       * Lets the timeline's collapsed stage row show a mono elapsed duration. */
+      at?: string;
+    }
   | {
       type: "card";
       stage: Stage;
@@ -1033,6 +1423,11 @@ export type PipelineEvent =
       images?: CardImage[];
       links?: CardLink[];
       map?: CardMap;
+      /** Additive, Yelp-roster-only presentation fields — see ScanRosterItem. */
+      roster?: ScanRosterItem[];
+      market?: ScanMarketSummary;
+      /** Additive, build-gate-repair-card-only presentation field. */
+      gates?: GateReport[];
     }
   | { type: "cost"; usd: number }
   | { type: "complete"; runId: string; previewUrl: string }
@@ -1042,8 +1437,34 @@ export type PipelineEvent =
       workflowStage: EvidenceWorkflowStage;
       workspaceUrl: string;
       note: string;
+      /** ISO timestamp; optional so historical events.jsonl lines still parse. */
+      at?: string;
+    }
+  | {
+      /** Picker pause. Distinct from "paused": workflowStage is a closed
+       * 6-value union and its UI copy derives from EVIDENCE_STAGE_ARTIFACT —
+       * reusing it would render "evidence ready for review" for a pick. */
+      type: "reference-paused";
+      runId: string;
+      workspaceUrl: string;
+      note: string;
+      at?: string;
     }
   | { type: "error"; message: string };
+
+/** Transport-only note: a stage the controller skipped because it was
+ * already checkpointed (pipeline.ts's `stage()` helper). The durable event
+ * log never records these — pipeline.ts's broadcast filters them out before
+ * appending — but the live SSE stream still replays one per already-done
+ * stage on every reconnect, so the timeline UI needs to recognize and
+ * collapse them too. Lives here, not in pipeline.ts, so a client component
+ * (RunTimeline) can import the predicate without pulling in pipeline.ts's
+ * server-only `node:fs`/`node:path` graph. */
+export const RESUMED_NOTE = "resumed from checkpoint";
+
+export function isResumeNoise(event: PipelineEvent): boolean {
+  return event.type === "stage" && event.note === RESUMED_NOTE;
+}
 
 // ---------- Paths ----------
 
@@ -1062,6 +1483,7 @@ export const ARTIFACTS = {
   scan: "scan.json",
   lock: "reference-lock.json",
   designMd: "DESIGN.md",
+  referenceStyleDigest: "reference-style-digest.json",
   evidenceLedger: "evidence/ledger.json",
   designContractMeta: "evidence/design-contract.json",
   designTailwindExport: "evidence/design-tailwind.css",
@@ -1075,6 +1497,7 @@ export const ARTIFACTS = {
   copy: "copy.json",
   manifest: "site/manifest.json",
   gates: "gates.json",
+  editorThread: "editor-thread.json",
 } as const;
 
 // ---------- Model slugs (verified live 2026-08-12; re-verify in Phase 0 smoke) ----------

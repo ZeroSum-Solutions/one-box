@@ -157,7 +157,7 @@ export function IntakeComposer({
         />
         <button
           type="submit"
-          className="intake-composer__send"
+          className="btn-primary intake-composer__send"
           disabled={!canSubmit}
         >
           {submitLabel}

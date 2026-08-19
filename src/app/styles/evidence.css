@@ -1,0 +1,1317 @@
+/* ==========================================================================
+   Evidence workspace — Midnight Instrument (DESIGN.md "App components" §
+   Gate rail / Artifact panel). Mercury layout: a carbon gate-rail card next
+   to a carbon artifact-panel card, both living on the void canvas like every
+   other screen. Replaces the retired white-card light-theme island.
+   ========================================================================== */
+
+.evidence-workspace {
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: var(--spacing-section) var(--spacing-32) 96px;
+}
+
+.evidence-workspace__marker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  color: var(--text-ash);
+  margin-bottom: var(--spacing-16);
+}
+
+.evidence-workspace__header h1 {
+  color: var(--text-paper);
+  font-family: var(--font-display);
+  font-size: var(--text-heading-size);
+  font-weight: var(--weight-heading);
+  line-height: var(--leading-heading-md);
+  letter-spacing: var(--tracking-heading);
+  margin: 0;
+}
+
+.evidence-workspace__sub {
+  color: var(--text-fog);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: var(--spacing-8) 0 0;
+  max-width: 60ch;
+}
+
+/* ---------- Mercury layout ---------- */
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--spacing-16);
+  align-items: start;
+  margin-top: var(--spacing-24);
+}
+
+@media (max-width: 900px) {
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Gate rail ---------- */
+
+.gate-rail {
+  /* Pinned so the rail — and the gate the reviewer is actually on — stays
+     visible next to a long artifact panel instead of scrolling out of view. */
+  position: sticky;
+  top: var(--spacing-24);
+  align-self: start;
+  padding: var(--spacing-8);
+}
+
+.gate-rail ol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.gate-rail__item {
+  border-radius: var(--radius-control);
+  font-size: 13.5px;
+  color: var(--text-ash);
+}
+
+/* The rail is navigation, not decoration: every gate that has a recorded
+   artifact opens it. Reading an earlier gate never advances the run — the
+   approve controls stay bound to the run's own current gate. */
+.gate-rail__open {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 6px var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.gate-rail__open--static {
+  cursor: default;
+}
+
+.gate-rail__open:hover:not(.gate-rail__open--static) {
+  background: rgb(255 255 255 / 3%);
+}
+
+/* Which gate the panel is READING — distinct from which gate the RUN is on,
+   because those come apart the moment the reviewer opens the palette. */
+.gate-rail__item[data-viewing] {
+  color: var(--text-paper);
+  background: rgb(255 255 255 / 4%);
+  box-shadow: 0 0 0 1px var(--border-graphite) inset;
+}
+
+.gate-rail__item[data-state="complete"] {
+  color: var(--text-mist);
+}
+
+/* The run's own gate keeps a mist tick on its left edge even while the
+   reader is elsewhere, so "where the run is waiting" never disappears. */
+.gate-rail__item[data-state="current"] {
+  color: var(--text-paper);
+  box-shadow: inset 2px 0 0 var(--text-mist);
+}
+
+.gate-rail__dot {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-graphite);
+  font-size: 9px;
+  line-height: 1;
+}
+
+.gate-rail__item[data-state="complete"] .gate-rail__dot {
+  border-color: var(--accent-pulse);
+  color: var(--accent-pulse);
+  box-shadow: 0 0 0 2px rgb(39 166 68 / 18%);
+}
+
+.gate-rail__item[data-state="current"] .gate-rail__dot {
+  border-color: var(--text-mist);
+  background: var(--text-mist);
+}
+
+.gate-rail__label {
+  flex: 1;
+}
+
+.gate-rail__meta {
+  color: var(--text-ash);
+}
+
+/* Coral is the "in review" state only — matches the same approval state the
+   artifact panel renders, never a blanket color for "this is the current
+   gate" (that would contradict the panel when the state is draft or
+   revision-requested). */
+.gate-rail__meta[data-approval="in-review"] {
+  color: var(--accent-coral);
+}
+
+/* ---------- Artifact panel ---------- */
+
+.artifact-panel__head {
+  /* Pinned so Approve & continue / Request changes stay reachable on a long
+     artifact instead of scrolling out of view; the explicit backdrop keeps
+     scrolled content from showing through underneath it. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: var(--spacing-16) var(--spacing-20);
+  background: var(--surface-carbon);
+  border-bottom: 1px solid var(--border-graphite);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  flex-wrap: wrap;
+}
+
+.artifact-panel__head h2 {
+  color: var(--text-paper);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: var(--weight-medium);
+  letter-spacing: -0.011em;
+  margin: 0;
+}
+
+.artifact-panel__prov {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  margin: 2px 0 0;
+}
+
+.artifact-panel__actions {
+  display: flex;
+  gap: var(--spacing-8);
+  flex: none;
+}
+
+.artifact-panel__recap {
+  color: var(--text-ash);
+  padding: var(--spacing-12) var(--spacing-20) 0;
+  margin: 0;
+}
+
+.artifact-panel__empty {
+  padding: var(--spacing-20);
+}
+
+/* ---------- Readable artifact content ---------- */
+
+.evidence-readable {
+  display: grid;
+  gap: var(--spacing-16);
+  padding: var(--spacing-20);
+  /* Human visual review's radios and checkbox are native controls on a dark
+     theme; this is the compliance form's own attestation UI, so only the
+     presentation changes — logic, names and values stay untouched. */
+  accent-color: var(--color-primary);
+}
+
+.evidence-readable h3 {
+  color: var(--text-paper);
+  font-size: 14px;
+  font-weight: var(--weight-medium);
+  margin: 0;
+}
+
+.evidence-readable h4 {
+  color: var(--text-mist);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  margin: var(--spacing-8) 0 0;
+}
+
+.evidence-readable p,
+.evidence-readable li {
+  color: var(--text-mist);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+/* Inline claim/label emphasis reads as the fog-label half of a key-value
+   pair; the surrounding sentence stays mist. */
+.evidence-readable strong {
+  color: var(--text-fog);
+  font-weight: var(--weight-medium);
+}
+
+.evidence-readable a {
+  color: var(--text-fog);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.evidence-readable ul,
+.evidence-readable ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+}
+
+.evidence-readable table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.evidence-readable th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-ash);
+  padding: var(--spacing-8) 0;
+  border-bottom: 1px solid var(--border-graphite);
+}
+
+.evidence-readable td {
+  padding: 9px 0;
+  border-bottom: 1px solid rgb(35 37 42 / 60%);
+  font-size: 13px;
+  color: var(--text-mist);
+  vertical-align: top;
+}
+
+.evidence-readable tr:last-child td {
+  border-bottom: 0;
+}
+
+.evidence-readable code {
+  font-family: var(--font-mono-app), ui-monospace, Menlo, monospace;
+  font-size: var(--text-mono-size);
+  letter-spacing: var(--tracking-mono);
+  color: var(--text-mist);
+}
+
+/* Token table swatches (DESIGN.md: "token tables with swatches"). */
+.tok-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 8px;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 15%) inset;
+  vertical-align: -1px;
+}
+
+/* Mono JSON dumps in an obsidian well (DESIGN.md: "mono JSON in obsidian
+   wells"). Capped per DESIGN.md §Long-run disclosure: a raw payload gets
+   internal scroll, never the page's height. */
+.evidence-readable pre {
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  padding: var(--spacing-16);
+  max-height: 320px;
+  overflow-x: auto;
+  overflow-y: auto;
+  font-family: var(--font-mono-app), ui-monospace, Menlo, monospace;
+  font-size: var(--text-mono-size);
+  color: var(--text-mist);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* The full artifact JSON duplicates the structured summary rendered above it,
+   so it stays collapsed until asked for (DESIGN.md §Long-run disclosure). */
+.evidence-readable details {
+  margin-top: var(--spacing-8);
+}
+
+.evidence-readable summary {
+  cursor: pointer;
+  color: var(--text-fog);
+  font-size: 12px;
+  font-weight: var(--weight-medium);
+}
+
+.evidence-readable summary::marker {
+  color: var(--text-ash);
+}
+
+.evidence-readable details pre {
+  margin-top: var(--spacing-8);
+}
+
+.evidence-readable figure {
+  margin: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.evidence-readable figure img {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-graphite);
+}
+
+.evidence-readable figcaption {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+}
+
+/* Visual QA thumbnail grid (DESIGN.md §Long-run disclosure): captured
+   imagery is a fixed-size thumbnail that opens full size on click — a
+   6,000px+ full-page capture must never set this page's height. */
+.evidence-readable .qa-checks {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  align-items: start;
+}
+
+.evidence-readable .qa-thumb,
+.evidence-readable .qa-thumb a {
+  transition: opacity 140ms ease;
+}
+
+.evidence-readable .qa-thumb a {
+  position: relative;
+  display: block;
+  text-decoration: none;
+}
+
+.evidence-readable .qa-thumb img {
+  height: 220px;
+  width: 100%;
+  object-fit: cover;
+  object-position: top;
+}
+
+.evidence-readable .qa-thumb__open {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 2px 8px;
+  border-radius: var(--radius-badge);
+  background: rgb(8 9 10 / 70%);
+  color: var(--text-bone);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.evidence-readable fieldset {
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  padding: var(--spacing-16);
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.evidence-readable legend {
+  color: var(--text-paper);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  padding: 0 4px;
+}
+
+.evidence-readable label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-fog);
+  font-size: 12.5px;
+}
+
+.evidence-readable label:has(input[type="radio"]),
+.evidence-readable label:has(input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-mist);
+  font-size: 13px;
+}
+
+.evidence-readable input:not([type="radio"]):not([type="checkbox"]),
+.evidence-readable select,
+.evidence-readable textarea {
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  color: var(--text-mist);
+  font: inherit;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+/* ---------- Review note + draft editor ---------- */
+
+.evidence-note {
+  display: grid;
+  gap: 6px;
+  padding: 0 var(--spacing-20) var(--spacing-16);
+  color: var(--text-fog);
+  font-size: 12.5px;
+  font-weight: var(--weight-medium);
+}
+
+.evidence-note textarea {
+  min-height: 84px;
+  padding: 10px 12px;
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  color: var(--text-mist);
+  font: inherit;
+  resize: vertical;
+}
+
+.evidence-draft-editor {
+  display: block;
+  width: calc(100% - (2 * var(--spacing-20)));
+  margin: 0 var(--spacing-20) var(--spacing-16);
+  min-height: 360px;
+  padding: var(--spacing-16);
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  color: var(--text-mist);
+  font-family: var(--font-mono-app), ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.evidence-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  flex-wrap: wrap;
+  padding: var(--spacing-16) var(--spacing-20);
+  border-top: 1px solid var(--border-graphite);
+}
+
+.evidence-actions:empty {
+  display: none;
+}
+
+/* ==========================================================================
+   Reference selection panel — carbon card, badge chips, compact buttons.
+   Selection/reroll logic is untouched; this is presentation only.
+   ========================================================================== */
+
+.reference-selection {
+  display: grid;
+  gap: var(--spacing-16);
+  margin-bottom: var(--spacing-24);
+  padding: var(--spacing-20);
+  background: var(--surface-carbon);
+  border-radius: var(--radius-card);
+  box-shadow: var(--ring-subtle);
+}
+
+.reference-selection h2 {
+  color: var(--text-paper);
+  font-family: var(--font-body);
+  font-size: var(--text-subheading-size);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-subheading);
+  letter-spacing: var(--tracking-subheading);
+  margin: 0;
+}
+
+.reference-selection h3,
+.reference-selection h4 {
+  color: var(--text-paper);
+  font-size: 14px;
+  font-weight: var(--weight-medium);
+  margin: 0;
+}
+
+.reference-selection h5 {
+  color: var(--text-fog);
+  font-size: 11px;
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: var(--spacing-8) 0 0;
+}
+
+.reference-selection p {
+  margin: 0;
+  color: var(--text-mist);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.reference-selection__framing {
+  max-width: 64ch;
+  color: var(--text-fog);
+}
+
+.reference-selection__gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--spacing-12);
+}
+
+.reference-selection__card {
+  display: grid;
+  align-content: start;
+  gap: var(--spacing-12);
+  padding: var(--spacing-16);
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+}
+
+.reference-selection__card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+
+.reference-selection__badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 1px 6px;
+  border-radius: var(--radius-badge);
+  background: rgb(255 255 255 / 5%);
+  color: var(--text-fog);
+  font-size: 12px;
+}
+
+.reference-selection__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.reference-selection__swatch {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 15%) inset;
+}
+
+.reference-selection__profile {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.reference-selection__profile ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+  color: var(--text-mist);
+  font-size: 13px;
+}
+
+.reference-selection__image {
+  margin: 0;
+}
+
+.reference-selection__image img {
+  display: block;
+  width: 100%;
+  max-height: 168px;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-small);
+  object-fit: cover;
+}
+
+.reference-selection__image figcaption,
+.reference-selection__disclosure,
+.reference-selection__message {
+  color: var(--text-ash);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.reference-selection__disclosure {
+  padding-top: var(--spacing-16);
+  border-top: 1px solid var(--border-graphite);
+}
+
+.reference-selection__earlier {
+  display: grid;
+  gap: var(--spacing-12);
+  padding-top: var(--spacing-16);
+  border-top: 1px solid var(--border-graphite);
+}
+
+/* The shared button classes carry no width opinion; every grid parent here
+   defaults to justify-items: stretch, which would blow each button out to
+   the full card width. Keep them compact, matching the recommendation
+   button's own DESIGN.md-specified sizing. */
+.reference-selection > .btn-primary,
+.reference-selection > .btn-ghost,
+.reference-selection__card .btn-ghost {
+  justify-self: start;
+}
+
+@media (max-width: 760px) {
+  .evidence-workspace {
+    padding: var(--spacing-32) var(--spacing-16) 64px;
+  }
+
+  .reference-selection__gallery {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   Artifact viewers — one purpose-built reader per evidence artifact.
+   The client's colours appear ONLY inside a bounded swatch: never on a
+   surface, a border, a control or any text in this shell. The midnight frame
+   holds the palette; it never joins it.
+   ========================================================================== */
+
+.viewer-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding-bottom: var(--spacing-12);
+  margin-bottom: var(--spacing-20);
+  border-bottom: 1px solid var(--border-graphite);
+}
+
+.viewer-head h3 {
+  margin: 0;
+  color: var(--text-paper);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: var(--weight-heading);
+  letter-spacing: -0.022em;
+}
+
+.viewer-head__meta {
+  margin: 4px 0 0;
+  color: var(--text-ash);
+}
+
+.viewer-note {
+  margin: 0 0 var(--spacing-16);
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.evidence-readable > section + section {
+  margin-top: var(--spacing-32);
+}
+
+/* ---------- Palette ---------- */
+
+.palette-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--spacing-12);
+}
+
+.palette-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-carbon);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  transition: border-color 140ms ease;
+}
+
+.palette-card:hover {
+  border-color: var(--border-smoke);
+}
+
+/* The one sanctioned place an arbitrary client colour touches this UI. It is
+   always bounded by the card's own hairline and never sits behind text. */
+.palette-card__swatch {
+  height: 96px;
+  display: grid;
+  place-items: center;
+  border-bottom: 1px solid var(--border-graphite);
+}
+
+.palette-card__nonhex {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+}
+
+.palette-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-16);
+}
+
+.palette-card__name {
+  margin: 0;
+  color: var(--text-paper);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.011em;
+  text-transform: capitalize;
+}
+
+.palette-card__ids {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  margin: 0;
+  color: var(--text-ash);
+}
+
+.palette-card__hex {
+  color: var(--text-mist);
+  text-transform: uppercase;
+}
+
+.palette-card__role {
+  margin: 0;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+}
+
+/* Coral's punctuation role: the word marks the rule, the rule itself reads as
+   ordinary prose. A prohibition is a design decision, not an error. */
+.palette-card__never {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-graphite);
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+}
+
+.palette-card__never > span {
+  color: var(--accent-coral);
+  font-weight: var(--weight-medium);
+}
+
+/* Measured, not asserted — a reviewer approving a palette should not have to
+   take legibility on trust. */
+.palette-card__contrast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--spacing-12);
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-graphite);
+  color: var(--text-ash);
+}
+
+.palette-card__contrast > div {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.palette-card__contrast dt,
+.palette-card__contrast dd {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.palette-card__contrast dd {
+  color: var(--text-fog);
+  font-variant-numeric: tabular-nums;
+}
+
+.palette-card__evidence {
+  margin: 0;
+  color: var(--text-ash);
+}
+
+/* ---------- Token spec tables ---------- */
+
+/* `--FONT-BODY` is not a token. The generic `.evidence-readable th` rule
+   uppercases column headers, but these tables put the token name in a
+   row-scoped th, and custom properties are case-sensitive. */
+.spec-table th[scope="row"],
+.map-table th[scope="row"] {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+}
+
+.spec-groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+}
+
+.spec-table,
+.map-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.spec-table th,
+.spec-table td,
+.map-table th,
+.map-table td {
+  padding: 7px var(--spacing-8);
+  border-bottom: 1px solid rgb(35 37 42 / 60%);
+  text-align: left;
+  font-weight: var(--weight-regular);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.spec-table th[scope="row"],
+.map-table th[scope="row"] {
+  width: 30%;
+  color: var(--text-mist);
+}
+
+.spec-table__value {
+  width: 22%;
+  color: var(--text-fog);
+}
+
+.spec-table__value code {
+  overflow-wrap: anywhere;
+}
+
+.spec-table__usage,
+.map-table__why {
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+}
+
+.map-table thead th {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  font-weight: var(--weight-medium);
+  border-bottom-color: var(--border-graphite);
+}
+
+.map-table__target {
+  width: 26%;
+  color: var(--text-paper);
+}
+
+.map-table__target .tok-swatch {
+  margin-right: 6px;
+}
+
+.spec-table tbody tr:hover,
+.map-table tbody tr:hover {
+  background: rgb(255 255 255 / 2%);
+}
+
+/* ---------- CSS architecture ---------- */
+
+.hierarchy {
+  list-style: none;
+  margin: 0;
+  padding: var(--spacing-12) 0;
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+}
+
+.hierarchy__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  height: 28px;
+  padding-right: var(--spacing-16);
+  color: var(--text-mist);
+  font-size: 13px;
+}
+
+/* Depth reads as structure, never as colour. */
+.hierarchy__rule {
+  width: 12px;
+  height: 1px;
+  margin-left: var(--spacing-16);
+  background: var(--border-smoke);
+  flex: none;
+}
+
+.hierarchy__name {
+  flex: 1;
+  min-width: 0;
+}
+
+.hierarchy__depth {
+  color: var(--text-ash);
+}
+
+.usage-map {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.usage-map__row {
+  display: grid;
+  grid-template-columns: minmax(0, 240px) minmax(0, 1fr);
+  gap: var(--spacing-16);
+  align-items: baseline;
+  padding: var(--spacing-8) 0;
+  border-bottom: 1px solid rgb(35 37 42 / 60%);
+}
+
+.usage-map__token {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-mist);
+}
+
+.usage-map__token code {
+  overflow-wrap: anywhere;
+}
+
+.usage-map__uses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.usage-map__use {
+  max-width: 100%;
+}
+
+/* Sentence-shaped entries are prose, not labels — see isComponentName. */
+.usage-map__prose {
+  flex-basis: 100%;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+}
+
+/* ---------- Checks ---------- */
+
+.check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.check-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 150px) minmax(0, 1fr) auto;
+  gap: var(--spacing-12);
+  align-items: baseline;
+  padding: var(--spacing-8);
+  border-radius: var(--radius-small);
+  font-size: 13px;
+}
+
+.check-row__mark {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-pulse);
+  color: var(--accent-pulse);
+  font-size: 9px;
+  line-height: 1;
+  align-self: center;
+}
+
+/* Structural, not chromatic (DESIGN.md §Error state): a failed check steps
+   into an obsidian well behind a smoke border with a filled bone glyph.
+   Coral never appears here — coral means route-back, not danger. */
+.check-row--fail {
+  background: var(--surface-obsidian);
+  box-shadow: 0 0 0 1px var(--border-smoke) inset;
+}
+
+.check-row--fail .check-row__mark {
+  background: var(--text-bone);
+  border-color: var(--text-bone);
+  color: var(--surface-canvas);
+}
+
+.check-row__area {
+  color: var(--text-mist);
+  font-weight: var(--weight-medium);
+}
+
+.check-row__notes {
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.45;
+}
+
+.check-row__status {
+  color: var(--text-ash);
+}
+
+.check-row__evidence {
+  grid-column: 2 / -1;
+  margin-top: var(--spacing-8);
+}
+
+/* ---------- Confidence ---------- */
+
+/* A neutral track, deliberately: a green/red confidence bar would assert a
+   certainty the crawl data does not carry. */
+.confidence {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.confidence__track {
+  width: 56px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--surface-slate);
+  overflow: hidden;
+}
+
+.confidence__fill {
+  display: block;
+  height: 100%;
+  background: var(--border-smoke);
+}
+
+/* ---------- Ledger ---------- */
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--spacing-12);
+}
+
+.source-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) var(--spacing-16) var(--spacing-16);
+  background: var(--surface-carbon);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+}
+
+.source-card__title {
+  margin: 0;
+  color: var(--text-bone);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+}
+
+.source-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.source-card__title a:hover {
+  color: var(--text-paper);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.source-card__shot {
+  display: block;
+  border-radius: var(--radius-small);
+  overflow: hidden;
+  border: 1px solid var(--border-graphite);
+}
+
+.source-card__shot img {
+  display: block;
+  width: 100%;
+  height: 112px;
+  object-fit: cover;
+  object-position: top center;
+}
+
+.source-card__prov,
+.source-card__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  margin: 0;
+  color: var(--text-ash);
+}
+
+.claim-list,
+.finding-list {
+  list-style: none;
+  margin: 0 0 var(--spacing-16);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.claim-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  flex-wrap: wrap;
+}
+
+.claim-list__text {
+  flex: 1;
+  min-width: 200px;
+  color: var(--text-mist);
+  font-size: 13px;
+}
+
+.claim-list__id {
+  color: var(--text-ash);
+}
+
+.finding-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: var(--spacing-8);
+  border-bottom: 1px solid rgb(35 37 42 / 60%);
+  color: var(--text-fog);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.finding-list strong {
+  color: var(--text-mist);
+  font-weight: var(--weight-medium);
+}
+
+.finding-list__aside {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+/* ---------- Rendered contract ---------- */
+
+.doc-view__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-12);
+}
+
+.doc-view__bar .eyebrow {
+  margin: 0 auto 0 0;
+}
+
+/* A reading column, not a full-width slab: 68ch is where prose stops needing
+   a ruler. */
+.md-doc {
+  max-width: 68ch;
+  padding: var(--spacing-20) var(--spacing-24);
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+}
+
+.md-doc h3 {
+  margin: var(--spacing-24) 0 var(--spacing-8);
+  color: var(--text-paper);
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: var(--weight-heading);
+  letter-spacing: -0.022em;
+}
+
+.md-doc h3:first-child {
+  margin-top: 0;
+}
+
+.md-doc h4 {
+  margin: var(--spacing-16) 0 6px;
+  color: var(--text-bone);
+  font-size: 14px;
+  font-weight: var(--weight-semibold);
+}
+
+.md-doc p {
+  margin: 0 0 var(--spacing-12);
+  color: var(--text-mist);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.md-doc ul {
+  margin: 0 0 var(--spacing-12);
+  padding-left: var(--spacing-16);
+}
+
+.md-doc li {
+  margin-bottom: 6px;
+  color: var(--text-mist);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.md-doc strong {
+  color: var(--text-paper);
+  font-weight: var(--weight-medium);
+}
+
+.md-hex {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Bounded source: no artifact sets this page's height. */
+.source-well {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: var(--spacing-12) var(--spacing-16);
+  background: var(--surface-obsidian);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  color: var(--text-fog);
+  font-family: var(--font-mono-app);
+  font-size: 12px;
+  line-height: var(--leading-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.artifact-panel__browsing {
+  margin: 0 0 var(--spacing-16);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--surface-obsidian);
+  border-radius: var(--radius-control);
+  color: var(--text-ash);
+}

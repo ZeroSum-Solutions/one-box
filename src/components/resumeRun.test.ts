@@ -18,6 +18,18 @@ describe("resumedRunId", () => {
     ).toBe("{ review required }");
   });
 
+  it("treats a reference choice as a terminal pause", async () => {
+    const referencePause = {
+      type: "reference-paused" as const,
+      runId: "abcd",
+      workspaceUrl: "/evidence/abcd",
+      note: "pick a look",
+    };
+    expect(pipelineStatusLabel(referencePause)).toBe("{ review required }");
+    const response = new Response("data: " + JSON.stringify(referencePause) + "\n\n");
+    expect(await consumePipelineRunStream(response, () => undefined)).toBe(true);
+  });
+
   it("labels completed and failed pipelines as terminal", () => {
     expect(
       pipelineStatusLabel({

@@ -1,0 +1,63 @@
+/**
+ * spikes/reference-contract/fixtures/wits — approved WITS token sheet.
+ *
+ * ONE shared token set for BOTH contract-driven builds in this spike. This
+ * is deliberate: a ReferenceContract governs composition (section rhythm,
+ * surfaces, density, media framing, component posture), not colour or type —
+ * that is a separate, already-solved axis (see contract-schema.mjs header
+ * and docs/refero-mcp-research.md Finding 2's closing paragraph on the
+ * 2026-08-13 A/B build wiring only colours/fonts and discarding the rest).
+ * Using one token sheet for both contracts means every visible difference
+ * between spikes/reference-contract/out/ambrook/ and .../pipe/ traces to
+ * composition, never to a palette swap — which is exactly what Gate C2 needs
+ * to prove.
+ *
+ * Values are hand-picked for this spike (not fetched from Refero — no model
+ * or MCP call was used to produce this file), chosen to be WCAG AA-safe from
+ * the outset given this repo's own documented history of shipping
+ * Refero-role contrast failures (spikes/refero-baseline/RESEARCH-LOG.md §4.6)
+ * and to sit near the shared amber/orange accent language both source styles
+ * independently use ("Harvest Gold" — Ambrook; "molten orange" — Pipe).
+ * Contrast ratios (WCAG relative-luminance formula, computed and checked
+ * before writing this file):
+ *   --color-text-muted on --color-bg        7.24:1
+ *   --color-text       on --color-bg       15.68:1
+ *   --color-text       on --color-surface  14.34:1
+ *   --color-primary-contrast on --color-primary  5.47:1  (CTA text)
+ */
+:root {
+  --color-bg: #f7f6f2;
+  --color-surface: #eeece4;
+  --color-text: #1c1d18;
+  --color-text-muted: #54524a;
+  --color-primary: #d97a2e;
+  --color-primary-contrast: #1c1d18;
+  --color-border: #9c9280;
+
+  --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: ui-sans-serif, "Helvetica Neue", Arial, sans-serif;
+
+  --text-caption: 0.8125rem;
+  --text-body-sm: 0.9375rem;
+  --text-body: 1.125rem;
+  --text-body-lg: 1.375rem;
+  --text-heading-sm: 1.75rem;
+  --text-heading: 3rem;
+  --text-heading-lg: 3.5rem;
+  --text-display: 3.75rem;
+
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 9999px;
+
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 28px;
+  --space-lg: 56px;
+  --space-xl: 96px;
+
+  --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-duration-micro: 150ms;
+  --motion-duration-reveal: 300ms;
+}

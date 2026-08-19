@@ -1,0 +1,3581 @@
+# Outside grade
+
+## Per-dimension grades
+
+| # | Dimension | Grade | Evidence (one sentence, cite a selector, file, or screenshot region) |
+|---|-----------|-------|----------------------------------------------------------------------|
+| 1 | Hero distinctiveness | B- | The desktop hero combines trade-specific copy with an offset `.hero__visual .spec` panel, but its underlying text-left/photo-right composition remains conventional. |
+| 2 | Color character | C+ | `site.css` uses disciplined orange accents and three dark surfaces, but `--bg-1`, `--bg-2`, and `--bg-3` render so similarly that the screenshots read as one nearly uninterrupted black page. |
+| 3 | Motion design | B | `site.js` supplies staggered intersection reveals while `.marquee__track`, card/image lifts, and reduced-motion rules form a real system, although `.hero.is-visible .reveal-item { animation:none }` cancels the intended hero text sequence almost immediately. |
+| 4 | Section division & rhythm | C+ | The creed, gallery, alternate bands, and contact glow provide some variation, but most sections reuse the same dark surface, heading placement, and one of only two padding formulas. |
+| 5 | Card craft | B- | `.glass.card` has numbered chips, translucent layering, inset shadows, and a four-pixel hover lift, yet the low-contrast treatment is repeated so broadly that cards, contact fields, qualifications, and FAQs lose individual character. |
+| 6 | Visual hierarchy | B- | Large display type and consistent `.label` eyebrows establish clear reading order, but nearly every post-hero section receives the same heading scale and emphasis, flattening the page’s longer narrative. |
+| 7 | Variety / anti-monotony | B- | The desktop page alternates grids, ruled lists, splits, a timeline, gallery, and FAQ, but the mobile capture collapses most of these into a very long succession of similarly styled stacked blocks. |
+| 8 | Balance & composition | B- | Desktop splits such as `.receive` and `.about` are stable and well weighted, while several centered bands and the mobile qualification/FAQ runs feel cramped and overextended. |
+| 9 | Bespoke-ness | C+ | Cabling terminology, handover concepts, and the 15/30-year panel are company-directed, but the orange-on-black glass aesthetic, stock photography, generic wordmark, and absent owner or real project proof remain readily transferable to another contractor. |
+
+## Overall grade
+
+C+
+
+This materially clears the D baseline through competent hierarchy, varied layouts, real hover behavior, scroll reveals, and a cohesive surface system, but it stops short of premium work: the dark-on-dark arc is monotonous, the glass treatment becomes a scaffold, the hero motion is partly neutralized, mobile is excessively stacked, and the most bespoke-looking content is unsupported rather than demonstrated.
+
+## Ranked fixes
+
+1. Replace the stock gallery and anonymous rack image with WITS-owned project photography, an owner portrait, and photographed handover artifacts.
+Hero distinctiveness rises B- to B+ and bespoke-ness C+ to B+/A-.
+
+2. Remove or obtain written confirmation for every operational promise, then turn confirmed labeling, testing, and as-built deliverables into visible proof instead of copy-only assertions.
+Bespoke-ness rises C+ to B+ and visual hierarchy B- to B.
+
+3. Create a stronger surface arc: introduce one genuinely warm/tinted band, one full-bleed photographic scene, and visibly different section spacing instead of three nearly indistinguishable blacks.
+Color character rises C+ to B+ and section rhythm C+ to B+.
+
+4. Fix the hero entrance conflict by delaying `.hero.is-visible` until choreography completes or separating hero animation state from scroll-reveal state.
+Hero distinctiveness rises B- to B and motion B to B+.
+
+5. Replace the generic marquee with a cabling-specific signature motion, such as a line tracing through labeled process nodes or an animated rack-to-desk handover path.
+Motion rises B to A- and bespoke-ness C+ to B.
+
+6. Limit the glass formula to priority surfaces and give services, handover deliverables, coverage, and FAQs distinct anatomies.
+Card craft rises B- to B+ and variety B- to B+.
+
+7. Consolidate repetitive claims across scope, handover, process, about, and FAQ so each section adds new information rather than restating labeling, testing, and documentation.
+Visual hierarchy rises B- to B and section rhythm C+ to B.
+
+8. Recompose mobile into fewer, stronger scenes: use compact horizontal process steps, close every FAQ initially, shorten the qualifications block, and add larger inter-section contrast.
+Balance rises B- to B and mobile variety B- to B.
+
+## Trust check
+
+The rendered phone number and `.example` email are fictional placeholders presented as working contact details; all photographs are Unsplash stock but appear beneath “What this looks like on site” with project-like captions; and the brief does not support the site’s claims that WITS labels and documents every run, supplies certification results and as-builts, uses one contact throughout, performs pre-quote site walks, provides written schedules, is deliberately small, routinely handles occupied or after-hours work, has no minimum job size, serves Florida statewide, or is insured and licensed with COI availability.
+
+Reading additional input from stdin...
+OpenAI Codex v0.146.1
+--------
+workdir: /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a0070a-d930-7913-8f54-613cb4fb319d
+--------
+user
+You are an outside auditor grading a generated marketing website. You did not build it; the builder's own checks all pass, and your job is to find where the site is nonetheless mediocre. Be adversarial: the recurring failure mode you exist to catch is a builder over-grading its own work. Do not grade on a curve and do not award credit for intent — grade only behavior that actually ships and renders.
+
+Your working directory contains the site's full source (HTML/CSS/JS). Read it — motion design especially must be audited from the code, because the attached screenshots cannot show animation. The two attached images are full-page captures at 1440px (desktop) and 390px (mobile).
+
+THE CLIENT BRIEF the site was generated from:
+
+<brief>
+# Standard test brief — WITS
+
+This is the **canonical intake** for comparing build avenues. Every avenue
+(Refero-only baseline, current pipeline, layout-IR, future variants) must be
+given exactly this brief, with nothing added and nothing removed, so the
+outputs are comparable.
+
+Version: 1. Frozen 2026-08-15. Do not edit — fork to `BRIEF-v2.md` if it changes.
+
+---
+
+## Business Overview
+
+- **Business name:** Wiggins Information Technology Services (WITS)
+- **Business description:** Structured cabling and technology infrastructure
+  installation services.
+- **In business:** 15 years
+- **Industry experience:** 30 years
+- **Primary service area:** Orlando, Florida area
+- **Service areas:** Colorado and Florida
+- **Certifications:** none
+- **Key differentiators:**
+  - Quality workmanship
+  - Attention to detail
+  - Reliability
+  - Personal service
+  - Customer satisfaction
+
+## Services & Priorities
+
+Primary priority:
+- Network structured cabling
+- Fiber optic cabling
+- IT room design
+
+Also offered:
+- Data network cabling
+- Access point installation
+- Camera systems
+- Audio/visual cabling
+- Troubleshooting
+
+No services need to be phased out or downplayed.
+
+## Target Audience
+
+- Commercial businesses
+- Offices
+- New construction projects
+
+Customers needing: reliable network infrastructure, new office/network
+installations, IT room design, fiber installation, cabling upgrades,
+troubleshooting and infrastructure problem-solving.
+
+## Visual Direction
+
+- Existing logo and brand colors are available; files provided separately.
+- Open to either a light or dark website background.
+- No specific competitor/inspiration websites.
+- Desired feel: professional, modern, trustworthy, clean, technical,
+  dependable, high-quality, approachable.
+
+## Existing Content
+
+- No existing project photos or videos.
+- Stock imagery and/or new professional project photography will be needed.
+- No existing bios, testimonials, reviews, or case studies.
+- No existing website or old copy to reuse.
+- All website content must be developed from scratch.
+
+## Call to Action
+
+- **Primary CTA:** Call for an estimate.
+- Feature both phone and email prominently.
+- Keep the contact process simple.
+- No online booking/scheduling system.
+
+## FAQs
+
+Should address: services offered, project timelines, troubleshooting.
+No special policies or requirements to highlight upfront.
+
+## Logistics
+
+- No existing domain name; domain selection needed.
+- No predetermined additional pages.
+- Designer recommends the site structure/pages.
+- No hard deadline or launch date.
+
+## Additional Notes
+
+- Customer satisfaction is an important priority.
+- The site should communicate WITS as an experienced, reliable, detail-oriented
+  commercial technology installation company.
+- **Primary purpose:** establish trust and get commercial customers to call for
+  an estimate.
+
+---
+
+## Constraints that bind every avenue
+
+1. No invented certifications, awards, licenses, or memberships.
+2. No invented testimonials, client names, review counts, or star ratings.
+3. No invented project photography presented as WITS's own work.
+4. Numbers that may be stated: 15 years in business, 30 years industry
+   experience. Nothing else.
+
+</brief>
+
+THE RUBRIC (the human judge of record wrote the criticisms it encodes; his grades anchor the scale — a site matching the baseline failures it describes is a D):
+
+<rubric>
+# Presentation rubric — the bar every generated site is graded against
+
+Created 2026-08-15 from Devin's grading of the WITS refero-baseline spike
+(commit `314da19`, served at the spike's `site/` directory). This rubric is
+separate from the frozen Phase-4 A/B rubric (`rubric.md`) — that one compared
+pipeline arms; this one grades a single site's presentation quality against
+Devin's standard.
+
+## Authority
+
+- **Devin is the judge of record.** A build's grade is his grade. Model grades
+  (self-grades or outside audits) are advisory input to his verdict, never a
+  substitute for it.
+- **Every build gets an outside-model audit** — a model from a different vendor
+  than the builder (current lane: GPT-5.6 Sol via `codex exec`) grades against
+  this rubric before the build reaches Devin. Precedent: the 2026-08-14 GPT-5.6
+  audit caught real WCAG failures and invented policies the builder reported as
+  clean.
+- Engine gates (contrast, axe, token drift, …) are **floors, not grades**. The
+  WITS baseline passes every gate and still grades D. A gate can prove a site
+  is not broken; only this rubric measures whether it is good.
+
+## The benchmark: WITS baseline = D
+
+Devin's verdict, 2026-08-15, verbatim criticisms → gradeable dimensions below.
+"The information on it is pretty good but its presentation is a D." A generated
+site that would tie this baseline fails. The measured facts behind the grade:
+the site's entire CSS contains **1 animation and 6 transitions**; hover
+feedback exists on exactly two element classes (CTA buttons and nav links,
+both a bare color swap); consecutive sections are divided by nothing except
+one orange band.
+
+## Dimensions (grade each A–F, then overall)
+
+### 1. Hero distinctiveness
+*Baseline failure: "the hero's generic."*
+- F–D: headline + subhead + button + photo in a default arrangement any
+  template could produce.
+- B: a deliberate entrance sequence (staged reveals), a composition that
+  responds to the imagery, at least one element that could only belong to this
+  company.
+- A: the hero alone tells you who the company is; layered composition
+  (typography, imagery, motion, background treatment) with a clear focal path.
+
+### 2. Color character
+*Baseline failure: "the colors are generic."*
+- F–D: one brand hue + white/gray applied flatly; accent used identically
+  everywhere it appears.
+- B: a palette with structure — surface tiers, warm/cool tension or tonal
+  depth, accent deployed by rule (interactive-only, or emphasis-only), at
+  least one section that shifts the scheme (dark band, tinted band).
+- A: the palette itself is recognizably the company's; gradients/tints/dark
+  sections orchestrated so no two adjacent sections read as the same surface.
+
+### 3. Motion design
+*Baseline failure: "there is no scrolling animations… only a couple hover
+animations… which just literally changes the color from black to orange."*
+- F–D: static page; hover = color swap only.
+- B: scroll-triggered reveals with stagger on grouped items; hover states that
+  move (lift, scale, glow, icon slide) with tuned duration/easing; a hero
+  entrance. Motion respects `prefers-reduced-motion`.
+- A: a motion *system* — consistent easing/duration vocabulary, choreographed
+  section entrances, at least one signature moment (marquee, parallax,
+  count-up, sticky transition) that fits the brand.
+
+### 4. Section division & rhythm
+*Baseline failure: "the sections are not at all well divided, the
+information's kind of squished together… between sections we only have this
+one orange break."*
+- F–D: uniform white sections separated by padding alone; one divider device
+  reused (or none).
+- B: alternating surface treatments (tint, dark band, contained card-panel),
+  generous and *varied* vertical rhythm, each section boundary legible at a
+  glance while scrolling.
+- A: the page has an arc — sections sequence like scenes (open, build,
+  contrast, close), division devices varied and deliberate (bleed images,
+  band inversions, offset panels), never twice the same trick in a row.
+
+### 5. Card craft
+*Baseline failure: "there aren't any cool cards… they're just information in
+a white box."*
+- F–D: white box, border, text stacked inside.
+- B: cards with anatomy — icon/number treatment, layered background (tint,
+  gradient edge, glow), hover behavior (lift/tilt/reveal), internal hierarchy
+  (eyebrow, title, body, action) that reads in order.
+- A: card design is a signature of the site — a treatment you'd screenshot;
+  variants for different content types instead of one card for everything.
+
+### 6. Visual hierarchy
+*Baseline failure: "there's no visual hierarchy with information."*
+- F–D: headings step down in size but everything carries equal visual weight;
+  nothing tells the eye where to go first.
+- B: strong display-to-body contrast (scale, weight, color), eyebrow labels,
+  clear primary/secondary/tertiary reading order in every section, one focal
+  point per viewport.
+- A: hierarchy survives the squint test at every scroll position — blur the
+  page and the structure of what matters still shows.
+
+### 7. Variety / anti-monotony
+*Baseline failure: "too much monotony within the site."*
+- F–D: every section is the same layout (centered heading → grid of boxes)
+  with different words.
+- B: layout topology varies across the page — asymmetric splits, offset
+  media, full-bleed moments, list vs. grid vs. feature alternation.
+- A: no two consecutive sections share a topology, yet the page still reads
+  as one designed system, not a collage.
+
+### 8. Balance & composition
+*Baseline: "the balance isn't super bad, but I don't think it's ideal."*
+- F–D: visibly lopsided sections, orphaned elements, cramped or cavernous
+  gaps.
+- B: weight distributed deliberately within each section; whitespace used as
+  a design element, not leftover space.
+- A: compositions feel inevitable — nothing could move without getting worse.
+
+### 9. Bespoke-ness (the summary dimension)
+*Baseline failure: "as far as it being like a bespoke website for this
+individual company, I'd lower my grade and say this is more like a D."*
+- F–D: swap the logo and copy and this could be any company in any industry.
+- B: industry-specific composition choices (imagery treatment, section
+  choices, motifs) plus company-specific ones (their palette, their voice,
+  their proof points made visual).
+- A: the site could not be mistaken for a competitor's. Content, imagery,
+  layout and motion all argue for *this* company.
+
+## Reference standard
+
+The motionsites template catalog (`references/motionsites/`, cloned from
+github.com/vikod3 with Devin's authorization, 2026-08-15) is the working
+definition of the bar: **Devin judged every template in that catalog better
+than the WITS baseline.** Template-derived craft standards are appended below
+as they are extracted. License note: these repos are grading references only —
+their code is never shipped into client sites.
+
+### Template-derived standards (extracted 2026-08-15, 9 templates analyzed)
+
+Full per-template reports: `template-craft-notes.md`. The cross-template
+findings, ranked by how consistently the catalog uses them:
+
+1. **A signature-move economy, not blanket polish.** Every template earns its
+   premium feel from 2–4 deliberate devices; several (serein, forge, neon,
+   dental) ship *zero* scroll reveals and still beat our baseline. Grade the
+   presence and quality of signature moves, not a checklist of effects.
+2. **Video-as-life** (7 of 9): full-bleed autoplay muted loop video,
+   *disciplined into the brand* — desaturated (`saturate-0`) and re-tinted via
+   `mix-blend-mode: color` / `color-dodge` / multiply overlays so footage
+   becomes an on-brand texture, not a colorful stock clip. This one device
+   supplies most of the kinetic energy on most of these sites.
+3. **One surface formula, fractally reused.** A single glass/card recipe
+   (translucent fill + backdrop-blur + white hairline border + inset or soft
+   shadow — e.g. glow's `rgba(116,116,116,0.07)` + `border-[1.5px]
+   rgba(255,255,255,0.40)` + `blur(50px)` + `rounded-[32px]`) applied to
+   feature cards, testimonial cards, badges, and icon chips alike. Cohesion
+   comes from reuse; cheapness comes from one-off effects.
+4. **Eyebrow systems.** A consistent pre-headline device on every section:
+   forge/neon's `DM Mono uppercase 0.48px-tracked text-white/50` label,
+   radiant's icon+pill badge. The strongest, cheapest hierarchy move in the
+   whole catalog.
+5. **Display type that commits.** 88–120px display against 12–18px body;
+   often `font-normal` (restraint over boldness); negative tracking scaled to
+   size (glow: −2.5px display → −1.5px H2 → −0.5px H3 → 0 body); two-family
+   pairing (Space Grotesk + DM Mono, Jakarta + Manrope). Our baseline's
+   headings "step down politely" — these commit.
+6. **Accent-by-rule.** Near-monochrome palettes with ONE scoped accent moment:
+   nexora's single gradient headline word; glow's red on interactive elements
+   only, never headings; dental's amber on the five rating stars only. The
+   rule is legible — the viewer can infer where accent will appear next.
+7. **Entrance choreography, hand-tuned.** Where motion exists it is asymmetric
+   and deliberate: nexora's cascade at delays 0 / 0.8 / 1.0 / 1.2s with
+   letter-level stagger (0.07s/char) on the headline; lumen's
+   `staggerChildren: 0.2, delayChildren: 0.3` with `whileInView` +
+   `viewport={{once: true, margin: '-100px'}}`; glow's text-settles-first,
+   image-blooms-at-+0.5s. Uniform simultaneous fade-ins (serein) read as
+   scaffold defaults.
+8. **Hover that moves.** Scale (1.02–1.05), shadow lift, icon reveal, gradient
+   text fill — 200–300ms. Color-swap-only hover is the baseline's failure
+   mode and the catalog's floor.
+9. **Division by rhythm and surface, not walls.** Huge, *varied* vertical
+   padding (`py-[100px]`→`py-[200px]`), 5%-opacity hairline rules, footer as
+   a rounded-top card on a gradient, hairline-seam grids
+   (`gap-px` over a dark backdrop) instead of boxed cards. Uniform `py-24`
+   everywhere (serein) is the tell of a scaffold.
+10. **Layered, art-directed composition.** radiant's image-with-offset-glass-
+    panel motif (reused 5×); dental's product-annotation callout pinned by a
+    JS-positioned connector line to a specific tooth in the photo, and copy
+    right-aligned to interlock with the model's face. Composition responding
+    to the *specific* imagery is the essence of bespoke.
+
+**Anti-lesson:** the catalog is full of dead craft — wired-but-unused stagger
+systems, animation component libraries no page imports. Grade only shipped,
+rendering behavior; never credit intent found in the code.
+
+## How the outside grader uses this
+
+Inputs per build: full-page desktop + mobile screenshots, the brief, the
+site's full source (screenshots cannot show motion — motion is audited from
+code), and this rubric. Output: per-dimension letter grades with one-sentence
+evidence each, an overall letter, and a ranked list of the highest-leverage
+fixes. The report lands in the run's evidence directory next to the gate
+reports.
+
+</rubric>
+
+Respond with EXACTLY this structure and nothing else:
+
+# Outside grade
+
+## Per-dimension grades
+
+| # | Dimension | Grade | Evidence (one sentence, cite a selector, file, or screenshot region) |
+|---|-----------|-------|----------------------------------------------------------------------|
+(one row per rubric dimension, 1-9)
+
+## Overall grade
+
+A single letter (A-F, +/- allowed) on its own line, then one short paragraph of justification.
+
+## Ranked fixes
+
+The 5-10 highest-leverage changes, most impactful first. Each: one line naming the change, one line saying which dimension(s) it lifts and roughly how far. Concrete, not aspirational — "add a scroll-reveal system with staggered entrances per section (Motion: F to C+)" not "improve animations".
+
+## Trust check
+
+Anything in the site that is dishonest, invented, or inconsistent with the brief (claims, policies, numbers, imagery implying things the brief does not support). Say "none found" if clean.
+2026-08-15T20:09:12.521211Z ERROR codex_rmcp_client::oauth::refresh_transaction: error=failed to refresh OAuth tokens for server Vercel: OAuth token refresh failed: Server returned error response: invalid_grant: Refresh token is invalid.
+2026-08-15T20:09:12.598171Z ERROR codex_rmcp_client::oauth::refresh_transaction: error=failed to refresh OAuth tokens for server Vercel: OAuth token refresh failed: Server returned error response: invalid_grant: Refresh token is invalid.
+warning: Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+codex
+I’ll inspect the rendered source and motion implementation against the screenshots, then grade only what actually ships. I’m also checking the project’s local conventions and prior ONE BOX context before auditing.
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "sed -n '1,240p' ~/AGENTS.md && rg -n -i \"one.box|wits|cinematic|presentation rubric\" /Users/zero-suminc./.codex/memories/MEMORY.md | head -80" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+# AGENTS.md — shared conventions for ALL agents on this machine
+
+> The ONE cross-tool conventions file. **Codex, Cursor, Antigravity, Hermes** read this
+> natively. **Claude Code** reads `~/.claude/CLAUDE.md` (kept consistent with this file);
+> do NOT symlink over it. Per-project `AGENTS.md` at a repo root OVERRIDES this for that
+> project and adds Commands / Stack / Structure. Keep this human-curated and short.
+>
+> Machine: Apple M4 Max, 48 GB, macOS 26. Operator: subscription-first solo engineer.
+
+## What this machine is
+A unified multi-agent coding environment for shipping high-quality **websites, web
+apps, agentic workflows, and automations**. Multiple IDEs/agents (Claude Code, Codex/
+GPT-5.6, Gemini CLI, Cursor, Antigravity, Hermes) operate in **lanes**, unified by ONE
+shared memory bus + these conventions. Tools rotate (48 GB is real) — context follows
+you via memory, not by keeping everything hot.
+
+## Billing — HARD RULES (a violation is a P0 bug)
+<!-- SYNC:billing v2026-08-07 (prohibitions mirrored in ~/.claude/CLAUDE.md billing bullet; the vendor roster is NOT mirrored — both sides point at ~/.claude/billing-lanes.md, which is the single source. Bump BOTH stamps only when a PROHIBITION changes.) -->
+- **Subscription-first for programmatic/agent LLM calls, plus an explicit OK list.**
+  **Lane order: OAuth/subscription FIRST, always** — Claude = Max OAuth; Codex CLI
+  (ChatGPT/Codex OAuth, runs GPT-5.6 — sol for code/creation, luna for light calls,
+  terra ~never; gpt-5.5 retired 2026-07-09); Gemini via Antigravity CLI (`agy`, keyring
+  auth); Ollama = local. Go to a metered API only when no subscription lane can serve the
+  task, or the subscription lane is slow/saturated. **Direct billed `api.anthropic.com`
+  is forbidden.** **A vendor not on the approved OK list needs explicit approval before
+  the first call** — never assume, never "just try it". **Image generation: Higgsfield
+  FIRST** (subscription credits — Devin wants it used frequently), then Kie.ai, then
+  FAL/others.
+  → The full OK list — every approved vendor with its key, host, billing caveats, and the
+  OpenRouter premium roster — is **`~/.claude/billing-lanes.md`**. **Read that file before
+  using any metered API.**
+- **Cursor + Antigravity are subscription GUI editors, NOT a programmatic API lane.**
+  Their plans can incur credit overage → set a HARD spend cap, keep them human-driven,
+  NEVER place them in an unattended/agent loop. This is distinct from the per-token rule
+  above (which governs scripted LLM calls); it is not a license for metered agent traffic.
+- **Forbidden by default** for programmatic calls: any LLM API host not on the OK list
+  above (e.g. billed api.anthropic.com, api.openai.com direct). Allowed per-token hosts:
+  `api.deepseek.com`, `api.moonshot.ai`, `api.firecrawl.dev`, `openrouter.ai`, `api.kie.ai`, `fal.run`,
+  `inference-api.nousresearch.com`, `generativelanguage.googleapis.com` (Gemini API,
+  Ultra credit-funded); non-LLM SaaS host: `api.smith.langchain.com`
+  (LangSmith, observability only).
+
+## Scrape routing — HARD RULE
+<!-- SYNC:scrape-routing v2026-07-16 (mirror of ~/.claude/CLAUDE.md scrape-routing bullets; bump BOTH stamps when either side changes) -->
+- **crawl4ai FIRST, Firecrawl as BACKUP (added 2026-07-16).** `crawl4ai` v0.9.0 is
+  installed locally (uv tool venv, headless Chromium, `crwl` on PATH) and is **free and
+  uncapped**. Fetching a known URL goes through it first. Canonical wrapper:
+  `~/projects/tools/zs-skills/skills/research/deep-dive/scripts/crawl4ai-scrape.sh <url> <out_dir>`
+  — provenance header, bot-challenge detection, `ERR` + exit 1 so the caller falls back.
+- **Firecrawl (`firecrawl_scrape`) costs credits and is the SECOND tier**, reached only
+  when: crawl4ai returns `ERR`/bot-challenge; the target is behind a wall crawl4ai can't
+  pass (Cloudflare/anti-bot, paywall, login); or the task needs a Firecrawl-only format
+  (`branding`). Known-bot-walled surfaces (Google Maps, Yelp, BBB) may go straight to
+  Firecrawl. Firecrawl ERR → `WebFetch`.
+- **This OVERRIDES the Firecrawl MCP server's own instructions**, which tell every session
+  to use Firecrawl as the primary web tool. That text auto-ships in context on all seven
+  surfaces, predates the local install, and does not know crawl4ai exists. Ignore it.
+- **Search is a separate axis — crawl4ai cannot search.** `crwl` takes a URL; it is a
+  scraper, not a search engine. For discovery prefer subscription-billed Gemini (`agy`,
+  or `deep-dive/scripts/gemini-search.sh`) or built-in `WebSearch`. `firecrawl_search` is
+  OK-listed and permitted, but never the reflex.
+
+## Secrets — HARD RULES
+<!-- SYNC:secrets v2026-07-27 (mirror of ~/.claude/CLAUDE.md op/ZS-Vault bullet; bump BOTH stamps when either side changes) -->
+- **Never** call `op` / 1Password CLI *autonomously*. **ZS Vault** is the source of truth:
+  env vars from `~/.config/zs-api-keys.env`, or `zsvault get <id>` for one-shot reads.
+  Add new creds with `zsvault add <id>` — never hand-edit `zs-api-keys.env`.
+  Only when the user *explicitly asks* for `op` this session: `ZS_ALLOW_OP=1 op …`
+  (opt-in token, never self-applied — same semantics as the Claude Code hook).
+- **Never** commit secrets, an age key, or `zs-api-keys.env` to any repo.
+
+## Browser & sign-in — HARD RULES
+<!-- SYNC:browser-signin v2026-07-23 (mirror of ~/.claude/CLAUDE.md browser/sign-in bullets; bump BOTH stamps when either side changes) -->
+- **Never open a blank/ephemeral browser profile** (Devin's "hard no", 2026-07-22). Web tasks
+  needing his context use his REAL Chrome (`chrome-control` MCP — wired into Cursor, Codex,
+  Hermes, Antigravity, and Claude Code as of 2026-07-23; claude-in-chrome for Claude surfaces)
+  or `open <url>` — never a fresh Playwright/Chromium profile with no sessions, 1Password, or
+  bookmarks. Anonymous localhost/dev-server checks are the only exception.
+- **Sign in FOR Devin before asking him.** Default account for EVERYTHING:
+  **devszerosum@gmail.com** — pick it first at every account picker/SSO screen; it lives in
+  Chrome's **Default profile**, which is the profile agents drive. NotebookLM/Gemini Notebook
+  now uses that same default account. The remaining legacy exception is Notion workspace →
+  "Devin Wiggins PT" — use the data-holding account there and flag the mismatch. Passwords are in ZS Vault for HIS reference; at a real password field, use
+  1Password Agentic Autofill (Claude surfaces only) or stop for Devin — never type a vault
+  password/TOTP into browser automation.
+- **CLI OAuth playbook (proven 2026-07-23, Higgsfield):** when a CLI wants to open a browser
+  for auth, suppress it (`BROWSER=/usr/bin/true <cli> auth login`), capture the printed URL,
+  and open that URL in Devin's real Chrome via the `chrome-control` MCP (`open_url`). His live
+  sessions usually reduce the whole flow to a single consent click — no password screen at all.
+
+## Supabase — HARD RULES (org selection)
+<!-- SYNC:supabase v2026-07-08 (mirror of ~/.claude/CLAUDE.md §Supabase; bump BOTH stamps when either side changes) -->
+- **PRIMARY org: `Zerosumsolutions-Projects`** (slug `zljkaiwwkbpeyjsblwyb`, Pro). Wire every
+  new Supabase project here and check here FIRST — all production / client work lives here.
+- **LEGACY/secondary: `rise-scheduling`** (slug `vpzwurcxuliwzumdinwn`, free). Don't start new
+  work here. Its `offeafzjrkwqavrhwvqg` ("wiggdevin's Project", INACTIVE) is a stale duplicate —
+  never use (left in place, not deleted).
+- **Auth:** ZS Vault `SUPABASE_ACCESS_TOKEN` is a Management-API token that sees ALL orgs
+  (`api.supabase.com` for cross-org ops). Verify reach without printing secrets:
+  `zs-credential-access` → `scripts/verify_supabase_org.py <org_slug>`.
+- The Claude.ai Supabase **MCP connector** is OAuth-scoped to `Zerosumsolutions-Projects` only
+  (reconnected 2026-06-27); for anything it can't reach, use the Management API + vault token.
+
+## Memory — shared zs-memory bus (the crux)
+- Endpoint: `http://localhost:8765/mcp` (MCP streamable HTTP) or `/api/v1/memories/`
+  (REST, trailing slash required). **Bearer auth on everything except `/health`** —
+  since 2026-07-10 every tool uses its OWN scoped token via the shared wrapper
+  `~/bin/mem0-mcp.sh <client>` (vault ids `zs_memory_token_<client>`; scoped tokens
+  cannot delete — deletes go through the vault-held `zs_memory_maintenance_token`,
+  human-approved). Legacy shared `zs_memory_token` remains valid pending rotation.
+  Provenance via `X-Client-Name` header; namespace via `X-User-Id` header (default
+  `zero-fleet`). Full wiring snippets + runbook:
+  `~/.claude/reference_mem0_openmemory_setup.md` (the canonical doc).
+- **Namespacing:** global/cross-project facts → `user_id=zero-fleet`. Project isolation →
+  `user_id=zero-fleet__<project>` (the ONLY isolation boundary; reads span all tools
+  within a user_id, never across projects).
+- **Store DECISIONS, not CODE.** ✅ decisions, conventions, preferences, project-state,
+  gotchas. 🚫 code/diffs/file contents, secrets, transient task state, anything
+  re-derivable from the repo (agentic grep beats RAG — Boris Cherny).
+- **Only persist a DURABLE cross-session fact** (decision / convention / preference /
+  project-state / gotcha) — NOT transient work-in-progress (use the task tracker for
+  that; "project-state" = a settled milestone like "Phase 2 bus live", not "currently
+  editing X"). Every agent routes writes through its memory-write gate (Claude Code: the
+  `mem0-write-protocol` skill; other tools: the equivalent wrapper) — NEVER
+  `mem0_add_memories` raw. Enforcement does NOT depend on client cooperation: the bus has
+  a SERVER-SIDE write-policy guard that rejects code/secrets for ALL clients, dedup-on-write
+  (cosine ≥ 0.90 → rejected with the existing id), plus a daily consolidation cron that
+  flags drift. One fact per memory, phrased for a future agent with no context.
+- **Writing is not optional for wired tools.** Cursor and Antigravity are wired to the bus
+  but historically wrote nothing (2026-07-09 audit) — settled decisions made in ANY tool
+  must land on the bus before the session ends, or they are invisible to the rest of the
+  fleet. Session scratch, private brains (`~/.gemini/antigravity/brain/`), and chat logs
+  stay tool-local; the DECISION goes to mem0.
+
+## Second brain — Google NotebookLM (ALL tools)
+- NotebookLM is the durable RESEARCH-CONTENT store (the second brain): all substantial
+  research output for any subject — briefs, papers, scraped findings, competitive intel —
+  gets added there as sources; query it with cited RAG before re-researching a topic.
+  Complements the memory bus: mem0 = decisions/preferences/state, NotebookLM = content.
+- Access: local `notebooklm` CLI (`~/bin/notebooklm`, notebooklm-py) — CLI-first, never
+  browser automation. Usage, autonomy rules, and the routing convention live in the
+  shared `notebooklm` skill (`zs-skills skills/research/notebooklm`, synced to all tools).
+  The **only supported local profile** is `devszerosum` / `devszerosum@gmail.com`.
+  Default sink: owned Second Brain `ba7ffa61-849a-42cc-93cb-b429aa133d3e`; pass
+  `-p devszerosum` explicitly for writes and never create an additional local profile.
+- Auth = Devin's Google session cookies (profile `devszerosum` / devszerosum@gmail.com). On auth
+  errors run `~/bin/notebooklm-signin`: it auto-harvests a LIVE work session from any local
+  browser/profile (chrome profiles, brave, safari) — usually NO login needed — then falls back
+  to the desktop app, then a browser, all fail-closed. In UNATTENDED/headless contexts use
+  `~/bin/notebooklm-refresh` (same multi-source harvest, no windows) and report-and-stop if it
+  can't recover. Weekly `com.zs.notebooklm-refresh` keeps the jar warm. Never type Google
+  credentials; the NotebookLM account is always devszerosum@gmail.com.
+
+## Deliverable Routing (ALL tools — Codex, Cursor, Hermes, Gemini, Antigravity)
+<!-- SYNC:deliverable-routing v2026-08-01 (mirror of ~/.claude/CLAUDE.md §Deliverable Routing; bump BOTH stamps when either side changes) -->
+- Every AI-generated deliverable goes to `~/Inbox/<type>/` unless it belongs inside a
+  specific project tree: single-file HTML / visual briefs → `~/Inbox/html/` · plan docs →
+  `~/Inbox/plans/` · generated PDFs → `~/Inbox/pdfs/` · screenshots / QA evidence →
+  `~/Inbox/screenshots/` · loose markdown notes / specs → `~/Inbox/notes/` · anything
+  else → `~/Inbox/misc/`. Sanctioned subdirs: `notes/handoffs/` (session handoffs),
+  `plans/<slug>/` (multi-file plan bundles), `deletions/` (staging for reviewed
+  deletions, created by the 2026-07-05 inbox audit — empty only on Devin's explicit say-so).
+
+| Deliverable | Destination |
+|---|---|
+| Goal-run machine state (not a deliverable) | `~/.claude/goal-state/<slug>/` |
+| Intake (machine-intake watcher input) | `~/Inbox/intake/` |
+| **Backup / snapshot / dump (not a deliverable)** | **`~/Backups/<service>/`** |
+- **Backups NEVER go in `~/Inbox/`** (added 2026-08-01). `~/Inbox/` is deliverables, and the
+  weekly `inbox_sweep` ages everything in it out to `_archive/` — wrong for machine state you
+  may need to restore from. Volume archives, DB dumps, config snapshots, and pre-change
+  backups go to `~/Backups/<service>/` (`colima/`, `supabase/`, `mishmash/`, `mcp-config/`,
+  `claude-desktop/`, plus the existing `rise-scheduler/`, `zs-mem0-backups/`,
+  `project-ledger/`). Give each a retention rule where it's written — house pattern is
+  keep-last-N, see `~/bin/rise-db-backup.sh`.
+- **Codex:** do NOT leave artifacts in `~/Documents/Codex/` — outputs worth keeping go to
+  `~/Inbox/<type>/`; session scratch is disposable.
+- Project-scoped artifacts → the project tree (e.g. `<project>/docs/screenshots/`).
+
+## Shared skills — zs-skills write protocol (ALL tools)
+> Canonical store: `~/projects/tools/zs-skills/` (git-backed). Tool skill dirs
+> (`~/.claude/skills`, `~/.codex/skills`, `~/.gemini/skills`, `~/.cursor/skills`,
+> `~/.hermes/skills/shared`) hold SYMLINKS into it. Improve skills through the
+> symlinks under these rules; never fork a private copy.
+- **Patch-on-use:** when a shared skill proves wrong or stale during use, patch it
+  immediately — targeted, minimal edits only.
+- **Evidence required:** every patch cites an observed failure (error output, wrong
+  result, changed external behavior) in its commit message. No vibes-based rewrites.
+- **Never wholesale-rewrite** a skill or the store; **never delete** — move to
+  `.archive/` instead.
+- **Creating:** new skills → `skills/<category>/<name>/SKILL.md` with the superset
+  frontmatter (store `CLAUDE.md` has the schema), `lane: experimental`,
+  `author: <your-tool-name>`; must pass `~/projects/tools/zs-skills/bin/zs-skills lint`.
+  Experimental skills sync only to their creating tool until the curator promotes them.
+- **Commit every write** (conventional style). Uncommitted writes are swept nightly
+  through a scan gate (snyk-agent-scan + lint); flagged writes are git-reverted and
+  reported.
+- **Never `git commit --amend` to fix your own commit here.** This store has concurrent
+  writers (the nightly sweep, other agent sessions). They advance HEAD between your commit
+  and your amend, so `--amend` silently rewrites *their* commit instead of yours. Make a
+  new commit. Enforced on this machine: an amend must carry `ZS_AMEND_HEAD=<literal-sha>`
+  that still matches HEAD, or the hook refuses it.
+- **Banned in any skill** (lint-enforced): `allowed-tools` frontmatter,
+  dynamic-context `` !`cmd` `` execution, runtime remote fetches.
+
+## ~/projects taxonomy
+Top level = active products only. `clients/<Name>/` = client work incl. client-specific
+tools. `services/` = running daemons — NEVER reorganize (launchd references these paths).
+`tools/` = own tooling; `tools/third-party/` = upstream reference clones. `plugins/` =
+Claude Code plugins. `archive/` = retired projects (move there, don't delete). One-sprint
+research/planning doc-dirs are NOT projects — they go to `~/Inbox/notes/` or `~/Inbox/plans/`.
+
+## Code style (defaults; per-project AGENTS.md overrides)
+- Immutability (return new objects, never mutate inputs). Validate at boundaries
+  (Zod/Pydantic). Handle errors explicitly — no silent swallows.
+- KISS / DRY / YAGNI. Small files (<400 lines), small functions (<50), nesting ≤4.
+- Naming: `camelCase` vars/fns, `PascalCase` types/components, `UPPER_SNAKE` consts,
+  `use*` hooks, booleans `is/has/should/can`.
+- **Web design tokens only — NO raw Tailwind literals.** Tailwind v4 OKLCH `@theme`,
+  60/30/10, ÷8 spacing, brand fonts (NOT Inter), shadcn/ui + CVA. Run the anti-slop gate.
+
+## Boundaries
+- ✅ always: read/grep the repo; run fast gates (biome, `tsc --noEmit`); write durable
+  decisions to memory through the write-policy.
+- ⚠️ ask first: schema changes, new deps, deploys, deleting files, destructive memory ops
+  (`delete_all_memories` requires an explicit human instruction).
+- 🚫 never: hardcode secrets; `op read`; force-push; route Claude/Codex via per-token
+  APIs; write live code into the memory bus; put Cursor/Antigravity in an unattended loop.
+- Destructive git (`branch -D`, force-push, `reset --hard`, `clean -f`, `checkout .`) only
+  when the human explicitly asked for it this session (2026-07-07 rule; Claude Code enforces
+  via hook + `ZS_ALLOW_GIT=1`, other tools apply it as policy).
+
+## Model lanes
+- **Sonnet 5** = agentic/subagent default (skip Opus-class for routine code); **Opus 5**
+  (+ fast mode) is the default driver for both everyday interactive work and complex
+  agentic coding — it replaced Opus 4.8 in both roles on 2026-07-24. **Fable 5** is
+  reserved for genuinely long-horizon autonomous runs, maximum-capability calls, and
+  highly ambiguous architecture (matches `~/.claude/CLAUDE.md` subagent rule and the
+  `ops/model-lane-picker` skill).
+- **Opus 5 effort starts at `high`** (the API default), NOT `xhigh` — this inverts the
+212:# Task Group: Fable 5 prompt-rewriting, One-Box, and merge-safe Mishmash planning
+214:scope: rewrite user-provided text into execution-ready Fable 5 prompts for reconstruction, One-Box, research, and merge-safe Mishmash planning; preserve prompt-only boundaries and distinguish supplied policy/context from verified project state
+217:## Task 1: Rewrite graph-based website reconstruction and One-Box workflow
+221:- rollout_summaries/2026-08-11T19-57-20-Mp05-fable_prompt_rewrites_one_box_mishmash_workflows.md (cwd=/Users/zero-suminc./Documents/Codex/2026-08-11/for-this-entire-chat-all-we, rollout_path=/Users/zero-suminc./.codex/sessions/2026/08/11/rollout-2026-08-11T12-57-20-019ff266-a46e-7800-881e-ae5c5c48cc69.jsonl, updated_at=2026-08-13T22:12:10+00:00, thread_id=019ff266-a46e-7800-881e-ae5c5c48cc69, success; prompt rewrite only)
+225:- Fable 5, prompt rewriting, ROLE, OBJECTIVE, DELIVERABLES, CONSTRAINTS, OUTPUT FORMAT, One-Box, View mode, Edit mode, Crawl4AI, Firecrawl, GSAP, Tailwind v4, design tokens
+231:- rollout_summaries/2026-08-11T19-57-20-Mp05-fable_prompt_rewrites_one_box_mishmash_workflows.md (cwd=/Users/zero-suminc./Documents/Codex/2026-08-11/for-this-entire-chat-all-we, rollout_path=/Users/zero-suminc./.codex/sessions/2026/08/11/rollout-2026-08-11T12-57-20-019ff266-a46e-7800-881e-ae5c5c48cc69.jsonl, updated_at=2026-08-13T22:12:10+00:00, thread_id=019ff266-a46e-7800-881e-ae5c5c48cc69, success; prompt rewrite only)
+241:- rollout_summaries/2026-08-11T19-57-20-Mp05-fable_prompt_rewrites_one_box_mishmash_workflows.md (cwd=/Users/zero-suminc./Documents/Codex/2026-08-11/for-this-entire-chat-all-we, rollout_path=/Users/zero-suminc./.codex/sessions/2026/08/11/rollout-2026-08-11T12-57-20-019ff266-a46e-7800-881e-ae5c5c48cc69.jsonl, updated_at=2026-08-13T22:12:10+00:00, thread_id=019ff266-a46e-7800-881e-ae5c5c48cc69, success; user-supplied policy rewritten, not inspected)
+251:- rollout_summaries/2026-08-11T19-57-20-Mp05-fable_prompt_rewrites_one_box_mishmash_workflows.md (cwd=/Users/zero-suminc./Documents/Codex/2026-08-11/for-this-entire-chat-all-we, rollout_path=/Users/zero-suminc./.codex/sessions/2026/08/11/rollout-2026-08-11T12-57-20-019ff266-a46e-7800-881e-ae5c5c48cc69.jsonl, updated_at=2026-08-13T22:12:10+00:00, thread_id=019ff266-a46e-7800-881e-ae5c5c48cc69, success; plan rewrite only)
+261:- rollout_summaries/2026-08-11T19-57-20-Mp05-fable_prompt_rewrites_one_box_mishmash_workflows.md (cwd=/Users/zero-suminc./Documents/Codex/2026-08-11/for-this-entire-chat-all-we, rollout_path=/Users/zero-suminc./.codex/sessions/2026/08/11/rollout-2026-08-11T12-57-20-019ff266-a46e-7800-881e-ae5c5c48cc69.jsonl, updated_at=2026-08-13T22:12:10+00:00, thread_id=019ff266-a46e-7800-881e-ae5c5c48cc69, success; prompt rewrite only)
+280:- One-Box prompts specify direct text/button editing, View/Edit modes, a collapsible workbench rail, upload/research intake, Website/Web app/iOS targets, Tailwind v4 semantic CSS variables/design tokens, and direct visual/function verification. Use Crawl4AI first; Firecrawl only after failure, bot challenge, unsupported capability, or approved paid fallback, recording provider/failure/URL/timestamp/confidence. GSAP uses a validated serialized motion model, reduced-motion support, and cleanup; never arbitrary JavaScript execution. [Task 1]
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc 'pwd; git rev-parse --show-toplevel 2>/dev/null || true; git status --short; if [ -d .codegraph ]; then echo CODEGRAPH_HERE; fi; project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd); if [ -d "$project_root/.codegraph" ]; then echo CODEGRAPH_ROOT=$project_root/.codegraph; fi; rg --files -g '"'"'!node_modules'"' -g '"'!.next'"' | sort | sed -n '1,240p'" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+/Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+/Users/zero-suminc./projects/one-box
+?? ../../../refero-baseline/audit/grade-desktop.png
+?? ../../../refero-baseline/audit/grade-mobile.png
+?? ../../../refero-baseline/audit/outside-grade-log.txt
+?? ../../../refero-baseline/audit/outside-grade-raw.md
+?? ../../
+img/ATTRIBUTION.md
+img/copper.jpg
+img/fiber.jpg
+img/hero.jpg
+img/itroom.jpg
+img/office.jpg
+img/rack.jpg
+index.html
+site.css
+site.js
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "wc -l index.html site.css site.js img/ATTRIBUTION.md; sed -n '1,280p' index.html; sed -n '1,360p' site.css; sed -n '1,320p' site.js; sed -n '1,200p' img/ATTRIBUTION.md" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+     502 index.html
+    1077 site.css
+      60 site.js
+      48 img/ATTRIBUTION.md
+    1687 total
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WITS — Structured Cabling &amp; Technology Infrastructure | Orlando, FL</title>
+<meta name="description" content="Wiggins Information Technology Services installs structured cabling, fiber, and IT rooms for commercial buildings in the Orlando area. 30 years in the field. Call for an estimate.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="site.css">
+<!--
+  PLACEHOLDERS — replace before launch. See baseline CLAIMS.md for the full register.
+    Phone   (407) 555-0142        — 555-01XX is the reserved fiction range
+    Email   …@witscabling.example — .example is a reserved TLD
+    Photos  Unsplash stock, img/ATTRIBUTION.md — NOT WITS's own work.
+            Present to show layout only. Must not ship.
+  Variant B — "Cinematic Dark." Same content and IA as the Refero baseline;
+  presentation rebuilt around the radiant/glow glass-and-glow school.
+-->
+</head>
+<body>
+
+<a class="skip-link" href="#top">Skip to content</a>
+
+<header class="masthead" data-reveal-root>
+  <div class="shell masthead__inner">
+    <a class="wordmark" href="#top">
+      <span class="wordmark__mark">WITS</span>
+      <span class="wordmark__expand">Wiggins Information Technology Services</span>
+    </a>
+    <nav class="masthead__nav" aria-label="Primary" id="primary-nav">
+      <a href="#scope">Scope</a>
+      <a href="#audience">Who for</a>
+      <a href="#receive">What you get</a>
+      <a href="#process">Process</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div class="masthead__actions">
+      <a class="masthead__call" href="tel:+14075550142">(407) 555-0142</a>
+      <button class="masthead__toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+        <span></span><span></span><span></span>
+        <span class="sr-only">Menu</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Hero · signature layered composition #1: full-bleed rounded image +
+       offset translucent glass panel. Choreographed entrance. -->
+  <section class="hero">
+    <div class="shell hero__grid">
+      <div class="hero__copy">
+        <p class="label reveal-item" style="--d:0s">Structured cabling &middot; Orlando, Florida</p>
+        <h1 class="reveal-item" style="--d:.15s">Your building&rsquo;s cabling should be the last thing you worry about.</h1>
+        <p class="lede reveal-item" style="--d:.3s">
+          WITS designs and installs structured cabling, fiber, and IT rooms for
+          commercial buildings around Orlando. Thirty years in the field, fifteen
+          running this business, and every run labeled and documented so the next
+          person to open the closet can read it.
+        </p>
+        <div class="hero__actions reveal-item" style="--d:.42s">
+          <a class="btn btn--primary" href="tel:+14075550142">Call for an estimate</a>
+          <a class="btn btn--ghost" href="mailto:estimates@witscabling.example">Email us</a>
+        </div>
+        <p class="hero__aside reveal-item" style="--d:.52s">Commercial &middot; Offices &middot; New construction</p>
+      </div>
+
+      <div class="hero__visual">
+        <figure class="shot shot--hero photo-treated hero-bloom">
+          <img src="img/hero.jpg" width="1400" height="1050" alt="A fiber tester connected to a network switch during commissioning." loading="eager">
+        </figure>
+        <aside class="glass spec hero-bloom hero-bloom--panel" aria-label="Company record">
+          <div class="spec__bar">
+            <span class="label label--tight">Company record</span>
+            <span class="spec__signal">Orlando &middot; FL</span>
+          </div>
+          <div class="spec__row"><span class="spec__key">In business</span><span class="spec__val">15 years</span></div>
+          <div class="spec__row"><span class="spec__key">In the field</span><span class="spec__val">30 years</span></div>
+          <div class="spec__row"><span class="spec__key">Sector</span><span class="spec__val">Commercial &mdash; offices, suites, new construction</span></div>
+          <div class="spec__row"><span class="spec__key">Coverage</span><span class="spec__val">Orlando &middot; Florida &middot; Colorado</span></div>
+          <div class="spec__row"><span class="spec__key">Estimates</span><span class="spec__val">By phone, then a site walk</span></div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- Signature moment: marquee of the trade and the territory. -->
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee__track">
+      <span>Structured Cabling</span><span class="marquee__dot">&middot;</span>
+      <span>Fiber Optic</span><span class="marquee__dot">&middot;</span>
+      <span>IT Room Design</span><span class="marquee__dot">&middot;</span>
+      <span>Access Points</span><span class="marquee__dot">&middot;</span>
+      <span>Camera Systems</span><span class="marquee__dot">&middot;</span>
+      <span>Audio / Visual</span><span class="marquee__dot">&middot;</span>
+      <span>Troubleshooting</span><span class="marquee__dot">&middot;</span>
+      <span>Orlando</span><span class="marquee__dot">&middot;</span>
+      <span>Florida</span><span class="marquee__dot">&middot;</span>
+      <span>Colorado</span><span class="marquee__dot">&middot;</span>
+      <!-- duplicate for seamless loop -->
+      <span>Structured Cabling</span><span class="marquee__dot">&middot;</span>
+      <span>Fiber Optic</span><span class="marquee__dot">&middot;</span>
+      <span>IT Room Design</span><span class="marquee__dot">&middot;</span>
+      <span>Access Points</span><span class="marquee__dot">&middot;</span>
+      <span>Camera Systems</span><span class="marquee__dot">&middot;</span>
+      <span>Audio / Visual</span><span class="marquee__dot">&middot;</span>
+      <span>Troubleshooting</span><span class="marquee__dot">&middot;</span>
+      <span>Orlando</span><span class="marquee__dot">&middot;</span>
+      <span>Florida</span><span class="marquee__dot">&middot;</span>
+      <span>Colorado</span><span class="marquee__dot">&middot;</span>
+    </div>
+  </div>
+
+  <!-- Scope · three priorities as glass cards, the rest as a chip index. -->
+  <section class="shell band" id="scope" data-reveal-root>
+    <div class="band__head">
+      <p class="label reveal-item">Scope of work</p>
+      <h2 class="reveal-item" style="--d:.06s">Three things we lead with.</h2>
+      <p class="lede reveal-item" style="--d:.12s">
+        These are the jobs WITS is built around. The rest of the list is part of
+        the same work &mdash; it just isn&rsquo;t what you should call us first
+        for.
+      </p>
+    </div>
+
+    <div class="scope__primary">
+      <article class="glass card reveal-item" style="--d:.05s">
+        <span class="chip chip--index">01</span>
+        <h3>Network structured cabling</h3>
+        <p>
+          Copper backbone and horizontal runs for offices, suites, and full
+          floors. Every drop labeled at both ends and recorded on a plan you
+          keep.
+        </p>
+      </article>
+      <article class="glass card reveal-item" style="--d:.15s">
+        <span class="chip chip--index">02</span>
+        <h3>Fiber optic cabling</h3>
+        <p>
+          Single-mode and multimode between closets, floors, and buildings.
+          Terminated, tested, and handed over together with the results.
+        </p>
+      </article>
+      <article class="glass card reveal-item" style="--d:.25s">
+        <span class="chip chip--index">03</span>
+        <h3>IT room design</h3>
+        <p>
+          Racks, pathways, grounding, and cable management laid out before
+          anything gets pulled &mdash; so the room is still workable in five
+          years.
+        </p>
+      </article>
+    </div>
+
+    <div class="scope__also reveal-item" style="--d:.3s">
+      <p class="label label--tight">Also installed</p>
+      <ul class="chiplist">
+        <li>Data network cabling</li>
+        <li>Access point installation</li>
+        <li>Camera systems</li>
+        <li>Audio / visual cabling</li>
+        <li>Troubleshooting</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Who this is for · asymmetric alternating list, deliberately not a card grid. -->
+  <section class="shell band band--alt" id="audience" data-reveal-root>
+    <div class="band__head band__head--wide">
+      <p class="label reveal-item">Who this is for</p>
+      <h2 class="reveal-item" style="--d:.06s">Four ways people call us.</h2>
+    </div>
+    <div class="audience">
+      <article class="audience__item reveal-item" style="--d:.05s">
+        <span class="audience__n">01</span>
+        <div>
+          <h3>New construction</h3>
+          <p>Cabling designed into the build and coordinated with the general contractor&rsquo;s schedule, rather than squeezed in at the end.</p>
+        </div>
+      </article>
+      <article class="audience__item reveal-item" style="--d:.12s">
+        <span class="audience__n">02</span>
+        <div>
+          <h3>Office fit-outs and moves</h3>
+          <p>New suites, floor changes, and relocations &mdash; including work in buildings that stay occupied while it happens.</p>
+        </div>
+      </article>
+      <article class="audience__item reveal-item" style="--d:.19s">
+        <span class="audience__n">03</span>
+        <div>
+          <h3>Cabling upgrades</h3>
+          <p>Older plant brought up to what the network actually needs now, without tearing out what still works.</p>
+        </div>
+      </article>
+      <article class="audience__item reveal-item" style="--d:.26s">
+        <span class="audience__n">04</span>
+        <div>
+          <h3>Something is down</h3>
+          <p>Faults traced, bad runs re-terminated, and undocumented installs mapped so the next person is not guessing.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- The difference · full-bleed statement band, scheme shift. -->
+  <section class="creed" data-reveal-root>
+    <div class="shell creed__grid">
+      <div>
+        <p class="label reveal-item">The difference</p>
+        <p class="creed__statement reveal-item" style="--d:.08s">
+          You should be able to open the closet in five years and still know what
+          every cable does.
+        </p>
+      </div>
+      <div class="reveal-item" style="--d:.16s">
+        <hr class="creed__rule">
+        <p class="creed__note">
+          Quality workmanship, attention to detail and reliability are what every
+          contractor says. What they mean here is labeling at both ends, test
+          results you are handed, and a record of the plant that outlives whoever
+          installed it.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- What you receive · asymmetric split, image opposite the list. -->
+  <section class="shell band" id="receive" data-reveal-root>
+    <div class="band__head">
+      <p class="label reveal-item">What you receive</p>
+      <h2 class="reveal-item" style="--d:.06s">What lands on your desk at handover.</h2>
+    </div>
+    <div class="receive">
+      <div class="receive__list">
+        <div class="receive__row reveal-item" style="--d:.05s"><span class="receive__n">01</span><div><h3>Labeled plant</h3><p>Every run identified at both ends, matching the record.</p></div></div>
+        <div class="receive__row reveal-item" style="--d:.13s"><span class="receive__n">02</span><div><h3>Test results</h3><p>Certification results for the runs installed, handed over with the job.</p></div></div>
+        <div class="receive__row reveal-item" style="--d:.21s"><span class="receive__n">03</span><div><h3>An as-built record</h3><p>A plan of what was installed and where it terminates, that you keep.</p></div></div>
+        <div class="receive__row reveal-item" style="--d:.29s"><span class="receive__n">04</span><div><h3>One person to call</h3><p>The same contact through quoting, install and anything after.</p></div></div>
+      </div>
+      <figure class="shot photo-treated reveal-item" style="--d:.15s">
+        <img src="img/fiber.jpg" width="1400" height="937" alt="A fiber patch panel with terminated and labelled cassettes." loading="lazy">
+        <figcaption class="shot__cap">Fiber termination at the panel</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- Before we start · commercial qualification, spec-console chips. -->
+  <section class="shell band band--alt" id="quals" data-reveal-root>
+    <div class="band__head">
+      <p class="label reveal-item">Before we start</p>
+      <h2 class="reveal-item" style="--d:.06s">Working with GCs and property managers.</h2>
+      <p class="lede reveal-item" style="--d:.12s">
+        Commercial jobs have paperwork before they have cable. These are the
+        things a general contractor or building manager usually asks for, and
+        they get sorted before anyone is on site.
+      </p>
+    </div>
+    <ul class="quals">
+      <li class="glass card reveal-item" style="--d:.05s"><span class="label label--tight">Insurance</span><p>Certificate of insurance issued to the general contractor or building owner on request.</p></li>
+      <li class="glass card reveal-item" style="--d:.12s"><span class="label label--tight">Licensing</span><p>Florida low-voltage licensing details supplied with the estimate.</p></li>
+      <li class="glass card reveal-item" style="--d:.19s"><span class="label label--tight">Site rules</span><p>Badging, induction, working hours and building access agreed before mobilisation.</p></li>
+      <li class="glass card reveal-item" style="--d:.26s"><span class="label label--tight">Scope sign-off</span><p>Written scope agreed in advance, so variations are visible rather than argued about later.</p></li>
+    </ul>
+  </section>
+
+  <!-- Process · connected timeline. -->
+  <section class="shell band" id="process" data-reveal-root>
+    <div class="band__head">
+      <p class="label reveal-item">What to expect</p>
+      <h2 class="reveal-item" style="--d:.06s">How a project runs.</h2>
+    </div>
+    <div class="steps">
+      <article class="steps__item reveal-item" style="--d:.05s">
+        <span class="chip chip--index">01</span>
+        <h3>Call</h3>
+        <p>Tell us the site, the scope, and the timeline you&rsquo;re working to.</p>
+      </article>
+/*
+  WITS — Variant B "Cinematic Dark"
+  Near-black canvas, photography as life, one glass-card formula reused
+  fractally, size-linked negative tracking, choreographed motion.
+  Content and IA sourced from the Refero baseline; presentation rebuilt.
+*/
+
+/* ---------------------------------------------------------------------- */
+/* Tokens                                                                  */
+/* ---------------------------------------------------------------------- */
+
+:root {
+  /* Canvas — two close blacks for section variation */
+  --bg-1: #0b0b0d;
+  --bg-2: #111114;
+  --bg-3: #0e0e10;
+
+  /* Ink */
+  --white: #ffffff;
+  --ink-body: rgba(255, 255, 255, 0.65);   /* ~8:1 on both blacks, verified */
+  --ink-muted: rgba(255, 255, 255, 0.48);
+  --ink-faint: rgba(255, 255, 255, 0.28);
+  --hairline: rgba(255, 255, 255, 0.14);
+  --hairline-strong: rgba(255, 255, 255, 0.4);
+
+  /* Brand accent — WITS orange. Interactive-only, never headings. */
+  --accent: #f35b22;
+  --accent-hi: #ff7a45;
+  --accent-edge: #be400f;
+  --accent-ink: #170b05; /* text-on-accent, 5.9:1 verified */
+
+  /* Glass — one recipe, reused fractally */
+  --glass-fill: rgba(255, 255, 255, 0.055);
+  --glass-fill-strong: rgba(20, 20, 24, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-blur: blur(22px) saturate(140%);
+  --glass-radius: 28px;
+  --glass-radius-sm: 18px;
+  --glass-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    0 24px 48px -20px rgba(0, 0, 0, 0.6);
+
+  /* Type */
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-display: clamp(2.75rem, 2rem + 3.6vw, 5.75rem);
+  --fs-h2: clamp(2rem, 1.55rem + 2.1vw, 3.4rem);
+  --fs-h3: clamp(1.2rem, 1.08rem + 0.55vw, 1.55rem);
+  --fs-lede: clamp(1.1rem, 1.02rem + 0.4vw, 1.35rem);
+  --fs-body: clamp(0.98rem, 0.94rem + 0.15vw, 1.08rem);
+  --fs-label: 0.8125rem;
+
+  --tr-display: -0.03em;
+  --tr-h2: -0.02em;
+  --tr-h3: -0.01em;
+  --tr-body: 0em;
+
+  /* Motion vocabulary */
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-bloom: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-hover: 250ms;
+  --dur-reveal: 700ms;
+
+  /* Layout */
+  --shell-max: 1240px;
+  --shell-gutter: clamp(20px, 4.5vw, 48px);
+  --section-pad: clamp(72px, 10vw, 148px);
+  --section-pad-tight: clamp(56px, 7vw, 108px);
+}
+
+/* ---------------------------------------------------------------------- */
+/* Reset                                                                   */
+/* ---------------------------------------------------------------------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body, h1, h2, h3, p, figure, ul, dl, dd, details { margin: 0; }
+ul { padding: 0; list-style: none; }
+img { max-width: 100%; display: block; }
+a { color: inherit; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+  overflow-x: hidden;
+}
+
+body {
+  background: var(--bg-1);
+  color: var(--ink-body);
+  font-family: var(--font-display);
+  font-size: var(--fs-body);
+  letter-spacing: var(--tr-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 12px; top: -60px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  z-index: 200;
+  text-decoration: none;
+  transition: top var(--dur-hover) var(--ease-out);
+}
+.skip-link:focus { top: 12px; }
+
+:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ---------------------------------------------------------------------- */
+/* Layout primitives                                                       */
+/* ---------------------------------------------------------------------- */
+
+.shell {
+  max-width: var(--shell-max);
+  margin-inline: auto;
+  padding-inline: var(--shell-gutter);
+}
+
+.band {
+  padding-block: var(--section-pad-tight);
+}
+
+.band--alt {
+  background: var(--bg-2);
+  padding-inline: 0;
+}
+.band--alt > * { max-width: var(--shell-max); margin-inline: auto; padding-inline: var(--shell-gutter); }
+
+.band__head { max-width: 640px; margin-bottom: clamp(36px, 5vw, 64px); }
+.band__head--wide { max-width: 760px; }
+
+/* ---------------------------------------------------------------------- */
+/* Type                                                                    */
+/* ---------------------------------------------------------------------- */
+
+h1 {
+  font-size: var(--fs-display);
+  font-weight: 600;
+  letter-spacing: var(--tr-display);
+  line-height: 1.04;
+  color: var(--white);
+  margin-bottom: 1.1rem;
+}
+
+h2 {
+  font-size: var(--fs-h2);
+  font-weight: 600;
+  letter-spacing: var(--tr-h2);
+  line-height: 1.08;
+  color: var(--white);
+}
+
+h3 {
+  font-size: var(--fs-h3);
+  font-weight: 600;
+  letter-spacing: var(--tr-h3);
+  line-height: 1.2;
+  color: var(--white);
+  margin-bottom: 0.5rem;
+}
+
+p { color: var(--ink-body); }
+
+.lede {
+  font-size: var(--fs-lede);
+  line-height: 1.55;
+  color: var(--ink-body);
+  max-width: 46ch;
+  margin-top: 1.1rem;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--accent-hi);
+  display: block;
+  margin-bottom: 0.9rem;
+}
+.label--on-white { color: var(--accent); }
+.label--tight { margin-bottom: 0.6rem; color: var(--ink-muted); }
+
+/* ---------------------------------------------------------------------- */
+/* Buttons                                                                  */
+/* ---------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.95em 1.7em;
+  border-radius: 999px;
+  text-decoration: none;
+  transition: transform var(--dur-hover) var(--ease-out),
+              box-shadow var(--dur-hover) var(--ease-out),
+              background-color var(--dur-hover) var(--ease-out),
+              border-color var(--dur-hover) var(--ease-out);
+  white-space: nowrap;
+}
+
+.btn--primary {
+  background: linear-gradient(180deg, var(--accent-hi), var(--accent));
+  color: var(--accent-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 12px 24px -10px rgba(243, 91, 34, 0.55);
+}
+.btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 18px 32px -12px rgba(243, 91, 34, 0.7);
+}
+
+.btn--ghost {
+  background: var(--glass-fill);
+  border: 1.5px solid var(--glass-border);
+  color: var(--white);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+.btn--ghost:hover {
+  border-color: var(--accent-hi);
+  color: var(--accent-hi);
+  transform: translateY(-2px);
+}
+
+.btn--small { padding: 0.7em 1.3em; font-size: 0.85rem; }
+
+.btn--on-dark { background: var(--white); color: var(--bg-1); }
+
+/* ---------------------------------------------------------------------- */
+/* Glass — the one recurring surface formula                               */
+/* ---------------------------------------------------------------------- */
+
+.glass {
+  background: var(--glass-fill);
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-shadow);
+}
+
+.card {
+  padding: clamp(24px, 3vw, 34px);
+  transition: transform var(--dur-hover) var(--ease-out),
+              box-shadow var(--dur-hover) var(--ease-out),
+              border-color var(--dur-hover) var(--ease-out);
+}
+.card:hover {
+  transform: translateY(-4px);
+  border-color: var(--hairline-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 32px 56px -20px rgba(243, 91, 34, 0.18),
+    0 24px 48px -20px rgba(0, 0, 0, 0.65);
+}
+.card h3 { margin-top: 1.1rem; }
+.card p { font-size: 0.98rem; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  background: var(--glass-fill);
+  border: 1.5px solid var(--glass-border);
+  border-radius: var(--glass-radius-sm);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.chip--index {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.05rem;
+  color: var(--accent-hi);
+}
+
+.chiplist {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+}
+.chiplist li {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--ink-body);
+  padding: 0.55em 1.1em;
+  border-radius: 999px;
+  background: var(--glass-fill);
+  border: 1.5px solid var(--hairline);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  transition: border-color var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out);
+}
+.chiplist li:hover { border-color: var(--accent-hi); color: var(--accent-hi); }
+
+/* ---------------------------------------------------------------------- */
+/* Header                                                                   */
+/* ---------------------------------------------------------------------- */
+
+.masthead {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding-block: 14px;
+  background: rgba(11, 11, 13, 0.6);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.masthead__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.wordmark {
+/*
+  WITS — Variant B "Cinematic Dark"
+  Vanilla JS: mobile nav toggle + IntersectionObserver scroll reveals.
+  All motion respects prefers-reduced-motion.
+*/
+(function () {
+  "use strict";
+
+  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---- Mobile nav toggle ------------------------------------------- */
+  var toggle = document.querySelector(".masthead__toggle");
+  var nav = document.getElementById("primary-nav");
+
+  if (toggle && nav) {
+    toggle.addEventListener("click", function () {
+      var isOpen = nav.classList.toggle("is-open");
+      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    });
+
+    nav.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        nav.classList.remove("is-open");
+        toggle.setAttribute("aria-expanded", "false");
+      });
+    });
+  }
+
+  /* ---- Scroll reveals (once, rootMargin -100px) ---------------------- */
+  var revealRoots = document.querySelectorAll("[data-reveal-root]");
+
+  if (reduceMotion || !("IntersectionObserver" in window)) {
+    revealRoots.forEach(function (root) { root.classList.add("is-visible"); });
+    return;
+  }
+
+  var observer = new IntersectionObserver(
+    function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.15, rootMargin: "0px 0px -100px 0px" }
+  );
+
+  revealRoots.forEach(function (root) { observer.observe(root); });
+
+  /* Hero reveals immediately via its own CSS entrance animation, but still
+     needs .is-visible so its reveal-items don't get re-triggered by the
+     scroll observer's transition rules once they've already animated in. */
+  var hero = document.querySelector(".hero");
+  if (hero) {
+    window.requestAnimationFrame(function () {
+      hero.classList.add("is-visible");
+    });
+  }
+})();
+# Image attribution — STOCK, NOT WITS'S OWN WORK
+
+**These photographs are not WITS's work and must not ship.**
+
+They are present so the layout, crops, aspect ratios and interactions can be
+evaluated with real images in place. Devin authorised this explicitly on
+2026-08-15 for prototype purposes, and will add a deployment guard that blocks
+shipping a generated site containing third-party stock. That guard is out of
+scope here.
+
+Source: Unsplash (unsplash.com). Retrieved 2026-08-15 via crawl4ai search-page
+scrape, then fetched from `images.unsplash.com`. The Unsplash licence permits
+free commercial and non-commercial use without attribution; this file exists for
+provenance, not because attribution is required.
+
+| File | Unsplash photo ID | Used for |
+|---|---|---|
+| `hero.jpg` | `photo-1528845922818-cc5462be9a63` | Hero — fibre tester on a live switch |
+| `fiber.jpg` | `photo-1594915440248-1e419eba6611` | What you receive — fibre patch panel |
+| `copper.jpg` | `photo-1517373116369-9bdb8cdc9f62` | Gallery — copper patching |
+| `itroom.jpg` | `photo-1580106815433-a5b1d1d53d85` | Gallery — equipment room aisle |
+| `office.jpg` | `photo-1462826303086-329426d1aef5` | Gallery — commercial office interior |
+| `rack.jpg` | `photo-1591808216268-ce0b82787efe` | About — rack detail |
+
+## Selection rule applied
+
+Per `DESIGN.md` §8, direction comes from Refero style `b11e1e78` (Ambrook):
+*"candid, slightly desaturated photography … real people in natural or work
+environments"*.
+
+Deliberately **rejected** from the candidate set: every glowing-blue abstract
+fibre-optic shot. That imagery is the dominant stock cliché for this trade and
+contradicts the restraint of the design system — it signals "telecom brochure",
+not "documented cable plant". Also rejected: a data-centre shot carrying a
+visible third-party brand mark.
+
+## Replacement brief
+
+When WITS commissions its own photography:
+
+> 16:9 and 4:3, colour. Candid and slightly desaturated. Real work in progress —
+> a technician terminating a patch panel, a clean IDF with labelled runs, a rack
+> mid-build. Natural light. No posed stock, no stage-lit server rooms, no
+> imagery of another company's install. Shot on a WITS job site with the
+> customer's written permission.
+
+One photographable reference project is listed as an outstanding intake gap in
+`CLAIMS.md`.
+
+codex
+The source confirms this is substantially more authored than a static template: it has intersection-based staggered reveals, a moving marquee, image bloom, and motion-aware hover states. I’m now separating that implementation credit from what the screenshots show—which is still dense, dark, and often visually repetitive—and checking every claim against the frozen brief.
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "nl -ba index.html | sed -n '240,540p'; nl -ba site.css | sed -n '300,760p'; nl -ba site.css | sed -n '760,1120p'; nl -ba site.js" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+   240	        <div class="receive__row reveal-item" style="--d:.21s"><span class="receive__n">03</span><div><h3>An as-built record</h3><p>A plan of what was installed and where it terminates, that you keep.</p></div></div>
+   241	        <div class="receive__row reveal-item" style="--d:.29s"><span class="receive__n">04</span><div><h3>One person to call</h3><p>The same contact through quoting, install and anything after.</p></div></div>
+   242	      </div>
+   243	      <figure class="shot photo-treated reveal-item" style="--d:.15s">
+   244	        <img src="img/fiber.jpg" width="1400" height="937" alt="A fiber patch panel with terminated and labelled cassettes." loading="lazy">
+   245	        <figcaption class="shot__cap">Fiber termination at the panel</figcaption>
+   246	      </figure>
+   247	    </div>
+   248	  </section>
+   249	
+   250	  <!-- Before we start · commercial qualification, spec-console chips. -->
+   251	  <section class="shell band band--alt" id="quals" data-reveal-root>
+   252	    <div class="band__head">
+   253	      <p class="label reveal-item">Before we start</p>
+   254	      <h2 class="reveal-item" style="--d:.06s">Working with GCs and property managers.</h2>
+   255	      <p class="lede reveal-item" style="--d:.12s">
+   256	        Commercial jobs have paperwork before they have cable. These are the
+   257	        things a general contractor or building manager usually asks for, and
+   258	        they get sorted before anyone is on site.
+   259	      </p>
+   260	    </div>
+   261	    <ul class="quals">
+   262	      <li class="glass card reveal-item" style="--d:.05s"><span class="label label--tight">Insurance</span><p>Certificate of insurance issued to the general contractor or building owner on request.</p></li>
+   263	      <li class="glass card reveal-item" style="--d:.12s"><span class="label label--tight">Licensing</span><p>Florida low-voltage licensing details supplied with the estimate.</p></li>
+   264	      <li class="glass card reveal-item" style="--d:.19s"><span class="label label--tight">Site rules</span><p>Badging, induction, working hours and building access agreed before mobilisation.</p></li>
+   265	      <li class="glass card reveal-item" style="--d:.26s"><span class="label label--tight">Scope sign-off</span><p>Written scope agreed in advance, so variations are visible rather than argued about later.</p></li>
+   266	    </ul>
+   267	  </section>
+   268	
+   269	  <!-- Process · connected timeline. -->
+   270	  <section class="shell band" id="process" data-reveal-root>
+   271	    <div class="band__head">
+   272	      <p class="label reveal-item">What to expect</p>
+   273	      <h2 class="reveal-item" style="--d:.06s">How a project runs.</h2>
+   274	    </div>
+   275	    <div class="steps">
+   276	      <article class="steps__item reveal-item" style="--d:.05s">
+   277	        <span class="chip chip--index">01</span>
+   278	        <h3>Call</h3>
+   279	        <p>Tell us the site, the scope, and the timeline you&rsquo;re working to.</p>
+   280	      </article>
+   281	      <article class="steps__item reveal-item" style="--d:.14s">
+   282	        <span class="chip chip--index">02</span>
+   283	        <h3>Walkthrough</h3>
+   284	        <p>We look at the space, the pathways, and what is already in the walls before quoting anything.</p>
+   285	      </article>
+   286	      <article class="steps__item reveal-item" style="--d:.23s">
+   287	        <span class="chip chip--index">03</span>
+   288	        <h3>Written estimate</h3>
+   289	        <p>Scope, materials, and schedule in writing, so you can hold it against anything else on your desk.</p>
+   290	      </article>
+   291	      <article class="steps__item reveal-item" style="--d:.32s">
+   292	        <span class="chip chip--index">04</span>
+   293	        <h3>Install and handover</h3>
+   294	        <p>Installed, tested, labeled, documented. You get the records, not just the cable.</p>
+   295	      </article>
+   296	    </div>
+   297	  </section>
+   298	
+   299	  <!-- The work · full-bleed gallery, environment and trade, not claimed as WITS projects. -->
+   300	  <section class="shell band band--alt" id="work" data-reveal-root>
+   301	    <div class="band__head">
+   302	      <p class="label reveal-item">The work</p>
+   303	      <h2 class="reveal-item" style="--d:.06s">What this looks like on site.</h2>
+   304	    </div>
+   305	    <div class="gallery">
+   306	      <figure class="shot photo-treated reveal-item" style="--d:.05s">
+   307	        <img src="img/copper.jpg" width="1400" height="933" alt="Copper patch cables dressed into a panel." loading="lazy">
+   308	        <figcaption class="shot__cap">Copper patching, dressed and identified</figcaption>
+   309	      </figure>
+   310	      <figure class="shot photo-treated reveal-item" style="--d:.14s">
+   311	        <img src="img/itroom.jpg" width="1400" height="933" alt="An equipment room aisle with racks either side." loading="lazy">
+   312	        <figcaption class="shot__cap">IT room, laid out before anything is pulled</figcaption>
+   313	      </figure>
+   314	      <figure class="shot photo-treated reveal-item" style="--d:.23s">
+   315	        <img src="img/office.jpg" width="1400" height="933" alt="A commercial office interior with meeting room and glazing." loading="lazy">
+   316	        <figcaption class="shot__cap">The environment it all disappears into</figcaption>
+   317	      </figure>
+   318	    </div>
+   319	  </section>
+   320	
+   321	  <!-- Who you're dealing with · signature layered composition #2. -->
+   322	  <section class="shell band" id="about" data-reveal-root>
+   323	    <div class="about">
+   324	      <div class="about__visual reveal-item" style="--d:.05s">
+   325	        <figure class="shot shot--portrait photo-treated">
+   326	          <img src="img/rack.jpg" width="1400" height="2100" alt="Rack detail with dressed cabling." loading="lazy">
+   327	        </figure>
+   328	        <div class="glass about__panel">
+   329	          <p class="label label--tight">Fifteen years in</p>
+   330	          <p class="about__panel-stat">30 <span>years in the trade</span></p>
+   331	        </div>
+   332	      </div>
+   333	      <div class="reveal-item" style="--d:.15s">
+   334	        <p class="label">Who you&rsquo;re dealing with</p>
+   335	        <h2>Thirty years of this, fifteen of it here.</h2>
+   336	        <p class="lede">
+   337	          WITS is small on purpose. The person who walks your site is the person
+   338	          who quotes it and the person you call when something needs looking at
+   339	          again. That is what &ldquo;personal service&rdquo; is supposed to mean,
+   340	          and it is the reason the work gets documented the way it does &mdash;
+   341	          because we are the ones who come back to it.
+   342	        </p>
+   343	        <p class="lede">
+   344	          Fifteen years running this business in Florida and Colorado, thirty
+   345	          years in the trade before and through it.
+   346	        </p>
+   347	      </div>
+   348	    </div>
+   349	  </section>
+   350	
+   351	  <!-- Coverage -->
+   352	  <section class="shell band band--alt" id="coverage" data-reveal-root>
+   353	    <div class="band__head">
+   354	      <p class="label reveal-item">Coverage</p>
+   355	      <h2 class="reveal-item" style="--d:.06s">Where we work.</h2>
+   356	    </div>
+   357	    <div class="coverage__grid">
+   358	      <div class="glass card coverage__card reveal-item" style="--d:.05s">
+   359	        <p class="label label--tight">Service area</p>
+   360	        <p class="coverage__primary">Orlando, Florida</p>
+   361	        <ul class="coverage__regions">
+   362	          <li><span>Orlando metro</span><span>Primary</span></li>
+   363	          <li><span>Florida</span><span>Statewide</span></li>
+   364	          <li><span>Colorado</span><span>Served</span></li>
+   365	        </ul>
+   366	      </div>
+   367	      <div class="glass card coverage__card reveal-item" style="--d:.15s">
+   368	        <p class="label label--tight">Who we work with</p>
+   369	        <p class="coverage__primary">Commercial buildings.</p>
+   370	        <ul class="coverage__regions">
+   371	          <li><span>Commercial businesses</span><span>&mdash;</span></li>
+   372	          <li><span>Offices and suites</span><span>&mdash;</span></li>
+   373	          <li><span>New construction</span><span>&mdash;</span></li>
+   374	        </ul>
+   375	      </div>
+   376	    </div>
+   377	  </section>
+   378	
+   379	  <!-- FAQ -->
+   380	  <section class="shell band" id="faq" data-reveal-root>
+   381	    <div class="band__head">
+   382	      <p class="label reveal-item">Questions</p>
+   383	      <h2 class="reveal-item" style="--d:.06s">Asked often.</h2>
+   384	    </div>
+   385	    <div class="faq">
+   386	      <details class="glass faq__item reveal-item" style="--d:.03s" open>
+   387	        <summary>What does WITS install?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   388	        <p>
+   389	          Network structured cabling, fiber optic cabling, and IT room design are
+   390	          the core of it. We also handle data network cabling, access point
+   391	          installation, camera systems, audio/visual cabling, and
+   392	          troubleshooting. If it carries a signal through a commercial building,
+   393	          it is probably on the list &mdash; call and ask.
+   394	        </p>
+   395	      </details>
+   396	      <details class="glass faq__item reveal-item" style="--d:.07s">
+   397	        <summary>How long does a project take?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   398	        <p>
+   399	          It depends on the size of the site and how much access we get. A single
+   400	          suite is a different job from a floor in an occupied building or a new
+   401	          build still on the schedule. You get a schedule in writing with the
+   402	          estimate, before any work starts, rather than a guess on the phone.
+   403	        </p>
+   404	      </details>
+   405	      <details class="glass faq__item reveal-item" style="--d:.11s">
+   406	        <summary>Can you troubleshoot cabling someone else installed?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   407	        <p>
+   408	          Yes. Tracing faults, re-terminating bad runs, and making sense of an
+   409	          undocumented install is regular work here. Thirty years in the field
+   410	          mostly means having already seen it.
+   411	        </p>
+   412	      </details>
+   413	      <details class="glass faq__item reveal-item" style="--d:.15s">
+   414	        <summary>Can you work in an occupied building?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   415	        <p>
+   416	          Yes. Occupied floors, live suites and tenanted buildings are normal
+   417	          commercial work. Access windows, noise and after-hours requirements get
+   418	          agreed before we mobilise, not discovered on day one.
+   419	        </p>
+   420	      </details>
+   421	      <details class="glass faq__item reveal-item" style="--d:.19s">
+   422	        <summary>Is there a minimum job size?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   423	        <p>
+   424	          No fixed minimum. Small jobs and single-drop calls are worth the phone
+   425	          call &mdash; we would rather tell you it is a twenty-minute fix than
+   426	          have you wait on a quote for it.
+   427	        </p>
+   428	      </details>
+   429	      <details class="glass faq__item reveal-item" style="--d:.23s">
+   430	        <summary>Do we get test results and a record of what was installed?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   431	        <p>
+   432	          Yes. Certification results for the runs installed and a record of the
+   433	          plant are part of handover, not an extra. If a previous installer left
+   434	          you without either, that is something we can put right on its own.
+   435	        </p>
+   436	      </details>
+   437	      <details class="glass faq__item reveal-item" style="--d:.27s">
+   438	        <summary>Are you insured and licensed?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   439	        <p>
+   440	          Yes. A certificate of insurance can be issued to the general contractor
+   441	          or building owner on request, and licensing details are supplied with
+   442	          the estimate.
+   443	        </p>
+   444	      </details>
+   445	      <details class="glass faq__item reveal-item" style="--d:.31s">
+   446	        <summary>Do you travel outside Orlando?<span class="faq__chevron" aria-hidden="true"></span></summary>
+   447	        <p>
+   448	          Orlando and Central Florida are the main service area. Work elsewhere in
+   449	          Florida and in Colorado is normal &mdash; ask, and we will tell you
+   450	          straight whether it makes sense for your job.
+   451	        </p>
+   452	      </details>
+   453	    </div>
+   454	  </section>
+   455	
+   456	  <!-- Contact · full-bleed dark band with radial glow. -->
+   457	  <section class="contact" id="contact" data-reveal-root>
+   458	    <div class="shell contact__grid">
+   459	      <div class="reveal-item">
+   460	        <p class="label">Get in touch</p>
+   461	        <h2>Call for an estimate.</h2>
+   462	        <p class="contact__lede">
+   463	          Tell us what the building needs. We walk the site, then put the scope,
+   464	          the schedule, and the price in writing.
+   465	        </p>
+   466	        <div class="contact__actions">
+   467	          <a class="btn btn--primary" href="tel:+14075550142">Call (407) 555-0142</a>
+   468	        </div>
+   469	      </div>
+   470	      <div class="contact__lines reveal-item" style="--d:.12s">
+   471	        <div class="glass contact__line">
+   472	          <p class="label label--tight">Phone</p>
+   473	          <a class="contact__value" href="tel:+14075550142">(407) 555-0142</a>
+   474	        </div>
+   475	        <div class="glass contact__line">
+   476	          <p class="label label--tight">Email</p>
+   477	          <a class="contact__value" href="mailto:estimates@witscabling.example">estimates@witscabling.example</a>
+   478	        </div>
+   479	      </div>
+   480	    </div>
+   481	  </section>
+   482	
+   483	</main>
+   484	
+   485	<footer class="footer">
+   486	  <div class="footer__glow" aria-hidden="true"></div>
+   487	  <div class="shell footer__inner">
+   488	    <div class="footer__brand">
+   489	      <span class="wordmark__mark">WITS</span>
+   490	      <span>Wiggins Information Technology Services</span>
+   491	    </div>
+   492	    <div class="footer__meta">
+   493	      <span>Structured cabling &middot; Orlando, FL</span>
+   494	      <span>Florida &middot; Colorado</span>
+   495	    </div>
+   496	    <a class="btn btn--ghost btn--small" href="tel:+14075550142">(407) 555-0142</a>
+   497	  </div>
+   498	</footer>
+   499	
+   500	<script src="site.js"></script>
+   501	</body>
+   502	</html>
+   300	  align-items: center;
+   301	  justify-content: center;
+   302	  font-family: var(--font-mono);
+   303	  font-weight: 600;
+   304	  background: var(--glass-fill);
+   305	  border: 1.5px solid var(--glass-border);
+   306	  border-radius: var(--glass-radius-sm);
+   307	  backdrop-filter: var(--glass-blur);
+   308	  -webkit-backdrop-filter: var(--glass-blur);
+   309	}
+   310	
+   311	.chip--index {
+   312	  width: 3rem;
+   313	  height: 3rem;
+   314	  font-size: 1.05rem;
+   315	  color: var(--accent-hi);
+   316	}
+   317	
+   318	.chiplist {
+   319	  display: flex;
+   320	  flex-wrap: wrap;
+   321	  gap: 0.6rem;
+   322	  margin-top: 1rem;
+   323	}
+   324	.chiplist li {
+   325	  font-family: var(--font-mono);
+   326	  font-size: 0.85rem;
+   327	  color: var(--ink-body);
+   328	  padding: 0.55em 1.1em;
+   329	  border-radius: 999px;
+   330	  background: var(--glass-fill);
+   331	  border: 1.5px solid var(--hairline);
+   332	  backdrop-filter: var(--glass-blur);
+   333	  -webkit-backdrop-filter: var(--glass-blur);
+   334	  transition: border-color var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out);
+   335	}
+   336	.chiplist li:hover { border-color: var(--accent-hi); color: var(--accent-hi); }
+   337	
+   338	/* ---------------------------------------------------------------------- */
+   339	/* Header                                                                   */
+   340	/* ---------------------------------------------------------------------- */
+   341	
+   342	.masthead {
+   343	  position: sticky;
+   344	  top: 0;
+   345	  z-index: 100;
+   346	  padding-block: 14px;
+   347	  background: rgba(11, 11, 13, 0.6);
+   348	  backdrop-filter: blur(18px) saturate(140%);
+   349	  -webkit-backdrop-filter: blur(18px) saturate(140%);
+   350	  border-bottom: 1px solid var(--hairline);
+   351	}
+   352	
+   353	.masthead__inner {
+   354	  display: flex;
+   355	  align-items: center;
+   356	  justify-content: space-between;
+   357	  gap: 1.5rem;
+   358	}
+   359	
+   360	.wordmark {
+   361	  display: flex;
+   362	  align-items: baseline;
+   363	  gap: 0.6rem;
+   364	  text-decoration: none;
+   365	}
+   366	.wordmark__mark {
+   367	  font-family: var(--font-display);
+   368	  font-weight: 700;
+   369	  font-size: 1.3rem;
+   370	  letter-spacing: -0.02em;
+   371	  color: var(--white);
+   372	}
+   373	.wordmark__expand {
+   374	  font-family: var(--font-mono);
+   375	  font-size: 0.72rem;
+   376	  color: var(--ink-muted);
+   377	  letter-spacing: 0.02em;
+   378	  display: none;
+   379	}
+   380	@media (min-width: 720px) { .wordmark__expand { display: inline; } }
+   381	
+   382	.masthead__nav {
+   383	  display: none;
+   384	  gap: clamp(1rem, 2vw, 2rem);
+   385	  font-family: var(--font-mono);
+   386	  font-size: 0.85rem;
+   387	}
+   388	.masthead__nav a {
+   389	  text-decoration: none;
+   390	  color: var(--ink-body);
+   391	  position: relative;
+   392	  padding-block: 4px;
+   393	  transition: color var(--dur-hover) var(--ease-out);
+   394	}
+   395	.masthead__nav a::after {
+   396	  content: "";
+   397	  position: absolute;
+   398	  left: 0; bottom: 0;
+   399	  height: 1.5px;
+   400	  width: 0;
+   401	  background: var(--accent-hi);
+   402	  transition: width var(--dur-hover) var(--ease-out);
+   403	}
+   404	.masthead__nav a:hover { color: var(--white); }
+   405	.masthead__nav a:hover::after { width: 100%; }
+   406	
+   407	@media (min-width: 900px) {
+   408	  .masthead__nav { display: flex; }
+   409	}
+   410	
+   411	.masthead__actions { display: flex; align-items: center; gap: 1rem; }
+   412	
+   413	.masthead__call {
+   414	  font-family: var(--font-mono);
+   415	  font-weight: 600;
+   416	  font-size: 0.85rem;
+   417	  color: var(--white);
+   418	  text-decoration: none;
+   419	  border: 1.5px solid var(--hairline-strong);
+   420	  border-radius: 999px;
+   421	  padding: 0.55em 1.1em;
+   422	  transition: border-color var(--dur-hover) var(--ease-out), color var(--dur-hover) var(--ease-out);
+   423	  white-space: nowrap;
+   424	}
+   425	.masthead__call:hover { border-color: var(--accent-hi); color: var(--accent-hi); }
+   426	
+   427	.masthead__toggle {
+   428	  display: flex;
+   429	  flex-direction: column;
+   430	  justify-content: center;
+   431	  gap: 5px;
+   432	  width: 40px; height: 40px;
+   433	  border: 1.5px solid var(--hairline-strong);
+   434	  border-radius: 10px;
+   435	}
+   436	.masthead__toggle span {
+   437	  display: block;
+   438	  width: 18px; height: 1.5px;
+   439	  margin-inline: auto;
+   440	  background: var(--white);
+   441	  transition: transform var(--dur-hover) var(--ease-out), opacity var(--dur-hover) var(--ease-out);
+   442	}
+   443	.masthead__toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+   444	.masthead__toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+   445	.masthead__toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+   446	
+   447	@media (min-width: 900px) { .masthead__toggle { display: none; } }
+   448	
+   449	@media (max-width: 899px) {
+   450	  .masthead__nav {
+   451	    position: absolute;
+   452	    top: 100%; left: 0; right: 0;
+   453	    flex-direction: column;
+   454	    padding: 1.5rem var(--shell-gutter) 2rem;
+   455	    background: rgba(11, 11, 13, 0.96);
+   456	    backdrop-filter: blur(20px);
+   457	    border-bottom: 1px solid var(--hairline);
+   458	    gap: 1.1rem;
+   459	  }
+   460	  .masthead__nav.is-open { display: flex; }
+   461	}
+   462	
+   463	/* ---------------------------------------------------------------------- */
+   464	/* Hero                                                                     */
+   465	/* ---------------------------------------------------------------------- */
+   466	
+   467	.hero {
+   468	  padding-top: clamp(48px, 8vw, 96px);
+   469	  padding-bottom: clamp(64px, 9vw, 120px);
+   470	  background:
+   471	    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(243, 91, 34, 0.14), transparent 60%),
+   472	    var(--bg-1);
+   473	}
+   474	
+   475	.hero__grid {
+   476	  display: grid;
+   477	  grid-template-columns: 1fr;
+   478	  gap: clamp(40px, 6vw, 64px);
+   479	  align-items: center;
+   480	}
+   481	
+   482	@media (min-width: 980px) {
+   483	  .hero__grid { grid-template-columns: 1.05fr 0.95fr; }
+   484	}
+   485	
+   486	.hero__actions {
+   487	  display: flex;
+   488	  flex-wrap: wrap;
+   489	  gap: 1rem;
+   490	  margin-top: 1.9rem;
+   491	}
+   492	
+   493	.hero__aside {
+   494	  margin-top: 1.4rem;
+   495	  font-family: var(--font-mono);
+   496	  font-size: 0.82rem;
+   497	  color: var(--ink-muted);
+   498	  letter-spacing: 0.03em;
+   499	}
+   500	
+   501	.hero__visual { position: relative; }
+   502	
+   503	.shot {
+   504	  border-radius: var(--glass-radius);
+   505	  overflow: hidden;
+   506	  position: relative;
+   507	}
+   508	.shot img { width: 100%; height: 100%; object-fit: cover; }
+   509	
+   510	.shot--hero { aspect-ratio: 4 / 3; }
+   511	
+   512	.hero__visual .spec {
+   513	  position: absolute;
+   514	  right: -6%;
+   515	  bottom: -14%;
+   516	  width: min(320px, 78%);
+   517	  padding: 1.4rem 1.5rem;
+   518	  z-index: 2;
+   519	}
+   520	
+   521	@media (max-width: 640px) {
+   522	  .hero__visual .spec {
+   523	    position: static;
+   524	    width: 100%;
+   525	    margin-top: -48px;
+   526	    margin-inline: auto;
+   527	  }
+   528	}
+   529	
+   530	.spec__bar {
+   531	  display: flex;
+   532	  align-items: center;
+   533	  justify-content: space-between;
+   534	  margin-bottom: 0.9rem;
+   535	}
+   536	.spec__bar .label { margin-bottom: 0; }
+   537	.spec__signal {
+   538	  font-family: var(--font-mono);
+   539	  font-size: 0.72rem;
+   540	  color: var(--ink-faint);
+   541	  text-transform: uppercase;
+   542	  letter-spacing: 0.08em;
+   543	}
+   544	.spec__row {
+   545	  display: flex;
+   546	  justify-content: space-between;
+   547	  gap: 1rem;
+   548	  padding-block: 0.55rem;
+   549	  border-top: 1px solid var(--hairline);
+   550	  font-size: 0.85rem;
+   551	}
+   552	.spec__key { color: var(--ink-muted); font-family: var(--font-mono); font-size: 0.78rem; }
+   553	.spec__val { color: var(--white); text-align: right; }
+   554	
+   555	/* ---------------------------------------------------------------------- */
+   556	/* Photo treatment — desaturated + re-tinted, on-brand                     */
+   557	/* ---------------------------------------------------------------------- */
+   558	
+   559	.photo-treated img {
+   560	  filter: grayscale(0.6) brightness(0.62) contrast(1.14) saturate(0.9);
+   561	  transition: filter var(--dur-hover) var(--ease-out), transform 600ms var(--ease-bloom);
+   562	}
+   563	.photo-treated::after {
+   564	  content: "";
+   565	  position: absolute;
+   566	  inset: 0;
+   567	  background:
+   568	    linear-gradient(180deg, rgba(11, 11, 13, 0) 40%, rgba(11, 11, 13, 0.85) 100%),
+   569	    linear-gradient(0deg, rgba(243, 91, 34, 0.22), rgba(17, 17, 20, 0.35));
+   570	  mix-blend-mode: multiply;
+   571	  pointer-events: none;
+   572	}
+   573	.photo-treated:hover img { filter: grayscale(0.4) brightness(0.72) contrast(1.16) saturate(1); transform: scale(1.03); }
+   574	
+   575	.shot__cap {
+   576	  position: absolute;
+   577	  left: 1.4rem;
+   578	  bottom: 1.2rem;
+   579	  right: 1.4rem;
+   580	  z-index: 2;
+   581	  font-family: var(--font-mono);
+   582	  font-size: 0.78rem;
+   583	  color: var(--white);
+   584	  letter-spacing: 0.02em;
+   585	}
+   586	
+   587	/* ---------------------------------------------------------------------- */
+   588	/* Hero entrance choreography                                              */
+   589	/* ---------------------------------------------------------------------- */
+   590	
+   591	.reveal-item {
+   592	  opacity: 0;
+   593	  transform: translateY(16px);
+   594	}
+   595	.hero .reveal-item,
+   596	.hero__aside.reveal-item {
+   597	  animation: rise-in var(--dur-reveal) var(--ease-bloom) forwards;
+   598	  animation-delay: var(--d, 0s);
+   599	}
+   600	
+   601	@keyframes rise-in {
+   602	  to { opacity: 1; transform: translateY(0); }
+   603	}
+   604	
+   605	.hero-bloom {
+   606	  opacity: 0;
+   607	  transform: scale(0.96);
+   608	  animation: bloom-in 900ms var(--ease-bloom) forwards;
+   609	  animation-delay: 0.5s;
+   610	}
+   611	.hero-bloom--panel {
+   612	  transform: scale(0.9) translateY(12px);
+   613	  animation-delay: 0.65s;
+   614	}
+   615	
+   616	@keyframes bloom-in {
+   617	  to { opacity: 1; transform: scale(1) translateY(0); }
+   618	}
+   619	
+   620	@media (prefers-reduced-motion: reduce) {
+   621	  .reveal-item, .hero-bloom { opacity: 1; transform: none; animation: none; }
+   622	}
+   623	
+   624	/* Scroll reveals — IntersectionObserver toggles .is-visible */
+   625	[data-reveal-root] .reveal-item {
+   626	  transition: opacity var(--dur-reveal) var(--ease-bloom), transform var(--dur-reveal) var(--ease-bloom);
+   627	  transition-delay: var(--d, 0s);
+   628	}
+   629	[data-reveal-root]:not(.hero) .reveal-item { animation: none; }
+   630	[data-reveal-root].is-visible .reveal-item {
+   631	  opacity: 1;
+   632	  transform: translateY(0);
+   633	}
+   634	.hero.is-visible .reveal-item { animation: none; opacity: 1; transform: none; }
+   635	
+   636	/* ---------------------------------------------------------------------- */
+   637	/* Marquee — signature moment                                              */
+   638	/* ---------------------------------------------------------------------- */
+   639	
+   640	.marquee {
+   641	  overflow: hidden;
+   642	  border-block: 1px solid var(--hairline);
+   643	  background: var(--bg-2);
+   644	  padding-block: 1.3rem;
+   645	  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+   646	  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+   647	}
+   648	.marquee__track {
+   649	  display: flex;
+   650	  width: max-content;
+   651	  animation: marquee 34s linear infinite;
+   652	}
+   653	.marquee__track span {
+   654	  font-family: var(--font-mono);
+   655	  font-size: clamp(0.95rem, 1.6vw, 1.3rem);
+   656	  text-transform: uppercase;
+   657	  letter-spacing: 0.06em;
+   658	  color: var(--ink-muted);
+   659	  padding-inline: 0.6em;
+   660	  white-space: nowrap;
+   661	}
+   662	.marquee__dot { color: var(--accent-hi); }
+   663	
+   664	@keyframes marquee {
+   665	  from { transform: translateX(0); }
+   666	  to { transform: translateX(-50%); }
+   667	}
+   668	
+   669	@media (prefers-reduced-motion: reduce) {
+   670	  .marquee__track { animation: none; }
+   671	  .marquee { overflow-x: auto; }
+   672	}
+   673	
+   674	/* ---------------------------------------------------------------------- */
+   675	/* Scope                                                                    */
+   676	/* ---------------------------------------------------------------------- */
+   677	
+   678	.scope__primary {
+   679	  display: grid;
+   680	  grid-template-columns: 1fr;
+   681	  gap: 1.25rem;
+   682	}
+   683	@media (min-width: 720px) { .scope__primary { grid-template-columns: repeat(3, 1fr); } }
+   684	
+   685	.scope__also { margin-top: clamp(32px, 4vw, 52px); }
+   686	
+   687	/* ---------------------------------------------------------------------- */
+   688	/* Audience                                                                 */
+   689	/* ---------------------------------------------------------------------- */
+   690	
+   691	.audience {
+   692	  display: grid;
+   693	  grid-template-columns: 1fr;
+   694	  gap: 0;
+   695	  border-top: 1px solid var(--hairline);
+   696	}
+   697	@media (min-width: 780px) { .audience { grid-template-columns: 1fr 1fr; } }
+   698	
+   699	.audience__item {
+   700	  display: flex;
+   701	  gap: 1.5rem;
+   702	  padding-block: clamp(1.5rem, 3vw, 2.3rem);
+   703	  border-bottom: 1px solid var(--hairline);
+   704	  transition: background var(--dur-hover) var(--ease-out);
+   705	}
+   706	@media (min-width: 780px) {
+   707	  .audience__item:nth-child(odd) { padding-right: 2.5rem; border-right: 1px solid var(--hairline); }
+   708	  .audience__item:nth-child(even) { padding-left: 2.5rem; }
+   709	}
+   710	.audience__item:hover { background: rgba(255, 255, 255, 0.025); }
+   711	
+   712	.audience__n {
+   713	  font-family: var(--font-mono);
+   714	  font-size: 0.95rem;
+   715	  color: var(--accent-hi);
+   716	  flex-shrink: 0;
+   717	  padding-top: 0.25rem;
+   718	}
+   719	
+   720	/* ---------------------------------------------------------------------- */
+   721	/* Creed / difference band                                                 */
+   722	/* ---------------------------------------------------------------------- */
+   723	
+   724	.creed {
+   725	  background: var(--bg-3);
+   726	  padding-block: var(--section-pad);
+   727	  position: relative;
+   728	  overflow: hidden;
+   729	}
+   730	.creed::before {
+   731	  content: "";
+   732	  position: absolute;
+   733	  inset: 0;
+   734	  background: radial-gradient(ellipse 60% 60% at 85% 20%, rgba(243, 91, 34, 0.12), transparent 65%);
+   735	  pointer-events: none;
+   736	}
+   737	
+   738	.creed__grid {
+   739	  display: grid;
+   740	  grid-template-columns: 1fr;
+   741	  gap: clamp(28px, 4vw, 56px);
+   742	  position: relative;
+   743	}
+   744	@media (min-width: 860px) { .creed__grid { grid-template-columns: 1.2fr 0.8fr; align-items: start; } }
+   745	
+   746	.creed__statement {
+   747	  font-size: clamp(1.6rem, 1.3rem + 1.8vw, 2.6rem);
+   748	  font-weight: 500;
+   749	  letter-spacing: var(--tr-h2);
+   750	  line-height: 1.28;
+   751	  color: var(--white);
+   752	}
+   753	
+   754	.creed__rule {
+   755	  border: none;
+   756	  border-top: 1px solid var(--hairline-strong);
+   757	  margin-bottom: 1.4rem;
+   758	}
+   759	.creed__note { font-size: 1rem; max-width: 42ch; }
+   760	
+   760	
+   761	/* ---------------------------------------------------------------------- */
+   762	/* Receive                                                                  */
+   763	/* ---------------------------------------------------------------------- */
+   764	
+   765	.receive {
+   766	  display: grid;
+   767	  grid-template-columns: 1fr;
+   768	  gap: clamp(32px, 5vw, 56px);
+   769	  align-items: center;
+   770	}
+   771	@media (min-width: 860px) { .receive { grid-template-columns: 0.95fr 1.05fr; } }
+   772	
+   773	.receive__list { display: flex; flex-direction: column; gap: 0; }
+   774	.receive__row {
+   775	  display: flex;
+   776	  gap: 1.3rem;
+   777	  padding-block: 1.3rem;
+   778	  border-top: 1px solid var(--hairline);
+   779	}
+   780	.receive__row:last-child { border-bottom: 1px solid var(--hairline); }
+   781	.receive__n {
+   782	  font-family: var(--font-mono);
+   783	  font-size: 0.85rem;
+   784	  color: var(--accent-hi);
+   785	  flex-shrink: 0;
+   786	  padding-top: 0.3rem;
+   787	}
+   788	.receive__row p { font-size: 0.95rem; margin-top: 0.3rem; }
+   789	
+   790	.receive .shot { aspect-ratio: 3 / 2; }
+   791	
+   792	/* ---------------------------------------------------------------------- */
+   793	/* Quals                                                                    */
+   794	/* ---------------------------------------------------------------------- */
+   795	
+   796	.quals {
+   797	  display: grid;
+   798	  grid-template-columns: 1fr;
+   799	  gap: 1.1rem;
+   800	}
+   801	@media (min-width: 640px) { .quals { grid-template-columns: 1fr 1fr; } }
+   802	.quals li p { font-size: 0.95rem; }
+   803	
+   804	/* ---------------------------------------------------------------------- */
+   805	/* Process — connected timeline                                            */
+   806	/* ---------------------------------------------------------------------- */
+   807	
+   808	.steps {
+   809	  display: grid;
+   810	  grid-template-columns: 1fr;
+   811	  gap: 1.25rem;
+   812	  position: relative;
+   813	}
+   814	@media (min-width: 860px) {
+   815	  .steps { grid-template-columns: repeat(4, 1fr); }
+   816	  .steps::before {
+   817	    content: "";
+   818	    position: absolute;
+   819	    top: 1.5rem;
+   820	    left: calc(12.5% + 1.5rem);
+   821	    right: calc(12.5% + 1.5rem);
+   822	    height: 1px;
+   823	    background: linear-gradient(90deg, var(--hairline-strong), var(--hairline));
+   824	  }
+   825	}
+   826	
+   827	.steps__item { position: relative; }
+   828	.steps__item h3 { margin-top: 1.1rem; }
+   829	.steps__item p { font-size: 0.95rem; }
+   830	
+   831	/* ---------------------------------------------------------------------- */
+   832	/* Gallery                                                                  */
+   833	/* ---------------------------------------------------------------------- */
+   834	
+   835	.gallery {
+   836	  display: grid;
+   837	  grid-template-columns: 1fr;
+   838	  gap: 1.1rem;
+   839	}
+   840	@media (min-width: 780px) { .gallery { grid-template-columns: repeat(3, 1fr); } }
+   841	.gallery .shot { aspect-ratio: 3 / 2; }
+   842	.gallery .shot {
+   843	  transition: transform var(--dur-hover) var(--ease-out), box-shadow var(--dur-hover) var(--ease-out);
+   844	}
+   845	.gallery .shot:hover {
+   846	  transform: translateY(-4px);
+   847	  box-shadow: 0 28px 48px -22px rgba(0, 0, 0, 0.7);
+   848	}
+   849	
+   850	/* ---------------------------------------------------------------------- */
+   851	/* About — signature layered composition #2                                */
+   852	/* ---------------------------------------------------------------------- */
+   853	
+   854	.about {
+   855	  display: grid;
+   856	  grid-template-columns: 1fr;
+   857	  gap: clamp(48px, 6vw, 72px);
+   858	  align-items: center;
+   859	}
+   860	@media (min-width: 900px) { .about { grid-template-columns: 0.8fr 1.2fr; } }
+   861	
+   862	.about__visual {
+   863	  position: relative;
+   864	  max-width: 420px;
+   865	  margin-inline: auto;
+   866	  padding-bottom: 56px;
+   867	}
+   868	@media (min-width: 900px) { .about__visual { margin-inline: 0; } }
+   869	
+   870	.shot--portrait { aspect-ratio: 3 / 4; }
+   871	
+   872	.about__panel {
+   873	  position: absolute;
+   874	  left: 6%;
+   875	  bottom: 0;
+   876	  width: min(240px, 78%);
+   877	  padding: 1.3rem 1.4rem;
+   878	  z-index: 2;
+   879	}
+   880	@media (max-width: 640px) {
+   881	  .about__panel { left: 50%; transform: translateX(-50%); width: min(260px, 88%); }
+   882	}
+   883	.about__panel-stat {
+   884	  font-family: var(--font-display);
+   885	  font-size: 2.6rem;
+   886	  font-weight: 700;
+   887	  letter-spacing: var(--tr-h2);
+   888	  color: var(--white);
+   889	  line-height: 1;
+   890	}
+   891	.about__panel-stat span {
+   892	  display: block;
+   893	  font-family: var(--font-mono);
+   894	  font-size: 0.68rem;
+   895	  text-transform: uppercase;
+   896	  letter-spacing: 0.08em;
+   897	  color: var(--ink-muted);
+   898	  font-weight: 500;
+   899	  margin-top: 0.4rem;
+   900	}
+   901	
+   902	.about h2 { margin-bottom: 0; }
+   903	.about .label { margin-bottom: 0.8rem; }
+   904	
+   905	/* ---------------------------------------------------------------------- */
+   906	/* Coverage                                                                 */
+   907	/* ---------------------------------------------------------------------- */
+   908	
+   909	.coverage__grid {
+   910	  display: grid;
+   911	  grid-template-columns: 1fr;
+   912	  gap: 1.25rem;
+   913	}
+   914	@media (min-width: 720px) { .coverage__grid { grid-template-columns: 1fr 1fr; } }
+   915	
+   916	.coverage__primary {
+   917	  font-family: var(--font-display);
+   918	  font-size: 1.5rem;
+   919	  font-weight: 600;
+   920	  letter-spacing: var(--tr-h3);
+   921	  color: var(--white);
+   922	  margin-block: 0.4rem 1.2rem;
+   923	}
+   924	.coverage__regions { display: flex; flex-direction: column; gap: 0; }
+   925	.coverage__regions li {
+   926	  display: flex;
+   927	  justify-content: space-between;
+   928	  padding-block: 0.7rem;
+   929	  border-top: 1px solid var(--hairline);
+   930	  font-size: 0.9rem;
+   931	}
+   932	.coverage__regions li span:first-child { color: var(--white); }
+   933	.coverage__regions li span:last-child { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-muted); }
+   934	
+   935	/* ---------------------------------------------------------------------- */
+   936	/* FAQ                                                                      */
+   937	/* ---------------------------------------------------------------------- */
+   938	
+   939	.faq { display: flex; flex-direction: column; gap: 0.9rem; }
+   940	
+   941	.faq__item {
+   942	  padding: 0;
+   943	  overflow: hidden;
+   944	}
+   945	.faq__item summary {
+   946	  list-style: none;
+   947	  cursor: pointer;
+   948	  display: flex;
+   949	  align-items: center;
+   950	  justify-content: space-between;
+   951	  gap: 1rem;
+   952	  padding: 1.25rem 1.6rem;
+   953	  font-family: var(--font-display);
+   954	  font-weight: 500;
+   955	  font-size: 1.02rem;
+   956	  color: var(--white);
+   957	}
+   958	.faq__item summary::-webkit-details-marker { display: none; }
+   959	.faq__item p {
+   960	  padding: 0 1.6rem 1.4rem;
+   961	  font-size: 0.95rem;
+   962	  max-width: 62ch;
+   963	}
+   964	.faq__chevron {
+   965	  flex-shrink: 0;
+   966	  width: 1.6rem; height: 1.6rem;
+   967	  border-radius: 50%;
+   968	  border: 1.5px solid var(--hairline-strong);
+   969	  position: relative;
+   970	  transition: transform var(--dur-hover) var(--ease-out), border-color var(--dur-hover) var(--ease-out);
+   971	}
+   972	.faq__chevron::before, .faq__chevron::after {
+   973	  content: "";
+   974	  position: absolute;
+   975	  top: 50%; left: 50%;
+   976	  width: 8px; height: 1.5px;
+   977	  background: var(--white);
+   978	  transform: translate(-50%, -50%);
+   979	}
+   980	.faq__chevron::after { transform: translate(-50%, -50%) rotate(90deg); transition: transform var(--dur-hover) var(--ease-out); }
+   981	.faq__item[open] .faq__chevron { border-color: var(--accent-hi); }
+   982	.faq__item[open] .faq__chevron::after { transform: translate(-50%, -50%) rotate(0deg); }
+   983	.faq__item:hover summary { color: var(--accent-hi); }
+   984	
+   985	/* ---------------------------------------------------------------------- */
+   986	/* Contact                                                                  */
+   987	/* ---------------------------------------------------------------------- */
+   988	
+   989	.contact {
+   990	  background: var(--bg-2);
+   991	  padding-block: var(--section-pad);
+   992	  position: relative;
+   993	  overflow: hidden;
+   994	}
+   995	.contact::before {
+   996	  content: "";
+   997	  position: absolute;
+   998	  inset: 0;
+   999	  background: radial-gradient(ellipse 70% 60% at 15% 100%, rgba(243, 91, 34, 0.16), transparent 60%);
+  1000	  pointer-events: none;
+  1001	}
+  1002	
+  1003	.contact__grid {
+  1004	  display: grid;
+  1005	  grid-template-columns: 1fr;
+  1006	  gap: clamp(32px, 5vw, 56px);
+  1007	  align-items: center;
+  1008	  position: relative;
+  1009	}
+  1010	@media (min-width: 860px) { .contact__grid { grid-template-columns: 1.1fr 0.9fr; } }
+  1011	
+  1012	.contact h2 { margin-top: 0.4rem; }
+  1013	.contact__lede { font-size: var(--fs-lede); max-width: 42ch; margin-top: 1.1rem; }
+  1014	.contact__actions { margin-top: 1.8rem; }
+  1015	
+  1016	.contact__lines { display: flex; flex-direction: column; gap: 1rem; }
+  1017	.contact__line { padding: 1.3rem 1.5rem; }
+  1018	.contact__value {
+  1019	  font-family: var(--font-display);
+  1020	  font-size: 1.25rem;
+  1021	  font-weight: 600;
+  1022	  color: var(--white);
+  1023	  text-decoration: none;
+  1024	  display: inline-block;
+  1025	  margin-top: 0.2rem;
+  1026	  transition: color var(--dur-hover) var(--ease-out);
+  1027	}
+  1028	.contact__value:hover { color: var(--accent-hi); }
+  1029	
+  1030	/* ---------------------------------------------------------------------- */
+  1031	/* Footer — the one "chrome" break                                         */
+  1032	/* ---------------------------------------------------------------------- */
+  1033	
+  1034	.footer {
+  1035	  position: relative;
+  1036	  padding-top: 56px;
+  1037	  background: var(--bg-1);
+  1038	}
+  1039	.footer__glow {
+  1040	  position: absolute;
+  1041	  inset: 0 0 auto 0;
+  1042	  height: 240px;
+  1043	  background: radial-gradient(ellipse 60% 100% at 50% 0%, rgba(243, 91, 34, 0.16), transparent 70%);
+  1044	  pointer-events: none;
+  1045	}
+  1046	.footer__inner {
+  1047	  position: relative;
+  1048	  background: var(--bg-2);
+  1049	  border: 1px solid var(--hairline);
+  1050	  border-bottom: none;
+  1051	  border-radius: 32px 32px 0 0;
+  1052	  padding: clamp(28px, 4vw, 40px) var(--shell-gutter);
+  1053	  display: flex;
+  1054	  flex-wrap: wrap;
+  1055	  align-items: center;
+  1056	  justify-content: space-between;
+  1057	  gap: 1.5rem;
+  1058	}
+  1059	.footer__brand {
+  1060	  display: flex;
+  1061	  align-items: baseline;
+  1062	  gap: 0.7rem;
+  1063	  font-size: 0.9rem;
+  1064	  color: var(--ink-muted);
+  1065	}
+  1066	.footer__meta {
+  1067	  display: flex;
+  1068	  flex-direction: column;
+  1069	  gap: 0.3rem;
+  1070	  font-family: var(--font-mono);
+  1071	  font-size: 0.78rem;
+  1072	  color: var(--ink-muted);
+  1073	}
+  1074	
+  1075	@media (max-width: 640px) {
+  1076	  .footer__inner { flex-direction: column; align-items: flex-start; text-align: left; }
+  1077	}
+     1	/*
+     2	  WITS — Variant B "Cinematic Dark"
+     3	  Vanilla JS: mobile nav toggle + IntersectionObserver scroll reveals.
+     4	  All motion respects prefers-reduced-motion.
+     5	*/
+     6	(function () {
+     7	  "use strict";
+     8	
+     9	  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    10	
+    11	  /* ---- Mobile nav toggle ------------------------------------------- */
+    12	  var toggle = document.querySelector(".masthead__toggle");
+    13	  var nav = document.getElementById("primary-nav");
+    14	
+    15	  if (toggle && nav) {
+    16	    toggle.addEventListener("click", function () {
+    17	      var isOpen = nav.classList.toggle("is-open");
+    18	      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    19	    });
+    20	
+    21	    nav.querySelectorAll("a").forEach(function (link) {
+    22	      link.addEventListener("click", function () {
+    23	        nav.classList.remove("is-open");
+    24	        toggle.setAttribute("aria-expanded", "false");
+    25	      });
+    26	    });
+    27	  }
+    28	
+    29	  /* ---- Scroll reveals (once, rootMargin -100px) ---------------------- */
+    30	  var revealRoots = document.querySelectorAll("[data-reveal-root]");
+    31	
+    32	  if (reduceMotion || !("IntersectionObserver" in window)) {
+    33	    revealRoots.forEach(function (root) { root.classList.add("is-visible"); });
+    34	    return;
+    35	  }
+    36	
+    37	  var observer = new IntersectionObserver(
+    38	    function (entries) {
+    39	      entries.forEach(function (entry) {
+    40	        if (entry.isIntersecting) {
+    41	          entry.target.classList.add("is-visible");
+    42	          observer.unobserve(entry.target);
+    43	        }
+    44	      });
+    45	    },
+    46	    { threshold: 0.15, rootMargin: "0px 0px -100px 0px" }
+    47	  );
+    48	
+    49	  revealRoots.forEach(function (root) { observer.observe(root); });
+    50	
+    51	  /* Hero reveals immediately via its own CSS entrance animation, but still
+    52	     needs .is-visible so its reveal-items don't get re-triggered by the
+    53	     scroll observer's transition rules once they've already animated in. */
+    54	  var hero = document.querySelector(".hero");
+    55	  if (hero) {
+    56	    window.requestAnimationFrame(function () {
+    57	      hero.classList.add("is-visible");
+    58	    });
+    59	  }
+    60	})();
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "nl -ba site.css | sed -n '427,680p'; nl -ba site.css | sed -n '1,299p'; nl -ba index.html | sed -n '1,239p'" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+   427	.masthead__toggle {
+   428	  display: flex;
+   429	  flex-direction: column;
+   430	  justify-content: center;
+   431	  gap: 5px;
+   432	  width: 40px; height: 40px;
+   433	  border: 1.5px solid var(--hairline-strong);
+   434	  border-radius: 10px;
+   435	}
+   436	.masthead__toggle span {
+   437	  display: block;
+   438	  width: 18px; height: 1.5px;
+   439	  margin-inline: auto;
+   440	  background: var(--white);
+   441	  transition: transform var(--dur-hover) var(--ease-out), opacity var(--dur-hover) var(--ease-out);
+   442	}
+   443	.masthead__toggle[aria-expanded="true"] span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+   444	.masthead__toggle[aria-expanded="true"] span:nth-child(2) { opacity: 0; }
+   445	.masthead__toggle[aria-expanded="true"] span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+   446	
+   447	@media (min-width: 900px) { .masthead__toggle { display: none; } }
+   448	
+   449	@media (max-width: 899px) {
+   450	  .masthead__nav {
+   451	    position: absolute;
+   452	    top: 100%; left: 0; right: 0;
+   453	    flex-direction: column;
+   454	    padding: 1.5rem var(--shell-gutter) 2rem;
+   455	    background: rgba(11, 11, 13, 0.96);
+   456	    backdrop-filter: blur(20px);
+   457	    border-bottom: 1px solid var(--hairline);
+   458	    gap: 1.1rem;
+   459	  }
+   460	  .masthead__nav.is-open { display: flex; }
+   461	}
+   462	
+   463	/* ---------------------------------------------------------------------- */
+   464	/* Hero                                                                     */
+   465	/* ---------------------------------------------------------------------- */
+   466	
+   467	.hero {
+   468	  padding-top: clamp(48px, 8vw, 96px);
+   469	  padding-bottom: clamp(64px, 9vw, 120px);
+   470	  background:
+   471	    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(243, 91, 34, 0.14), transparent 60%),
+   472	    var(--bg-1);
+   473	}
+   474	
+   475	.hero__grid {
+   476	  display: grid;
+   477	  grid-template-columns: 1fr;
+   478	  gap: clamp(40px, 6vw, 64px);
+   479	  align-items: center;
+   480	}
+   481	
+   482	@media (min-width: 980px) {
+   483	  .hero__grid { grid-template-columns: 1.05fr 0.95fr; }
+   484	}
+   485	
+   486	.hero__actions {
+   487	  display: flex;
+   488	  flex-wrap: wrap;
+   489	  gap: 1rem;
+   490	  margin-top: 1.9rem;
+   491	}
+   492	
+   493	.hero__aside {
+   494	  margin-top: 1.4rem;
+   495	  font-family: var(--font-mono);
+   496	  font-size: 0.82rem;
+   497	  color: var(--ink-muted);
+   498	  letter-spacing: 0.03em;
+   499	}
+   500	
+   501	.hero__visual { position: relative; }
+   502	
+   503	.shot {
+   504	  border-radius: var(--glass-radius);
+   505	  overflow: hidden;
+   506	  position: relative;
+   507	}
+   508	.shot img { width: 100%; height: 100%; object-fit: cover; }
+   509	
+   510	.shot--hero { aspect-ratio: 4 / 3; }
+   511	
+   512	.hero__visual .spec {
+   513	  position: absolute;
+   514	  right: -6%;
+   515	  bottom: -14%;
+   516	  width: min(320px, 78%);
+   517	  padding: 1.4rem 1.5rem;
+   518	  z-index: 2;
+   519	}
+   520	
+   521	@media (max-width: 640px) {
+   522	  .hero__visual .spec {
+   523	    position: static;
+   524	    width: 100%;
+   525	    margin-top: -48px;
+   526	    margin-inline: auto;
+   527	  }
+   528	}
+   529	
+   530	.spec__bar {
+   531	  display: flex;
+   532	  align-items: center;
+   533	  justify-content: space-between;
+   534	  margin-bottom: 0.9rem;
+   535	}
+   536	.spec__bar .label { margin-bottom: 0; }
+   537	.spec__signal {
+   538	  font-family: var(--font-mono);
+   539	  font-size: 0.72rem;
+   540	  color: var(--ink-faint);
+   541	  text-transform: uppercase;
+   542	  letter-spacing: 0.08em;
+   543	}
+   544	.spec__row {
+   545	  display: flex;
+   546	  justify-content: space-between;
+   547	  gap: 1rem;
+   548	  padding-block: 0.55rem;
+   549	  border-top: 1px solid var(--hairline);
+   550	  font-size: 0.85rem;
+   551	}
+   552	.spec__key { color: var(--ink-muted); font-family: var(--font-mono); font-size: 0.78rem; }
+   553	.spec__val { color: var(--white); text-align: right; }
+   554	
+   555	/* ---------------------------------------------------------------------- */
+   556	/* Photo treatment — desaturated + re-tinted, on-brand                     */
+   557	/* ---------------------------------------------------------------------- */
+   558	
+   559	.photo-treated img {
+   560	  filter: grayscale(0.6) brightness(0.62) contrast(1.14) saturate(0.9);
+   561	  transition: filter var(--dur-hover) var(--ease-out), transform 600ms var(--ease-bloom);
+   562	}
+   563	.photo-treated::after {
+   564	  content: "";
+   565	  position: absolute;
+   566	  inset: 0;
+   567	  background:
+   568	    linear-gradient(180deg, rgba(11, 11, 13, 0) 40%, rgba(11, 11, 13, 0.85) 100%),
+   569	    linear-gradient(0deg, rgba(243, 91, 34, 0.22), rgba(17, 17, 20, 0.35));
+   570	  mix-blend-mode: multiply;
+   571	  pointer-events: none;
+   572	}
+   573	.photo-treated:hover img { filter: grayscale(0.4) brightness(0.72) contrast(1.16) saturate(1); transform: scale(1.03); }
+   574	
+   575	.shot__cap {
+   576	  position: absolute;
+   577	  left: 1.4rem;
+   578	  bottom: 1.2rem;
+   579	  right: 1.4rem;
+   580	  z-index: 2;
+   581	  font-family: var(--font-mono);
+   582	  font-size: 0.78rem;
+   583	  color: var(--white);
+   584	  letter-spacing: 0.02em;
+   585	}
+   586	
+   587	/* ---------------------------------------------------------------------- */
+   588	/* Hero entrance choreography                                              */
+   589	/* ---------------------------------------------------------------------- */
+   590	
+   591	.reveal-item {
+   592	  opacity: 0;
+   593	  transform: translateY(16px);
+   594	}
+   595	.hero .reveal-item,
+   596	.hero__aside.reveal-item {
+   597	  animation: rise-in var(--dur-reveal) var(--ease-bloom) forwards;
+   598	  animation-delay: var(--d, 0s);
+   599	}
+   600	
+   601	@keyframes rise-in {
+   602	  to { opacity: 1; transform: translateY(0); }
+   603	}
+   604	
+   605	.hero-bloom {
+   606	  opacity: 0;
+   607	  transform: scale(0.96);
+   608	  animation: bloom-in 900ms var(--ease-bloom) forwards;
+   609	  animation-delay: 0.5s;
+   610	}
+   611	.hero-bloom--panel {
+   612	  transform: scale(0.9) translateY(12px);
+   613	  animation-delay: 0.65s;
+   614	}
+   615	
+   616	@keyframes bloom-in {
+   617	  to { opacity: 1; transform: scale(1) translateY(0); }
+   618	}
+   619	
+   620	@media (prefers-reduced-motion: reduce) {
+   621	  .reveal-item, .hero-bloom { opacity: 1; transform: none; animation: none; }
+   622	}
+   623	
+   624	/* Scroll reveals — IntersectionObserver toggles .is-visible */
+   625	[data-reveal-root] .reveal-item {
+   626	  transition: opacity var(--dur-reveal) var(--ease-bloom), transform var(--dur-reveal) var(--ease-bloom);
+   627	  transition-delay: var(--d, 0s);
+   628	}
+   629	[data-reveal-root]:not(.hero) .reveal-item { animation: none; }
+   630	[data-reveal-root].is-visible .reveal-item {
+   631	  opacity: 1;
+   632	  transform: translateY(0);
+   633	}
+   634	.hero.is-visible .reveal-item { animation: none; opacity: 1; transform: none; }
+   635	
+   636	/* ---------------------------------------------------------------------- */
+   637	/* Marquee — signature moment                                              */
+   638	/* ---------------------------------------------------------------------- */
+   639	
+   640	.marquee {
+   641	  overflow: hidden;
+   642	  border-block: 1px solid var(--hairline);
+   643	  background: var(--bg-2);
+   644	  padding-block: 1.3rem;
+   645	  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+   646	  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+   647	}
+   648	.marquee__track {
+   649	  display: flex;
+   650	  width: max-content;
+   651	  animation: marquee 34s linear infinite;
+   652	}
+   653	.marquee__track span {
+   654	  font-family: var(--font-mono);
+   655	  font-size: clamp(0.95rem, 1.6vw, 1.3rem);
+   656	  text-transform: uppercase;
+   657	  letter-spacing: 0.06em;
+   658	  color: var(--ink-muted);
+   659	  padding-inline: 0.6em;
+   660	  white-space: nowrap;
+   661	}
+   662	.marquee__dot { color: var(--accent-hi); }
+   663	
+   664	@keyframes marquee {
+   665	  from { transform: translateX(0); }
+   666	  to { transform: translateX(-50%); }
+   667	}
+   668	
+   669	@media (prefers-reduced-motion: reduce) {
+   670	  .marquee__track { animation: none; }
+   671	  .marquee { overflow-x: auto; }
+   672	}
+   673	
+   674	/* ---------------------------------------------------------------------- */
+   675	/* Scope                                                                    */
+   676	/* ---------------------------------------------------------------------- */
+   677	
+   678	.scope__primary {
+   679	  display: grid;
+   680	  grid-template-columns: 1fr;
+     1	/*
+     2	  WITS — Variant B "Cinematic Dark"
+     3	  Near-black canvas, photography as life, one glass-card formula reused
+     4	  fractally, size-linked negative tracking, choreographed motion.
+     5	  Content and IA sourced from the Refero baseline; presentation rebuilt.
+     6	*/
+     7	
+     8	/* ---------------------------------------------------------------------- */
+     9	/* Tokens                                                                  */
+    10	/* ---------------------------------------------------------------------- */
+    11	
+    12	:root {
+    13	  /* Canvas — two close blacks for section variation */
+    14	  --bg-1: #0b0b0d;
+    15	  --bg-2: #111114;
+    16	  --bg-3: #0e0e10;
+    17	
+    18	  /* Ink */
+    19	  --white: #ffffff;
+    20	  --ink-body: rgba(255, 255, 255, 0.65);   /* ~8:1 on both blacks, verified */
+    21	  --ink-muted: rgba(255, 255, 255, 0.48);
+    22	  --ink-faint: rgba(255, 255, 255, 0.28);
+    23	  --hairline: rgba(255, 255, 255, 0.14);
+    24	  --hairline-strong: rgba(255, 255, 255, 0.4);
+    25	
+    26	  /* Brand accent — WITS orange. Interactive-only, never headings. */
+    27	  --accent: #f35b22;
+    28	  --accent-hi: #ff7a45;
+    29	  --accent-edge: #be400f;
+    30	  --accent-ink: #170b05; /* text-on-accent, 5.9:1 verified */
+    31	
+    32	  /* Glass — one recipe, reused fractally */
+    33	  --glass-fill: rgba(255, 255, 255, 0.055);
+    34	  --glass-fill-strong: rgba(20, 20, 24, 0.72);
+    35	  --glass-border: rgba(255, 255, 255, 0.4);
+    36	  --glass-blur: blur(22px) saturate(140%);
+    37	  --glass-radius: 28px;
+    38	  --glass-radius-sm: 18px;
+    39	  --glass-shadow:
+    40	    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    41	    inset 0 0 0 1px rgba(255, 255, 255, 0.02),
+    42	    0 24px 48px -20px rgba(0, 0, 0, 0.6);
+    43	
+    44	  /* Type */
+    45	  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    46	  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    47	
+    48	  --fs-display: clamp(2.75rem, 2rem + 3.6vw, 5.75rem);
+    49	  --fs-h2: clamp(2rem, 1.55rem + 2.1vw, 3.4rem);
+    50	  --fs-h3: clamp(1.2rem, 1.08rem + 0.55vw, 1.55rem);
+    51	  --fs-lede: clamp(1.1rem, 1.02rem + 0.4vw, 1.35rem);
+    52	  --fs-body: clamp(0.98rem, 0.94rem + 0.15vw, 1.08rem);
+    53	  --fs-label: 0.8125rem;
+    54	
+    55	  --tr-display: -0.03em;
+    56	  --tr-h2: -0.02em;
+    57	  --tr-h3: -0.01em;
+    58	  --tr-body: 0em;
+    59	
+    60	  /* Motion vocabulary */
+    61	  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    62	  --ease-bloom: cubic-bezier(0.16, 1, 0.3, 1);
+    63	  --dur-hover: 250ms;
+    64	  --dur-reveal: 700ms;
+    65	
+    66	  /* Layout */
+    67	  --shell-max: 1240px;
+    68	  --shell-gutter: clamp(20px, 4.5vw, 48px);
+    69	  --section-pad: clamp(72px, 10vw, 148px);
+    70	  --section-pad-tight: clamp(56px, 7vw, 108px);
+    71	}
+    72	
+    73	/* ---------------------------------------------------------------------- */
+    74	/* Reset                                                                   */
+    75	/* ---------------------------------------------------------------------- */
+    76	
+    77	*, *::before, *::after { box-sizing: border-box; }
+    78	html { -webkit-text-size-adjust: 100%; }
+    79	body, h1, h2, h3, p, figure, ul, dl, dd, details { margin: 0; }
+    80	ul { padding: 0; list-style: none; }
+    81	img { max-width: 100%; display: block; }
+    82	a { color: inherit; }
+    83	button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+    84	
+    85	html {
+    86	  scroll-behavior: smooth;
+    87	  scroll-padding-top: 96px;
+    88	  overflow-x: hidden;
+    89	}
+    90	
+    91	body {
+    92	  background: var(--bg-1);
+    93	  color: var(--ink-body);
+    94	  font-family: var(--font-display);
+    95	  font-size: var(--fs-body);
+    96	  letter-spacing: var(--tr-body);
+    97	  line-height: 1.6;
+    98	  -webkit-font-smoothing: antialiased;
+    99	  overflow-x: hidden;
+   100	}
+   101	
+   102	@media (prefers-reduced-motion: reduce) {
+   103	  html { scroll-behavior: auto; }
+   104	  *, *::before, *::after {
+   105	    animation-duration: 0.01ms !important;
+   106	    animation-iteration-count: 1 !important;
+   107	    transition-duration: 0.01ms !important;
+   108	    scroll-behavior: auto !important;
+   109	  }
+   110	}
+   111	
+   112	.sr-only {
+   113	  position: absolute;
+   114	  width: 1px; height: 1px;
+   115	  padding: 0; margin: -1px;
+   116	  overflow: hidden;
+   117	  clip: rect(0, 0, 0, 0);
+   118	  white-space: nowrap;
+   119	  border: 0;
+   120	}
+   121	
+   122	.skip-link {
+   123	  position: absolute;
+   124	  left: 12px; top: -60px;
+   125	  background: var(--accent);
+   126	  color: var(--accent-ink);
+   127	  padding: 10px 16px;
+   128	  border-radius: 8px;
+   129	  font-family: var(--font-mono);
+   130	  font-size: 0.85rem;
+   131	  z-index: 200;
+   132	  text-decoration: none;
+   133	  transition: top var(--dur-hover) var(--ease-out);
+   134	}
+   135	.skip-link:focus { top: 12px; }
+   136	
+   137	:focus-visible {
+   138	  outline: 2px solid var(--accent-hi);
+   139	  outline-offset: 3px;
+   140	  border-radius: 4px;
+   141	}
+   142	
+   143	/* ---------------------------------------------------------------------- */
+   144	/* Layout primitives                                                       */
+   145	/* ---------------------------------------------------------------------- */
+   146	
+   147	.shell {
+   148	  max-width: var(--shell-max);
+   149	  margin-inline: auto;
+   150	  padding-inline: var(--shell-gutter);
+   151	}
+   152	
+   153	.band {
+   154	  padding-block: var(--section-pad-tight);
+   155	}
+   156	
+   157	.band--alt {
+   158	  background: var(--bg-2);
+   159	  padding-inline: 0;
+   160	}
+   161	.band--alt > * { max-width: var(--shell-max); margin-inline: auto; padding-inline: var(--shell-gutter); }
+   162	
+   163	.band__head { max-width: 640px; margin-bottom: clamp(36px, 5vw, 64px); }
+   164	.band__head--wide { max-width: 760px; }
+   165	
+   166	/* ---------------------------------------------------------------------- */
+   167	/* Type                                                                    */
+   168	/* ---------------------------------------------------------------------- */
+   169	
+   170	h1 {
+   171	  font-size: var(--fs-display);
+   172	  font-weight: 600;
+   173	  letter-spacing: var(--tr-display);
+   174	  line-height: 1.04;
+   175	  color: var(--white);
+   176	  margin-bottom: 1.1rem;
+   177	}
+   178	
+   179	h2 {
+   180	  font-size: var(--fs-h2);
+   181	  font-weight: 600;
+   182	  letter-spacing: var(--tr-h2);
+   183	  line-height: 1.08;
+   184	  color: var(--white);
+   185	}
+   186	
+   187	h3 {
+   188	  font-size: var(--fs-h3);
+   189	  font-weight: 600;
+   190	  letter-spacing: var(--tr-h3);
+   191	  line-height: 1.2;
+   192	  color: var(--white);
+   193	  margin-bottom: 0.5rem;
+   194	}
+   195	
+   196	p { color: var(--ink-body); }
+   197	
+   198	.lede {
+   199	  font-size: var(--fs-lede);
+   200	  line-height: 1.55;
+   201	  color: var(--ink-body);
+   202	  max-width: 46ch;
+   203	  margin-top: 1.1rem;
+   204	}
+   205	
+   206	.label {
+   207	  font-family: var(--font-mono);
+   208	  font-size: var(--fs-label);
+   209	  font-weight: 500;
+   210	  text-transform: uppercase;
+   211	  letter-spacing: 0.14em;
+   212	  color: var(--accent-hi);
+   213	  display: block;
+   214	  margin-bottom: 0.9rem;
+   215	}
+   216	.label--on-white { color: var(--accent); }
+   217	.label--tight { margin-bottom: 0.6rem; color: var(--ink-muted); }
+   218	
+   219	/* ---------------------------------------------------------------------- */
+   220	/* Buttons                                                                  */
+   221	/* ---------------------------------------------------------------------- */
+   222	
+   223	.btn {
+   224	  display: inline-flex;
+   225	  align-items: center;
+   226	  gap: 0.5em;
+   227	  font-family: var(--font-mono);
+   228	  font-size: 0.95rem;
+   229	  font-weight: 600;
+   230	  letter-spacing: 0.02em;
+   231	  padding: 0.95em 1.7em;
+   232	  border-radius: 999px;
+   233	  text-decoration: none;
+   234	  transition: transform var(--dur-hover) var(--ease-out),
+   235	              box-shadow var(--dur-hover) var(--ease-out),
+   236	              background-color var(--dur-hover) var(--ease-out),
+   237	              border-color var(--dur-hover) var(--ease-out);
+   238	  white-space: nowrap;
+   239	}
+   240	
+   241	.btn--primary {
+   242	  background: linear-gradient(180deg, var(--accent-hi), var(--accent));
+   243	  color: var(--accent-ink);
+   244	  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 12px 24px -10px rgba(243, 91, 34, 0.55);
+   245	}
+   246	.btn--primary:hover {
+   247	  transform: translateY(-2px);
+   248	  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 18px 32px -12px rgba(243, 91, 34, 0.7);
+   249	}
+   250	
+   251	.btn--ghost {
+   252	  background: var(--glass-fill);
+   253	  border: 1.5px solid var(--glass-border);
+   254	  color: var(--white);
+   255	  backdrop-filter: var(--glass-blur);
+   256	  -webkit-backdrop-filter: var(--glass-blur);
+   257	}
+   258	.btn--ghost:hover {
+   259	  border-color: var(--accent-hi);
+   260	  color: var(--accent-hi);
+   261	  transform: translateY(-2px);
+   262	}
+   263	
+   264	.btn--small { padding: 0.7em 1.3em; font-size: 0.85rem; }
+   265	
+   266	.btn--on-dark { background: var(--white); color: var(--bg-1); }
+   267	
+   268	/* ---------------------------------------------------------------------- */
+   269	/* Glass — the one recurring surface formula                               */
+   270	/* ---------------------------------------------------------------------- */
+   271	
+   272	.glass {
+   273	  background: var(--glass-fill);
+   274	  border: 1.5px solid var(--glass-border);
+   275	  border-radius: var(--glass-radius);
+   276	  backdrop-filter: var(--glass-blur);
+   277	  -webkit-backdrop-filter: var(--glass-blur);
+   278	  box-shadow: var(--glass-shadow);
+   279	}
+   280	
+   281	.card {
+   282	  padding: clamp(24px, 3vw, 34px);
+   283	  transition: transform var(--dur-hover) var(--ease-out),
+   284	              box-shadow var(--dur-hover) var(--ease-out),
+   285	              border-color var(--dur-hover) var(--ease-out);
+   286	}
+   287	.card:hover {
+   288	  transform: translateY(-4px);
+   289	  border-color: var(--hairline-strong);
+   290	  box-shadow:
+   291	    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+   292	    0 32px 56px -20px rgba(243, 91, 34, 0.18),
+   293	    0 24px 48px -20px rgba(0, 0, 0, 0.65);
+   294	}
+   295	.card h3 { margin-top: 1.1rem; }
+   296	.card p { font-size: 0.98rem; }
+   297	
+   298	.chip {
+   299	  display: inline-flex;
+     1	<!doctype html>
+     2	<html lang="en">
+     3	<head>
+     4	<meta charset="utf-8">
+     5	<meta name="viewport" content="width=device-width, initial-scale=1">
+     6	<title>WITS — Structured Cabling &amp; Technology Infrastructure | Orlando, FL</title>
+     7	<meta name="description" content="Wiggins Information Technology Services installs structured cabling, fiber, and IT rooms for commercial buildings in the Orlando area. 30 years in the field. Call for an estimate.">
+     8	<link rel="preconnect" href="https://fonts.googleapis.com">
+     9	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    10	<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    11	<link rel="stylesheet" href="site.css">
+    12	<!--
+    13	  PLACEHOLDERS — replace before launch. See baseline CLAIMS.md for the full register.
+    14	    Phone   (407) 555-0142        — 555-01XX is the reserved fiction range
+    15	    Email   …@witscabling.example — .example is a reserved TLD
+    16	    Photos  Unsplash stock, img/ATTRIBUTION.md — NOT WITS's own work.
+    17	            Present to show layout only. Must not ship.
+    18	  Variant B — "Cinematic Dark." Same content and IA as the Refero baseline;
+    19	  presentation rebuilt around the radiant/glow glass-and-glow school.
+    20	-->
+    21	</head>
+    22	<body>
+    23	
+    24	<a class="skip-link" href="#top">Skip to content</a>
+    25	
+    26	<header class="masthead" data-reveal-root>
+    27	  <div class="shell masthead__inner">
+    28	    <a class="wordmark" href="#top">
+    29	      <span class="wordmark__mark">WITS</span>
+    30	      <span class="wordmark__expand">Wiggins Information Technology Services</span>
+    31	    </a>
+    32	    <nav class="masthead__nav" aria-label="Primary" id="primary-nav">
+    33	      <a href="#scope">Scope</a>
+    34	      <a href="#audience">Who for</a>
+    35	      <a href="#receive">What you get</a>
+    36	      <a href="#process">Process</a>
+    37	      <a href="#faq">FAQ</a>
+    38	    </nav>
+    39	    <div class="masthead__actions">
+    40	      <a class="masthead__call" href="tel:+14075550142">(407) 555-0142</a>
+    41	      <button class="masthead__toggle" type="button" aria-expanded="false" aria-controls="primary-nav">
+    42	        <span></span><span></span><span></span>
+    43	        <span class="sr-only">Menu</span>
+    44	      </button>
+    45	    </div>
+    46	  </div>
+    47	</header>
+    48	
+    49	<main id="top">
+    50	
+    51	  <!-- Hero · signature layered composition #1: full-bleed rounded image +
+    52	       offset translucent glass panel. Choreographed entrance. -->
+    53	  <section class="hero">
+    54	    <div class="shell hero__grid">
+    55	      <div class="hero__copy">
+    56	        <p class="label reveal-item" style="--d:0s">Structured cabling &middot; Orlando, Florida</p>
+    57	        <h1 class="reveal-item" style="--d:.15s">Your building&rsquo;s cabling should be the last thing you worry about.</h1>
+    58	        <p class="lede reveal-item" style="--d:.3s">
+    59	          WITS designs and installs structured cabling, fiber, and IT rooms for
+    60	          commercial buildings around Orlando. Thirty years in the field, fifteen
+    61	          running this business, and every run labeled and documented so the next
+    62	          person to open the closet can read it.
+    63	        </p>
+    64	        <div class="hero__actions reveal-item" style="--d:.42s">
+    65	          <a class="btn btn--primary" href="tel:+14075550142">Call for an estimate</a>
+    66	          <a class="btn btn--ghost" href="mailto:estimates@witscabling.example">Email us</a>
+    67	        </div>
+    68	        <p class="hero__aside reveal-item" style="--d:.52s">Commercial &middot; Offices &middot; New construction</p>
+    69	      </div>
+    70	
+    71	      <div class="hero__visual">
+    72	        <figure class="shot shot--hero photo-treated hero-bloom">
+    73	          <img src="img/hero.jpg" width="1400" height="1050" alt="A fiber tester connected to a network switch during commissioning." loading="eager">
+    74	        </figure>
+    75	        <aside class="glass spec hero-bloom hero-bloom--panel" aria-label="Company record">
+    76	          <div class="spec__bar">
+    77	            <span class="label label--tight">Company record</span>
+    78	            <span class="spec__signal">Orlando &middot; FL</span>
+    79	          </div>
+    80	          <div class="spec__row"><span class="spec__key">In business</span><span class="spec__val">15 years</span></div>
+    81	          <div class="spec__row"><span class="spec__key">In the field</span><span class="spec__val">30 years</span></div>
+    82	          <div class="spec__row"><span class="spec__key">Sector</span><span class="spec__val">Commercial &mdash; offices, suites, new construction</span></div>
+    83	          <div class="spec__row"><span class="spec__key">Coverage</span><span class="spec__val">Orlando &middot; Florida &middot; Colorado</span></div>
+    84	          <div class="spec__row"><span class="spec__key">Estimates</span><span class="spec__val">By phone, then a site walk</span></div>
+    85	        </aside>
+    86	      </div>
+    87	    </div>
+    88	  </section>
+    89	
+    90	  <!-- Signature moment: marquee of the trade and the territory. -->
+    91	  <div class="marquee" aria-hidden="true">
+    92	    <div class="marquee__track">
+    93	      <span>Structured Cabling</span><span class="marquee__dot">&middot;</span>
+    94	      <span>Fiber Optic</span><span class="marquee__dot">&middot;</span>
+    95	      <span>IT Room Design</span><span class="marquee__dot">&middot;</span>
+    96	      <span>Access Points</span><span class="marquee__dot">&middot;</span>
+    97	      <span>Camera Systems</span><span class="marquee__dot">&middot;</span>
+    98	      <span>Audio / Visual</span><span class="marquee__dot">&middot;</span>
+    99	      <span>Troubleshooting</span><span class="marquee__dot">&middot;</span>
+   100	      <span>Orlando</span><span class="marquee__dot">&middot;</span>
+   101	      <span>Florida</span><span class="marquee__dot">&middot;</span>
+   102	      <span>Colorado</span><span class="marquee__dot">&middot;</span>
+   103	      <!-- duplicate for seamless loop -->
+   104	      <span>Structured Cabling</span><span class="marquee__dot">&middot;</span>
+   105	      <span>Fiber Optic</span><span class="marquee__dot">&middot;</span>
+   106	      <span>IT Room Design</span><span class="marquee__dot">&middot;</span>
+   107	      <span>Access Points</span><span class="marquee__dot">&middot;</span>
+   108	      <span>Camera Systems</span><span class="marquee__dot">&middot;</span>
+   109	      <span>Audio / Visual</span><span class="marquee__dot">&middot;</span>
+   110	      <span>Troubleshooting</span><span class="marquee__dot">&middot;</span>
+   111	      <span>Orlando</span><span class="marquee__dot">&middot;</span>
+   112	      <span>Florida</span><span class="marquee__dot">&middot;</span>
+   113	      <span>Colorado</span><span class="marquee__dot">&middot;</span>
+   114	    </div>
+   115	  </div>
+   116	
+   117	  <!-- Scope · three priorities as glass cards, the rest as a chip index. -->
+   118	  <section class="shell band" id="scope" data-reveal-root>
+   119	    <div class="band__head">
+   120	      <p class="label reveal-item">Scope of work</p>
+   121	      <h2 class="reveal-item" style="--d:.06s">Three things we lead with.</h2>
+   122	      <p class="lede reveal-item" style="--d:.12s">
+   123	        These are the jobs WITS is built around. The rest of the list is part of
+   124	        the same work &mdash; it just isn&rsquo;t what you should call us first
+   125	        for.
+   126	      </p>
+   127	    </div>
+   128	
+   129	    <div class="scope__primary">
+   130	      <article class="glass card reveal-item" style="--d:.05s">
+   131	        <span class="chip chip--index">01</span>
+   132	        <h3>Network structured cabling</h3>
+   133	        <p>
+   134	          Copper backbone and horizontal runs for offices, suites, and full
+   135	          floors. Every drop labeled at both ends and recorded on a plan you
+   136	          keep.
+   137	        </p>
+   138	      </article>
+   139	      <article class="glass card reveal-item" style="--d:.15s">
+   140	        <span class="chip chip--index">02</span>
+   141	        <h3>Fiber optic cabling</h3>
+   142	        <p>
+   143	          Single-mode and multimode between closets, floors, and buildings.
+   144	          Terminated, tested, and handed over together with the results.
+   145	        </p>
+   146	      </article>
+   147	      <article class="glass card reveal-item" style="--d:.25s">
+   148	        <span class="chip chip--index">03</span>
+   149	        <h3>IT room design</h3>
+   150	        <p>
+   151	          Racks, pathways, grounding, and cable management laid out before
+   152	          anything gets pulled &mdash; so the room is still workable in five
+   153	          years.
+   154	        </p>
+   155	      </article>
+   156	    </div>
+   157	
+   158	    <div class="scope__also reveal-item" style="--d:.3s">
+   159	      <p class="label label--tight">Also installed</p>
+   160	      <ul class="chiplist">
+   161	        <li>Data network cabling</li>
+   162	        <li>Access point installation</li>
+   163	        <li>Camera systems</li>
+   164	        <li>Audio / visual cabling</li>
+   165	        <li>Troubleshooting</li>
+   166	      </ul>
+   167	    </div>
+   168	  </section>
+   169	
+   170	  <!-- Who this is for · asymmetric alternating list, deliberately not a card grid. -->
+   171	  <section class="shell band band--alt" id="audience" data-reveal-root>
+   172	    <div class="band__head band__head--wide">
+   173	      <p class="label reveal-item">Who this is for</p>
+   174	      <h2 class="reveal-item" style="--d:.06s">Four ways people call us.</h2>
+   175	    </div>
+   176	    <div class="audience">
+   177	      <article class="audience__item reveal-item" style="--d:.05s">
+   178	        <span class="audience__n">01</span>
+   179	        <div>
+   180	          <h3>New construction</h3>
+   181	          <p>Cabling designed into the build and coordinated with the general contractor&rsquo;s schedule, rather than squeezed in at the end.</p>
+   182	        </div>
+   183	      </article>
+   184	      <article class="audience__item reveal-item" style="--d:.12s">
+   185	        <span class="audience__n">02</span>
+   186	        <div>
+   187	          <h3>Office fit-outs and moves</h3>
+   188	          <p>New suites, floor changes, and relocations &mdash; including work in buildings that stay occupied while it happens.</p>
+   189	        </div>
+   190	      </article>
+   191	      <article class="audience__item reveal-item" style="--d:.19s">
+   192	        <span class="audience__n">03</span>
+   193	        <div>
+   194	          <h3>Cabling upgrades</h3>
+   195	          <p>Older plant brought up to what the network actually needs now, without tearing out what still works.</p>
+   196	        </div>
+   197	      </article>
+   198	      <article class="audience__item reveal-item" style="--d:.26s">
+   199	        <span class="audience__n">04</span>
+   200	        <div>
+   201	          <h3>Something is down</h3>
+   202	          <p>Faults traced, bad runs re-terminated, and undocumented installs mapped so the next person is not guessing.</p>
+   203	        </div>
+   204	      </article>
+   205	    </div>
+   206	  </section>
+   207	
+   208	  <!-- The difference · full-bleed statement band, scheme shift. -->
+   209	  <section class="creed" data-reveal-root>
+   210	    <div class="shell creed__grid">
+   211	      <div>
+   212	        <p class="label reveal-item">The difference</p>
+   213	        <p class="creed__statement reveal-item" style="--d:.08s">
+   214	          You should be able to open the closet in five years and still know what
+   215	          every cable does.
+   216	        </p>
+   217	      </div>
+   218	      <div class="reveal-item" style="--d:.16s">
+   219	        <hr class="creed__rule">
+   220	        <p class="creed__note">
+   221	          Quality workmanship, attention to detail and reliability are what every
+   222	          contractor says. What they mean here is labeling at both ends, test
+   223	          results you are handed, and a record of the plant that outlives whoever
+   224	          installed it.
+   225	        </p>
+   226	      </div>
+   227	    </div>
+   228	  </section>
+   229	
+   230	  <!-- What you receive · asymmetric split, image opposite the list. -->
+   231	  <section class="shell band" id="receive" data-reveal-root>
+   232	    <div class="band__head">
+   233	      <p class="label reveal-item">What you receive</p>
+   234	      <h2 class="reveal-item" style="--d:.06s">What lands on your desk at handover.</h2>
+   235	    </div>
+   236	    <div class="receive">
+   237	      <div class="receive__list">
+   238	        <div class="receive__row reveal-item" style="--d:.05s"><span class="receive__n">01</span><div><h3>Labeled plant</h3><p>Every run identified at both ends, matching the record.</p></div></div>
+   239	        <div class="receive__row reveal-item" style="--d:.13s"><span class="receive__n">02</span><div><h3>Test results</h3><p>Certification results for the runs installed, handed over with the job.</p></div></div>
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "rg --files /Users/zero-suminc./projects/one-box/spikes/wits-variants | rg '("'^|/)(CLAIMS|BRIEF)'"\\.md"'$|claims|brief'"' | sort; rg -n \"(every|licensed|insured|certificate|minimum|normal|schedule|writing|site walk|same contact|Statewide|small on purpose|occupied|after-hours|certification results|record|quoted|estimate)\" index.html" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+7:<meta name="description" content="Wiggins Information Technology Services installs structured cabling, fiber, and IT rooms for commercial buildings in the Orlando area. 30 years in the field. Call for an estimate.">
+61:          running this business, and every run labeled and documented so the next
+65:          <a class="btn btn--primary" href="tel:+14075550142">Call for an estimate</a>
+66:          <a class="btn btn--ghost" href="mailto:estimates@witscabling.example">Email us</a>
+75:        <aside class="glass spec hero-bloom hero-bloom--panel" aria-label="Company record">
+77:            <span class="label label--tight">Company record</span>
+84:          <div class="spec__row"><span class="spec__key">Estimates</span><span class="spec__val">By phone, then a site walk</span></div>
+135:          floors. Every drop labeled at both ends and recorded on a plan you
+181:          <p>Cabling designed into the build and coordinated with the general contractor&rsquo;s schedule, rather than squeezed in at the end.</p>
+188:          <p>New suites, floor changes, and relocations &mdash; including work in buildings that stay occupied while it happens.</p>
+215:          every cable does.
+221:          Quality workmanship, attention to detail and reliability are what every
+223:          results you are handed, and a record of the plant that outlives whoever
+238:        <div class="receive__row reveal-item" style="--d:.05s"><span class="receive__n">01</span><div><h3>Labeled plant</h3><p>Every run identified at both ends, matching the record.</p></div></div>
+240:        <div class="receive__row reveal-item" style="--d:.21s"><span class="receive__n">03</span><div><h3>An as-built record</h3><p>A plan of what was installed and where it terminates, that you keep.</p></div></div>
+241:        <div class="receive__row reveal-item" style="--d:.29s"><span class="receive__n">04</span><div><h3>One person to call</h3><p>The same contact through quoting, install and anything after.</p></div></div>
+263:      <li class="glass card reveal-item" style="--d:.12s"><span class="label label--tight">Licensing</span><p>Florida low-voltage licensing details supplied with the estimate.</p></li>
+288:        <h3>Written estimate</h3>
+289:        <p>Scope, materials, and schedule in writing, so you can hold it against anything else on your desk.</p>
+294:        <p>Installed, tested, labeled, documented. You get the records, not just the cable.</p>
+337:          WITS is small on purpose. The person who walks your site is the person
+363:          <li><span>Florida</span><span>Statewide</span></li>
+400:          suite is a different job from a floor in an occupied building or a new
+401:          build still on the schedule. You get a schedule in writing with the
+402:          estimate, before any work starts, rather than a guess on the phone.
+414:        <summary>Can you work in an occupied building?<span class="faq__chevron" aria-hidden="true"></span></summary>
+416:          Yes. Occupied floors, live suites and tenanted buildings are normal
+417:          commercial work. Access windows, noise and after-hours requirements get
+422:        <summary>Is there a minimum job size?<span class="faq__chevron" aria-hidden="true"></span></summary>
+424:          No fixed minimum. Small jobs and single-drop calls are worth the phone
+430:        <summary>Do we get test results and a record of what was installed?<span class="faq__chevron" aria-hidden="true"></span></summary>
+432:          Yes. Certification results for the runs installed and a record of the
+438:        <summary>Are you insured and licensed?<span class="faq__chevron" aria-hidden="true"></span></summary>
+440:          Yes. A certificate of insurance can be issued to the general contractor
+442:          the estimate.
+449:          Florida and in Colorado is normal &mdash; ask, and we will tell you
+461:        <h2>Call for an estimate.</h2>
+464:          the schedule, and the price in writing.
+477:          <a class="contact__value" href="mailto:estimates@witscabling.example">estimates@witscabling.example</a>
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "rg --files -uu /Users/zero-suminc./projects/one-box/spikes/wits-variants | rg '("'^|/)(CLAIMS|BRIEF)'"\\.md"'$|claims|brief'"' | sort | sed -n '1,120p'" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "rg --files -uu /Users/zero-suminc./projects/one-box | rg '/(CLAIMS|BRIEF)\\.md"'$|claims|brief'"' | sed -n '1,200p'" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+/Users/zero-suminc./projects/one-box/spikes/refero-baseline/BRIEF.md
+/Users/zero-suminc./projects/one-box/spikes/refero-baseline/CLAIMS.md
+/Users/zero-suminc./projects/one-box/docs/eval/baseline/brief-v1.json
+/Users/zero-suminc./projects/one-box/docs/eval/baseline/brief-v2.json
+/Users/zero-suminc./projects/one-box/node_modules/jose/dist/webapi/lib/jwt_claims_set.js
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "sed -n '1,280p' /Users/zero-suminc./projects/one-box/spikes/refero-baseline/CLAIMS.md" in /Users/zero-suminc./projects/one-box/spikes/wits-variants/b-cinematic/site
+ succeeded in 0ms:
+# Claims register — WITS
+
+Every statement on the page that is **not** supplied by `BRIEF.md`, and
+therefore needs WITS sign-off before launch.
+
+Raised by the GPT-5.6 audit (2026-08-15), which was right that the build's copy
+outran its evidence and that the spec panel's "every value is from the brief"
+comment was false. Two invented policies were removed outright; the rest are
+listed here rather than deleted, because a contractor site stripped of every
+specific is useless. They need confirming, not erasing.
+
+**Status key** — `CONFIRM` needs a yes/no from WITS · `REMOVED` already cut ·
+`SOURCED` traced to the brief and safe.
+
+## Removed before this register was written
+
+| Claim | Where | Why removed |
+|---|---|---|
+| "no forms" | Spec panel, Estimates row | The brief forbids an online **booking/scheduling system**. It says nothing about a simple inquiry form. Stating it inside a panel headed "Company record" made an invented policy look like a documented fact. |
+| "Commercial only." | Coverage card | The brief names a target **audience**. It never says WITS refuses residential work. Replaced with "Commercial buildings." |
+| "work we do every week" | Scope lede | A frequency claim the brief does not support. |
+| Photography plate + shot list | Own section | Production documentation on a public page. The direction moved to `DESIGN.md` §8. Replaced 2026-08-15 with real stock photography for layout evaluation — see `site/img/ATTRIBUTION.md`; it must not ship. |
+
+## Needs confirmation
+
+| # | Claim | Where | Status |
+|---:|---|---|---|
+| 1 | "every run labeled and documented so the next person to open the closet can read it" | Hero lede | **CONFIRM** — this is the site's central promise. If WITS does not label and document to this standard on every job, the whole page is mis-sold and the copy must change. |
+| 2 | "Every drop labeled at both ends and recorded on a plan you keep." | Scope 01 | **CONFIRM** — specifically whether the customer receives a retained record. |
+| 3 | "Single-mode and multimode between closets, floors, and buildings." | Scope 02 | **CONFIRM** — that both fibre types are offered. |
+| 4 | "Terminated, tested, and handed over together with the results." | Scope 02 | **CONFIRM** — whether test results are actually handed over, and in what form (Fluke certification reports?). |
+| 5 | "Racks, pathways, grounding, and cable management laid out before anything gets pulled" | Scope 03 | **CONFIRM** — that grounding is in scope. It is often a separate trade. |
+| 6 | The four-step process: Call → Walkthrough → Written estimate → Install and handover | Process | **CONFIRM** — all four. A free on-site walkthrough before quoting is a real commercial commitment. |
+| 7 | "Scope, materials, and schedule in writing" | Process 03 | **CONFIRM** — that estimates are written and include a schedule. |
+| 8 | "Installed, tested, labeled, documented. You get the records, not just the cable." | Process 04 | **CONFIRM** — duplicate of 1/4, stated as a deliverable. |
+| 9 | "Florida — Statewide" | Coverage | **CONFIRM** — the brief says the service area is "Colorado and Florida". Whether that means the whole of Florida or Central Florida is an inference. |
+| 10 | "Colorado — Served" | Coverage | **CONFIRM** — same, and whether Colorado work is still active or historical. |
+| 11 | "You get a schedule in writing with the estimate, before any work starts" | FAQ 2 | **CONFIRM** — duplicate of 7. |
+| 12 | "Tracing faults, re-terminating bad runs, and making sense of an undocumented install is regular work here." | FAQ 3 | **CONFIRM** — the brief lists troubleshooting as a service but not its frequency. |
+| 13 | "If it carries a signal through a commercial building, it is probably on the list" | FAQ 1 | **CONFIRM** — a scope claim broader than the eight listed services. |
+
+## Added 2026-08-15 with the new sections
+
+The audit's missing-section list was built out. Those sections carry claims the
+brief never supplied, so they land here rather than being presented as fact.
+**The "Before we start" and "What you receive" sections are entirely pending —
+if WITS cannot stand behind them, they come out, not get softened.**
+
+| # | Claim | Where | Status |
+|---:|---|---|---|
+| 14 | Certificate of insurance issued to GC or building owner on request | Before we start | **CONFIRM — blocking.** Whether WITS carries commercial general liability, at what limits, and whether it can issue a COI. |
+| 15 | "Florida low-voltage licensing details supplied with the estimate" | Before we start | **CONFIRM — blocking.** Whether WITS holds an applicable FL low-voltage licence and its number. |
+| 16 | Badging, induction, working hours and building access agreed before mobilisation | Before we start | **CONFIRM** |
+| 17 | Written scope agreed in advance, variations made visible | Before we start | **CONFIRM** |
+| 18 | "Every run identified at both ends, matching the record" | What you receive | **CONFIRM** — duplicate of 1/2 as a stated deliverable. |
+| 19 | "Certification results for the runs installed, handed over with the job" | What you receive | **CONFIRM** — and with what instrument. |
+| 20 | "A plan of what was installed and where it terminates, that you keep" | What you receive | **CONFIRM** — whether an as-built record is produced as standard. |
+| 21 | "The same contact through quoting, install and anything after" | What you receive | **CONFIRM** |
+| 22 | "Coordinated with the general contractor's schedule" | Who this is for | **CONFIRM** |
+| 23 | Work in buildings that stay occupied | Who this is for, FAQ | **CONFIRM** |
+| 24 | "WITS is small on purpose… the person who walks your site is the person who quotes it" | About | **CONFIRM — blocking.** This is a structural claim about how the business is staffed. |
+| 25 | "No fixed minimum" job size | FAQ | **CONFIRM** |
+| 26 | Insured and licensed (FAQ restatement) | FAQ | **CONFIRM — blocking.** Duplicate of 14/15. |
+| 27 | After-hours / access-window agreement before mobilisation | FAQ | **CONFIRM** |
+| 28 | Willingness to travel within FL and to CO | FAQ | **CONFIRM** — duplicate of 9/10. |
+
+### Still absent, deliberately
+
+- **No owner name, photo or bio.** The About section carries the argument without
+  naming a person, because the brief supplied no one. A real name, face and
+  short history should replace the generic copy — "personal service" is a stated
+  differentiator and it currently has nobody attached to it.
+- **No case studies.** The gallery shows *what the work looks like*, captioned by
+  trade activity. Nothing is presented as a WITS project, because none can be
+  evidenced yet.
+
+## Sourced — no action
+
+15 years in business · 30 years industry experience · the eight services and
+their priority split · Orlando primary area · Florida and Colorado · commercial
+businesses, offices, new construction · call for an estimate as the primary CTA
+· phone and email prominent · no online booking · the five differentiators
+verbatim · the three FAQ subjects.
+
+## Still missing from the intake
+
+Not claims — gaps. A second intake pass should collect these, because
+commercial buyers ask for them and their absence costs work:
+
+1. **Insurance and COI readiness.** GCs will not let an uninsured sub on site.
+2. **Applicable Florida low-voltage licensing.** "No certifications" answers a
+   different question; licensing is not a certification.
+3. **Warranty terms** — labour, and any manufacturer warranty WITS can extend.
+4. **Testing and handover documentation** — what the customer actually receives.
+5. **Occupied-building and after-hours working.** A live office fit-out is a
+   different sale from a new build.
+6. **Minimum job size and typical lead time.**
+7. **Owner name and history.** "Personal service" is a stated differentiator,
+   and there is currently no person anywhere on the page carrying it.
+8. **One photographable reference project**, with customer permission.
+9. **Real phone, email, domain, logo, brand colours.**
+
+codex
+# Outside grade
+
+## Per-dimension grades
+
+| # | Dimension | Grade | Evidence (one sentence, cite a selector, file, or screenshot region) |
+|---|-----------|-------|----------------------------------------------------------------------|
+| 1 | Hero distinctiveness | B- | The desktop hero combines trade-specific copy with an offset `.hero__visual .spec` panel, but its underlying text-left/photo-right composition remains conventional. |
+| 2 | Color character | C+ | `site.css` uses disciplined orange accents and three dark surfaces, but `--bg-1`, `--bg-2`, and `--bg-3` render so similarly that the screenshots read as one nearly uninterrupted black page. |
+| 3 | Motion design | B | `site.js` supplies staggered intersection reveals while `.marquee__track`, card/image lifts, and reduced-motion rules form a real system, although `.hero.is-visible .reveal-item { animation:none }` cancels the intended hero text sequence almost immediately. |
+| 4 | Section division & rhythm | C+ | The creed, gallery, alternate bands, and contact glow provide some variation, but most sections reuse the same dark surface, heading placement, and one of only two padding formulas. |
+| 5 | Card craft | B- | `.glass.card` has numbered chips, translucent layering, inset shadows, and a four-pixel hover lift, yet the low-contrast treatment is repeated so broadly that cards, contact fields, qualifications, and FAQs lose individual character. |
+| 6 | Visual hierarchy | B- | Large display type and consistent `.label` eyebrows establish clear reading order, but nearly every post-hero section receives the same heading scale and emphasis, flattening the page’s longer narrative. |
+| 7 | Variety / anti-monotony | B- | The desktop page alternates grids, ruled lists, splits, a timeline, gallery, and FAQ, but the mobile capture collapses most of these into a very long succession of similarly styled stacked blocks. |
+| 8 | Balance & composition | B- | Desktop splits such as `.receive` and `.about` are stable and well weighted, while several centered bands and the mobile qualification/FAQ runs feel cramped and overextended. |
+| 9 | Bespoke-ness | C+ | Cabling terminology, handover concepts, and the 15/30-year panel are company-directed, but the orange-on-black glass aesthetic, stock photography, generic wordmark, and absent owner or real project proof remain readily transferable to another contractor. |
+
+## Overall grade
+
+C+
+
+This materially clears the D baseline through competent hierarchy, varied layouts, real hover behavior, scroll reveals, and a cohesive surface system, but it stops short of premium work: the dark-on-dark arc is monotonous, the glass treatment becomes a scaffold, the hero motion is partly neutralized, mobile is excessively stacked, and the most bespoke-looking content is unsupported rather than demonstrated.
+
+## Ranked fixes
+
+1. Replace the stock gallery and anonymous rack image with WITS-owned project photography, an owner portrait, and photographed handover artifacts.
+Hero distinctiveness rises B- to B+ and bespoke-ness C+ to B+/A-.
+
+2. Remove or obtain written confirmation for every operational promise, then turn confirmed labeling, testing, and as-built deliverables into visible proof instead of copy-only assertions.
+Bespoke-ness rises C+ to B+ and visual hierarchy B- to B.
+
+3. Create a stronger surface arc: introduce one genuinely warm/tinted band, one full-bleed photographic scene, and visibly different section spacing instead of three nearly indistinguishable blacks.
+Color character rises C+ to B+ and section rhythm C+ to B+.
+
+4. Fix the hero entrance conflict by delaying `.hero.is-visible` until choreography completes or separating hero animation state from scroll-reveal state.
+Hero distinctiveness rises B- to B and motion B to B+.
+
+5. Replace the generic marquee with a cabling-specific signature motion, such as a line tracing through labeled process nodes or an animated rack-to-desk handover path.
+Motion rises B to A- and bespoke-ness C+ to B.
+
+6. Limit the glass formula to priority surfaces and give services, handover deliverables, coverage, and FAQs distinct anatomies.
+Card craft rises B- to B+ and variety B- to B+.
+
+7. Consolidate repetitive claims across scope, handover, process, about, and FAQ so each section adds new information rather than restating labeling, testing, and documentation.
+Visual hierarchy rises B- to B and section rhythm C+ to B.
+
+8. Recompose mobile into fewer, stronger scenes: use compact horizontal process steps, close every FAQ initially, shorten the qualifications block, and add larger inter-section contrast.
+Balance rises B- to B and mobile variety B- to B.
+
+## Trust check
+
+The rendered phone number and `.example` email are fictional placeholders presented as working contact details; all photographs are Unsplash stock but appear beneath “What this looks like on site” with project-like captions; and the brief does not support the site’s claims that WITS labels and documents every run, supplies certification results and as-builts, uses one contact throughout, performs pre-quote site walks, provides written schedules, is deliberately small, routinely handles occupied or after-hours work, has no minimum job size, serves Florida statewide, or is insured and licensed with COI availability.
+tokens used
+72,387

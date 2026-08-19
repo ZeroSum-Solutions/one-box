@@ -1,0 +1,89 @@
+/**
+ * WITS — Tailwind v4 theme
+ *
+ * The same Refero-derived tokens expressed as a Tailwind `@theme` block, so the
+ * design contract is available as utility classes (`bg-canvas`, `text-ink`,
+ * `font-mono`, `rounded-card`, `shadow-card`, …).
+ *
+ * Source of truth is `tokens.css`. This file mirrors it — it does not extend it.
+ * If a value changes there, change it here. No token may exist in one and not
+ * the other.
+ *
+ * Provenance keys as in tokens.css:
+ *   [F] Fingerprint · [O] Outsource Consultants · [T] Tailscale
+ *   [A] Ambrook     · [N] Andercore
+ */
+
+@import "tailwindcss";
+
+@theme {
+  /* ---- Colour · [F] ---------------------------------------------------- */
+  --color-canvas: #fafaf8;
+  --color-surface: #ffffff;
+  --color-surface-sunk: #f0f0ef;
+  --color-ink: #141415;
+  --color-ink-secondary: #454542;
+  --color-ink-muted: #8c8c89;
+  --color-border: #e4e5e1;
+  --color-console: #2e2e2c;
+  --color-console-ink: #abb2bf;
+
+  /* Brand swap point — see DESIGN.md §2 */
+  --color-accent: #f35b22;
+  --color-accent-edge: #be400f;
+
+  --color-signal: #88d2c3;
+
+  /* ---- Type · [F] ------------------------------------------------------ */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --text-caption: 10px;
+  --text-caption--line-height: 1.45;
+
+  --text-label: 12px;
+  --text-label--line-height: 1.5;
+  --text-label--letter-spacing: 0.08em;
+
+  --text-body: 14px;
+  --text-body--line-height: 1.6;
+
+  --text-body-lg: 16px;
+  --text-body-lg--line-height: 1.6;
+
+  --text-subheading: 30px;
+  --text-subheading--line-height: 1.22;
+  --text-subheading--letter-spacing: -0.6px;
+
+  --text-heading: 36px;
+  --text-heading--line-height: 1.15;
+
+  --text-display: 48px;
+  --text-display--line-height: 1.17;
+  --text-display--letter-spacing: -0.99px;
+
+  /* ---- Spacing · [F] --------------------------------------------------- */
+  --spacing-element: 8px;
+  --spacing-card: 12px;
+  --spacing-section: 48px;
+  --spacing-band: 96px;
+
+  /* ---- Shape · [F] soft for people, [O] sharp for data ------------------ */
+  --radius-button: 6px;
+  --radius-card: 12px;
+  --radius-default: 4px;
+  --radius-data: 0px;
+
+  /* ---- Elevation · [F] inset hairlines, [T] restraint ------------------- */
+  --shadow-card:
+    rgba(228, 229, 225, 0.3) 0 1px 0 0 inset,
+    rgba(110, 111, 109, 0.1) 0 -1px 0 0 inset;
+  --shadow-interactive: rgba(24, 25, 22, 0.06) 0 1px 2px 0;
+
+  /* ---- Layout · [F] ---------------------------------------------------- */
+  --container-page: 1232px;
+
+  /* ---- Motion · [A] ---------------------------------------------------- */
+  --default-transition-duration: 0.15s;
+  --default-transition-timing-function: ease;
+}

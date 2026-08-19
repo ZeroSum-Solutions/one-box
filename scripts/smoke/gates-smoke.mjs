@@ -225,6 +225,14 @@ async function main() {
   // intake.json alongside the build — exercises gates.ts's tel: cross-check
   // against a real intake artifact, matching ARTIFACTS.intake's run-root path.
   await writeFile(path.join(runRoot, "intake.json"), JSON.stringify(intake, null, 2));
+  // tokens.json alongside the build — runGates() reads runRoot/tokens.json
+  // (ARTIFACTS.tokens) for the token-drift/color-role-compliance gates on
+  // every call, including the afterEdit path an edit-and-save mutation
+  // triggers. buildSite() only ever consumes `tokens`, it never persists
+  // the artifact itself, so any fixture consumer that skips this write (as
+  // this script did) leaves every downstream sites/smoke-fixture copy
+  // missing the file runGates() unconditionally requires.
+  await writeFile(path.join(runRoot, "tokens.json"), JSON.stringify(tokens, null, 2));
 
   const siteDir = path.join(runRoot, "site");
   const builtHtml = await readFile(path.join(siteDir, "index.html"), "utf8");

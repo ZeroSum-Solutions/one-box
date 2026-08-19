@@ -1,0 +1,1608 @@
+/* ==========================================================================
+   Workbench + preview shell — DESIGN.md "One-Box Midnight Instrument" (W5).
+   Owns: .preview-*, .workbench-*, .selection-chip, .edit-status/.edit-error,
+   .checkbox-row, .element-*, .layout-controls, .current-action, .asset-*,
+   .assistant-*, .motion-*, .token-*, .composer-reference*, .layers-tree*.
+   Built against the control vocabulary in globals.css (.btn-*, .badge,
+   .seg-pill, .card-surface,
+   .mono-meta) — no restated CSS, only surface-specific composition.
+   ========================================================================== */
+
+/* ---------- Header strip (IMP-015: explicit preview⇄workbench anatomy) --- */
+
+.preview-header {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  height: 48px;
+  padding: 0 var(--spacing-16);
+  border-bottom: 1px solid var(--border-graphite);
+  background: var(--surface-carbon);
+}
+
+.preview-header__identity {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.preview-header__title {
+  overflow: hidden;
+  color: var(--text-bone);
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.preview-header__sep {
+  color: var(--text-ash);
+}
+
+.preview-header__run {
+  overflow: hidden;
+  color: var(--text-ash);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.preview-header__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--spacing-16);
+}
+
+.preview-mode-switch {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.preview-header__evidence {
+  gap: 5px;
+  white-space: nowrap;
+}
+
+/* ---------- Failed-build strip ---------------------------------------------
+   Shown only when the build left a blocking gate failing, which makes the
+   whole canvas read-only. Coral per DESIGN.md §Accent roles — flagged counts
+   and route-back, which is exactly this: it names what is flagged and sends
+   the owner back to evidence. It is a status strip, not a control, so it adds
+   no action and stays out of the one-primary-action budget. */
+
+.preview-alert {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px var(--spacing-8);
+  border-bottom: 1px solid var(--border-graphite);
+  border-left: 2px solid var(--accent-coral);
+  padding: var(--spacing-8) var(--spacing-16);
+  background: var(--surface-carbon);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.preview-alert__title {
+  color: var(--text-bone);
+  font-weight: var(--weight-medium);
+}
+
+.preview-alert__detail {
+  color: var(--text-fog);
+}
+
+.preview-alert__detail .mono-meta {
+  color: var(--text-mist);
+}
+
+/* ---------- Preview layout ---------- */
+
+.preview-layout {
+  position: relative;
+  display: flex;
+  height: 100dvh;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-canvas);
+}
+
+.preview-body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.preview-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  /* Canvas-coloured padding is the void margin the framed site floats in —
+     the frame border below is what reads as "an object", not the edge of
+     the app shell (DESIGN.md app-chrome/generated-site boundary). */
+  padding: var(--spacing-16);
+  background: var(--surface-canvas);
+}
+
+.preview-frame {
+  display: block;
+  /* content-box (overriding the project-wide `* { box-sizing: border-box }`
+     reset): --preview-canvas-width names a preset viewport (e.g. mobile's
+     390px) that the generated site inside the iframe must actually see as
+     window.innerWidth. Under border-box the 1px frame border on each side
+     ate 2px from that figure, so the iframe rendered a 388px viewport for a
+     "390" preset. Sizing the content box instead keeps the border purely
+     decorative and gives the iframe exactly the preset width. */
+  box-sizing: content-box;
+  width: min(100%, var(--preview-canvas-width, 100%));
+  height: 100%;
+  margin-inline: auto;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-canvas);
+  overflow: hidden; /* clip the generated site to the frame's rounded corners */
+}
+
+.preview-frame-pending {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+/* Keyboard users must not have to tab through the entire generated site
+   before reaching the workbench — a standard reveal-on-focus skip link,
+   layered over `.visually-hidden` (globals.css) rather than redefining it. */
+.preview-skip-link:focus {
+  position: fixed;
+  top: var(--spacing-16);
+  left: var(--spacing-16);
+  z-index: 20;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 8px 14px;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-carbon);
+  color: var(--text-bone);
+  font-size: var(--text-label-size);
+  box-shadow: var(--shadow-float);
+}
+
+/* ---------- Divider ---------- */
+
+.preview-divider {
+  position: relative;
+  z-index: 3;
+  width: 44px;
+  margin-left: -43px;
+  margin-right: 0;
+  flex-shrink: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.preview-divider::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 1px;
+  height: 100%;
+  background: var(--border-graphite);
+  content: "";
+}
+
+.preview-divider:hover::before,
+.preview-divider:focus-visible::before,
+.preview-divider--active::before {
+  width: 2px;
+  right: 0;
+  background: var(--accent-teal);
+}
+
+.preview-divider:focus-visible::after {
+  position: absolute;
+  top: 50%;
+  right: -7px;
+  width: 16px;
+  height: 44px;
+  border: 2px solid var(--accent-teal);
+  border-radius: var(--radius-pill);
+  content: "";
+  transform: translateY(-50%);
+}
+
+.preview-layout--collapsed .preview-divider {
+  display: none;
+}
+
+/* ---------- Workbench shell ---------- */
+
+.preview-workbench {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  width: var(--workbench-width);
+  min-width: 220px;
+  max-width: min(960px, calc(100vw - 260px));
+  flex: 0 0 auto;
+  overflow: visible;
+  border-left: 1px solid var(--border-graphite);
+  background: var(--surface-carbon);
+}
+
+.preview-workbench--collapsed {
+  width: 64px;
+  min-width: 64px;
+  max-width: 64px;
+}
+
+.workbench-tools {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  width: 64px;
+  flex: 0 0 64px;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) 10px;
+  border-right: 1px solid var(--border-graphite);
+}
+
+/* Icon-rail buttons are compact at desktop (--control-h, DESIGN.md "no
+   44px+ desktop controls") and only grow to a 44px hit area at the ≤768px
+   breakpoint, matching .btn-primary/.seg-pill (IMP-021 discoverability). */
+.workbench-tool {
+  position: relative; /* anchors the hover/focus tooltip below */
+  display: inline-flex;
+  width: var(--control-h);
+  min-height: var(--control-h);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-fog);
+  cursor: pointer;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+/* CSS-only tooltip: the native `title` only reaches mouse hover, never
+   keyboard focus, so an icon-only rail needs its own label surfaced on both
+   (review finding). aria-label already carries the accessible name; this
+   just reuses it visually. */
+.workbench-tool::after {
+  content: attr(aria-label);
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 10px);
+  padding: 4px 8px;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-badge);
+  background: var(--surface-obsidian);
+  color: var(--text-bone);
+  font-size: 11px;
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+  box-shadow: var(--shadow-soft);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(4px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 10;
+}
+
+.workbench-tool:hover::after,
+.workbench-tool:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+.workbench-tool:hover {
+  border-color: var(--border-graphite);
+  background: rgb(255 255 255 / 4%);
+  color: var(--text-mist);
+}
+
+.workbench-tool--active {
+  border-color: var(--border-smoke);
+  background: rgb(255 255 255 / 10%);
+  color: var(--text-paper);
+  box-shadow: 0 0 0 1px var(--border-smoke) inset;
+}
+
+.workbench-tool:focus-visible,
+.workbench-grab-tab:focus-visible,
+.workbench-width-menu button:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+.workbench-tool__icon,
+.workbench-tool__icon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+
+.workbench-tool__icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.workbench-tool--collapse {
+  margin-top: auto;
+}
+
+/* ---------- Viewport control (grab tab + width menu) ---------- */
+
+.workbench-viewport-control {
+  position: absolute;
+  z-index: 8;
+  top: 50%;
+  left: 0;
+  width: 0;
+  height: 0;
+}
+
+.workbench-grab-tab {
+  position: absolute;
+  top: -16px;
+  left: -16px;
+  display: grid;
+  width: var(--control-h);
+  height: var(--control-h);
+  place-items: center;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-fog);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+/* Compact at desktop: the visible chip nearly fills the hit box. At ≤768px
+   the box grows to a 44px hit area (below) while this inset keeps the
+   painted chip the same compact size — padding expansion, not an inflated
+   visual control (DESIGN.md §Controls). */
+.workbench-grab-tab::before {
+  position: absolute;
+  inset: 0 3px 0 0;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control) 0 0 var(--radius-control);
+  background: var(--surface-carbon);
+  box-shadow: var(--shadow-soft);
+  content: "";
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.workbench-grab-tab:hover,
+.workbench-grab-tab[aria-expanded="true"] {
+  color: var(--text-paper);
+}
+
+.workbench-grab-tab:hover::before,
+.workbench-grab-tab[aria-expanded="true"]::before {
+  border-color: var(--border-smoke);
+}
+
+.workbench-grab-tab svg {
+  position: relative;
+  width: 12px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.workbench-width-menu {
+  position: absolute;
+  top: -20px;
+  right: 24px;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-carbon);
+  box-shadow: var(--shadow-soft);
+}
+
+.workbench-width-menu button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--text-fog);
+  cursor: pointer;
+}
+
+.workbench-width-menu button:hover {
+  background: rgb(255 255 255 / 4%);
+  color: var(--text-mist);
+}
+
+.workbench-width-menu button[aria-pressed="true"] {
+  background: rgb(255 255 255 / 10%);
+  color: var(--text-paper);
+}
+
+.workbench-width-menu svg {
+  width: 18px;
+  height: 18px;
+}
+
+.preview-width-announcement {
+  position: absolute;
+  top: 26px;
+  right: 24px;
+  width: max-content;
+  padding: 3px 8px;
+  border-radius: var(--radius-badge);
+  background: rgb(255 255 255 / 5%);
+  color: var(--text-mist);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---------- Panel ---------- */
+
+.workbench-panel {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface-carbon);
+}
+
+.workbench-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: var(--spacing-20);
+  border-bottom: 1px solid var(--border-graphite);
+}
+
+.workbench-panel__header h1 {
+  margin: 0;
+  color: var(--text-paper);
+  font-size: var(--text-subheading-size);
+  font-weight: var(--weight-semibold);
+}
+
+.workbench-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  flex-shrink: 0;
+}
+
+/* Persistent Undo/Redo/Reset rail (canvas-upgrade Wave 4, Play 8) -- ghost
+   weight throughout, never lime: the active tool panel below already carries
+   the view's one filled primary action (Save value / Apply token / Apply
+   motion / Generate and save), and DESIGN.md caps that at one per view. */
+.undo-redo-rail {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+/* Reuses .edit-error's established treatment (bone text, smoke rule) --
+   DESIGN.md reserves coral for action/punctuation, never an error semantic. */
+.undo-redo-rail__error {
+  padding-left: var(--spacing-12);
+  border-left: 2px solid var(--border-smoke);
+  color: var(--text-bone);
+  font-size: 12px;
+}
+
+.workbench-panel__body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--spacing-20);
+  padding: var(--spacing-20);
+  overflow-y: auto;
+}
+
+/* ---------- Tool states ---------- */
+
+/* Same token recipe as the app-wide .state-card primitive (globals.css) —
+   kept as its own scoped class because most callers here render <strong>/<p>
+   directly rather than .state-card's __title/__body children. */
+.workbench-state {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--spacing-16);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+.workbench-state__label {
+  color: var(--text-ash);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.workbench-state strong {
+  color: var(--text-bone);
+  font-size: var(--text-body-size);
+  font-weight: var(--weight-medium);
+}
+
+.workbench-state p,
+.workbench-note {
+  margin: 0;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.workbench-state--loading {
+  border-color: color-mix(in srgb, var(--accent-teal) 45%, var(--border-graphite));
+}
+
+/* Errors and unsupported states get their own (non-coral) treatment — coral
+   is reserved for route-back/flagged actions, not a danger semantic. */
+.workbench-state--error,
+.workbench-state--unsupported {
+  border-color: var(--border-smoke);
+}
+
+/* Empty and pending share one uniform look (DESIGN.md §Empty and pending
+   states) — declared explicitly so the modifier is a real state, not the
+   silent no-op it was before. */
+.workbench-state--empty {
+  border-color: var(--border-graphite);
+}
+
+.workbench-state button {
+  align-self: flex-start;
+}
+
+/* ---------- Research tool card containment ---------- */
+
+/* .evidence-readable (styles/evidence.css) supplies the readable-content
+   typography shared with the evidence workspace; it carries no card chrome
+   of its own there because an outer artifact-panel card already provides
+   it. The workbench has no such ancestor, so this adds the missing
+   border/background only — never redeclaring what .evidence-readable
+   already sets. */
+.research-card {
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+/* GateStrip.tsx's classnames are still `.gate-strip*`/`.gate-dot*`
+   (globals.css); scoped under `.workbench-panel` here so this — the
+   research tool's real, re-tokenised definition — wins over that copy
+   regardless of import order, without editing globals.css. Re-tokenised off
+   first-class tokens only: pulse-green for pass, never lime (DESIGN.md
+   §Color roles; the lead's fix, carried across unchanged). */
+.workbench-panel .gate-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: var(--spacing-16);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+.workbench-panel .gate-strip__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.workbench-panel .gate-strip__item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  font-size: var(--text-label-size);
+}
+
+.workbench-panel .gate-dot {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.workbench-panel .gate-dot--pass {
+  background: var(--accent-pulse);
+}
+
+.workbench-panel .gate-dot--fail {
+  border: 1px solid var(--border-smoke);
+}
+
+.workbench-panel .gate-strip__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-panel .gate-strip__advisory {
+  font-size: var(--text-caption-size);
+  color: var(--text-fog);
+}
+
+.workbench-panel .gate-strip__error,
+.workbench-panel .gate-strip__pending {
+  font-size: var(--text-label-size);
+  color: var(--text-fog);
+  margin: 0;
+}
+
+/* Ancestor breadcrumb strip (canvas-upgrade A3, Play 9). Neutral chrome, not
+   a second primary action -- every control here reuses .btn-ghost.btn-mini
+   (globals.css), so it inherits the 140ms state transition and the 24px
+   compact-control height for free rather than redeclaring either. */
+.workbench-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8) var(--spacing-20);
+  border-bottom: 1px solid var(--border-graphite);
+}
+
+.workbench-breadcrumb__trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workbench-breadcrumb__trail li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-width: 0;
+}
+
+.workbench-breadcrumb__crumb {
+  max-width: 160px;
+  overflow: hidden;
+  font-family: var(--font-mono-app), ui-monospace, Menlo, monospace;
+  font-size: var(--text-mono-size);
+  letter-spacing: var(--tracking-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-breadcrumb__sep {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+}
+
+.selection-chip {
+  padding: var(--spacing-12) var(--spacing-16);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+  color: var(--text-mist);
+  font-size: 13px;
+}
+
+.selection-chip__tag {
+  margin-right: var(--spacing-8);
+  color: var(--text-ash);
+  font-family: var(--font-mono-app), ui-monospace, Menlo, monospace;
+  font-size: var(--text-mono-size);
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+}
+
+.selection-chip__text {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-fog);
+}
+
+.edit-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.edit-error {
+  margin: 0;
+  padding-left: var(--spacing-12);
+  border-left: 2px solid var(--border-smoke);
+  color: var(--text-bone);
+  font-size: 13px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  white-space: nowrap;
+}
+
+.checkbox-row input[type="checkbox"] {
+  accent-color: var(--color-primary);
+}
+
+/* ---------- Persistent any-selection composer (canvas-upgrade B1, Play 2) */
+
+/* Pinned to the bottom of the scroll region — same sticky-footer idiom as
+   .gate-rail's sticky-top (styles/evidence.css) — so the composer stays put
+   while a tool's own content scrolls above it, instead of drifting away
+   with the page the way the old text-tool-embedded copy did. */
+.workbench-composer {
+  position: sticky;
+  bottom: calc(-1 * var(--spacing-20));
+  margin: 0 calc(-1 * var(--spacing-20)) calc(-1 * var(--spacing-20));
+  padding: var(--spacing-16) var(--spacing-20) var(--spacing-20);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  background: var(--surface-carbon);
+  border-top: 1px solid var(--border-graphite);
+}
+
+.workbench-composer__scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.selection-chip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+}
+
+.selection-chip__clear {
+  margin-left: auto;
+}
+
+.workbench-composer__extra {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-12);
+}
+
+.composer-reference {
+  position: relative;
+}
+
+.composer-reference__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  height: var(--control-h-mini);
+  padding: 0 8px;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+  color: var(--text-mist);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.composer-reference__clear {
+  border: 0;
+  background: transparent;
+  color: var(--text-ash);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.composer-reference__clear:hover {
+  color: var(--text-bone);
+}
+
+.composer-reference__menu {
+  position: absolute;
+  bottom: calc(100% + var(--spacing-8));
+  left: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 240px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--spacing-8);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-carbon);
+  box-shadow: var(--shadow-float);
+}
+
+.composer-reference__option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-mist);
+  font-size: var(--text-caption-size);
+  text-align: left;
+  cursor: pointer;
+}
+
+.composer-reference__option:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+.composer-reference__option img {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* ---------- Element controls (Selection / Text tools) ---------- */
+
+.element-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.element-controls__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-8);
+}
+
+.ghost-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-h-mini);
+  padding: 0 8px;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-mist);
+  cursor: pointer;
+  font-size: 11.5px;
+}
+
+.ghost-action:hover {
+  background: rgb(255 255 255 / 4%);
+  border-color: var(--border-smoke);
+}
+
+.workbench-field,
+.typography-controls label,
+.button-action-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.workbench-field input,
+.workbench-field select,
+.workbench-field textarea,
+.typography-controls select,
+.button-action-controls select,
+.button-action-controls input {
+  width: 100%;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+  padding: 8px 10px;
+  color: var(--text-bone);
+  font-size: 13px;
+}
+
+.workbench-field textarea {
+  resize: vertical;
+}
+
+.typography-controls,
+.button-action-controls,
+.layout-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-12);
+  margin: 0;
+  padding: var(--spacing-12);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+}
+
+.typography-controls legend,
+.button-action-controls legend,
+.layout-controls legend {
+  padding-inline: 4px;
+  color: var(--text-bone);
+  font-size: var(--text-caption-size);
+}
+
+.current-action,
+.layout-controls p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.layout-controls div {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-8);
+}
+
+.layout-controls button {
+  height: var(--control-h);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-mist);
+  cursor: pointer;
+  font-size: var(--text-label-size);
+}
+
+.layout-controls button:hover:not(:disabled) {
+  background: rgb(255 255 255 / 4%);
+}
+
+/* DESIGN.md's disabled treatment: a neutral surface, never the enabled
+   style at reduced opacity (canvas-upgrade Wave 5, Play 7b -- an impossible
+   move, e.g. the first section moving earlier, is disabled here rather than
+   round-tripping to the server to learn that). */
+.layout-controls button:disabled {
+  border-color: var(--border-graphite);
+  color: var(--text-ash);
+  cursor: not-allowed;
+}
+
+/* ---------- Layers / Navigator tree (canvas-upgrade Wave 5, Play 6) ---------- */
+
+.layers-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layers-tree__row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  height: var(--control-h-mini);
+  border-radius: var(--radius-control);
+  color: var(--text-mist);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+  /* padding-left is set inline per row (depth * 16px on top of this base) —
+     the one per-row value that has to vary; everything else here is fixed. */
+  padding-right: var(--spacing-8);
+}
+
+.layers-tree__row:hover {
+  background: rgb(255 255 255 / 4%);
+}
+
+/* Same recipe as the gate rail's current-row treatment (DESIGN.md's one
+   documented "current item in a list" pattern) — reused rather than
+   inventing a second one for this list. */
+.layers-tree__row--selected {
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--border-graphite);
+  color: var(--text-bone);
+}
+
+.layers-tree__row--container .layers-tree__tag {
+  color: var(--text-bone);
+}
+
+.layers-tree__tag {
+  flex: none;
+  color: var(--text-ash);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.layers-tree__id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-caption-size);
+}
+
+/* ---------- Project image library (Assets tool) ---------- */
+
+.asset-controls,
+.asset-library,
+.asset-generate,
+.asset-preview {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.asset-view-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+}
+
+.asset-view-switch button,
+.asset-quiet-action,
+.asset-card-actions button,
+.asset-card-actions a,
+.asset-preview button,
+.asset-lineage button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--control-h);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: transparent;
+  padding: 0 10px;
+  color: var(--text-mist);
+  cursor: pointer;
+  font-size: var(--text-caption-size);
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+}
+
+.asset-view-switch button {
+  border-color: transparent;
+}
+
+.asset-view-switch button[aria-pressed="true"] {
+  background: rgb(255 255 255 / 10%);
+  color: var(--text-paper);
+}
+
+.asset-view-switch button:focus-visible,
+.asset-quiet-action:focus-visible,
+.asset-card-actions button:focus-visible,
+.asset-card-actions a:focus-visible,
+.asset-preview button:focus-visible,
+.asset-lineage button:focus-visible,
+.asset-metered-consent:focus-within {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+.asset-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+}
+
+.asset-section-heading strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-bone);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+
+.asset-library-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+  gap: var(--spacing-12);
+}
+
+.asset-library-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+.asset-library-card--failed {
+  border-color: var(--border-smoke);
+}
+
+.asset-library-card__thumb {
+  position: relative;
+  display: grid;
+  aspect-ratio: 4 / 3;
+  place-items: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border-graphite);
+  background: var(--surface-canvas);
+}
+
+.asset-library-card__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-library-card__placeholder {
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.asset-status {
+  position: absolute;
+  top: var(--spacing-8);
+  left: var(--spacing-8);
+  padding: 1px 6px;
+  border-radius: var(--radius-badge);
+  background: rgb(255 255 255 / 8%);
+  color: var(--text-mist);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.asset-status--completed {
+  color: var(--accent-pulse);
+}
+
+.asset-status--failed {
+  color: var(--text-paper);
+}
+
+.asset-library-card__body {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  padding: var(--spacing-12);
+}
+
+.asset-library-card__body > strong {
+  color: var(--text-bone);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+
+.asset-library-card__prompt,
+.asset-card-error,
+.asset-model-descriptor,
+.asset-lineage {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.asset-library-card__prompt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.asset-card-error {
+  padding-left: var(--spacing-8);
+  border-left: 2px solid var(--border-smoke);
+  color: var(--text-bone);
+}
+
+.asset-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-8);
+  margin: 0;
+}
+
+.asset-meta div {
+  min-width: 0;
+}
+
+.asset-meta dt {
+  color: var(--text-ash);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.asset-meta dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text-mist);
+  font-size: 12px;
+}
+
+.asset-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.asset-card-actions button:hover,
+.asset-card-actions a:hover,
+.asset-quiet-action:hover,
+.asset-preview button:hover,
+.asset-lineage button:hover {
+  border-color: var(--border-smoke);
+  background: rgb(255 255 255 / 4%);
+}
+
+.asset-generation-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-12);
+}
+
+.asset-model-descriptor,
+.asset-lineage {
+  padding: var(--spacing-12);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+.asset-lineage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+
+.asset-lineage code {
+  color: var(--text-mist);
+  font-family: var(--font-mono-app), ui-monospace, Menlo, monospace;
+  font-size: var(--text-mono-size);
+}
+
+.asset-metered-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  color: var(--text-mist);
+  cursor: pointer;
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.asset-metered-consent input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  flex: 0 0 auto;
+  accent-color: var(--color-primary);
+}
+
+.asset-preview {
+  padding: var(--spacing-12);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+.asset-preview img {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  border-radius: var(--radius-small);
+  object-fit: contain;
+  background: var(--surface-canvas);
+}
+
+.asset-controls button:disabled,
+.asset-controls select:disabled,
+.asset-controls textarea:disabled,
+.asset-controls input:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ---------- Assistant panel (Ask about your site) ---------- */
+
+.token-controls,
+.motion-controls,
+.assistant-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+.assistant-thread,
+.assistant-evidence,
+.assistant-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.assistant-message,
+.assistant-evidence__card,
+.assistant-suggestion {
+  margin: 0;
+  padding: var(--spacing-12);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+.assistant-message--owner {
+  border-color: color-mix(in srgb, var(--accent-teal) 40%, var(--border-graphite));
+}
+
+.assistant-message__label,
+.assistant-evidence__card strong {
+  display: block;
+  color: var(--text-ash);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.assistant-message__text,
+.assistant-suggestion p,
+.assistant-evidence__card p {
+  margin: 8px 0 0;
+  color: var(--text-bone);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.assistant-evidence__card {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: var(--spacing-12);
+}
+
+.assistant-evidence__card img {
+  width: 72px;
+  height: 54px;
+  border-radius: var(--radius-small);
+  object-fit: cover;
+}
+
+.assistant-evidence__card figcaption span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-bone);
+  font-size: var(--text-caption-size);
+}
+
+.assistant-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.assistant-suggestion p {
+  margin: 0;
+  color: var(--text-fog);
+}
+
+/* Buttons here carry the shared .btn-primary/.btn-ghost/.btn-coral classes
+   directly (which promote at most one — the first pending suggestion — to
+   lime); only the flex alignment is scoped locally. */
+.assistant-suggestion .btn-primary,
+.assistant-suggestion .btn-ghost,
+.assistant-suggestion .btn-coral {
+  align-self: flex-start;
+}
+
+.assistant-suggestion__done {
+  color: var(--accent-pulse) !important;
+}
+
+.assistant-suggestion__error {
+  color: var(--text-paper) !important;
+}
+
+.assistant-turn-error {
+  margin: 0;
+  color: var(--text-bone);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+/* ---------- Tokens + motion tools ---------- */
+
+.token-scope,
+.token-preview,
+.motion-summary {
+  padding: var(--spacing-12);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+}
+
+.token-scope strong,
+.motion-summary strong {
+  color: var(--text-bone);
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+}
+
+.token-scope p,
+.token-preview p,
+.motion-summary p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.token-actions,
+.motion-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-8);
+}
+
+/* Buttons here carry the shared .btn-primary/.btn-ghost classes directly
+   (Apply token / Apply motion promoted to lime, the rest ghost); the grid
+   above stretches them to fill each cell, matching the previous layout. */
+
+.motion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-12);
+}
+
+.motion-grid label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+}
+
+.motion-grid input,
+.motion-grid select,
+.token-controls select {
+  width: 100%;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+  padding: 8px 10px;
+  color: var(--text-bone);
+}
+
+/* ---------- Responsive (IMP-027) ---------- */
+
+/* Compact workspace: below ~880px the preview and workbench can no longer
+   share width without starving the generated site (previewState.ts
+   panelWidthBounds tightens its own numbers here too) — the workbench floats
+   above the full-width preview instead of sharing a row with it. */
+@media (max-width: 879px) {
+  .preview-workbench {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    max-width: min(92vw, 400px);
+    box-shadow: var(--shadow-float);
+  }
+
+  .preview-workbench--collapsed {
+    max-width: 64px;
+    box-shadow: none;
+  }
+
+  .preview-divider,
+  .workbench-viewport-control {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .ghost-action,
+  .layout-controls button,
+  .asset-view-switch button,
+  .asset-quiet-action,
+  .asset-card-actions button,
+  .asset-card-actions a,
+  .asset-preview button,
+  .asset-lineage button,
+  .workbench-field input,
+  .workbench-field select,
+  .workbench-field textarea,
+  .typography-controls select,
+  .button-action-controls select,
+  .button-action-controls input {
+    min-height: 44px; /* touch-target floor at the breakpoint, not the visual system */
+  }
+
+  /* .btn-primary/.btn-ghost/.btn-coral already grow to 44px here (globals.css);
+     these two are the icon-rail's own controls, not the shared classes. */
+  .workbench-tool {
+    width: 44px;
+    min-height: 44px;
+  }
+
+  .workbench-grab-tab {
+    top: -22px;
+    left: -22px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .workbench-grab-tab::before {
+    inset: 6px 9px;
+  }
+}
+
+@media (max-width: 720px) {
+  .preview-header {
+    height: auto;
+    flex-wrap: wrap;
+    padding: var(--spacing-8) var(--spacing-12);
+  }
+
+  .workbench-panel__header {
+    flex-direction: column;
+  }
+
+  .typography-controls,
+  .button-action-controls,
+  .motion-grid,
+  .token-actions,
+  .motion-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

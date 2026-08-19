@@ -1,0 +1,381 @@
+{
+  "$sourceRun": "ab-medspa-r",
+  "$note": "Brief B / reference 1 \u2014 media-led. Hero leads with the image on the inline-start side bleeding to the page edge, the headline sits over the remaining tracks, treatments run as a three-up gallery, and the service area is a wide directory band. Proof is quiet and late.",
+  "schemaVersion": "1",
+  "programId": "medspa-gallery",
+  "inputs": {
+    "designHash": "",
+    "copyHash": "",
+    "assetCatalogHash": ""
+  },
+  "page": {
+    "family": "gallery-forward",
+    "measure": "wide",
+    "density": "regular",
+    "seam": "flush",
+    "nav": "minimal",
+    "footer": "directory"
+  },
+  "sections": [
+    {
+      "id": "nav",
+      "role": "nav",
+      "kernel": {
+        "kind": "split",
+        "ratio": "3-9",
+        "gap": 1
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "nav.logo"
+        },
+        {
+          "name": "actions",
+          "copyRef": "nav.phone"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "end"
+        },
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "block",
+          "value": "center"
+        }
+      ]
+    },
+    {
+      "id": "hero",
+      "role": "hero",
+      "kernel": {
+        "kind": "split",
+        "ratio": "7-5",
+        "gap": 3,
+        "reverseOnMobile": false
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "media",
+          "assetRef": "assets/hero.jpg"
+        },
+        {
+          "name": "heading",
+          "copyRef": "hero.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "hero.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "hero.cta"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "media",
+          "from": 1,
+          "to": 2,
+          "row": 1,
+          "rowSpan": 3
+        },
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 2,
+          "to": 3,
+          "row": 1
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 2,
+          "to": 3,
+          "row": 2
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 2,
+          "to": 3,
+          "row": 3
+        },
+        {
+          "type": "bleed",
+          "slot": "media",
+          "side": "inline-start",
+          "step": 3
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "block",
+          "value": "end"
+        },
+        {
+          "type": "measure",
+          "slot": "lede",
+          "value": "narrow"
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 40,
+          "y": 35
+        },
+        {
+          "type": "focalCrop",
+          "slot": "media",
+          "x": 50,
+          "y": 30,
+          "at": "mobile"
+        },
+        {
+          "type": "order",
+          "slot": "media",
+          "index": 0,
+          "at": "mobile"
+        }
+      ]
+    },
+    {
+      "id": "gallery",
+      "role": "gallery",
+      "kernel": {
+        "kind": "grid",
+        "columns": 3,
+        "gap": 2
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "services.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "services.card"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 4
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 4
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "normal"
+        }
+      ]
+    },
+    {
+      "id": "why",
+      "role": "story",
+      "kernel": {
+        "kind": "grid",
+        "columns": 2,
+        "gap": 3
+      },
+      "surface": "raised",
+      "seam": "band",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "why-us.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "why-us.point"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 3
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 3
+        },
+        {
+          "type": "measure",
+          "slot": "heading",
+          "value": "normal"
+        }
+      ]
+    },
+    {
+      "id": "proof",
+      "role": "proof",
+      "kernel": {
+        "kind": "grid",
+        "columns": 3,
+        "gap": 1
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "items",
+          "collectionRef": "trust-bar.stat"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 4
+        }
+      ]
+    },
+    {
+      "id": "area",
+      "role": "area",
+      "kernel": {
+        "kind": "stack",
+        "align": "start",
+        "gap": 1
+      },
+      "surface": "page",
+      "seam": "flush",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "service-area.intro"
+        },
+        {
+          "name": "items",
+          "collectionRef": "service-area.area"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 9
+        },
+        {
+          "type": "span",
+          "slot": "items",
+          "from": 1,
+          "to": 13
+        }
+      ]
+    },
+    {
+      "id": "contact",
+      "role": "contact",
+      "kernel": {
+        "kind": "split",
+        "ratio": "5-7",
+        "gap": 3
+      },
+      "surface": "accent",
+      "seam": "band",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "contact.headline"
+        },
+        {
+          "name": "lede",
+          "copyRef": "contact.sub"
+        },
+        {
+          "name": "actions",
+          "copyRef": "contact.cta"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "span",
+          "slot": "heading",
+          "from": 1,
+          "to": 2,
+          "row": 1,
+          "rowSpan": 2
+        },
+        {
+          "type": "span",
+          "slot": "lede",
+          "from": 2,
+          "to": 3,
+          "row": 1
+        },
+        {
+          "type": "span",
+          "slot": "actions",
+          "from": 2,
+          "to": 3,
+          "row": 2
+        },
+        {
+          "type": "align",
+          "slot": "heading",
+          "axis": "block",
+          "value": "center"
+        }
+      ]
+    },
+    {
+      "id": "footer",
+      "role": "footer",
+      "kernel": {
+        "kind": "grid",
+        "columns": 3,
+        "gap": 1
+      },
+      "surface": "page",
+      "seam": "rule",
+      "slots": [
+        {
+          "name": "heading",
+          "copyRef": "footer.business-name"
+        },
+        {
+          "name": "caption",
+          "copyRef": "footer.tagline"
+        },
+        {
+          "name": "actions",
+          "copyRef": "footer.phone"
+        }
+      ],
+      "constraints": [
+        {
+          "type": "align",
+          "slot": "actions",
+          "axis": "inline",
+          "value": "end"
+        }
+      ]
+    }
+  ]
+}

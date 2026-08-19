@@ -20,8 +20,11 @@
   regardless of skeleton content, so the page never loses required chrome;
   every OTHER id is section-gated.
 
-  Every editable node carries a data-edit-id attribute shaped
-  "section.element" — the only selector the editor (edit_site) accepts.
+  Every editable node carries a data-edit-id attribute — the only selector
+  the editor (edit_site) accepts. A leaf's id is shaped "section.element";
+  a section's own root element (nav/hero/trust-bar/services/why-us/reviews/
+  service-area/contact/footer) carries just its bare section id, which the
+  overlay reports as a "container" once it has editable descendants.
 -->
 <!doctype html>
 <html lang="en" class="no-js">
@@ -38,27 +41,27 @@
   {{jsonLd}}
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to main content</a>
+  <a class="skip-link" href="#main" data-edit-id="skip-link">Skip to main content</a>
 
   <!-- SECTION:nav -->
-  <header class="site-header">
+  <header class="site-header" data-edit-id="nav">
     <nav class="nav" aria-label="Primary">
       <a class="nav__logo" href="#top" data-edit-id="nav.logo">{{nav.logo}}</a>
       <ul class="nav__links">
         <!-- NAVLINK:services -->
-        <li><a href="#services">Services</a></li>
+        <li><a href="#services" data-edit-id="nav.link-services">Services</a></li>
         <!-- /NAVLINK:services -->
         <!-- NAVLINK:why-us -->
-        <li><a href="#why-us">Why Us</a></li>
+        <li><a href="#why-us" data-edit-id="nav.link-why-us">Why Us</a></li>
         <!-- /NAVLINK:why-us -->
         <!-- NAVLINK:reviews -->
-        <li><a href="#reviews">Reviews</a></li>
+        <li><a href="#reviews" data-edit-id="nav.link-reviews">Reviews</a></li>
         <!-- /NAVLINK:reviews -->
         <!-- NAVLINK:service-area -->
-        <li><a href="#service-area">Service Area</a></li>
+        <li><a href="#service-area" data-edit-id="nav.link-service-area">Service Area</a></li>
         <!-- /NAVLINK:service-area -->
         <!-- NAVLINK:contact -->
-        <li><a href="#contact">Contact</a></li>
+        <li><a href="#contact" data-edit-id="nav.link-contact">Contact</a></li>
         <!-- /NAVLINK:contact -->
       </ul>
       <a class="nav__cta btn btn--ghost" href="{{nav.phoneHref}}" data-edit-id="nav.phone" aria-label="Call {{nav.phone}}">
@@ -72,7 +75,7 @@
   <main id="main">
 
     <!-- SECTION:hero -->
-    <section class="hero" id="top" aria-label="Introduction">
+    <section class="hero" id="top" aria-label="Introduction" data-edit-id="hero">
       <div class="hero__inner">
         <div class="hero__content" data-reveal="up">
           <h1 class="hero__headline" data-edit-id="hero.headline">{{hero.headline}}</h1>
@@ -85,7 +88,7 @@
     <!-- /SECTION:hero -->
 
     <!-- SECTION:trust-bar -->
-    <section class="trust-bar" aria-label="Trust indicators" data-reveal="up">
+    <section class="trust-bar" aria-label="Trust indicators" data-reveal="up" data-edit-id="trust-bar">
       <ul class="trust-bar__list">
         {{trust-bar.items}}
       </ul>
@@ -93,10 +96,10 @@
     <!-- /SECTION:trust-bar -->
 
     <!-- SECTION:services -->
-    <section class="section services" id="services" aria-labelledby="services-heading">
+    <section class="section services" id="services" aria-labelledby="services-heading" data-edit-id="services">
       <div class="section__inner">
-        <p class="section__eyebrow" data-reveal="up">Services</p>
-        <h2 class="section__heading" id="services-heading" data-reveal="up">{{services.intro}}</h2>
+        <p class="section__eyebrow" data-reveal="up" data-edit-id="services.eyebrow">Services</p>
+        <h2 class="section__heading" id="services-heading" data-reveal="up" data-edit-id="services.intro">{{services.intro}}</h2>
         <ul class="services__grid">
           {{services.items}}
         </ul>
@@ -105,10 +108,10 @@
     <!-- /SECTION:services -->
 
     <!-- SECTION:why-us -->
-    <section class="section why-us" id="why-us" aria-labelledby="why-us-heading">
+    <section class="section why-us" id="why-us" aria-labelledby="why-us-heading" data-edit-id="why-us">
       <div class="section__inner">
-        <p class="section__eyebrow" data-reveal="up">Why Us</p>
-        <h2 class="section__heading" id="why-us-heading" data-reveal="up">{{why-us.intro}}</h2>
+        <p class="section__eyebrow" data-reveal="up" data-edit-id="why-us.eyebrow">Why Us</p>
+        <h2 class="section__heading" id="why-us-heading" data-reveal="up" data-edit-id="why-us.intro">{{why-us.intro}}</h2>
         <ul class="why-us__list">
           {{why-us.items}}
         </ul>
@@ -117,10 +120,10 @@
     <!-- /SECTION:why-us -->
 
     <!-- SECTION:reviews -->
-    <section class="section reviews" id="reviews" aria-labelledby="reviews-heading">
+    <section class="section reviews" id="reviews" aria-labelledby="reviews-heading" data-edit-id="reviews">
       <div class="section__inner">
-        <p class="section__eyebrow" data-reveal="up">Reviews</p>
-        <h2 class="section__heading" id="reviews-heading" data-reveal="up">What people say</h2>
+        <p class="section__eyebrow" data-reveal="up" data-edit-id="reviews.eyebrow">Reviews</p>
+        <h2 class="section__heading" id="reviews-heading" data-reveal="up" data-edit-id="reviews.heading">What people say</h2>
         <ul class="reviews__grid">
           {{reviews.items}}
         </ul>
@@ -129,26 +132,26 @@
     <!-- /SECTION:reviews -->
 
     <!-- SECTION:service-area -->
-    <section class="section service-area" id="service-area" aria-labelledby="service-area-heading">
+    <section class="section service-area" id="service-area" aria-labelledby="service-area-heading" data-edit-id="service-area">
       <div class="section__inner service-area__inner">
         <div class="service-area__copy" data-reveal="up">
-          <p class="section__eyebrow">Service Area</p>
-          <h2 class="section__heading" id="service-area-heading">{{service-area.intro}}</h2>
+          <p class="section__eyebrow" data-edit-id="service-area.eyebrow">Service Area</p>
+          <h2 class="section__heading" id="service-area-heading" data-edit-id="service-area.intro">{{service-area.intro}}</h2>
           <ul class="area-list">
             {{service-area.items}}
           </ul>
         </div>
         <aside class="area-panel" data-reveal="up">
-          <p class="area-panel__value">{{service-area.range}}</p>
-          <p class="area-panel__note">Not sure if we reach you? Call and we&#39;ll tell you straight.</p>
-          <a class="btn btn--ghost area-panel__cta" href="{{nav.phoneHref}}">{{nav.phone}}</a>
+          <p class="area-panel__value" data-edit-id="service-area.range">{{service-area.range}}</p>
+          <p class="area-panel__note" data-edit-id="service-area.note">Not sure if we reach you? Call and we&#39;ll tell you straight.</p>
+          <a class="btn btn--ghost area-panel__cta" href="{{nav.phoneHref}}" data-edit-id="service-area.cta">{{nav.phone}}</a>
         </aside>
       </div>
     </section>
     <!-- /SECTION:service-area -->
 
     <!-- SECTION:contact -->
-    <section class="contact-band" id="contact" aria-labelledby="contact-heading" data-reveal="up">
+    <section class="contact-band" id="contact" aria-labelledby="contact-heading" data-reveal="up" data-edit-id="contact">
       <div class="contact-band__inner">
         <div>
           <h2 class="contact-band__heading" id="contact-heading" data-edit-id="contact.headline">{{contact.headline}}</h2>
@@ -168,14 +171,14 @@
   </main>
 
   <!-- SECTION:footer -->
-  <footer class="site-footer">
+  <footer class="site-footer" data-edit-id="footer">
     <div class="footer__inner">
       <div class="footer__brand">
         <p class="footer__business-name" data-edit-id="footer.business-name">{{footer.business-name}}</p>
         <p class="footer__tagline" data-edit-id="footer.tagline">{{footer.tagline}}</p>
       </div>
       <a class="footer__phone" href="{{footer.phoneHref}}" data-edit-id="footer.phone">{{footer.phone}}</a>
-      <p class="footer__copyright">&copy; {{footer.year}} {{footer.business-name}}. All rights reserved.</p>
+      <p class="footer__copyright" data-edit-id="footer.copyright">&copy; {{footer.year}} {{footer.business-name}}. All rights reserved.</p>
     </div>
   </footer>
   <!-- /SECTION:footer -->

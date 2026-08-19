@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createReferoFetch,
   PersistentReferoOAuthProvider,
@@ -9,6 +9,20 @@ import {
 } from "./referoAuth";
 
 const roots: string[] = [];
+
+// referoCredentialsAvailable short-circuits to true when the legacy static
+// token lane (REFERO_MCP_TOKEN) is present, and dev machines source that
+// variable from the vault environment — so every OAuth-store assertion here
+// must run with it cleared or the store logic is never exercised.
+const AMBIENT_REFERO_MCP_TOKEN = process.env.REFERO_MCP_TOKEN;
+beforeEach(() => {
+  delete process.env.REFERO_MCP_TOKEN;
+});
+afterAll(() => {
+  if (AMBIENT_REFERO_MCP_TOKEN !== undefined) {
+    process.env.REFERO_MCP_TOKEN = AMBIENT_REFERO_MCP_TOKEN;
+  }
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -73,6 +87,13 @@ describe("persistent Refero OAuth", () => {
       client_id: "client-id",
     });
     expect(referoCredentialsAvailable(store)).toBe(false);
+  });
+
+  it("treats the static REFERO_MCP_TOKEN lane as available credentials", () => {
+    // The short-circuit is intentional product behavior (vaulted static
+    // token instead of OAuth); pin it so it cannot be "fixed" away.
+    process.env.REFERO_MCP_TOKEN = "static-token";
+    expect(referoCredentialsAvailable("/nonexistent/refero.json")).toBe(true);
   });
 
   it("rejects a callback whose OAuth state was not issued locally", async () => {

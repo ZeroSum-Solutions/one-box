@@ -148,6 +148,9 @@ export interface CreateRunOptions {
   /** defaults to the pinned MODELS from contracts.ts (audit #3: record the
    * exact slugs a run used in its own manifest). */
   modelSlugs?: Record<string, string>;
+  /** Picker pilot flag, captured once at creation so a mid-run env change can
+   * never alter resume semantics (plan rev 2 §A). */
+  referencePickerEnabled?: boolean;
 }
 
 /** Create a new run directory + run.json. Returns the new run's id. */
@@ -168,21 +171,27 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
     stages,
     costCapUsd: opts.costCapUsd,
     modelSlugs: opts.modelSlugs ?? { ...MODELS },
+    referencePickerEnabled: opts.referencePickerEnabled,
   });
 
   await saveRun(state);
   return id;
 }
 
-/** Create a pre-reserved run exactly once, or resume its existing state. */
-export async function ensureRun(runId: string): Promise<string> {
+/** Create a pre-reserved run exactly once, or resume its existing state.
+ * Options apply only on first creation — an existing run's persisted flags
+ * are authoritative and never rewritten here. */
+export async function ensureRun(
+  runId: string,
+  opts: Omit<CreateRunOptions, "id"> = {}
+): Promise<string> {
   try {
     await loadRun(runId);
     return runId;
   } catch (error) {
     if (!(error instanceof RunNotFoundError)) throw error;
   }
-  return createRun({ id: runId });
+  return createRun({ ...opts, id: runId });
 }
 
 /** Remove only a validated run root. Used when setup fails before a run can be
@@ -809,6 +818,21 @@ export function claimBuildGateRepair(runId: string): Promise<boolean> {
     built.gateRepairAttempts = 1;
     await saveRun(state);
     return true;
+  });
+}
+
+/**
+ * Hand the allowance back when the repair call itself failed and bought no
+ * fix. The allowance exists to cap paid repair attempts per build, so only a
+ * repair that actually ran may spend it. A crashed or timed-out call that kept
+ * the claim left the run unfinishable: each resume re-ran the gates, hit the
+ * same failures, could not claim a repair, and failed the build again.
+ */
+export function releaseBuildGateRepair(runId: string): Promise<void> {
+  return withRunLock(runId, async () => {
+    const state = await loadRun(runId);
+    state.stages.built.gateRepairAttempts = 0;
+    await saveRun(state);
   });
 }
 

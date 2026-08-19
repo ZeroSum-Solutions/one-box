@@ -805,13 +805,72 @@ export async function computeSiteBuildSha256(
   return hash.digest("hex");
 }
 
+/**
+ * A font family is the one token value that can legitimately carry an
+ * apostrophe — "Suisse Int'l", "Bower's Sans". Emitted raw into a declaration,
+ * that apostrophe opens a CSS string which never closes, and PostCSS fails the
+ * ENTIRE stylesheet with "Unterminated string" rather than just that line.
+ * Observed live on run PKcE4L_4j7Z1, which killed the build stage outright.
+ *
+ * Double quotes, not single, so an internal apostrophe stays literal. Family
+ * tokens are `--font-*` under the typography category; sizes are `--text-*`
+ * and carry units, so they must stay unquoted.
+ */
+function themeTokenValue(
+  token: TokenInventory["tokens"][number],
+  defined: ReadonlySet<string>
+): string {
+  const isFontFamily =
+    token.category === "typography" && token.semanticName.startsWith("--font-");
+  if (!isFontFamily) return normalizeVarReferences(token.value, defined);
+  const trimmed = token.value.trim();
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) return token.value;
+  return `"${trimmed}"`;
+}
+
+/**
+ * Component-state values arrive from the model as raw declaration strings and
+ * routinely reference a token in camelCase — var(--color-primaryContrast) —
+ * while every variable the pipeline defines is kebab-case
+ * (--color-primary-contrast). The reference resolves to nothing, the browser
+ * drops the declaration, and the token-drift gate fails the build with
+ * "referenced by the stylesheets but defined nowhere". Observed on runs
+ * PKcE4L_4j7Z1 and mPHVbkER-Qu8.
+ *
+ * Rewrite ONLY when the written name is undefined AND its kebab-case form is a
+ * real variable, so a genuinely unknown reference still surfaces as drift
+ * rather than being silently renamed into something that happens to exist.
+ */
+function normalizeVarReferences(
+  value: string,
+  defined: ReadonlySet<string>
+): string {
+  return value.replace(/var\(\s*(--[A-Za-z0-9_-]+)/g, (match, name: string) => {
+    if (defined.has(name)) return match;
+    const kebab = `--${slug(
+      name.replace(/^--/, "").replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    )}`;
+    return defined.has(kebab) ? match.replace(name, kebab) : match;
+  });
+}
+
 export function renderTailwindThemeCss(
   inventory: TokenInventory,
   plan: TailwindPlan
 ): string {
   assertTailwindPlanMatchesInventory(inventory, plan);
+  // Both namespaces count as defined: the `--ds-*` source variables emitted
+  // below, and the Tailwind-facing names the @theme block exposes — a state
+  // declaration may legitimately reference either.
+  const definedNames = new Set([
+    ...inventory.tokens.map((token) => cssVariable(token.semanticName)),
+    ...plan.themeMappings.map((mapping) => mapping.tailwindName),
+  ]);
   const values = new Map(
-    inventory.tokens.map((token) => [cssVariable(token.semanticName), token.value])
+    inventory.tokens.map((token) => [
+      cssVariable(token.semanticName),
+      themeTokenValue(token, definedNames),
+    ])
   );
   const sourceLines = [...values].map(([name, value]) => `  ${name}: ${value};`);
   const themeLines = plan.themeMappings.map(

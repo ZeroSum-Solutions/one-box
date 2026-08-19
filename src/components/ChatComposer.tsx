@@ -7,7 +7,11 @@ export interface ChatComposerProps {
   onChange: (value: string) => void;
   onSubmit: () => void;
   placeholder?: string;
+  /** Disables the textarea AND the submit button — a busy/paused state. */
   disabled?: boolean;
+  /** Disables ONLY the submit button while the textarea stays typable — a
+   * scopeless draft with nowhere to send yet, not a paused composer. */
+  submitDisabled?: boolean;
   submitLabel?: string;
   rows?: number;
   /** Extra control rendered next to the submit button (e.g. an image-intent toggle). */
@@ -15,19 +19,21 @@ export interface ChatComposerProps {
 }
 
 /** The one composer used by both the hero chat and the preview edit rail —
- * rounded dark panel, cream text, ghost pill submit. Enter sends, Shift+Enter
- * inserts a newline. */
+ * carbon card, mist text, ghost submit (never the tool's promoted lime
+ * action — see DESIGN.md "one acid-lime action per view"). Enter sends,
+ * Shift+Enter inserts a newline. */
 export function ChatComposer({
   value,
   onChange,
   onSubmit,
   placeholder,
   disabled = false,
+  submitDisabled = false,
   submitLabel = "Send",
   rows = 3,
   extra,
 }: ChatComposerProps) {
-  const canSubmit = !disabled && value.trim().length > 0;
+  const canSubmit = !disabled && !submitDisabled && value.trim().length > 0;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -55,7 +61,7 @@ export function ChatComposer({
       />
       <div className="composer__row">
         {extra ?? <span />}
-        <button type="submit" className="pill-button" disabled={!canSubmit}>
+        <button type="submit" className="btn-ghost" disabled={!canSubmit}>
           {submitLabel}
         </button>
       </div>

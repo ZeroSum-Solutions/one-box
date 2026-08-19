@@ -17,15 +17,55 @@ export type GateRunner = (
 
 export class BlockingMutationError extends Error {
   readonly reports: GateReport[];
+  /** Blocking gates this change broke — failures the site did not arrive with. */
+  readonly regressions: string[];
+  /** Blocking gates already failing before this change was attempted. */
+  readonly preexisting: string[];
 
-  constructor(reports: GateReport[]) {
-    const names = reports
+  constructor(reports: GateReport[], preexistingFailures: Set<string> = new Set()) {
+    const failing = reports
       .filter((report) => report.blocking && !report.pass)
-      .map((report) => report.gate)
-      .join(", ");
-    super(`blocking gates rejected the change: ${names}`);
+      .map((report) => report.gate);
+    const regressions = failing.filter((gate) => !preexistingFailures.has(gate));
+    const preexisting = failing.filter((gate) => preexistingFailures.has(gate));
+    // A site that arrives failing a blocking gate refuses every edit, including
+    // the edit that would fix it. Naming the two cases the same way made an
+    // inherited failure read as "your change was bad", which is the wrong thing
+    // to go fix — so the refusal says which failures this change actually
+    // caused, and which it merely inherited.
+    super(
+      regressions.length
+        ? `blocking gates rejected the change: ${regressions.join(", ")}${
+            preexisting.length
+              ? ` (this site was already failing ${preexisting.join(", ")})`
+              : ""
+          }`
+        : `this site was already failing ${preexisting.join(
+            ", "
+          )} before the change, so no edit can be saved until that is repaired`
+    );
     this.name = "BlockingMutationError";
     this.reports = reports;
+    this.regressions = regressions;
+    this.preexisting = preexisting;
+  }
+}
+
+/** The blocking gates the last gate run recorded as failing. gates.json is
+ * authoritative for current status: a rejected candidate restores it, so it
+ * never carries a failure the live site does not actually have. */
+async function failingBlockingGates(runId: string): Promise<Set<string>> {
+  try {
+    const raw = await fs.readFile(path.join(sitePaths(runId).root, "gates.json"), "utf8");
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(
+      (parsed as GateReport[])
+        .filter((report) => report && report.blocking && !report.pass)
+        .map((report) => report.gate)
+    );
+  } catch {
+    return new Set();
   }
 }
 
@@ -114,12 +154,13 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
     const snapshotPaths =
       typeof options.snapshotPaths === "function" ? options.snapshotPaths() : options.snapshotPaths;
     const snapshots = await snapshotFiles([...new Set(snapshotPaths)]);
+    const preexistingFailures = await failingBlockingGates(runId);
     let value: T;
     try {
       value = await options.mutate();
       const reports = await gateRunner(runId, { afterEdit: true });
       if (reports.some((report) => report.blocking && !report.pass)) {
-        throw new BlockingMutationError(reports);
+        throw new BlockingMutationError(reports, preexistingFailures);
       }
       await options.commit?.(value);
       try {

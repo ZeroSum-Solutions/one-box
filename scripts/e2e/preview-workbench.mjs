@@ -373,7 +373,11 @@ try {
   assert.equal(sandbox, "allow-scripts");
   await assertProductionFidelity(page, "Edit mode before mutations");
   await frame.locator("#e2e-webgl").click();
-  await page.getByText("fixture.interactive", { exact: false }).waitFor();
+  // .first(): the persistent any-selection composer (canvas-upgrade B1)
+  // also carries its own selection chip naming this editId now, alongside
+  // the "selection" tool panel's own SelectionTarget chip — two legitimate
+  // occurrences of the same text, so this only needs ONE to be visible.
+  await page.getByText("fixture.interactive", { exact: false }).first().waitFor();
   assert.match(
     await page.locator(".workbench-panel__body").innerText(),
     /Complex content stays live behind a safe selection overlay/,
@@ -383,9 +387,13 @@ try {
   // top toolbar is reserved for View/Edit; named widths live at the grab tab.
   const iframeBox = await page.locator("iframe").boundingBox();
   assert.ok(iframeBox && iframeBox.width > 800);
+  // Compare the iframe's viewport against the element's CONTENT box, not its
+  // border box: boundingBox() includes .preview-frame's 1px border on each
+  // side, which the child window never sees. The old border-box comparison
+  // only held while the frame was borderless.
   assert.equal(
     await child.evaluate(() => window.innerWidth),
-    Math.round(iframeBox.width),
+    await page.locator("iframe").evaluate((el) => el.clientWidth),
   );
   assert.equal(await page.locator(".preview-breakpoint").count(), 0);
   assert.equal(
@@ -393,9 +401,30 @@ try {
     0,
     "Normal/Expand controls must not compete with preview sizing",
   );
+  // Desktop control geometry follows the owner-approved design contract
+  // (DESIGN.md "Compact is the rule: nothing interactive exceeds 34px height
+  // except the composer textarea. 44px touch targets apply only at the <=768px
+  // breakpoint"). The old one-sided >=44 check encoded the pre-contract design.
+  // This replacement is two-sided: a WCAG 2.5.8 AA floor of 24px CSS px, and
+  // the contract's own 34px desktop cap -- so it now catches a control that
+  // grows past the contract as well as one that shrinks below accessibility.
+  const DESKTOP_MIN = 24;
+  const DESKTOP_MAX = 34;
+  const withinDesktopControl = (box, what) => {
+    assert.ok(box, `${what} has no box`);
+    assert.ok(
+      box.height >= DESKTOP_MIN && box.height <= DESKTOP_MAX,
+      `${what} is ${box.height}px tall; desktop controls must sit in ${DESKTOP_MIN}-${DESKTOP_MAX}px`,
+    );
+    assert.ok(
+      box.width >= DESKTOP_MIN,
+      `${what} is ${box.width}px wide; below the ${DESKTOP_MIN}px WCAG 2.5.8 AA floor`,
+    );
+  };
+
   const grabTab = page.locator(".workbench-grab-tab");
   const grabTabBox = await grabTab.boundingBox();
-  assert.ok(grabTabBox && grabTabBox.width >= 44 && grabTabBox.height >= 44);
+  withinDesktopControl(grabTabBox, "grab tab");
   assert.match(
     (await grabTab.getAttribute("aria-label")) ?? "",
     /Preview width: desktop/i,
@@ -403,7 +432,7 @@ try {
   for (const tool of await page.locator(".workbench-tool").all()) {
     const toolBox = await tool.boundingBox();
     const iconBox = await tool.locator("svg").boundingBox();
-    assert.ok(toolBox && toolBox.width >= 44 && toolBox.height >= 44);
+    withinDesktopControl(toolBox, "workbench tool");
     assert.ok(iconBox && iconBox.width === 20 && iconBox.height === 20);
     assert.ok(
       Math.abs(
@@ -455,17 +484,60 @@ try {
     "grab tab must expose Desktop, Tablet, and Mobile",
   );
   await page.getByRole("button", { name: "Mobile preview width" }).click();
-  const mobilePresetFrame = await page.locator("iframe").boundingBox();
-  assert.ok(mobilePresetFrame && Math.round(mobilePresetFrame.width) === 390);
+  // "Mobile" names a device viewport, not a decorative frame size: what must
+  // equal 390 is the generated site's own window.innerWidth, not the iframe
+  // element's outer border box (boundingBox()), which includes the frame's
+  // 1px border on each side (workbench.css .preview-frame). The old check
+  // measured the border box and only held while the frame was borderless.
+  // Measuring the child window is strictly stronger: it fails if either the
+  // --preview-canvas-width number OR the box-sizing that consumes it drifts,
+  // where the border-box check could pass on a wrong CSS number that
+  // happened to cancel the border out.
+  const mobilePresetInnerWidth = await page
+    .frames()[1]
+    .evaluate(() => window.innerWidth);
+  assert.equal(mobilePresetInnerWidth, 390);
   await grabTab.click();
   await page.getByRole("button", { name: "Desktop preview width" }).click();
-  const desktopPresetFrame = await page.locator("iframe").boundingBox();
-  assert.ok(desktopPresetFrame && Math.round(desktopPresetFrame.width) === 979);
+  // "Desktop" names 1280px (previewWidthForBreakpoint), which no realistic
+  // workspace has room for -- panelWidthForBreakpoint("desktop") always
+  // returns the workbench's own minimum, so the preset's real contract is
+  // "give the preview every pixel of content space the workspace can
+  // spare," not a fixed literal. 979 was the frame's outer border box at
+  // one particular workspace width; it was never the quantity the preset
+  // promises, and it drifted the moment padding/border became part of the
+  // layout. Assert the invariant instead: the child window's viewport
+  // equals .preview-viewport's own content width (its clientWidth minus its
+  // CSS padding) -- this still fails if the preview ever stops claiming all
+  // available room, but no longer depends on a magic pixel count baked in
+  // at one workspace size.
+  const desktopAvailableContentWidth = await page
+    .locator(".preview-viewport")
+    .evaluate((el) => {
+      const style = getComputedStyle(el);
+      return (
+        el.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight)
+      );
+    });
+  const desktopPresetInnerWidth = await page
+    .frames()[1]
+    .evaluate(() => window.innerWidth);
+  assert.equal(
+    desktopPresetInnerWidth,
+    Math.round(desktopAvailableContentWidth),
+  );
   await grabTab.click();
   await page.getByRole("button", { name: "Tablet preview width" }).click();
-  const tabletPresetFrame = await page.locator("iframe").boundingBox();
+  // Same reasoning as the mobile preset above: "Tablet" is a reachable
+  // named viewport (767 < the workspace's available room), so it must land
+  // on window.innerWidth === 767 exactly, not on the frame's outer box.
+  const tabletPresetInnerWidth = await page
+    .frames()[1]
+    .evaluate(() => window.innerWidth);
   const tabletPresetPanel = await page.locator(".preview-workbench").boundingBox();
-  assert.ok(tabletPresetFrame && Math.round(tabletPresetFrame.width) === 767);
+  assert.equal(tabletPresetInnerWidth, 767);
   assert.ok(tabletPresetPanel);
 
   await divider.focus();
@@ -482,8 +554,28 @@ try {
   // Collapse fills nearly the workspace; reopen restores expanded size/width.
   const expandedWidth = tabletPresetPanel.width;
   await page.getByRole("button", { name: "Collapse workbench" }).click();
-  const collapsedPreview = await page.locator("iframe").boundingBox();
-  assert.ok(collapsedPreview && collapsedPreview.width >= 1210);
+  // Collapsing forces the canvas back to 100% regardless of previewPreset
+  // (page.tsx: previewPreset && size !== "collapsed"), so this is the same
+  // "fills all available room" invariant the desktop preset checks above.
+  // The old ">= 1210" threshold hardcoded a magic pixel count that assumed
+  // a borderless, paddingless frame; it drifted the moment the canvas
+  // padding/border (workbench.css) were added, even though collapse itself
+  // still works. Measuring both sides live avoids re-baking a new magic
+  // number that would just as easily go stale on the next chrome tweak.
+  const collapsedAvailableContentWidth = await page
+    .locator(".preview-viewport")
+    .evaluate((el) => {
+      const style = getComputedStyle(el);
+      return (
+        el.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight)
+      );
+    });
+  const collapsedInnerWidth = await page
+    .frames()[1]
+    .evaluate(() => window.innerWidth);
+  assert.equal(collapsedInnerWidth, Math.round(collapsedAvailableContentWidth));
   await page.getByRole("button", { name: "Reopen workbench" }).click();
   const reopenedPanel = await page.locator(".preview-workbench").boundingBox();
   assert.ok(
@@ -745,7 +837,10 @@ try {
   await orderTwo.waitFor();
   await orderTwo.focus();
   await orderTwo.press("Alt+ArrowUp");
-  const orderSelectionChip = page.locator(".selection-chip");
+  // .first(): the "text" tool panel's own SelectionTarget chip and the
+  // persistent composer's selection chip (canvas-upgrade B1) both render
+  // this editId now; either one proves the selection landed.
+  const orderSelectionChip = page.locator(".selection-chip").first();
   await orderSelectionChip.waitFor();
   assert.match(await orderSelectionChip.innerText(), /fixture\.order\.two/);
   const orderPanelText = await page.locator(".workbench-panel__body").innerText();
@@ -756,8 +851,19 @@ try {
     .getByRole("button", { name: "Move earlier" });
   await moveEarlierControl.waitFor();
   const requestsBeforeConfirm = elementMutationRequests;
+  const moveEarlierResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/elements") &&
+      response.request().method() === "POST",
+  );
   await moveEarlierControl.focus();
   await moveEarlierControl.press("Space");
+  const moveEarlierResponse = await moveEarlierResponsePromise;
+  assert.equal(
+    moveEarlierResponse.ok(),
+    true,
+    await moveEarlierResponse.text(),
+  );
   await page.waitForTimeout(1000);
   assert.equal(
     elementMutationRequests,
@@ -1028,7 +1134,11 @@ try {
   // mode, but the canvas itself is exposed only through a safe overlay.
   await assertProductionFidelity(page, "Edit mode after persisted mutations");
   await page.frameLocator("iframe").locator("#e2e-webgl").click();
-  await page.getByText("fixture.interactive", { exact: false }).waitFor();
+  // .first(): the persistent any-selection composer (canvas-upgrade B1)
+  // also carries its own selection chip naming this editId now, alongside
+  // the "selection" tool panel's own SelectionTarget chip — two legitimate
+  // occurrences of the same text, so this only needs ONE to be visible.
+  await page.getByText("fixture.interactive", { exact: false }).first().waitFor();
   assert.match(
     await page.locator(".workbench-panel__body").innerText(),
     /Complex content stays live behind a safe selection overlay/,
@@ -1110,20 +1220,69 @@ try {
 
   // Responsive matrix: grab-tab state tracks the actual 480/768 boundaries,
   // and the iframe's CSS viewport equals the rendered iframe width.
+  // frameWidth is no longer a per-row literal: every row in this loop
+  // collapses the workbench before measuring the frame (see below), and a
+  // collapsed workbench always yields the frame 100% of .preview-viewport's
+  // content width (page.tsx: previewPreset && size !== "collapsed" -- same
+  // invariant the main test's "Collapsed" section already asserts live).
+  // The old hardcoded 390/479/480/767/768/1216 column baked in one
+  // workspace's chrome arithmetic (rail width, divider, frame border) at a
+  // moment before the compact-overlay redesign stopped the workbench from
+  // reserving row space below 880px; it silently went stale for the four
+  // rows under that threshold. Deriving the expected width from
+  // .preview-viewport live, per row, is strictly stronger: it still checks
+  // the frame at these same six page widths, but no longer depends on a
+  // baked pixel count that drifts with unrelated chrome changes.
+  // The four boundary rows (originally 543/544/831/832) were picked so the
+  // COLLAPSED iframe's content width lands one CSS px on each side of the
+  // 480/768 breakpointForWidth thresholds. That depended on how much chrome
+  // a collapsed workbench reserved on top of .preview-viewport's own 32px
+  // padding: 64px total under the pre-compact-overlay design (measured:
+  // width 543 -> content 479, i.e. 543-64). A collapsed workbench now
+  // reserves none of that extra chrome (it renders as a 0-width overlay,
+  // same invariant as the "Collapsed" section of the main test above), so
+  // chrome is exactly .preview-viewport's own 32px padding (measured: width
+  // 454 -> content 422, i.e. 454-32). Re-deriving the four boundary page
+  // widths for the new 32px chrome (content = width - 32) keeps this row
+  // testing the SAME thing -- the breakpoint flips exactly at 480/768 -- it
+  // just needs a different page width to land there now.
   const matrix = [
-    { width: 454, frameWidth: 390, expected: "mobile" },
-    { width: 543, frameWidth: 479, expected: "mobile" },
-    { width: 544, frameWidth: 480, expected: "tablet" },
-    { width: 831, frameWidth: 767, expected: "tablet" },
-    { width: 832, frameWidth: 768, expected: "desktop" },
-    { width: 1280, frameWidth: 1216, expected: "desktop" },
+    { width: 454, expected: "mobile" },
+    { width: 511, expected: "mobile" },
+    { width: 512, expected: "tablet" },
+    { width: 799, expected: "tablet" },
+    { width: 800, expected: "desktop" },
+    { width: 1280, expected: "desktop" },
   ];
   for (const item of matrix) {
     const matrixContext = await browser.newContext();
     const matrixPage = await openFixture(matrixContext, item.width);
-    if ([454, 544, 832].includes(item.width)) {
+    if ([454, 512, 800].includes(item.width)) {
       await assertProductionFidelity(matrixPage, `${item.expected} responsive Edit mode`);
     }
+    // A single persistent button toggles between "Collapse workbench" and
+    // "Reopen workbench" (Workbench.tsx renders one <button> whose
+    // aria-label swaps with props.size, never a fresh node). Chromium's
+    // accessibility snapshot can lag one step behind the FIRST aria-label
+    // flip on that otherwise-unchanged node, which intermittently makes
+    // Playwright's role-based getByRole locator fail to resolve the button
+    // right after it flips even though the DOM attribute is already correct
+    // and the button is genuinely visible/clickable (confirmed by reading
+    // the live attribute directly). A plain attribute selector reads the
+    // live DOM value instead of that occasionally-stale snapshot -- not a
+    // weaker check, it still requires the exact correct aria-label on a
+    // real <button>, just without depending on a flaky browser/Playwright
+    // layer for this one toggle. Used for every Collapse/Reopen click below.
+    const clickWorkbenchToggle = (label) =>
+      matrixPage.locator(`button[aria-label="${label}"]`).click();
+    const isWorkbenchCollapsed = () =>
+      matrixPage.evaluate(
+        () =>
+          document
+            .querySelector(".workbench-tool--collapse")
+            ?.getAttribute("aria-label") === "Reopen workbench",
+      );
+
     if (item.width === 454) {
       const mobileHeadline = matrixPage
         .frameLocator("iframe")
@@ -1149,37 +1308,79 @@ try {
         "mobile typography controls must be one column",
       );
       await matrixPage.getByRole("button", { name: "Cancel draft" }).click();
-    }
-    await matrixPage
-      .getByRole("button", { name: "Collapse workbench" })
-      .click();
-    if (item.width === 454) {
-      await matrixPage
-        .getByRole("button", { name: "Reopen workbench" })
-        .click();
+      // The typography interaction above selected an element, which
+      // auto-reopens a collapsed workbench (page.tsx's nextActiveTool
+      // handling) -- collapse it back down before the reclamp assertions.
+      await clickWorkbenchToggle("Collapse workbench");
+      await clickWorkbenchToggle("Reopen workbench");
+      // Below the compact threshold (workbench.css @media max-width: 879px,
+      // previewState.ts isCompactWorkspace/COMPACT_OVERLAY_*) the workbench is
+      // an absolutely-positioned overlay sheet, not a panel sharing a row with
+      // the preview, and its divider is `display: none` -- it genuinely has
+      // no role="separator" node in the accessibility tree at this width. The
+      // old assertions read aria-valuenow/min/max off that divider and
+      // expected a degenerate 220px point-bound; that was an artifact of the
+      // pre-IMP-027 clamp formula, which had no separate compact branch and
+      // happened to collapse min===max===220 at this exact workspace width.
+      // The current design (previewState.ts panelWidthBounds) intentionally
+      // gives the compact overlay a real range, [COMPACT_OVERLAY_MIN=240,
+      // COMPACT_OVERLAY_MAX=400], and drops the divider instead of shrinking
+      // it to zero range. Assert the two things the product actually
+      // promises: the divider is absent from the a11y tree here (so it can
+      // never be reached by keyboard/AT on a compact workspace), and the
+      // reopened panel restores to exactly DEFAULT_PANEL_WIDTH (360, still
+      // untouched by any resize in this fresh context) -- deterministic, and
+      // it double-checks 360 actually falls inside the documented [240,400]
+      // compact bound rather than only asserting the bound in isolation.
       const reclamped = await matrixPage
         .locator(".preview-workbench")
         .boundingBox();
-      assert.ok(reclamped && Math.round(reclamped.width) === 220);
-      assert.equal(
-        Number(
-          await matrixPage
-            .getByRole("separator", { name: "Resize preview and workbench" })
-            .getAttribute("aria-valuenow"),
-        ),
-        220,
+      assert.ok(reclamped && Math.round(reclamped.width) === 360);
+      const COMPACT_OVERLAY_MIN = 240;
+      const COMPACT_OVERLAY_MAX = 400;
+      assert.ok(
+        reclamped.width >= COMPACT_OVERLAY_MIN &&
+          reclamped.width <= COMPACT_OVERLAY_MAX,
+        `reopened compact panel is ${reclamped.width}px; outside the documented ${COMPACT_OVERLAY_MIN}-${COMPACT_OVERLAY_MAX}px overlay bound`,
       );
-      const mobileDivider = matrixPage.getByRole("separator", {
-        name: "Resize preview and workbench",
-      });
-      assert.equal(Number(await mobileDivider.getAttribute("aria-valuemin")), 220);
-      assert.equal(Number(await mobileDivider.getAttribute("aria-valuemax")), 220);
-      await matrixPage
-        .getByRole("button", { name: "Collapse workbench" })
-        .click();
+      assert.equal(
+        await matrixPage
+          .getByRole("separator", { name: "Resize preview and workbench" })
+          .count(),
+        0,
+        "the resize divider must not be reachable on a compact/overlay workbench",
+      );
+      await clickWorkbenchToggle("Collapse workbench");
+    } else if (!(await isWorkbenchCollapsed())) {
+      // Below the compact-workspace threshold (previewState.ts
+      // applyCompactDefault) every row here already starts collapsed on
+      // load, so there is nothing to collapse; at/above it (832px, 1280px)
+      // the workbench starts open and this is the one-and-only, first-ever
+      // flip on this button in a fresh context -- matching the pattern that
+      // already works reliably in the main (non-matrix) test above.
+      await clickWorkbenchToggle("Collapse workbench");
     }
+    // Below the compact-workspace threshold (workbench.css @media
+    // max-width: 879px; previewState.ts COMPACT_WORKSPACE_THRESHOLD=880) the
+    // grab tab's wrapper is display:none -- the width-negotiation UI is
+    // removed because there is no room to share between the preview and an
+    // overlay workbench at these sizes (same rationale as the divider check
+    // above). The old assertion required the grab tab to be *visible* at
+    // every matrix width; that only held before the compact-workspace
+    // overlay redesign shipped. The breakpoint it reports is still computed
+    // from the real iframe width regardless of whether the control is shown
+    // (page.tsx: breakpointForWidth(viewport.clientWidth)), so that half of
+    // the check is still real -- read it without Playwright's
+    // visibility-gated auto-wait, and separately assert the control's own
+    // visibility matches the documented compact/non-compact split.
+    const COMPACT_WORKSPACE_THRESHOLD = 880;
     const responsiveGrabTab = matrixPage.locator(".workbench-grab-tab");
-    await responsiveGrabTab.waitFor();
+    await responsiveGrabTab.waitFor({ state: "attached" });
+    assert.equal(
+      await responsiveGrabTab.isVisible(),
+      item.width >= COMPACT_WORKSPACE_THRESHOLD,
+      `${item.width}px grab tab visibility must match the compact-workspace threshold`,
+    );
     await matrixPage.waitForFunction(
       (expected) =>
         document
@@ -1196,9 +1397,13 @@ try {
     );
     const box = await matrixPage.locator("iframe").boundingBox();
     assert.ok(box && box.width > 0);
+    // Compare against the iframe's CONTENT box (clientWidth), not its
+    // boundingBox() border box: the border box includes .preview-frame's 1px
+    // border on each side, which the child window never sees -- same fix as
+    // the equivalent check earlier in the main test.
     assert.equal(
       await matrixPage.frames()[1].evaluate(() => window.innerWidth),
-      Math.round(box.width),
+      await matrixPage.locator("iframe").evaluate((el) => el.clientWidth),
     );
     const responsiveSentinel = await matrixPage.frames()[1].evaluate(() => ({
       logoFontSize: getComputedStyle(document.querySelector(".nav__logo"))
@@ -1213,10 +1418,48 @@ try {
       responsiveSentinel.navLinksDisplay,
       item.expected === "desktop" ? "flex" : "none",
     );
-    const mobilePreview = await matrixPage.locator("iframe").boundingBox();
-    assert.ok(
-      mobilePreview && Math.round(mobilePreview.width) === item.frameWidth,
+    // The frame fills 100% of .preview-viewport's content width once the
+    // workbench is collapsed (see the matrix comment above) at every one of
+    // these six page widths, compact or not. Measure both sides live instead
+    // of asserting against the removed per-row frameWidth literal.
+    const viewportContentWidth = await matrixPage
+      .locator(".preview-viewport")
+      .evaluate((el) => {
+        const style = getComputedStyle(el);
+        return (
+          el.clientWidth -
+          parseFloat(style.paddingLeft) -
+          parseFloat(style.paddingRight)
+        );
+      });
+    // Compare the iframe's own CONTENT box (clientWidth) against the parent's
+    // content width, not boundingBox() -- boundingBox() is the iframe's
+    // border box and would be 2px wider than the parent's content width it
+    // is meant to fill (the same border-vs-content distinction as above).
+    const mobilePreviewContentWidth = await matrixPage
+      .locator("iframe")
+      .evaluate((el) => el.clientWidth);
+    assert.equal(
+      mobilePreviewContentWidth,
+      Math.round(viewportContentWidth),
+      `${item.width}px frame content width is ${mobilePreviewContentWidth}px; expected the collapsed .preview-viewport content width ${viewportContentWidth}px`,
     );
+    // Touch-target sizing is keyed to the actual PAGE/workspace width, not
+    // item.expected (the generated site's own mobile/tablet/desktop
+    // breakpoint) -- app-chrome controls (.seg-pill, .workbench-tool, etc.)
+    // grow to 44px only inside workbench.css's own `@media (max-width:
+    // 768px)` rules; DESIGN.md: "nothing interactive exceeds 34px height
+    // except the composer textarea. 44px touch targets apply only at the
+    // <=768px breakpoint." Row 799 (page width) has item.expected==="tablet"
+    // for the SITE, but the page itself is above 768px, so its app-chrome
+    // controls are correctly compact -- the old blanket >=44x44 floor for
+    // every row was the same pre-contract assumption already corrected for
+    // the main test's desktop controls above; apply the identical two-sided
+    // bound here instead of only asserting a one-sided floor that is wrong
+    // above 768px.
+    const isTouchBreakpoint = item.width <= 768;
+    const CONTROL_DESKTOP_MIN = 24;
+    const CONTROL_DESKTOP_MAX = 34;
     for (const control of await matrixPage
       .locator(
         "main.preview-layout button:visible, main.preview-layout input:visible, main.preview-layout select:visible, main.preview-layout textarea:visible",
@@ -1228,10 +1471,22 @@ try {
           (element) =>
             `${element.tagName.toLowerCase()}.${element.className || ""}[${element.getAttribute("aria-label") || element.textContent?.trim() || ""}]`,
         );
-        assert.ok(
-          controlBox.width >= 44 && controlBox.height >= 44,
-          `${item.width}px ${identity} is ${controlBox.width}x${controlBox.height}, below 44x44`,
-        );
+        if (isTouchBreakpoint) {
+          assert.ok(
+            controlBox.width >= 44 && controlBox.height >= 44,
+            `${item.width}px ${identity} is ${controlBox.width}x${controlBox.height}, below 44x44`,
+          );
+        } else {
+          assert.ok(
+            controlBox.height >= CONTROL_DESKTOP_MIN &&
+              controlBox.height <= CONTROL_DESKTOP_MAX,
+            `${item.width}px ${identity} is ${controlBox.width}x${controlBox.height}; desktop controls must sit in ${CONTROL_DESKTOP_MIN}-${CONTROL_DESKTOP_MAX}px tall`,
+          );
+          assert.ok(
+            controlBox.width >= CONTROL_DESKTOP_MIN,
+            `${item.width}px ${identity} is ${controlBox.width}px wide; below the ${CONTROL_DESKTOP_MIN}px WCAG 2.5.8 AA floor`,
+          );
+        }
       }
     }
     await matrixContext.close();
@@ -1249,16 +1504,19 @@ try {
     await widePage
       .getByRole("button", { name: `${label} preview width` })
       .click();
+    // clientWidth (content box), not getBoundingClientRect().width (border
+    // box): .preview-frame's 1px border on each side makes the border box 2px
+    // wider than the preset the iframe itself actually renders -- same fix as
+    // the equivalent content-vs-border-box checks earlier in this file.
     await widePage.waitForFunction(
-      (width) =>
-        Math.round(
-          document.querySelector("iframe")?.getBoundingClientRect().width ?? 0,
-        ) === width,
+      (width) => document.querySelector("iframe")?.clientWidth === width,
       expectedWidth,
     );
-    const frameBox = await widePage.locator("iframe").boundingBox();
+    const frameContentWidth = await widePage
+      .locator("iframe")
+      .evaluate((el) => el.clientWidth);
     const panelBox = await widePage.locator(".preview-workbench").boundingBox();
-    assert.ok(frameBox && Math.round(frameBox.width) === expectedWidth);
+    assert.equal(frameContentWidth, expectedWidth);
     assert.ok(panelBox && panelBox.width <= 960);
   }
 
@@ -1280,8 +1538,10 @@ try {
   await widePage.reload({ waitUntil: "domcontentloaded" });
   await waitForMode(widePage, "Edit");
   await widePage.frameLocator("iframe").locator("[data-edit-id]").first().waitFor();
+  // clientWidth (content box), not boundingBox() (border box) -- same
+  // border-vs-content-box fix as the equivalent checks above.
   assert.equal(
-    Math.round((await widePage.locator("iframe").boundingBox()).width),
+    await widePage.locator("iframe").evaluate((el) => el.clientWidth),
     390,
     "named preview preset must survive reload",
   );

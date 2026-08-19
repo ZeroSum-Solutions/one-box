@@ -1,0 +1,3655 @@
+# Outside grade
+
+## Per-dimension grades
+
+| # | Dimension | Grade | Evidence (one sentence, cite a selector, file, or screenshot region) |
+|---|-----------|-------|----------------------------------------------------------------------|
+| 1 | Hero distinctiveness | D+ | `.hero__grid` is a conventional copy-and-buttons/photo split with no entrance choreography, while the dark `.spec` panel adds only a modest industry-specific touch. |
+| 2 | Color character | C | `tokens.css:16-38` provides off-white, orange, charcoal, and a minor teal signal, but the desktop screenshot shows orange used flatly while nearly every middle section remains the same white surface. |
+| 3 | Motion design | F | `index.html` contains no script and `site.css` has no keyframes or transforms; its hover rules at `site.css:111-213,619-691` only swap color, border, background, or underline. |
+| 4 | Section division & rhythm | D+ | Nearly every content section uses identical `.shell.band.band--tight` treatment and 48px padding, leaving the orange `.creed` and final dark `.contact` as the only meaningful scene changes. |
+| 5 | Card craft | D+ | `.quals li` and `.coverage__card` are literal white boxes with a hairline border and inert inset shadow, with no layered treatment, action, reveal, or hover response. |
+| 6 | Visual hierarchy | C | The recurring `.label` eyebrows and 48px/36px heading scale establish basic order, but the screenshots remain dense with many similarly weighted small-text grids and no dominant focal point after the hero. |
+| 7 | Variety / anti-monotony | B- | `.receive`, `.gallery`, `.about`, `.coverage__grid`, and `.faq` vary between split media, imagery, cards, and rows, although their identical white shells make those topology changes feel less pronounced. |
+| 8 | Balance & composition | C+ | The desktop hero, `.receive`, and `.about` splits distribute weight competently, but the mobile screenshot becomes an extremely long sequence of narrow stacked blocks and the two-row scrolling header crowds the opening viewport. |
+| 9 | Bespoke-ness | C | Cabling imagery, mono labels, the spec console, and unusually specific copy fit the trade, but the placeholder palette, absent supplied logo, generic stock photography, and lack of signature motion keep it readily transferable to another contractor. |
+
+## Overall grade
+
+D+
+
+This is organized, readable, and more varied than a bare template, but the presentation still reproduces the benchmark’s decisive failures: a generic static hero, almost no surface progression, rudimentary cards, and color-swap-only interaction across a very long page. Its content specificity cannot compensate for a motion grade of F and multiple D-range craft dimensions.
+
+## Ranked fixes
+
+1. Recompose the hero around a full-bleed cabling image, an offset/layered company-record panel, and a staged copy-to-image entrance.
+Hero distinctiveness: D+ to B; Bespoke-ness: C to B-; Motion: F to C+.
+
+2. Build a page-level surface arc: warm opening, tinted scope panel, dark technical handover section, image-bleed work section, and a distinct closing CTA.
+Section division: D+ to B; Color character: C to B; Variety: B- to B.
+
+3. Add an IntersectionObserver reveal system with asymmetric section entrances, grouped-item stagger, moving 200–300ms hover states, and a complete reduced-motion fallback.
+Motion design: F to B.
+
+4. Replace the 48px/36px polite type scale with a committed 80–96px desktop display, stronger section-heading contrast, and fewer competing body-sized elements.
+Visual hierarchy: C to B; Hero distinctiveness: D+ to B-.
+
+5. Turn qualification and coverage boxes into one reusable technical-card formula with tinted depth, numbered/icon chips, edge illumination, stronger anatomy, and hover lift.
+Card craft: D+ to B; Color character: C to B-.
+
+6. Replace or visibly qualify the stock gallery, then art-direct approved WITS photography with purposeful crops, overlays, cable-path motifs, and offset annotations tied to image details.
+Bespoke-ness: C to B+; Balance: C+ to B.
+
+7. Consolidate overlapping scope, audience, handover, qualification, and process copy into fewer scenes with deliberately varied 64–144px spacing.
+Section division: D+ to B-; Balance: C+ to B; Visual hierarchy: C to B-.
+
+8. Replace the mobile header’s permanent second scrolling row with a compact accessible menu and tune mobile section density rather than merely stacking every desktop grid.
+Balance: C+ to B-; Hero distinctiveness: D+ to C+.
+
+## Trust check
+
+- The site explicitly invents prohibited licensing and insurance claims: “Florida low-voltage licensing details” and “Are you insured and licensed? Yes” render as facts despite no support in the brief.
+- Numerous unconfirmed operating promises ship as facts, including universal labeling/documentation, certification reports and as-built records, site walkthroughs, written schedules, occupied-building work, after-hours coordination, no minimum job size, statewide travel, and the same personal contact throughout.
+- “WITS is small on purpose” and “the person who walks your site is the person who quotes it” invent a staffing model absent from the brief.
+- The page violates the numeric constraint with “five years,” “Four ways,” numbered 01–04 sequences, a “twenty-minute fix,” and the placeholder telephone number.
+- `(407) 555-0142` and `estimates@witscabling.example` are visibly fake contact details placed in primary conversion paths.
+- The stock photographs are presented under “The work” and “What this looks like on site” without rendered disclosure; source comments and `img/ATTRIBUTION.md` admit they are not WITS projects and “must not ship.”
+- The available logo and brand colors were not incorporated: the rendered wordmark is plain text and `tokens.css:26-29` identifies orange as a temporary brand-swap placeholder.
+
+Reading additional input from stdin...
+2026-08-15T19:54:27.164620Z ERROR codex_models_manager::cache: failed to load models cache: missing field `base_instructions` at line 95 column 5
+OpenAI Codex v0.146.1
+--------
+workdir: /Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: high
+reasoning summaries: none
+session id: 01a006fd-7906-7240-bc7b-3f9c4f4cc5a1
+--------
+user
+You are an outside auditor grading a generated marketing website. You did not build it; the builder's own checks all pass, and your job is to find where the site is nonetheless mediocre. Be adversarial: the recurring failure mode you exist to catch is a builder over-grading its own work. Do not grade on a curve and do not award credit for intent — grade only behavior that actually ships and renders.
+
+Your working directory contains the site's full source (HTML/CSS/JS). Read it — motion design especially must be audited from the code, because the attached screenshots cannot show animation. The two attached images are full-page captures at 1440px (desktop) and 390px (mobile).
+
+THE CLIENT BRIEF the site was generated from:
+
+<brief>
+# Standard test brief — WITS
+
+This is the **canonical intake** for comparing build avenues. Every avenue
+(Refero-only baseline, current pipeline, layout-IR, future variants) must be
+given exactly this brief, with nothing added and nothing removed, so the
+outputs are comparable.
+
+Version: 1. Frozen 2026-08-15. Do not edit — fork to `BRIEF-v2.md` if it changes.
+
+---
+
+## Business Overview
+
+- **Business name:** Wiggins Information Technology Services (WITS)
+- **Business description:** Structured cabling and technology infrastructure
+  installation services.
+- **In business:** 15 years
+- **Industry experience:** 30 years
+- **Primary service area:** Orlando, Florida area
+- **Service areas:** Colorado and Florida
+- **Certifications:** none
+- **Key differentiators:**
+  - Quality workmanship
+  - Attention to detail
+  - Reliability
+  - Personal service
+  - Customer satisfaction
+
+## Services & Priorities
+
+Primary priority:
+- Network structured cabling
+- Fiber optic cabling
+- IT room design
+
+Also offered:
+- Data network cabling
+- Access point installation
+- Camera systems
+- Audio/visual cabling
+- Troubleshooting
+
+No services need to be phased out or downplayed.
+
+## Target Audience
+
+- Commercial businesses
+- Offices
+- New construction projects
+
+Customers needing: reliable network infrastructure, new office/network
+installations, IT room design, fiber installation, cabling upgrades,
+troubleshooting and infrastructure problem-solving.
+
+## Visual Direction
+
+- Existing logo and brand colors are available; files provided separately.
+- Open to either a light or dark website background.
+- No specific competitor/inspiration websites.
+- Desired feel: professional, modern, trustworthy, clean, technical,
+  dependable, high-quality, approachable.
+
+## Existing Content
+
+- No existing project photos or videos.
+- Stock imagery and/or new professional project photography will be needed.
+- No existing bios, testimonials, reviews, or case studies.
+- No existing website or old copy to reuse.
+- All website content must be developed from scratch.
+
+## Call to Action
+
+- **Primary CTA:** Call for an estimate.
+- Feature both phone and email prominently.
+- Keep the contact process simple.
+- No online booking/scheduling system.
+
+## FAQs
+
+Should address: services offered, project timelines, troubleshooting.
+No special policies or requirements to highlight upfront.
+
+## Logistics
+
+- No existing domain name; domain selection needed.
+- No predetermined additional pages.
+- Designer recommends the site structure/pages.
+- No hard deadline or launch date.
+
+## Additional Notes
+
+- Customer satisfaction is an important priority.
+- The site should communicate WITS as an experienced, reliable, detail-oriented
+  commercial technology installation company.
+- **Primary purpose:** establish trust and get commercial customers to call for
+  an estimate.
+
+---
+
+## Constraints that bind every avenue
+
+1. No invented certifications, awards, licenses, or memberships.
+2. No invented testimonials, client names, review counts, or star ratings.
+3. No invented project photography presented as WITS's own work.
+4. Numbers that may be stated: 15 years in business, 30 years industry
+   experience. Nothing else.
+
+</brief>
+
+THE RUBRIC (the human judge of record wrote the criticisms it encodes; his grades anchor the scale — a site matching the baseline failures it describes is a D):
+
+<rubric>
+# Presentation rubric — the bar every generated site is graded against
+
+Created 2026-08-15 from Devin's grading of the WITS refero-baseline spike
+(commit `314da19`, served at the spike's `site/` directory). This rubric is
+separate from the frozen Phase-4 A/B rubric (`rubric.md`) — that one compared
+pipeline arms; this one grades a single site's presentation quality against
+Devin's standard.
+
+## Authority
+
+- **Devin is the judge of record.** A build's grade is his grade. Model grades
+  (self-grades or outside audits) are advisory input to his verdict, never a
+  substitute for it.
+- **Every build gets an outside-model audit** — a model from a different vendor
+  than the builder (current lane: GPT-5.6 Sol via `codex exec`) grades against
+  this rubric before the build reaches Devin. Precedent: the 2026-08-14 GPT-5.6
+  audit caught real WCAG failures and invented policies the builder reported as
+  clean.
+- Engine gates (contrast, axe, token drift, …) are **floors, not grades**. The
+  WITS baseline passes every gate and still grades D. A gate can prove a site
+  is not broken; only this rubric measures whether it is good.
+
+## The benchmark: WITS baseline = D
+
+Devin's verdict, 2026-08-15, verbatim criticisms → gradeable dimensions below.
+"The information on it is pretty good but its presentation is a D." A generated
+site that would tie this baseline fails. The measured facts behind the grade:
+the site's entire CSS contains **1 animation and 6 transitions**; hover
+feedback exists on exactly two element classes (CTA buttons and nav links,
+both a bare color swap); consecutive sections are divided by nothing except
+one orange band.
+
+## Dimensions (grade each A–F, then overall)
+
+### 1. Hero distinctiveness
+*Baseline failure: "the hero's generic."*
+- F–D: headline + subhead + button + photo in a default arrangement any
+  template could produce.
+- B: a deliberate entrance sequence (staged reveals), a composition that
+  responds to the imagery, at least one element that could only belong to this
+  company.
+- A: the hero alone tells you who the company is; layered composition
+  (typography, imagery, motion, background treatment) with a clear focal path.
+
+### 2. Color character
+*Baseline failure: "the colors are generic."*
+- F–D: one brand hue + white/gray applied flatly; accent used identically
+  everywhere it appears.
+- B: a palette with structure — surface tiers, warm/cool tension or tonal
+  depth, accent deployed by rule (interactive-only, or emphasis-only), at
+  least one section that shifts the scheme (dark band, tinted band).
+- A: the palette itself is recognizably the company's; gradients/tints/dark
+  sections orchestrated so no two adjacent sections read as the same surface.
+
+### 3. Motion design
+*Baseline failure: "there is no scrolling animations… only a couple hover
+animations… which just literally changes the color from black to orange."*
+- F–D: static page; hover = color swap only.
+- B: scroll-triggered reveals with stagger on grouped items; hover states that
+  move (lift, scale, glow, icon slide) with tuned duration/easing; a hero
+  entrance. Motion respects `prefers-reduced-motion`.
+- A: a motion *system* — consistent easing/duration vocabulary, choreographed
+  section entrances, at least one signature moment (marquee, parallax,
+  count-up, sticky transition) that fits the brand.
+
+### 4. Section division & rhythm
+*Baseline failure: "the sections are not at all well divided, the
+information's kind of squished together… between sections we only have this
+one orange break."*
+- F–D: uniform white sections separated by padding alone; one divider device
+  reused (or none).
+- B: alternating surface treatments (tint, dark band, contained card-panel),
+  generous and *varied* vertical rhythm, each section boundary legible at a
+  glance while scrolling.
+- A: the page has an arc — sections sequence like scenes (open, build,
+  contrast, close), division devices varied and deliberate (bleed images,
+  band inversions, offset panels), never twice the same trick in a row.
+
+### 5. Card craft
+*Baseline failure: "there aren't any cool cards… they're just information in
+a white box."*
+- F–D: white box, border, text stacked inside.
+- B: cards with anatomy — icon/number treatment, layered background (tint,
+  gradient edge, glow), hover behavior (lift/tilt/reveal), internal hierarchy
+  (eyebrow, title, body, action) that reads in order.
+- A: card design is a signature of the site — a treatment you'd screenshot;
+  variants for different content types instead of one card for everything.
+
+### 6. Visual hierarchy
+*Baseline failure: "there's no visual hierarchy with information."*
+- F–D: headings step down in size but everything carries equal visual weight;
+  nothing tells the eye where to go first.
+- B: strong display-to-body contrast (scale, weight, color), eyebrow labels,
+  clear primary/secondary/tertiary reading order in every section, one focal
+  point per viewport.
+- A: hierarchy survives the squint test at every scroll position — blur the
+  page and the structure of what matters still shows.
+
+### 7. Variety / anti-monotony
+*Baseline failure: "too much monotony within the site."*
+- F–D: every section is the same layout (centered heading → grid of boxes)
+  with different words.
+- B: layout topology varies across the page — asymmetric splits, offset
+  media, full-bleed moments, list vs. grid vs. feature alternation.
+- A: no two consecutive sections share a topology, yet the page still reads
+  as one designed system, not a collage.
+
+### 8. Balance & composition
+*Baseline: "the balance isn't super bad, but I don't think it's ideal."*
+- F–D: visibly lopsided sections, orphaned elements, cramped or cavernous
+  gaps.
+- B: weight distributed deliberately within each section; whitespace used as
+  a design element, not leftover space.
+- A: compositions feel inevitable — nothing could move without getting worse.
+
+### 9. Bespoke-ness (the summary dimension)
+*Baseline failure: "as far as it being like a bespoke website for this
+individual company, I'd lower my grade and say this is more like a D."*
+- F–D: swap the logo and copy and this could be any company in any industry.
+- B: industry-specific composition choices (imagery treatment, section
+  choices, motifs) plus company-specific ones (their palette, their voice,
+  their proof points made visual).
+- A: the site could not be mistaken for a competitor's. Content, imagery,
+  layout and motion all argue for *this* company.
+
+## Reference standard
+
+The motionsites template catalog (`references/motionsites/`, cloned from
+github.com/vikod3 with Devin's authorization, 2026-08-15) is the working
+definition of the bar: **Devin judged every template in that catalog better
+than the WITS baseline.** Template-derived craft standards are appended below
+as they are extracted. License note: these repos are grading references only —
+their code is never shipped into client sites.
+
+### Template-derived standards (extracted 2026-08-15, 9 templates analyzed)
+
+Full per-template reports: `template-craft-notes.md`. The cross-template
+findings, ranked by how consistently the catalog uses them:
+
+1. **A signature-move economy, not blanket polish.** Every template earns its
+   premium feel from 2–4 deliberate devices; several (serein, forge, neon,
+   dental) ship *zero* scroll reveals and still beat our baseline. Grade the
+   presence and quality of signature moves, not a checklist of effects.
+2. **Video-as-life** (7 of 9): full-bleed autoplay muted loop video,
+   *disciplined into the brand* — desaturated (`saturate-0`) and re-tinted via
+   `mix-blend-mode: color` / `color-dodge` / multiply overlays so footage
+   becomes an on-brand texture, not a colorful stock clip. This one device
+   supplies most of the kinetic energy on most of these sites.
+3. **One surface formula, fractally reused.** A single glass/card recipe
+   (translucent fill + backdrop-blur + white hairline border + inset or soft
+   shadow — e.g. glow's `rgba(116,116,116,0.07)` + `border-[1.5px]
+   rgba(255,255,255,0.40)` + `blur(50px)` + `rounded-[32px]`) applied to
+   feature cards, testimonial cards, badges, and icon chips alike. Cohesion
+   comes from reuse; cheapness comes from one-off effects.
+4. **Eyebrow systems.** A consistent pre-headline device on every section:
+   forge/neon's `DM Mono uppercase 0.48px-tracked text-white/50` label,
+   radiant's icon+pill badge. The strongest, cheapest hierarchy move in the
+   whole catalog.
+5. **Display type that commits.** 88–120px display against 12–18px body;
+   often `font-normal` (restraint over boldness); negative tracking scaled to
+   size (glow: −2.5px display → −1.5px H2 → −0.5px H3 → 0 body); two-family
+   pairing (Space Grotesk + DM Mono, Jakarta + Manrope). Our baseline's
+   headings "step down politely" — these commit.
+6. **Accent-by-rule.** Near-monochrome palettes with ONE scoped accent moment:
+   nexora's single gradient headline word; glow's red on interactive elements
+   only, never headings; dental's amber on the five rating stars only. The
+   rule is legible — the viewer can infer where accent will appear next.
+7. **Entrance choreography, hand-tuned.** Where motion exists it is asymmetric
+   and deliberate: nexora's cascade at delays 0 / 0.8 / 1.0 / 1.2s with
+   letter-level stagger (0.07s/char) on the headline; lumen's
+   `staggerChildren: 0.2, delayChildren: 0.3` with `whileInView` +
+   `viewport={{once: true, margin: '-100px'}}`; glow's text-settles-first,
+   image-blooms-at-+0.5s. Uniform simultaneous fade-ins (serein) read as
+   scaffold defaults.
+8. **Hover that moves.** Scale (1.02–1.05), shadow lift, icon reveal, gradient
+   text fill — 200–300ms. Color-swap-only hover is the baseline's failure
+   mode and the catalog's floor.
+9. **Division by rhythm and surface, not walls.** Huge, *varied* vertical
+   padding (`py-[100px]`→`py-[200px]`), 5%-opacity hairline rules, footer as
+   a rounded-top card on a gradient, hairline-seam grids
+   (`gap-px` over a dark backdrop) instead of boxed cards. Uniform `py-24`
+   everywhere (serein) is the tell of a scaffold.
+10. **Layered, art-directed composition.** radiant's image-with-offset-glass-
+    panel motif (reused 5×); dental's product-annotation callout pinned by a
+    JS-positioned connector line to a specific tooth in the photo, and copy
+    right-aligned to interlock with the model's face. Composition responding
+    to the *specific* imagery is the essence of bespoke.
+
+**Anti-lesson:** the catalog is full of dead craft — wired-but-unused stagger
+systems, animation component libraries no page imports. Grade only shipped,
+rendering behavior; never credit intent found in the code.
+
+## How the outside grader uses this
+
+Inputs per build: full-page desktop + mobile screenshots, the brief, the
+site's full source (screenshots cannot show motion — motion is audited from
+code), and this rubric. Output: per-dimension letter grades with one-sentence
+evidence each, an overall letter, and a ranked list of the highest-leverage
+fixes. The report lands in the run's evidence directory next to the gate
+reports.
+
+</rubric>
+
+Respond with EXACTLY this structure and nothing else:
+
+# Outside grade
+
+## Per-dimension grades
+
+| # | Dimension | Grade | Evidence (one sentence, cite a selector, file, or screenshot region) |
+|---|-----------|-------|----------------------------------------------------------------------|
+(one row per rubric dimension, 1-9)
+
+## Overall grade
+
+A single letter (A-F, +/- allowed) on its own line, then one short paragraph of justification.
+
+## Ranked fixes
+
+The 5-10 highest-leverage changes, most impactful first. Each: one line naming the change, one line saying which dimension(s) it lifts and roughly how far. Concrete, not aspirational — "add a scroll-reveal system with staggered entrances per section (Motion: F to C+)" not "improve animations".
+
+## Trust check
+
+Anything in the site that is dishonest, invented, or inconsistent with the brief (claims, policies, numbers, imagery implying things the brief does not support). Say "none found" if clean.
+2026-08-15T19:54:31.591827Z ERROR codex_rmcp_client::oauth::refresh_transaction: error=failed to refresh OAuth tokens for server Vercel: OAuth token refresh failed: Server returned error response: invalid_grant: Refresh token is invalid.
+warning: Skill descriptions were shortened to fit the 2% skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+codex
+I’m auditing the rendered presentation against the source, with special attention to shipped motion behavior and brief violations; I’ll use the project’s verifier guidance to keep the verdict evidence-based.
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "sed -n '1,240p' ~/AGENTS.md && sed -n '1,260p' /Users/zero-suminc./projects/tools/zs-skills/skills/meta/verifier/SKILL.md && rg -n -i \"one-box|refero-baseline|WITS|presentation rubric\" /Users/zero-suminc./.codex/memories/MEMORY.md | head -80" in /Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+ succeeded in 0ms:
+# AGENTS.md — shared conventions for ALL agents on this machine
+
+> The ONE cross-tool conventions file. **Codex, Cursor, Antigravity, Hermes** read this
+> natively. **Claude Code** reads `~/.claude/CLAUDE.md` (kept consistent with this file);
+> do NOT symlink over it. Per-project `AGENTS.md` at a repo root OVERRIDES this for that
+> project and adds Commands / Stack / Structure. Keep this human-curated and short.
+>
+> Machine: Apple M4 Max, 48 GB, macOS 26. Operator: subscription-first solo engineer.
+
+## What this machine is
+A unified multi-agent coding environment for shipping high-quality **websites, web
+apps, agentic workflows, and automations**. Multiple IDEs/agents (Claude Code, Codex/
+GPT-5.6, Gemini CLI, Cursor, Antigravity, Hermes) operate in **lanes**, unified by ONE
+shared memory bus + these conventions. Tools rotate (48 GB is real) — context follows
+you via memory, not by keeping everything hot.
+
+## Billing — HARD RULES (a violation is a P0 bug)
+<!-- SYNC:billing v2026-08-07 (prohibitions mirrored in ~/.claude/CLAUDE.md billing bullet; the vendor roster is NOT mirrored — both sides point at ~/.claude/billing-lanes.md, which is the single source. Bump BOTH stamps only when a PROHIBITION changes.) -->
+- **Subscription-first for programmatic/agent LLM calls, plus an explicit OK list.**
+  **Lane order: OAuth/subscription FIRST, always** — Claude = Max OAuth; Codex CLI
+  (ChatGPT/Codex OAuth, runs GPT-5.6 — sol for code/creation, luna for light calls,
+  terra ~never; gpt-5.5 retired 2026-07-09); Gemini via Antigravity CLI (`agy`, keyring
+  auth); Ollama = local. Go to a metered API only when no subscription lane can serve the
+  task, or the subscription lane is slow/saturated. **Direct billed `api.anthropic.com`
+  is forbidden.** **A vendor not on the approved OK list needs explicit approval before
+  the first call** — never assume, never "just try it". **Image generation: Higgsfield
+  FIRST** (subscription credits — Devin wants it used frequently), then Kie.ai, then
+  FAL/others.
+  → The full OK list — every approved vendor with its key, host, billing caveats, and the
+  OpenRouter premium roster — is **`~/.claude/billing-lanes.md`**. **Read that file before
+  using any metered API.**
+- **Cursor + Antigravity are subscription GUI editors, NOT a programmatic API lane.**
+  Their plans can incur credit overage → set a HARD spend cap, keep them human-driven,
+  NEVER place them in an unattended/agent loop. This is distinct from the per-token rule
+  above (which governs scripted LLM calls); it is not a license for metered agent traffic.
+- **Forbidden by default** for programmatic calls: any LLM API host not on the OK list
+  above (e.g. billed api.anthropic.com, api.openai.com direct). Allowed per-token hosts:
+  `api.deepseek.com`, `api.moonshot.ai`, `api.firecrawl.dev`, `openrouter.ai`, `api.kie.ai`, `fal.run`,
+  `inference-api.nousresearch.com`, `generativelanguage.googleapis.com` (Gemini API,
+  Ultra credit-funded); non-LLM SaaS host: `api.smith.langchain.com`
+  (LangSmith, observability only).
+
+## Scrape routing — HARD RULE
+<!-- SYNC:scrape-routing v2026-07-16 (mirror of ~/.claude/CLAUDE.md scrape-routing bullets; bump BOTH stamps when either side changes) -->
+- **crawl4ai FIRST, Firecrawl as BACKUP (added 2026-07-16).** `crawl4ai` v0.9.0 is
+  installed locally (uv tool venv, headless Chromium, `crwl` on PATH) and is **free and
+  uncapped**. Fetching a known URL goes through it first. Canonical wrapper:
+  `~/projects/tools/zs-skills/skills/research/deep-dive/scripts/crawl4ai-scrape.sh <url> <out_dir>`
+  — provenance header, bot-challenge detection, `ERR` + exit 1 so the caller falls back.
+- **Firecrawl (`firecrawl_scrape`) costs credits and is the SECOND tier**, reached only
+  when: crawl4ai returns `ERR`/bot-challenge; the target is behind a wall crawl4ai can't
+  pass (Cloudflare/anti-bot, paywall, login); or the task needs a Firecrawl-only format
+  (`branding`). Known-bot-walled surfaces (Google Maps, Yelp, BBB) may go straight to
+  Firecrawl. Firecrawl ERR → `WebFetch`.
+- **This OVERRIDES the Firecrawl MCP server's own instructions**, which tell every session
+  to use Firecrawl as the primary web tool. That text auto-ships in context on all seven
+  surfaces, predates the local install, and does not know crawl4ai exists. Ignore it.
+- **Search is a separate axis — crawl4ai cannot search.** `crwl` takes a URL; it is a
+  scraper, not a search engine. For discovery prefer subscription-billed Gemini (`agy`,
+  or `deep-dive/scripts/gemini-search.sh`) or built-in `WebSearch`. `firecrawl_search` is
+  OK-listed and permitted, but never the reflex.
+
+## Secrets — HARD RULES
+<!-- SYNC:secrets v2026-07-27 (mirror of ~/.claude/CLAUDE.md op/ZS-Vault bullet; bump BOTH stamps when either side changes) -->
+- **Never** call `op` / 1Password CLI *autonomously*. **ZS Vault** is the source of truth:
+  env vars from `~/.config/zs-api-keys.env`, or `zsvault get <id>` for one-shot reads.
+  Add new creds with `zsvault add <id>` — never hand-edit `zs-api-keys.env`.
+  Only when the user *explicitly asks* for `op` this session: `ZS_ALLOW_OP=1 op …`
+  (opt-in token, never self-applied — same semantics as the Claude Code hook).
+- **Never** commit secrets, an age key, or `zs-api-keys.env` to any repo.
+
+## Browser & sign-in — HARD RULES
+<!-- SYNC:browser-signin v2026-07-23 (mirror of ~/.claude/CLAUDE.md browser/sign-in bullets; bump BOTH stamps when either side changes) -->
+- **Never open a blank/ephemeral browser profile** (Devin's "hard no", 2026-07-22). Web tasks
+  needing his context use his REAL Chrome (`chrome-control` MCP — wired into Cursor, Codex,
+  Hermes, Antigravity, and Claude Code as of 2026-07-23; claude-in-chrome for Claude surfaces)
+  or `open <url>` — never a fresh Playwright/Chromium profile with no sessions, 1Password, or
+  bookmarks. Anonymous localhost/dev-server checks are the only exception.
+- **Sign in FOR Devin before asking him.** Default account for EVERYTHING:
+  **devszerosum@gmail.com** — pick it first at every account picker/SSO screen; it lives in
+  Chrome's **Default profile**, which is the profile agents drive. NotebookLM/Gemini Notebook
+  now uses that same default account. The remaining legacy exception is Notion workspace →
+  "Devin Wiggins PT" — use the data-holding account there and flag the mismatch. Passwords are in ZS Vault for HIS reference; at a real password field, use
+  1Password Agentic Autofill (Claude surfaces only) or stop for Devin — never type a vault
+  password/TOTP into browser automation.
+- **CLI OAuth playbook (proven 2026-07-23, Higgsfield):** when a CLI wants to open a browser
+  for auth, suppress it (`BROWSER=/usr/bin/true <cli> auth login`), capture the printed URL,
+  and open that URL in Devin's real Chrome via the `chrome-control` MCP (`open_url`). His live
+  sessions usually reduce the whole flow to a single consent click — no password screen at all.
+
+## Supabase — HARD RULES (org selection)
+<!-- SYNC:supabase v2026-07-08 (mirror of ~/.claude/CLAUDE.md §Supabase; bump BOTH stamps when either side changes) -->
+- **PRIMARY org: `Zerosumsolutions-Projects`** (slug `zljkaiwwkbpeyjsblwyb`, Pro). Wire every
+  new Supabase project here and check here FIRST — all production / client work lives here.
+- **LEGACY/secondary: `rise-scheduling`** (slug `vpzwurcxuliwzumdinwn`, free). Don't start new
+  work here. Its `offeafzjrkwqavrhwvqg` ("wiggdevin's Project", INACTIVE) is a stale duplicate —
+  never use (left in place, not deleted).
+- **Auth:** ZS Vault `SUPABASE_ACCESS_TOKEN` is a Management-API token that sees ALL orgs
+  (`api.supabase.com` for cross-org ops). Verify reach without printing secrets:
+  `zs-credential-access` → `scripts/verify_supabase_org.py <org_slug>`.
+- The Claude.ai Supabase **MCP connector** is OAuth-scoped to `Zerosumsolutions-Projects` only
+  (reconnected 2026-06-27); for anything it can't reach, use the Management API + vault token.
+
+## Memory — shared zs-memory bus (the crux)
+- Endpoint: `http://localhost:8765/mcp` (MCP streamable HTTP) or `/api/v1/memories/`
+  (REST, trailing slash required). **Bearer auth on everything except `/health`** —
+  since 2026-07-10 every tool uses its OWN scoped token via the shared wrapper
+  `~/bin/mem0-mcp.sh <client>` (vault ids `zs_memory_token_<client>`; scoped tokens
+  cannot delete — deletes go through the vault-held `zs_memory_maintenance_token`,
+  human-approved). Legacy shared `zs_memory_token` remains valid pending rotation.
+  Provenance via `X-Client-Name` header; namespace via `X-User-Id` header (default
+  `zero-fleet`). Full wiring snippets + runbook:
+  `~/.claude/reference_mem0_openmemory_setup.md` (the canonical doc).
+- **Namespacing:** global/cross-project facts → `user_id=zero-fleet`. Project isolation →
+  `user_id=zero-fleet__<project>` (the ONLY isolation boundary; reads span all tools
+  within a user_id, never across projects).
+- **Store DECISIONS, not CODE.** ✅ decisions, conventions, preferences, project-state,
+  gotchas. 🚫 code/diffs/file contents, secrets, transient task state, anything
+  re-derivable from the repo (agentic grep beats RAG — Boris Cherny).
+- **Only persist a DURABLE cross-session fact** (decision / convention / preference /
+  project-state / gotcha) — NOT transient work-in-progress (use the task tracker for
+  that; "project-state" = a settled milestone like "Phase 2 bus live", not "currently
+  editing X"). Every agent routes writes through its memory-write gate (Claude Code: the
+  `mem0-write-protocol` skill; other tools: the equivalent wrapper) — NEVER
+  `mem0_add_memories` raw. Enforcement does NOT depend on client cooperation: the bus has
+  a SERVER-SIDE write-policy guard that rejects code/secrets for ALL clients, dedup-on-write
+  (cosine ≥ 0.90 → rejected with the existing id), plus a daily consolidation cron that
+  flags drift. One fact per memory, phrased for a future agent with no context.
+- **Writing is not optional for wired tools.** Cursor and Antigravity are wired to the bus
+  but historically wrote nothing (2026-07-09 audit) — settled decisions made in ANY tool
+  must land on the bus before the session ends, or they are invisible to the rest of the
+  fleet. Session scratch, private brains (`~/.gemini/antigravity/brain/`), and chat logs
+  stay tool-local; the DECISION goes to mem0.
+
+## Second brain — Google NotebookLM (ALL tools)
+- NotebookLM is the durable RESEARCH-CONTENT store (the second brain): all substantial
+  research output for any subject — briefs, papers, scraped findings, competitive intel —
+  gets added there as sources; query it with cited RAG before re-researching a topic.
+  Complements the memory bus: mem0 = decisions/preferences/state, NotebookLM = content.
+- Access: local `notebooklm` CLI (`~/bin/notebooklm`, notebooklm-py) — CLI-first, never
+  browser automation. Usage, autonomy rules, and the routing convention live in the
+  shared `notebooklm` skill (`zs-skills skills/research/notebooklm`, synced to all tools).
+  The **only supported local profile** is `devszerosum` / `devszerosum@gmail.com`.
+  Default sink: owned Second Brain `ba7ffa61-849a-42cc-93cb-b429aa133d3e`; pass
+  `-p devszerosum` explicitly for writes and never create an additional local profile.
+- Auth = Devin's Google session cookies (profile `devszerosum` / devszerosum@gmail.com). On auth
+  errors run `~/bin/notebooklm-signin`: it auto-harvests a LIVE work session from any local
+  browser/profile (chrome profiles, brave, safari) — usually NO login needed — then falls back
+  to the desktop app, then a browser, all fail-closed. In UNATTENDED/headless contexts use
+  `~/bin/notebooklm-refresh` (same multi-source harvest, no windows) and report-and-stop if it
+  can't recover. Weekly `com.zs.notebooklm-refresh` keeps the jar warm. Never type Google
+  credentials; the NotebookLM account is always devszerosum@gmail.com.
+
+## Deliverable Routing (ALL tools — Codex, Cursor, Hermes, Gemini, Antigravity)
+<!-- SYNC:deliverable-routing v2026-08-01 (mirror of ~/.claude/CLAUDE.md §Deliverable Routing; bump BOTH stamps when either side changes) -->
+- Every AI-generated deliverable goes to `~/Inbox/<type>/` unless it belongs inside a
+  specific project tree: single-file HTML / visual briefs → `~/Inbox/html/` · plan docs →
+  `~/Inbox/plans/` · generated PDFs → `~/Inbox/pdfs/` · screenshots / QA evidence →
+  `~/Inbox/screenshots/` · loose markdown notes / specs → `~/Inbox/notes/` · anything
+  else → `~/Inbox/misc/`. Sanctioned subdirs: `notes/handoffs/` (session handoffs),
+  `plans/<slug>/` (multi-file plan bundles), `deletions/` (staging for reviewed
+  deletions, created by the 2026-07-05 inbox audit — empty only on Devin's explicit say-so).
+
+| Deliverable | Destination |
+|---|---|
+| Goal-run machine state (not a deliverable) | `~/.claude/goal-state/<slug>/` |
+| Intake (machine-intake watcher input) | `~/Inbox/intake/` |
+| **Backup / snapshot / dump (not a deliverable)** | **`~/Backups/<service>/`** |
+- **Backups NEVER go in `~/Inbox/`** (added 2026-08-01). `~/Inbox/` is deliverables, and the
+  weekly `inbox_sweep` ages everything in it out to `_archive/` — wrong for machine state you
+  may need to restore from. Volume archives, DB dumps, config snapshots, and pre-change
+  backups go to `~/Backups/<service>/` (`colima/`, `supabase/`, `mishmash/`, `mcp-config/`,
+  `claude-desktop/`, plus the existing `rise-scheduler/`, `zs-mem0-backups/`,
+  `project-ledger/`). Give each a retention rule where it's written — house pattern is
+  keep-last-N, see `~/bin/rise-db-backup.sh`.
+- **Codex:** do NOT leave artifacts in `~/Documents/Codex/` — outputs worth keeping go to
+  `~/Inbox/<type>/`; session scratch is disposable.
+- Project-scoped artifacts → the project tree (e.g. `<project>/docs/screenshots/`).
+
+## Shared skills — zs-skills write protocol (ALL tools)
+> Canonical store: `~/projects/tools/zs-skills/` (git-backed). Tool skill dirs
+> (`~/.claude/skills`, `~/.codex/skills`, `~/.gemini/skills`, `~/.cursor/skills`,
+> `~/.hermes/skills/shared`) hold SYMLINKS into it. Improve skills through the
+> symlinks under these rules; never fork a private copy.
+- **Patch-on-use:** when a shared skill proves wrong or stale during use, patch it
+  immediately — targeted, minimal edits only.
+- **Evidence required:** every patch cites an observed failure (error output, wrong
+  result, changed external behavior) in its commit message. No vibes-based rewrites.
+- **Never wholesale-rewrite** a skill or the store; **never delete** — move to
+  `.archive/` instead.
+- **Creating:** new skills → `skills/<category>/<name>/SKILL.md` with the superset
+  frontmatter (store `CLAUDE.md` has the schema), `lane: experimental`,
+  `author: <your-tool-name>`; must pass `~/projects/tools/zs-skills/bin/zs-skills lint`.
+  Experimental skills sync only to their creating tool until the curator promotes them.
+- **Commit every write** (conventional style). Uncommitted writes are swept nightly
+  through a scan gate (snyk-agent-scan + lint); flagged writes are git-reverted and
+  reported.
+- **Never `git commit --amend` to fix your own commit here.** This store has concurrent
+  writers (the nightly sweep, other agent sessions). They advance HEAD between your commit
+  and your amend, so `--amend` silently rewrites *their* commit instead of yours. Make a
+  new commit. Enforced on this machine: an amend must carry `ZS_AMEND_HEAD=<literal-sha>`
+  that still matches HEAD, or the hook refuses it.
+- **Banned in any skill** (lint-enforced): `allowed-tools` frontmatter,
+  dynamic-context `` !`cmd` `` execution, runtime remote fetches.
+
+## ~/projects taxonomy
+Top level = active products only. `clients/<Name>/` = client work incl. client-specific
+tools. `services/` = running daemons — NEVER reorganize (launchd references these paths).
+`tools/` = own tooling; `tools/third-party/` = upstream reference clones. `plugins/` =
+Claude Code plugins. `archive/` = retired projects (move there, don't delete). One-sprint
+research/planning doc-dirs are NOT projects — they go to `~/Inbox/notes/` or `~/Inbox/plans/`.
+
+## Code style (defaults; per-project AGENTS.md overrides)
+- Immutability (return new objects, never mutate inputs). Validate at boundaries
+  (Zod/Pydantic). Handle errors explicitly — no silent swallows.
+- KISS / DRY / YAGNI. Small files (<400 lines), small functions (<50), nesting ≤4.
+- Naming: `camelCase` vars/fns, `PascalCase` types/components, `UPPER_SNAKE` consts,
+  `use*` hooks, booleans `is/has/should/can`.
+- **Web design tokens only — NO raw Tailwind literals.** Tailwind v4 OKLCH `@theme`,
+  60/30/10, ÷8 spacing, brand fonts (NOT Inter), shadcn/ui + CVA. Run the anti-slop gate.
+
+## Boundaries
+- ✅ always: read/grep the repo; run fast gates (biome, `tsc --noEmit`); write durable
+  decisions to memory through the write-policy.
+- ⚠️ ask first: schema changes, new deps, deploys, deleting files, destructive memory ops
+  (`delete_all_memories` requires an explicit human instruction).
+- 🚫 never: hardcode secrets; `op read`; force-push; route Claude/Codex via per-token
+  APIs; write live code into the memory bus; put Cursor/Antigravity in an unattended loop.
+- Destructive git (`branch -D`, force-push, `reset --hard`, `clean -f`, `checkout .`) only
+  when the human explicitly asked for it this session (2026-07-07 rule; Claude Code enforces
+  via hook + `ZS_ALLOW_GIT=1`, other tools apply it as policy).
+
+## Model lanes
+- **Sonnet 5** = agentic/subagent default (skip Opus-class for routine code); **Opus 5**
+  (+ fast mode) is the default driver for both everyday interactive work and complex
+  agentic coding — it replaced Opus 4.8 in both roles on 2026-07-24. **Fable 5** is
+  reserved for genuinely long-horizon autonomous runs, maximum-capability calls, and
+  highly ambiguous architecture (matches `~/.claude/CLAUDE.md` subagent rule and the
+  `ops/model-lane-picker` skill).
+- **Opus 5 effort starts at `high`** (the API default), NOT `xhigh` — this inverts the
+---
+name: verifier
+description: Use to INDEPENDENTLY verify a build against its spec / success-criteria
+  before declaring it done. A SEPARATE agent from the implementer — re-reads the spec,
+  checks each criterion against the ACTUAL output with captured evidence, and renders
+  PASS/FAIL. Never rubber-stamps. Invoke at the end of any feature/sprint in the
+  web-quality template (or any spec-driven build).
+version: 1.2.0
+author: claude-code
+license: MIT
+platforms: [macos]
+metadata:
+  hermes:
+    tags: [meta]
+    related_skills: []
+  zs:
+    tier: universal
+    lane: curated
+    origin: agent-created
+---
+
+# verifier
+
+A build is "done" only when a **different** agent than the one who wrote it confirms,
+with evidence, that every success criterion is actually met. This skill is that agent.
+
+## When to use
+- After an implementer finishes a feature/sprint that has a spec or success-criteria list.
+- Before any "complete" / "ready to merge" claim.
+- As the third role in coordinator → implementer → **verifier** (the implementer does
+  NOT verify its own work).
+
+## Inputs
+- The spec / success-criteria (file path or inline).
+- The build location (repo path, and a running URL if it's a web build).
+
+## Procedure
+1. **Re-read the spec** verbatim. Extract every success criterion into a checklist —
+   one row per criterion. Do not infer or soften criteria; if ambiguous, mark it
+   `AMBIGUOUS` and treat as not-met.
+2. **For each criterion, gather EVIDENCE against the actual build** — never the
+   implementer's say-so:
+   - Mechanical → run the command and capture output + exit code
+     (`./gates.sh fast` or `pr`, `bun test`, `tsc --noEmit`).
+   - Visual/rendering → check via agent-browser / Playwright MCP at the stated
+     breakpoints (320 / 768 / 1200); capture `getComputedStyle` deltas or a screenshot
+     ref, not a description.
+   - Anti-slop → confirm `no-raw-literals` passed and the design uses tokens, brand
+     fonts (not Inter), 60/30/10, ÷8 spacing.
+3. **Plant-and-catch (when feasible)** — if the implementer added a regression test,
+   confirm it actually fails when the fix is reverted (red→green), not just that it passes once.
+4. **Render a verdict table:** criterion · PASS/FAIL/AMBIGUOUS · the evidence (command
+   output line, computed-style value, or screenshot ref). Any FAIL/AMBIGUOUS → overall FAIL.
+5. **Return** `VERDICT: PASS` only if every criterion has PASS with captured evidence.
+   Otherwise `VERDICT: FAIL` with the specific gaps and the single highest-priority fix.
+
+## Staged custom-fork merge verification
+
+When verifying whether every fork-only commit survived a staged merge:
+
+1. Record `HEAD`, `ORIG_HEAD`, `MERGE_HEAD`, the peeled release tag, and the merge base. Verify the target tag commit exactly; never trust a branch or tag name alone.
+2. Enumerate every fork-only commit in `$(git merge-base ORIG_HEAD MERGE_HEAD)..ORIG_HEAD`. Build a commit-by-commit intent table with `PRESERVED`, `SUPERSEDED`, or `AT RISK` and cite the resolved source plus an exercised test for each behavior.
+3. Verify the staged index, not only the worktree: require zero `git diff --name-only --diff-filter=U` entries, no exact conflict markers, and a clean overlay whitespace check against `MERGE_HEAD`.
+4. Inspect newly introduced upstream call paths that can bypass cross-cutting fork behavior (security gates, cleanup/finally paths, provider loaders, concurrent executors, split modules).
+5. Re-run the actual targeted tests, security audits, and build/type gates independently. Implementation-session results are evidence to challenge, not evidence to accept.
+6. Confirm the live checkout and user configuration were not modified. Do not count skips as passes, and do not authorize a commit/install when required runtime behavior remains unverified.
+
+### Keep large verification bounded
+
+A single verifier should not simultaneously reconstruct a long fork ledger, inspect thousands of staged files, and rerun every expensive gate. That tends to exhaust turn budgets without producing a verdict.
+
+- Partition independent criteria into bounded verifier tracks, such as **behavior/intent preservation** and **executable release/security gates**.
+- Give each verifier a strict scope, explicit read-only constraints, and a required `VERDICT:` line.
+- The coordinator may synthesize the track verdicts only when every success criterion is covered. A timeout, max-turn exit, empty report, or process exit without a verdict is `UNVERIFIED`, never PASS.
+- Verify process state and read the actual report artifact; a wrapper saying “completed,”
+  returning `exit None`, or emitting no stdout is not evidence that the child agent finished
+  or rendered a verdict. Shell redirection may remain empty until the child exits.
+- If a CLI verifier outlives its wrapper, inspect the real PID state. Treat missing or zombie
+  (`Z`) children as finished, and do not use a `kill -0`-only watcher: it stays true for zombies
+  and can wait forever. Prefer a tracked background process or bounded structured output.
+- Run the repository’s canonical test isolation mode when one exists. If a direct monolithic invocation disagrees because of cross-file state leakage or host path limits, report both results and treat the canonical runner as authoritative only after confirming its own exit code and isolation contract.
+
+## Hard rules
+- **Evidence, not narrative.** "Looks correct" / "should pass" is not verification.
+  A passing gate is a command with `exit 0` on screen.
+- **No scope expansion.** Verify the spec as written; flag missing-but-expected items
+  as gaps, don't silently add or fix them.
+- **Don't trust the implementer's report.** Re-run / re-check independently.
+- **Skips are not passes.** A gate that SKIPPED (tool absent) leaves that criterion
+  UNVERIFIED — say so; do not count it as met.
+
+## Anti-patterns
+- Re-reading the diff and declaring it fine (that's review, not verification).
+- Accepting "tests pass" without running them this session.
+- Marking a criterion met because related criteria are met.
+- Treating a green `fast` run as covering the `pr`-only gates (axe/Lighthouse/E2E).
+
+## When NOT to use (non-trigger)
+- Verifying your own implementation — this skill is a SEPARATE agent from the
+  implementer by design; the implementer does not verify its own work.
+- There is no spec / success-criteria list to check the build against — get one
+  first, don't improvise criteria.
+
+## Authority / scope boundary
+- Verifies the spec as written; flags missing-but-expected items as gaps instead of
+  silently adding or fixing them (no scope expansion).
+- Never trusts the implementer's report — re-runs/re-checks everything independently
+  this session, and never counts a SKIPPED gate as a pass.
+
+## Completion criterion (stop condition)
+- Done when every criterion in the verdict table has PASS/FAIL/AMBIGUOUS with
+  captured evidence, and the overall `VERDICT: PASS` is returned only if every
+  criterion is PASS; otherwise `VERDICT: FAIL` with the specific gaps and the
+  single highest-priority fix.
+
+## Verification
+Run: re-read the rendered verdict table row by row before returning the verdict.
+Expected: every criterion row carries PASS/FAIL/AMBIGUOUS plus its captured
+evidence (command output line, computed-style value, or screenshot ref — not
+narrative claims), and exactly one `VERDICT:` line follows — `PASS` only when
+every row is PASS.
+212:# Task Group: Fable 5 prompt-rewriting, One-Box, and merge-safe Mishmash planning
+214:scope: rewrite user-provided text into execution-ready Fable 5 prompts for reconstruction, One-Box, research, and merge-safe Mishmash planning; preserve prompt-only boundaries and distinguish supplied policy/context from verified project state
+217:## Task 1: Rewrite graph-based website reconstruction and One-Box workflow
+225:- Fable 5, prompt rewriting, ROLE, OBJECTIVE, DELIVERABLES, CONSTRAINTS, OUTPUT FORMAT, One-Box, View mode, Edit mode, Crawl4AI, Firecrawl, GSAP, Tailwind v4, design tokens
+280:- One-Box prompts specify direct text/button editing, View/Edit modes, a collapsible workbench rail, upload/research intake, Website/Web app/iOS targets, Tailwind v4 semantic CSS variables/design tokens, and direct visual/function verification. Use Crawl4AI first; Firecrawl only after failure, bot challenge, unsupported capability, or approved paid fallback, recording provider/failure/URL/timestamp/confidence. GSAP uses a validated serialized motion model, reduced-motion support, and cleanup; never arbitrary JavaScript execution. [Task 1]
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "pwd; if [ -d .codegraph ]; then echo CODEGRAPH_PRESENT; else echo NO_CODEGRAPH; fi; rg --files -g '"'!node_modules'"' -g '"'!.next'"' | sed -n '1,240p'; git status --short --branch" in /Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+ succeeded in 0ms:
+/Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+NO_CODEGRAPH
+site.css
+index.html
+tokens.css
+theme.css
+img/fiber.jpg
+img/office.jpg
+img/itroom.jpg
+img/copper.jpg
+img/rack.jpg
+img/ATTRIBUTION.md
+img/hero.jpg
+## spike/refero-baseline
+ M ../../../scripts/audit/outside-grade.mjs
+?? ../audit/
+?? ../../wits-variants/
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc 'wc -l index.html site.css tokens.css theme.css; nl -ba index.html; nl -ba site.css; nl -ba tokens.css; nl -ba theme.css; nl -ba img/ATTRIBUTION.md' in /Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+ succeeded in 0ms:
+     446 index.html
+     777 site.css
+     113 tokens.css
+      89 theme.css
+    1425 total
+     1	<!doctype html>
+     2	<html lang="en">
+     3	<head>
+     4	<meta charset="utf-8">
+     5	<meta name="viewport" content="width=device-width, initial-scale=1">
+     6	<title>WITS — Structured Cabling &amp; Technology Infrastructure | Orlando, FL</title>
+     7	<meta name="description" content="Wiggins Information Technology Services installs structured cabling, fiber, and IT rooms for commercial buildings in the Orlando area. 30 years in the field. Call for an estimate.">
+     8	<link rel="stylesheet" href="tokens.css">
+     9	<link rel="stylesheet" href="site.css">
+    10	<!--
+    11	  PLACEHOLDERS — replace before launch. See CLAIMS.md for the full register.
+    12	    Phone   (407) 555-0142        — 555-01XX is the reserved fiction range
+    13	    Email   …@witscabling.example — .example is a reserved TLD
+    14	    Photos  Unsplash stock, img/ATTRIBUTION.md — NOT WITS's own work.
+    15	            Present to show layout only. Must not ship.
+    16	  Every claim on this page that is not in BRIEF.md is listed in CLAIMS.md.
+    17	-->
+    18	</head>
+    19	<body>
+    20	
+    21	<header class="masthead">
+    22	  <div class="shell masthead__inner">
+    23	    <a class="wordmark" href="#top">
+    24	      <span class="wordmark__mark">WITS</span>
+    25	      <span class="wordmark__expand">Wiggins Information Technology Services</span>
+    26	    </a>
+    27	    <nav class="masthead__nav" aria-label="Primary">
+    28	      <a href="#scope">Scope</a>
+    29	      <a href="#audience">Who for</a>
+    30	      <a href="#receive">What you get</a>
+    31	      <a href="#process">Process</a>
+    32	      <a href="#faq">FAQ</a>
+    33	    </nav>
+    34	    <a class="masthead__call" href="tel:+14075550142">(407) 555-0142</a>
+    35	  </div>
+    36	</header>
+    37	
+    38	<main id="top">
+    39	
+    40	  <!-- Hero · [F] split: proposition left, structured visual right -->
+    41	  <section class="shell hero">
+    42	    <div class="hero__grid">
+    43	      <div class="hero__copy">
+    44	        <p class="label">Structured cabling &middot; Orlando, Florida</p>
+    45	        <h1>Your building&rsquo;s cabling should be the last thing you worry about.</h1>
+    46	        <p class="lede">
+    47	          WITS designs and installs structured cabling, fiber, and IT rooms for
+    48	          commercial buildings around Orlando. Thirty years in the field, fifteen
+    49	          running this business, and every run labeled and documented so the next
+    50	          person to open the closet can read it.
+    51	        </p>
+    52	        <div class="hero__actions">
+    53	          <a class="btn btn--primary" href="tel:+14075550142">Call for an estimate</a>
+    54	          <a class="btn btn--ghost" href="mailto:estimates@witscabling.example">Email us</a>
+    55	        </div>
+    56	        <p class="hero__aside">Commercial &middot; Offices &middot; New construction</p>
+    57	      </div>
+    58	
+    59	      <div class="hero__visual">
+    60	        <figure class="shot shot--hero">
+    61	          <img src="img/hero.jpg" width="1400" height="1050" alt="A fiber tester connected to a network switch during commissioning." loading="eager">
+    62	        </figure>
+    63	        <!-- Spec panel · [F] Data Display Console, [O] 0px radius.
+    64	             Carries the procurement facts a buyer screens on, not a repeat of
+    65	             the hero copy. -->
+    66	        <aside class="spec" aria-label="Company record">
+    67	          <div class="spec__bar">
+    68	            <span>Company record</span>
+    69	            <span class="spec__signal">Orlando &middot; FL</span>
+    70	          </div>
+    71	          <div class="spec__row"><span class="spec__key">In business</span><span class="spec__val">15 years</span></div>
+    72	          <div class="spec__row"><span class="spec__key">In the field</span><span class="spec__val">30 years</span></div>
+    73	          <div class="spec__row"><span class="spec__key">Sector</span><span class="spec__val">Commercial &mdash; offices, suites, new construction</span></div>
+    74	          <div class="spec__row"><span class="spec__key">Coverage</span><span class="spec__val">Orlando &middot; Florida &middot; Colorado</span></div>
+    75	          <div class="spec__row"><span class="spec__key">Estimates</span><span class="spec__val">By phone, then a site walk</span></div>
+    76	        </aside>
+    77	      </div>
+    78	    </div>
+    79	  </section>
+    80	
+    81	  <!-- Scope · three priorities at weight, the rest as a dense index -->
+    82	  <section class="shell band band--tight" id="scope">
+    83	    <div class="band__head">
+    84	      <p class="label">Scope of work</p>
+    85	      <h2>Three things we lead with.</h2>
+    86	      <p class="lede">
+    87	        These are the jobs WITS is built around. The rest of the list is part of
+    88	        the same work &mdash; it just isn&rsquo;t what you should call us first
+    89	        for.
+    90	      </p>
+    91	    </div>
+    92	
+    93	    <div class="scope__primary">
+    94	      <article class="scope__item">
+    95	        <p class="scope__index">01</p>
+    96	        <h3>Network structured cabling</h3>
+    97	        <p>
+    98	          Copper backbone and horizontal runs for offices, suites, and full
+    99	          floors. Every drop labeled at both ends and recorded on a plan you
+   100	          keep.
+   101	        </p>
+   102	      </article>
+   103	      <article class="scope__item">
+   104	        <p class="scope__index">02</p>
+   105	        <h3>Fiber optic cabling</h3>
+   106	        <p>
+   107	          Single-mode and multimode between closets, floors, and buildings.
+   108	          Terminated, tested, and handed over together with the results.
+   109	        </p>
+   110	      </article>
+   111	      <article class="scope__item">
+   112	        <p class="scope__index">03</p>
+   113	        <h3>IT room design</h3>
+   114	        <p>
+   115	          Racks, pathways, grounding, and cable management laid out before
+   116	          anything gets pulled &mdash; so the room is still workable in five
+   117	          years.
+   118	        </p>
+   119	      </article>
+   120	    </div>
+   121	
+   122	    <div class="scope__also">
+   123	      <p class="label">Also installed</p>
+   124	      <ul class="scope__list">
+   125	        <li>Data network cabling</li>
+   126	        <li>Access point installation</li>
+   127	        <li>Camera systems</li>
+   128	        <li>Audio / visual cabling</li>
+   129	        <li>Troubleshooting</li>
+   130	      </ul>
+   131	    </div>
+   132	  </section>
+   133	
+   134	  <!-- Who this is for · the brief names the buyer situations; they were
+   135	       missing from the first build. -->
+   136	  <section class="shell band band--tight" id="audience">
+   137	    <div class="band__head">
+   138	      <p class="label">Who this is for</p>
+   139	      <h2>Four ways people call us.</h2>
+   140	    </div>
+   141	    <div class="audience">
+   142	      <article class="audience__item">
+   143	        <h3>New construction</h3>
+   144	        <p>Cabling designed into the build and coordinated with the general contractor&rsquo;s schedule, rather than squeezed in at the end.</p>
+   145	      </article>
+   146	      <article class="audience__item">
+   147	        <h3>Office fit-outs and moves</h3>
+   148	        <p>New suites, floor changes, and relocations &mdash; including work in buildings that stay occupied while it happens.</p>
+   149	      </article>
+   150	      <article class="audience__item">
+   151	        <h3>Cabling upgrades</h3>
+   152	        <p>Older plant brought up to what the network actually needs now, without tearing out what still works.</p>
+   153	      </article>
+   154	      <article class="audience__item">
+   155	        <h3>Something is down</h3>
+   156	        <p>Faults traced, bad runs re-terminated, and undocumented installs mapped so the next person is not guessing.</p>
+   157	      </article>
+   158	    </div>
+   159	  </section>
+   160	
+   161	  <!-- Accent band · [O] full-bleed hard divider.
+   162	       Now carries the mechanism behind the differentiators. The first build put
+   163	       four unsupported adjectives on the loudest device on the page. -->
+   164	  <section class="creed">
+   165	    <div class="shell creed__grid">
+   166	      <div>
+   167	        <p class="label label--on-accent">The difference</p>
+   168	        <p class="creed__statement">
+   169	          You should be able to open the closet in five years and still know what
+   170	          every cable does.
+   171	        </p>
+   172	      </div>
+   173	      <div>
+   174	        <hr class="creed__rule">
+   175	        <p class="creed__note">
+   176	          Quality workmanship, attention to detail and reliability are what every
+   177	          contractor says. What they mean here is labeling at both ends, test
+   178	          results you are handed, and a record of the plant that outlives whoever
+   179	          installed it.
+   180	        </p>
+   181	      </div>
+   182	    </div>
+   183	  </section>
+   184	
+   185	  <!-- What you receive · the mechanisms behind the adjectives -->
+   186	  <section class="shell band band--tight" id="receive">
+   187	    <div class="band__head">
+   188	      <p class="label">What you receive</p>
+   189	      <h2>What lands on your desk at handover.</h2>
+   190	    </div>
+   191	    <div class="receive">
+   192	      <div class="receive__list">
+   193	        <div class="receive__row"><span class="receive__n">01</span><div><h3>Labeled plant</h3><p>Every run identified at both ends, matching the record.</p></div></div>
+   194	        <div class="receive__row"><span class="receive__n">02</span><div><h3>Test results</h3><p>Certification results for the runs installed, handed over with the job.</p></div></div>
+   195	        <div class="receive__row"><span class="receive__n">03</span><div><h3>An as-built record</h3><p>A plan of what was installed and where it terminates, that you keep.</p></div></div>
+   196	        <div class="receive__row"><span class="receive__n">04</span><div><h3>One person to call</h3><p>The same contact through quoting, install and anything after.</p></div></div>
+   197	      </div>
+   198	      <figure class="shot">
+   199	        <img src="img/fiber.jpg" width="1400" height="937" alt="A fiber patch panel with terminated and labelled cassettes." loading="lazy">
+   200	        <figcaption class="shot__cap">Fiber termination at the panel</figcaption>
+   201	      </figure>
+   202	    </div>
+   203	  </section>
+   204	
+   205	  <!-- Before we start · commercial qualification. Priority-1 gap identified by
+   206	       the audit; every line here needs WITS sign-off (CLAIMS.md). -->
+   207	  <section class="shell band band--tight" id="quals">
+   208	    <div class="band__head">
+   209	      <p class="label">Before we start</p>
+   210	      <h2>Working with GCs and property managers.</h2>
+   211	      <p class="lede">
+   212	        Commercial jobs have paperwork before they have cable. These are the
+   213	        things a general contractor or building manager usually asks for, and
+   214	        they get sorted before anyone is on site.
+   215	      </p>
+   216	    </div>
+   217	    <ul class="quals">
+   218	      <li><span class="label">Insurance</span><p>Certificate of insurance issued to the general contractor or building owner on request.</p></li>
+   219	      <li><span class="label">Licensing</span><p>Florida low-voltage licensing details supplied with the estimate.</p></li>
+   220	      <li><span class="label">Site rules</span><p>Badging, induction, working hours and building access agreed before mobilisation.</p></li>
+   221	      <li><span class="label">Scope sign-off</span><p>Written scope agreed in advance, so variations are visible rather than argued about later.</p></li>
+   222	    </ul>
+   223	  </section>
+   224	
+   225	  <!-- Process -->
+   226	  <section class="shell band band--tight" id="process">
+   227	    <div class="band__head">
+   228	      <p class="label">What to expect</p>
+   229	      <h2>How a project runs.</h2>
+   230	    </div>
+   231	    <div class="steps">
+   232	      <article class="step">
+   233	        <p class="step__n">01</p>
+   234	        <h3>Call</h3>
+   235	        <p>Tell us the site, the scope, and the timeline you&rsquo;re working to.</p>
+   236	      </article>
+   237	      <article class="step">
+   238	        <p class="step__n">02</p>
+   239	        <h3>Walkthrough</h3>
+   240	        <p>We look at the space, the pathways, and what is already in the walls before quoting anything.</p>
+   241	      </article>
+   242	      <article class="step">
+   243	        <p class="step__n">03</p>
+   244	        <h3>Written estimate</h3>
+   245	        <p>Scope, materials, and schedule in writing, so you can hold it against anything else on your desk.</p>
+   246	      </article>
+   247	      <article class="step">
+   248	        <p class="step__n">04</p>
+   249	        <h3>Install and handover</h3>
+   250	        <p>Installed, tested, labeled, documented. You get the records, not just the cable.</p>
+   251	      </article>
+   252	    </div>
+   253	  </section>
+   254	
+   255	  <!-- The work · environment and trade, NOT claimed as WITS projects. Case
+   256	       studies arrive when WITS has photographed its own jobs. -->
+   257	  <section class="shell band band--tight" id="work">
+   258	    <div class="band__head">
+   259	      <p class="label">The work</p>
+   260	      <h2>What this looks like on site.</h2>
+   261	    </div>
+   262	    <div class="gallery">
+   263	      <figure class="shot">
+   264	        <img src="img/copper.jpg" width="1400" height="933" alt="Copper patch cables dressed into a panel." loading="lazy">
+   265	        <figcaption class="shot__cap">Copper patching, dressed and identified</figcaption>
+   266	      </figure>
+   267	      <figure class="shot">
+   268	        <img src="img/itroom.jpg" width="1400" height="933" alt="An equipment room aisle with racks either side." loading="lazy">
+   269	        <figcaption class="shot__cap">IT room, laid out before anything is pulled</figcaption>
+   270	      </figure>
+   271	      <figure class="shot">
+   272	        <img src="img/office.jpg" width="1400" height="933" alt="A commercial office interior with meeting room and glazing." loading="lazy">
+   273	        <figcaption class="shot__cap">The environment it all disappears into</figcaption>
+   274	      </figure>
+   275	    </div>
+   276	  </section>
+   277	
+   278	  <!-- Who you're dealing with · "personal service" is a stated differentiator
+   279	       and the first build had no person on the page at all. -->
+   280	  <section class="shell band band--tight" id="about">
+   281	    <div class="about">
+   282	      <figure class="shot shot--portrait">
+   283	        <img src="img/rack.jpg" width="1400" height="2100" alt="Rack detail with dressed cabling." loading="lazy">
+   284	      </figure>
+   285	      <div>
+   286	        <p class="label">Who you&rsquo;re dealing with</p>
+   287	        <h2>Thirty years of this, fifteen of it here.</h2>
+   288	        <p class="lede">
+   289	          WITS is small on purpose. The person who walks your site is the person
+   290	          who quotes it and the person you call when something needs looking at
+   291	          again. That is what &ldquo;personal service&rdquo; is supposed to mean,
+   292	          and it is the reason the work gets documented the way it does &mdash;
+   293	          because we are the ones who come back to it.
+   294	        </p>
+   295	        <p class="lede">
+   296	          Fifteen years running this business in Florida and Colorado, thirty
+   297	          years in the trade before and through it.
+   298	        </p>
+   299	      </div>
+   300	    </div>
+   301	  </section>
+   302	
+   303	  <!-- Coverage -->
+   304	  <section class="shell band band--tight" id="coverage">
+   305	    <div class="band__head">
+   306	      <p class="label">Coverage</p>
+   307	      <h2>Where we work.</h2>
+   308	    </div>
+   309	    <div class="coverage__grid">
+   310	      <div class="coverage__card">
+   311	        <p class="label">Service area</p>
+   312	        <p class="coverage__primary">Orlando, Florida</p>
+   313	        <ul class="coverage__regions">
+   314	          <li><span>Orlando metro</span><span>Primary</span></li>
+   315	          <li><span>Florida</span><span>Statewide</span></li>
+   316	          <li><span>Colorado</span><span>Served</span></li>
+   317	        </ul>
+   318	      </div>
+   319	      <div class="coverage__card">
+   320	        <p class="label">Who we work with</p>
+   321	        <p class="coverage__primary">Commercial buildings.</p>
+   322	        <ul class="coverage__regions">
+   323	          <li><span>Commercial businesses</span><span>&mdash;</span></li>
+   324	          <li><span>Offices and suites</span><span>&mdash;</span></li>
+   325	          <li><span>New construction</span><span>&mdash;</span></li>
+   326	        </ul>
+   327	      </div>
+   328	    </div>
+   329	  </section>
+   330	
+   331	  <!-- FAQ · expanded past the brief's three to the questions commercial buyers
+   332	       actually screen on. -->
+   333	  <section class="shell band band--tight" id="faq">
+   334	    <div class="band__head">
+   335	      <p class="label">Questions</p>
+   336	      <h2>Asked often.</h2>
+   337	    </div>
+   338	    <div class="faq">
+   339	      <details open>
+   340	        <summary>What does WITS install?</summary>
+   341	        <p>
+   342	          Network structured cabling, fiber optic cabling, and IT room design are
+   343	          the core of it. We also handle data network cabling, access point
+   344	          installation, camera systems, audio/visual cabling, and
+   345	          troubleshooting. If it carries a signal through a commercial building,
+   346	          it is probably on the list &mdash; call and ask.
+   347	        </p>
+   348	      </details>
+   349	      <details>
+   350	        <summary>How long does a project take?</summary>
+   351	        <p>
+   352	          It depends on the size of the site and how much access we get. A single
+   353	          suite is a different job from a floor in an occupied building or a new
+   354	          build still on the schedule. You get a schedule in writing with the
+   355	          estimate, before any work starts, rather than a guess on the phone.
+   356	        </p>
+   357	      </details>
+   358	      <details>
+   359	        <summary>Can you troubleshoot cabling someone else installed?</summary>
+   360	        <p>
+   361	          Yes. Tracing faults, re-terminating bad runs, and making sense of an
+   362	          undocumented install is regular work here. Thirty years in the field
+   363	          mostly means having already seen it.
+   364	        </p>
+   365	      </details>
+   366	      <details>
+   367	        <summary>Can you work in an occupied building?</summary>
+   368	        <p>
+   369	          Yes. Occupied floors, live suites and tenanted buildings are normal
+   370	          commercial work. Access windows, noise and after-hours requirements get
+   371	          agreed before we mobilise, not discovered on day one.
+   372	        </p>
+   373	      </details>
+   374	      <details>
+   375	        <summary>Is there a minimum job size?</summary>
+   376	        <p>
+   377	          No fixed minimum. Small jobs and single-drop calls are worth the phone
+   378	          call &mdash; we would rather tell you it is a twenty-minute fix than
+   379	          have you wait on a quote for it.
+   380	        </p>
+   381	      </details>
+   382	      <details>
+   383	        <summary>Do we get test results and a record of what was installed?</summary>
+   384	        <p>
+   385	          Yes. Certification results for the runs installed and a record of the
+   386	          plant are part of handover, not an extra. If a previous installer left
+   387	          you without either, that is something we can put right on its own.
+   388	        </p>
+   389	      </details>
+   390	      <details>
+   391	        <summary>Are you insured and licensed?</summary>
+   392	        <p>
+   393	          Yes. A certificate of insurance can be issued to the general contractor
+   394	          or building owner on request, and licensing details are supplied with
+   395	          the estimate.
+   396	        </p>
+   397	      </details>
+   398	      <details>
+   399	        <summary>Do you travel outside Orlando?</summary>
+   400	        <p>
+   401	          Orlando and Central Florida are the main service area. Work elsewhere in
+   402	          Florida and in Colorado is normal &mdash; ask, and we will tell you
+   403	          straight whether it makes sense for your job.
+   404	        </p>
+   405	      </details>
+   406	    </div>
+   407	  </section>
+   408	
+   409	  <!-- Contact · [N] the single dark band -->
+   410	  <section class="contact" id="contact">
+   411	    <div class="shell contact__grid">
+   412	      <div>
+   413	        <h2>Call for an estimate.</h2>
+   414	        <p class="contact__lede">
+   415	          Tell us what the building needs. We walk the site, then put the scope,
+   416	          the schedule, and the price in writing.
+   417	        </p>
+   418	        <div class="contact__actions">
+   419	          <a class="btn btn--on-dark" href="tel:+14075550142">Call (407) 555-0142</a>
+   420	        </div>
+   421	      </div>
+   422	      <div class="contact__lines">
+   423	        <div class="contact__line">
+   424	          <p class="label">Phone</p>
+   425	          <a class="contact__value" href="tel:+14075550142">(407) 555-0142</a>
+   426	        </div>
+   427	        <div class="contact__line">
+   428	          <p class="label">Email</p>
+   429	          <a class="contact__value" href="mailto:estimates@witscabling.example">estimates@witscabling.example</a>
+   430	        </div>
+   431	      </div>
+   432	    </div>
+   433	  </section>
+   434	
+   435	</main>
+   436	
+   437	<footer class="footer">
+   438	  <div class="shell footer__inner">
+   439	    <span>Wiggins Information Technology Services</span>
+   440	    <span>Structured cabling &middot; Orlando, FL</span>
+   441	    <span>Florida &middot; Colorado</span>
+   442	  </div>
+   443	</footer>
+   444	
+   445	</body>
+   446	</html>
+     1	/**
+     2	 * WITS — composition
+     3	 *
+     4	 * Colour, type and shape come from tokens.css — no raw colour, no raw font.
+     5	 *
+     6	 * Composition scalars (hairlines, optical sizes, measures, breakpoints, the
+     7	 * 44px touch target) are NOT from Refero. Refero supplies a vocabulary, not a
+     8	 * layout. Those values are this build's own decisions and are marked where
+     9	 * they are not obvious. Layout rules: DESIGN.md §4–§9.
+    10	 */
+    11	
+    12	*,
+    13	*::before,
+    14	*::after { box-sizing: border-box; }
+    15	
+    16	html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    17	
+    18	body {
+    19	  margin: 0;
+    20	  background: var(--surface-0);
+    21	  color: var(--color-ink);
+    22	  font-family: var(--font-sans);
+    23	  font-size: var(--text-body-lg);
+    24	  line-height: var(--text-body-lg-lh);
+    25	  font-weight: var(--weight-regular);
+    26	}
+    27	
+    28	/* ---- Primitives -------------------------------------------------------- */
+    29	
+    30	.shell {
+    31	  max-inline-size: var(--page-max);           /* [F] 1232px */
+    32	  margin-inline: auto;
+    33	  padding-inline: var(--page-gutter);
+    34	}
+    35	
+    36	/* [O] mono annotation label — the technical register of the whole page */
+    37	.label {
+    38	  font-family: var(--font-mono);
+    39	  font-size: var(--text-label);
+    40	  line-height: var(--text-label-lh);
+    41	  letter-spacing: var(--text-label-ls);
+    42	  text-transform: uppercase;
+    43	  color: var(--color-ink-secondary);
+    44	  margin: 0;
+    45	}
+    46	
+    47	.label--on-accent { color: color-mix(in srgb, var(--color-ink) 72%, transparent); }
+    48	
+    49	h1, h2, h3 { margin: 0; font-weight: var(--weight-strong); }
+    50	
+    51	h1 {
+    52	  font-size: var(--text-display);
+    53	  line-height: var(--text-display-lh);
+    54	  letter-spacing: var(--text-display-ls);
+    55	  text-wrap: balance;
+    56	}
+    57	
+    58	h2 {
+    59	  font-size: var(--text-heading);
+    60	  line-height: var(--text-heading-lh);
+    61	  text-wrap: balance;
+    62	}
+    63	
+    64	h3 {
+    65	  font-size: var(--text-body-lg);
+    66	  line-height: var(--text-body-lg-lh);
+    67	}
+    68	
+    69	p { margin: 0; }
+    70	
+    71	.lede {
+    72	  font-size: var(--text-body-lg);
+    73	  line-height: var(--text-body-lg-lh);
+    74	  color: var(--color-ink-secondary);
+    75	  max-inline-size: 54ch;
+    76	  text-wrap: pretty;
+    77	}
+    78	
+    79	/* ---- Actions ----------------------------------------------------------- */
+    80	
+    81	/* [F] Primary Action Button. Text colour is a documented accessibility
+    82	 * override: [F] specifies white on Accent Orange, which measures 3.32:1 and
+    83	 * fails WCAG AA for normal text. Ink on accent measures 5.55:1 and passes.
+    84	 * [A]'s own primary button uses dark text on its accent, so the override has
+    85	 * precedent inside the reference set. */
+    86	.btn {
+    87	  display: inline-flex;
+    88	  align-items: center;
+    89	  justify-content: center;
+    90	  gap: var(--space-xs);
+    91	  min-block-size: 44px;
+    92	  padding: 8px var(--space-md);
+    93	  border-radius: var(--radius-button);
+    94	  font-family: var(--font-sans);
+    95	  font-size: var(--text-body-lg);
+    96	  font-weight: var(--weight-strong);
+    97	  text-decoration: none;
+    98	  cursor: pointer;
+    99	  transition: background-color var(--motion-fast) var(--motion-ease),
+   100	              color var(--motion-fast) var(--motion-ease),
+   101	              border-color var(--motion-fast) var(--motion-ease);
+   102	}
+   103	
+   104	.btn--primary {
+   105	  background: var(--color-accent);
+   106	  border: 1px solid var(--color-accent-edge);
+   107	  color: var(--color-ink);
+   108	  box-shadow: var(--shadow-interactive);
+   109	}
+   110	
+   111	.btn--primary:hover { background: var(--color-accent-edge); color: var(--surface-1); }
+   112	
+   113	/* [F] Secondary Ghost Button */
+   114	.btn--ghost {
+   115	  background: transparent;
+   116	  border: 1px solid var(--color-ink-secondary);
+   117	  color: var(--color-ink-secondary);
+   118	}
+   119	
+   120	.btn--ghost:hover { border-color: var(--color-ink); color: var(--color-ink); }
+   121	
+   122	.btn--on-dark {
+   123	  background: var(--color-accent);
+   124	  border: 1px solid var(--color-accent-edge);
+   125	  color: var(--color-ink);
+   126	}
+   127	
+   128	.btn--on-dark:hover { background: var(--surface-1); border-color: var(--surface-1); }
+   129	
+   130	:where(a, button, summary):focus-visible {
+   131	  outline: 2px solid var(--color-accent);
+   132	  outline-offset: 3px;
+   133	}
+   134	
+   135	/* ---- Masthead · [O] mono nav, [F] sticky ------------------------------- */
+   136	
+   137	.masthead {
+   138	  position: sticky;
+   139	  inset-block-start: 0;
+   140	  z-index: 10;
+   141	  background: color-mix(in srgb, var(--surface-0) 92%, transparent);
+   142	  backdrop-filter: blur(8px);
+   143	  border-block-end: var(--border-hairline);
+   144	}
+   145	
+   146	.masthead__inner {
+   147	  display: flex;
+   148	  align-items: center;
+   149	  gap: var(--space-lg);
+   150	  min-block-size: 64px;
+   151	}
+   152	
+   153	.wordmark {
+   154	  display: flex;
+   155	  flex-direction: column;
+   156	  gap: 1px;
+   157	  text-decoration: none;
+   158	  color: var(--color-ink);
+   159	  /* Does not grow. Fixing the header defect where the logo took all the
+   160	   * free space and pushed the nav off the end. */
+   161	  flex: 0 0 auto;
+   162	}
+   163	
+   164	.wordmark__mark {
+   165	  font-family: var(--font-mono);
+   166	  font-size: var(--text-body-lg);
+   167	  font-weight: var(--weight-strong);
+   168	  letter-spacing: 0.02em;
+   169	}
+   170	
+   171	.wordmark__expand {
+   172	  font-family: var(--font-mono);
+   173	  font-size: var(--text-caption);
+   174	  line-height: var(--text-caption-lh);
+   175	  letter-spacing: 0.06em;
+   176	  text-transform: uppercase;
+   177	  color: var(--color-ink-secondary);
+   178	}
+   179	
+   180	.masthead__nav {
+   181	  display: flex;
+   182	  gap: var(--space-lg);
+   183	  margin-inline-start: auto;
+   184	}
+   185	
+   186	.masthead__nav a {
+   187	  font-family: var(--font-mono);
+   188	  font-size: var(--text-label);
+   189	  letter-spacing: var(--text-label-ls);
+   190	  text-transform: uppercase;
+   191	  color: var(--color-ink-secondary);
+   192	  text-decoration: none;
+   193	  transition: color var(--motion-fast) var(--motion-ease);
+   194	}
+   195	
+   196	.masthead__nav a:hover { color: var(--color-accent-edge); }
+   197	
+   198	.masthead__call {
+   199	  flex: 0 0 auto;
+   200	  font-family: var(--font-mono);
+   201	  font-size: var(--text-body);
+   202	  font-weight: var(--weight-strong);
+   203	  color: var(--color-ink);
+   204	  text-decoration: none;
+   205	  padding: var(--space-xs) var(--space-sm);
+   206	  border: var(--border-strong);
+   207	  border-radius: var(--radius-button);
+   208	  white-space: nowrap;
+   209	  transition: background-color var(--motion-fast) var(--motion-ease),
+   210	              color var(--motion-fast) var(--motion-ease);
+   211	}
+   212	
+   213	.masthead__call:hover { background: var(--color-ink); color: var(--surface-1); }
+   214	
+   215	/* ---- Bands ------------------------------------------------------------- */
+   216	
+   217	.band { padding-block: var(--space-band); }        /* 2 × [F] sectionGap */
+   218	.band--sunk { background: var(--surface-2); }
+   219	.band--tight { padding-block: var(--space-section); }
+   220	
+   221	.band__head {
+   222	  display: flex;
+   223	  flex-direction: column;
+   224	  gap: var(--space-sm);
+   225	  margin-block-end: var(--space-2xl);
+   226	  max-inline-size: 62ch;
+   227	}
+   228	
+   229	/* ---- Hero · [F] split, proposition left, structured visual right -------- */
+   230	
+   231	.hero { padding-block: var(--space-band) var(--space-band); }
+   232	
+   233	.hero__grid {
+   234	  display: grid;
+   235	  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+   236	  gap: var(--space-2xl);
+   237	  align-items: center;
+   238	}
+   239	
+   240	.hero__copy { display: flex; flex-direction: column; gap: var(--space-lg); }
+   241	
+   242	.hero__actions {
+   243	  display: flex;
+   244	  flex-wrap: wrap;
+   245	  gap: var(--space-sm);
+   246	  margin-block-start: var(--space-xs);
+   247	}
+   248	
+   249	.hero__aside {
+   250	  font-family: var(--font-mono);
+   251	  font-size: var(--text-label);
+   252	  letter-spacing: var(--text-label-ls);
+   253	  color: var(--color-ink-secondary);
+   254	  text-transform: uppercase;
+   255	}
+   256	
+   257	/* ---- Spec panel · [F] Data Display Console, [O] 0px radius -------------- */
+   258	
+   259	.spec {
+   260	  background: var(--surface-inverted);
+   261	  border-radius: var(--radius-data);
+   262	  padding: var(--space-lg);
+   263	  font-family: var(--font-mono);
+   264	  font-size: var(--text-body);
+   265	  line-height: 1.5;
+   266	}
+   267	
+   268	.spec__bar {
+   269	  display: flex;
+   270	  align-items: center;
+   271	  justify-content: space-between;
+   272	  gap: var(--space-sm);
+   273	  padding-block-end: var(--space-sm);
+   274	  margin-block-end: var(--space-sm);
+   275	  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 30%, transparent);
+   276	  font-size: var(--text-label);
+   277	  letter-spacing: var(--text-label-ls);
+   278	  text-transform: uppercase;
+   279	  color: var(--color-console-ink);
+   280	}
+   281	
+   282	.spec__signal { color: var(--color-signal); }
+   283	
+   284	.spec__row {
+   285	  display: grid;
+   286	  grid-template-columns: 13ch minmax(0, 1fr);
+   287	  gap: var(--space-sm);
+   288	  padding-block: 7px;
+   289	  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 16%, transparent);
+   290	}
+   291	
+   292	.spec__row:last-of-type { border-block-end: 0; }
+   293	
+   294	.spec__key {
+   295	  color: var(--color-console-ink);
+   296	  font-size: var(--text-label);
+   297	  letter-spacing: var(--text-label-ls);
+   298	  text-transform: uppercase;
+   299	  padding-block-start: 2px;
+   300	}
+   301	
+   302	.spec__val { color: var(--surface-1); }
+   303	
+   304	/* ---- Scope · [F] grid, [O] mono index ---------------------------------- */
+   305	
+   306	.scope__primary {
+   307	  display: grid;
+   308	  grid-template-columns: repeat(3, minmax(0, 1fr));
+   309	  gap: var(--space-xl);
+   310	}
+   311	
+   312	.scope__item {
+   313	  display: flex;
+   314	  flex-direction: column;
+   315	  gap: var(--space-sm);
+   316	  padding-block-start: var(--space-md);
+   317	  border-block-start: 2px solid var(--color-ink);   /* [O] index rule, 0 radius */
+   318	}
+   319	
+   320	.scope__index {
+   321	  font-family: var(--font-mono);
+   322	  font-size: var(--text-label);
+   323	  letter-spacing: var(--text-label-ls);
+   324	  /* accent-edge, not accent: [F]'s Accent Orange on canvas measures 3.17:1 and
+   325	   * fails AA at this size. Accent Edge is 5.11:1 and is [F]'s own token. */
+   326	  color: var(--color-accent-edge);
+   327	}
+   328	
+   329	.scope__item h3 {
+   330	  font-size: var(--text-subheading);
+   331	  line-height: var(--text-subheading-lh);
+   332	  letter-spacing: var(--text-subheading-ls);
+   333	}
+   334	
+   335	.scope__item p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   336	
+   337	.scope__also {
+   338	  margin-block-start: var(--space-2xl);
+   339	  padding-block-start: var(--space-lg);
+   340	  border-block-start: var(--border-hairline);
+   341	  display: grid;
+   342	  grid-template-columns: 13ch minmax(0, 1fr);
+   343	  gap: var(--space-lg);
+   344	  align-items: start;
+   345	}
+   346	
+   347	.scope__list {
+   348	  list-style: none;
+   349	  margin: 0;
+   350	  padding: 0;
+   351	  display: grid;
+   352	  /* Five services, one row. auto-fit produced a 4+1 split that orphaned the
+   353	   * last item and left a ragged gap. */
+   354	  grid-template-columns: repeat(5, minmax(0, 1fr));
+   355	  gap: var(--space-xs) var(--space-lg);
+   356	}
+   357	
+   358	.scope__list li {
+   359	  font-family: var(--font-mono);
+   360	  font-size: var(--text-body);
+   361	  color: var(--color-ink-secondary);
+   362	  padding-block: 6px;
+   363	  border-block-end: var(--border-hairline);
+   364	}
+   365	
+   366	/* ---- Accent band · [O] full-bleed hard divider -------------------------- */
+   367	
+   368	.creed {
+   369	  background: var(--color-accent);
+   370	  color: var(--color-ink);
+   371	  padding-block: var(--space-band);
+   372	}
+   373	
+   374	.creed__statement {
+   375	  font-size: var(--text-heading);
+   376	  line-height: 1.25;
+   377	  font-weight: var(--weight-strong);
+   378	  letter-spacing: -0.4px;
+   379	  max-inline-size: 26ch;
+   380	  margin-block-start: var(--space-sm);
+   381	}
+   382	
+   383	.creed__grid {
+   384	  display: grid;
+   385	  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+   386	  gap: var(--space-2xl);
+   387	  align-items: end;
+   388	}
+   389	
+   390	.creed__note {
+   391	  font-size: var(--text-body-lg);
+   392	  line-height: 1.6;
+   393	  color: var(--color-ink);
+   394	  max-inline-size: 46ch;
+   395	}
+   396	
+   397	.creed__rule {
+   398	  border: 0;
+   399	  border-block-start: 1px solid color-mix(in srgb, var(--color-ink) 30%, transparent);
+   400	  margin-block: var(--space-lg);
+   401	}
+   402	
+   403	/* ---- Process ----------------------------------------------------------- */
+   404	
+   405	.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xl); }
+   406	
+   407	.step {
+   408	  display: flex;
+   409	  flex-direction: column;
+   410	  gap: var(--space-xs);
+   411	  padding-block-start: var(--space-sm);
+   412	  border-block-start: var(--border-hairline);
+   413	}
+   414	
+   415	.step__n {
+   416	  font-family: var(--font-mono);
+   417	  font-size: var(--text-label);
+   418	  letter-spacing: var(--text-label-ls);
+   419	  color: var(--color-accent-edge);
+   420	}
+   421	
+   422	.step h3 { font-weight: var(--weight-strong); }
+   423	.step p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   424	
+   425	/* ---- Coverage ---------------------------------------------------------- */
+   426	
+   427	.coverage__grid {
+   428	  display: grid;
+   429	  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+   430	  gap: var(--space-2xl);
+   431	  align-items: start;
+   432	}
+   433	
+   434	.coverage__card {
+   435	  background: var(--surface-1);
+   436	  border: var(--border-hairline);
+   437	  border-radius: var(--radius-card);       /* [F] soft — this is content */
+   438	  box-shadow: var(--shadow-card);
+   439	  padding: var(--space-xl);
+   440	  display: flex;
+   441	  flex-direction: column;
+   442	  gap: var(--space-sm);
+   443	}
+   444	
+   445	.coverage__primary {
+   446	  font-size: var(--text-subheading);
+   447	  line-height: var(--text-subheading-lh);
+   448	  letter-spacing: var(--text-subheading-ls);
+   449	  font-weight: var(--weight-strong);
+   450	}
+   451	
+   452	.coverage__regions {
+   453	  list-style: none;
+   454	  margin: 0;
+   455	  padding: 0;
+   456	  display: flex;
+   457	  flex-direction: column;
+   458	}
+   459	
+   460	.coverage__regions li {
+   461	  display: flex;
+   462	  justify-content: space-between;
+   463	  gap: var(--space-md);
+   464	  font-family: var(--font-mono);
+   465	  font-size: var(--text-body);
+   466	  padding-block: 10px;
+   467	  border-block-end: var(--border-hairline);
+   468	}
+   469	
+   470	.coverage__regions li:last-child { border-block-end: 0; }
+   471	.coverage__regions span:last-child { color: var(--color-ink-secondary); }
+   472	
+   473	/* ---- Photography plate · [A] art direction ----------------------------- */
+   474	
+   475	
+   476	/* ---- Photography · [A] candid, slightly desaturated, real work ---------- */
+   477	
+   478	.shot { margin: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+   479	
+   480	.shot img {
+   481	  display: block;
+   482	  inline-size: 100%;
+   483	  block-size: auto;
+   484	  border-radius: var(--radius-card);      /* [F] soft — this is content */
+   485	  /* [A]: "candid, slightly desaturated photography". Applied as a treatment
+   486	   * so every image on the site sits in one register regardless of source. */
+   487	  filter: saturate(0.88) contrast(1.03);
+   488	}
+   489	
+   490	.shot--hero img { aspect-ratio: 16 / 10; object-fit: cover; object-position: 50% 45%; }
+   491	.shot--portrait img { aspect-ratio: 3 / 4; object-fit: cover; block-size: 100%; }
+   492	
+   493	.shot__cap {
+   494	  font-family: var(--font-mono);
+   495	  font-size: var(--text-label);
+   496	  letter-spacing: var(--text-label-ls);
+   497	  text-transform: uppercase;
+   498	  color: var(--color-ink-secondary);
+   499	}
+   500	
+   501	.hero__visual { display: flex; flex-direction: column; gap: var(--space-md); }
+   502	
+   503	/* ---- Who this is for --------------------------------------------------- */
+   504	
+   505	.audience {
+   506	  display: grid;
+   507	  grid-template-columns: repeat(4, minmax(0, 1fr));
+   508	  gap: var(--space-xl);
+   509	}
+   510	
+   511	.audience__item {
+   512	  display: flex;
+   513	  flex-direction: column;
+   514	  gap: var(--space-xs);
+   515	  padding-block-start: var(--space-md);
+   516	  border-block-start: var(--border-hairline);
+   517	}
+   518	
+   519	.audience__item h3 { font-weight: var(--weight-strong); }
+   520	.audience__item p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   521	
+   522	/* ---- What you receive -------------------------------------------------- */
+   523	
+   524	.receive {
+   525	  display: grid;
+   526	  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+   527	  gap: var(--space-2xl);
+   528	  align-items: start;
+   529	}
+   530	
+   531	.receive__list { display: flex; flex-direction: column; }
+   532	
+   533	.receive__row {
+   534	  display: grid;
+   535	  grid-template-columns: 4ch minmax(0, 1fr);
+   536	  gap: var(--space-md);
+   537	  padding-block: var(--space-md);
+   538	  border-block-end: var(--border-hairline);
+   539	}
+   540	
+   541	.receive__row:first-child { border-block-start: var(--border-hairline); }
+   542	
+   543	.receive__n {
+   544	  font-family: var(--font-mono);
+   545	  font-size: var(--text-label);
+   546	  letter-spacing: var(--text-label-ls);
+   547	  color: var(--color-accent-edge);
+   548	  padding-block-start: 4px;
+   549	}
+   550	
+   551	.receive__row h3 { font-weight: var(--weight-strong); margin-block-end: var(--space-2xs); }
+   552	.receive__row p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   553	
+   554	/* ---- Before we start · commercial qualification ------------------------ */
+   555	
+   556	.quals {
+   557	  list-style: none;
+   558	  margin: 0;
+   559	  padding: 0;
+   560	  display: grid;
+   561	  grid-template-columns: repeat(4, minmax(0, 1fr));
+   562	  gap: var(--space-xl);
+   563	}
+   564	
+   565	.quals li {
+   566	  display: flex;
+   567	  flex-direction: column;
+   568	  gap: var(--space-xs);
+   569	  padding: var(--space-lg);
+   570	  background: var(--surface-1);
+   571	  border: var(--border-hairline);
+   572	  border-radius: var(--radius-card);
+   573	  box-shadow: var(--shadow-card);
+   574	}
+   575	
+   576	.quals p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   577	
+   578	/* ---- Gallery ----------------------------------------------------------- */
+   579	
+   580	.gallery {
+   581	  display: grid;
+   582	  grid-template-columns: repeat(3, minmax(0, 1fr));
+   583	  gap: var(--space-lg);
+   584	}
+   585	
+   586	.gallery .shot img { aspect-ratio: 4 / 3; object-fit: cover; }
+   587	
+   588	/* ---- About ------------------------------------------------------------- */
+   589	
+   590	.about {
+   591	  display: grid;
+   592	  grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.38fr);
+   593	  gap: var(--space-2xl);
+   594	  align-items: center;
+   595	}
+   596	
+   597	.about h2 { margin-block: var(--space-sm) var(--space-md); }
+   598	.about .lede + .lede { margin-block-start: var(--space-md); }
+   599	
+   600	/* ---- FAQ · [O] 0 radius, hairline rules -------------------------------- */
+   601	
+   602	.faq { border-block-start: var(--border-hairline); }
+   603	
+   604	.faq details {
+   605	  border-block-end: var(--border-hairline);
+   606	  border-radius: var(--radius-data);
+   607	}
+   608	
+   609	.faq summary {
+   610	  display: flex;
+   611	  align-items: center;
+   612	  justify-content: space-between;
+   613	  gap: var(--space-md);
+   614	  padding-block: var(--space-lg);
+   615	  cursor: pointer;
+   616	  list-style: none;
+   617	  font-size: var(--text-body-lg);
+   618	  font-weight: var(--weight-strong);
+   619	  transition: color var(--motion-fast) var(--motion-ease);
+   620	}
+   621	
+   622	.faq summary::-webkit-details-marker { display: none; }
+   623	.faq summary:hover { color: var(--color-accent-edge); }
+   624	
+   625	.faq summary::after {
+   626	  content: "+";
+   627	  font-family: var(--font-mono);
+   628	  font-size: var(--text-body-lg);
+   629	  color: var(--color-accent-edge);
+   630	  flex: 0 0 auto;
+   631	}
+   632	
+   633	.faq details[open] summary::after { content: "\2212"; }
+   634	
+   635	.faq p {
+   636	  padding-block-end: var(--space-lg);
+   637	  font-size: var(--text-body);
+   638	  line-height: var(--text-body-lh);
+   639	  color: var(--color-ink-secondary);
+   640	  max-inline-size: 68ch;
+   641	}
+   642	
+   643	/* ---- Contact · [N] the one dark band ----------------------------------- */
+   644	
+   645	.contact {
+   646	  background: var(--surface-inverted);
+   647	  color: var(--surface-1);
+   648	  padding-block: var(--space-band);
+   649	}
+   650	
+   651	.contact__grid {
+   652	  display: grid;
+   653	  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+   654	  gap: var(--space-2xl);
+   655	  align-items: center;
+   656	}
+   657	
+   658	.contact h2 { font-size: var(--text-heading); line-height: var(--text-heading-lh); }
+   659	
+   660	.contact__lede {
+   661	  color: var(--color-console-ink);
+   662	  font-size: var(--text-body-lg);
+   663	  line-height: var(--text-body-lg-lh);
+   664	  max-inline-size: 46ch;
+   665	  margin-block-start: var(--space-md);
+   666	}
+   667	
+   668	.contact__lines { display: flex; flex-direction: column; gap: var(--space-md); }
+   669	
+   670	.contact__line {
+   671	  display: flex;
+   672	  flex-direction: column;
+   673	  gap: var(--space-2xs);
+   674	  padding-block: var(--space-md);
+   675	  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 26%, transparent);
+   676	}
+   677	
+   678	.contact__line .label { color: var(--color-console-ink); }
+   679	
+   680	.contact__value {
+   681	  font-family: var(--font-mono);
+   682	  font-size: var(--text-subheading);
+   683	  line-height: 1.2;
+   684	  letter-spacing: var(--text-subheading-ls);
+   685	  color: var(--surface-1);
+   686	  text-decoration: none;
+   687	  transition: color var(--motion-fast) var(--motion-ease);
+   688	  overflow-wrap: anywhere;
+   689	}
+   690	
+   691	.contact__value:hover { text-decoration: underline; text-underline-offset: 4px; }
+   692	
+   693	.contact__actions { margin-block-start: var(--space-lg); }
+   694	
+   695	/* ---- Footer ------------------------------------------------------------ */
+   696	
+   697	.footer { padding-block: var(--space-section); border-block-start: var(--border-hairline); }
+   698	
+   699	.footer__inner {
+   700	  display: flex;
+   701	  flex-wrap: wrap;
+   702	  gap: var(--space-md) var(--space-lg);
+   703	  align-items: baseline;
+   704	  justify-content: space-between;
+   705	  font-family: var(--font-mono);
+   706	  font-size: var(--text-label);
+   707	  letter-spacing: var(--text-label-ls);
+   708	  text-transform: uppercase;
+   709	  color: var(--color-ink-secondary);
+   710	}
+   711	
+   712	/* ---- Responsive -------------------------------------------------------- */
+   713	
+   714	@media (max-width: 960px) {
+   715	  .hero__grid,
+   716	  .creed__grid,
+   717	  .coverage__grid,
+   718	  .contact__grid,
+   719	  .receive,
+   720	  .about { grid-template-columns: minmax(0, 1fr); }
+   721	
+   722	  .scope__primary,
+   723	  .steps,
+   724	  .scope__list,
+   725	  .audience,
+   726	  .quals,
+   727	  .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+   728	
+   729	  .about .shot--portrait { max-inline-size: 320px; }
+   730	
+   731	  /* Sol: navigation vanished entirely below 960px with nothing replacing it.
+   732	   * It now wraps to a scrollable second row instead of disappearing. */
+   733	  .masthead__inner { flex-wrap: wrap; padding-block: var(--space-xs); }
+   734	  .masthead__call { margin-inline-start: auto; }
+   735	  .masthead__nav {
+   736	    order: 3;
+   737	    inline-size: 100%;
+   738	    margin-inline-start: 0;
+   739	    gap: var(--space-md);
+   740	    overflow-x: auto;
+   741	    padding-block-end: 2px;
+   742	    scrollbar-width: none;
+   743	  }
+   744	  .masthead__nav::-webkit-scrollbar { display: none; }
+   745	  .masthead__nav a { white-space: nowrap; padding-block: var(--space-2xs); }
+   746	}
+   747	
+   748	@media (max-width: 640px) {
+   749	  :root {
+   750	    --text-display: 34px;
+   751	    --text-heading: 27px;
+   752	    --text-subheading: 22px;
+   753	    --space-band: 64px;
+   754	    --page-gutter: 20px;
+   755	  }
+   756	
+   757	  .scope__primary,
+   758	  .steps,
+   759	  .scope__list,
+   760	  .audience,
+   761	  .quals,
+   762	  .gallery { grid-template-columns: minmax(0, 1fr); }
+   763	  .scope__also { grid-template-columns: minmax(0, 1fr); gap: var(--space-sm); }
+   764	  .spec__row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+   765	  .spec { padding: var(--space-md); }
+   766	  .wordmark__expand { display: none; }
+   767	  .contact__value { font-size: var(--text-subheading); }
+   768	  .receive__row { grid-template-columns: 3ch minmax(0, 1fr); gap: var(--space-sm); }
+   769	}
+   770	
+   771	@media (prefers-reduced-motion: reduce) {
+   772	  html { scroll-behavior: auto; }
+   773	  *, *::before, *::after {
+   774	    transition-duration: 1ms !important;
+   775	    animation-duration: 1ms !important;
+   776	  }
+   777	}
+     1	/**
+     2	 * WITS — design tokens
+     3	 *
+     4	 * Every value traces to a Refero style reference. Provenance is marked inline:
+     5	 *   [F] Fingerprint            74adbdf2-822b-4df3-80d1-3c5a1b263a90
+     6	 *   [O] Outsource Consultants  63db7f14-d256-47a7-aa0c-337555022b6b
+     7	 *   [T] Tailscale              5d884659-1d6b-4b82-8ccd-dbb0434667a8
+     8	 *   [A] Ambrook                b11e1e78-3c62-45df-bf28-17c97718ed7d
+     9	 *   [N] Andercore              15fd028d-c493-47a9-8e69-0a59c6fdb14b
+    10	 *
+    11	 * Rules in DESIGN.md. Do not add a token here without a source.
+    12	 */
+    13	
+    14	:root {
+    15	  /* ---- Colour · all [F] ------------------------------------------------ */
+    16	  --color-canvas: #fafaf8;         /* [F] Canvas White   — page background   */
+    17	  --color-surface: #ffffff;        /* [F] Warm White     — card surfaces     */
+    18	  --color-surface-sunk: #f0f0ef;   /* [F] Light Gray     — quiet bands       */
+    19	  --color-ink: #141415;            /* [F] Ink Black      — primary text      */
+    20	  --color-ink-secondary: #454542;  /* [F] Graphite       — secondary text    */
+    21	  --color-ink-muted: #8c8c89;      /* [F] Faded Stone    — labels, tertiary  */
+    22	  --color-border: #e4e5e1;         /* [F] Border Ash     — borders, dividers */
+    23	  --color-console: #2e2e2c;        /* [F] Code Block Dark — data panel       */
+    24	  --color-console-ink: #abb2bf;    /* [F] Monitor Grey   — text in console   */
+    25	
+    26	  /* Brand swap point. Holds [F] Accent Orange until WITS brand files land.
+    27	   * Changing these two values re-brands the site. Nothing else moves. */
+    28	  --color-accent: #f35b22;         /* [F] Accent Orange  — sole interaction  */
+    29	  --color-accent-edge: #be400f;    /* [F] button border  — depth on CTA      */
+    30	
+    31	  --color-signal: #88d2c3;         /* [F] Deep Teal — data emphasis ONLY,
+    32	                                    * never an interactive element           */
+    33	
+    34	  /* ---- Surface levels · system [T], values [F] ------------------------- */
+    35	  --surface-0: var(--color-canvas);
+    36	  --surface-1: var(--color-surface);
+    37	  --surface-2: var(--color-surface-sunk);
+    38	  --surface-inverted: var(--color-console);
+    39	
+    40	  /* ---- Type families · [F] --------------------------------------------- */
+    41	  /* Licensed faces named for fidelity; substitutes are what actually ship.
+    42	   * See DESIGN.md §3 and RESEARCH-LOG.md §4.3. */
+    43	  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    44	  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    45	
+    46	  /* ---- Type scale · [F], verbatim -------------------------------------- */
+    47	  --text-caption: 10px;
+    48	  --text-caption-lh: 1.45;
+    49	
+    50	  --text-label: 12px;              /* [F] mono 12px, uppercase annotation    */
+    51	  --text-label-lh: 1.5;
+    52	  --text-label-ls: 0.08em;
+    53	
+    54	  --text-body: 14px;
+    55	  --text-body-lh: 1.6;
+    56	
+    57	  --text-body-lg: 16px;
+    58	  --text-body-lg-lh: 1.6;
+    59	
+    60	  --text-subheading: 30px;
+    61	  --text-subheading-lh: 1.22;
+    62	  --text-subheading-ls: -0.6px;
+    63	
+    64	  --text-heading: 36px;
+    65	  --text-heading-lh: 1.15;
+    66	
+    67	  --text-display: 48px;
+    68	  --text-display-lh: 1.17;
+    69	  --text-display-ls: -0.99px;
+    70	
+    71	  --weight-regular: 400;           /* [F] all body copy                      */
+    72	  --weight-strong: 600;            /* [F] headings + short critical text only*/
+    73	
+    74	  /* ---- Spacing · [F] --------------------------------------------------- */
+    75	  --space-element: 8px;            /* [F] elementGap                         */
+    76	  --space-card: 12px;              /* [F] cardPadding                        */
+    77	  --space-section: 48px;           /* [F] sectionGap                         */
+    78	  --space-band: 96px;              /* 2 × section — documented, DESIGN.md §7 */
+    79	
+    80	  --space-2xs: 4px;
+    81	  --space-xs: 8px;
+    82	  --space-sm: 12px;
+    83	  --space-md: 16px;
+    84	  --space-lg: 24px;
+    85	  --space-xl: 32px;
+    86	  --space-2xl: 48px;
+    87	
+    88	  /* ---- Shape · [F] soft for people, [O] sharp for data ------------------ */
+    89	  --radius-button: 6px;            /* [F]                                    */
+    90	  --radius-card: 12px;             /* [F]                                    */
+    91	  --radius-default: 4px;           /* [F]                                    */
+    92	  --radius-data: 0px;              /* [O] — console, spec rows, annotations  */
+    93	
+    94	  /* ---- Elevation · [F] inset hairlines, [T] restraint ------------------- */
+    95	  --shadow-card:
+    96	    rgba(228, 229, 225, 0.3) 0 1px 0 0 inset,
+    97	    rgba(110, 111, 109, 0.1) 0 -1px 0 0 inset;
+    98	  --shadow-interactive: rgba(24, 25, 22, 0.06) 0 1px 2px 0;
+    99	  /* No drop shadows. [F], [T], [O] and [N] all forbid them. */
+   100	
+   101	  /* ---- Borders --------------------------------------------------------- */
+   102	  --border-hairline: 1px solid var(--color-border);
+   103	  --border-strong: 1px solid var(--color-ink);
+   104	
+   105	  /* ---- Layout · [F] ---------------------------------------------------- */
+   106	  --page-max: 1232px;              /* [F] pageMaxWidth                       */
+   107	  --page-gutter: 24px;
+   108	
+   109	  /* ---- Motion · [A], the only reference that specifies it --------------- */
+   110	  --motion-fast: 0.15s;
+   111	  --motion-deliberate: 0.3s;
+   112	  --motion-ease: ease;
+   113	}
+     1	/**
+     2	 * WITS — Tailwind v4 theme
+     3	 *
+     4	 * The same Refero-derived tokens expressed as a Tailwind `@theme` block, so the
+     5	 * design contract is available as utility classes (`bg-canvas`, `text-ink`,
+     6	 * `font-mono`, `rounded-card`, `shadow-card`, …).
+     7	 *
+     8	 * Source of truth is `tokens.css`. This file mirrors it — it does not extend it.
+     9	 * If a value changes there, change it here. No token may exist in one and not
+    10	 * the other.
+    11	 *
+    12	 * Provenance keys as in tokens.css:
+    13	 *   [F] Fingerprint · [O] Outsource Consultants · [T] Tailscale
+    14	 *   [A] Ambrook     · [N] Andercore
+    15	 */
+    16	
+    17	@import "tailwindcss";
+    18	
+    19	@theme {
+    20	  /* ---- Colour · [F] ---------------------------------------------------- */
+    21	  --color-canvas: #fafaf8;
+    22	  --color-surface: #ffffff;
+    23	  --color-surface-sunk: #f0f0ef;
+    24	  --color-ink: #141415;
+    25	  --color-ink-secondary: #454542;
+    26	  --color-ink-muted: #8c8c89;
+    27	  --color-border: #e4e5e1;
+    28	  --color-console: #2e2e2c;
+    29	  --color-console-ink: #abb2bf;
+    30	
+    31	  /* Brand swap point — see DESIGN.md §2 */
+    32	  --color-accent: #f35b22;
+    33	  --color-accent-edge: #be400f;
+    34	
+    35	  --color-signal: #88d2c3;
+    36	
+    37	  /* ---- Type · [F] ------------------------------------------------------ */
+    38	  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    39	  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    40	
+    41	  --text-caption: 10px;
+    42	  --text-caption--line-height: 1.45;
+    43	
+    44	  --text-label: 12px;
+    45	  --text-label--line-height: 1.5;
+    46	  --text-label--letter-spacing: 0.08em;
+    47	
+    48	  --text-body: 14px;
+    49	  --text-body--line-height: 1.6;
+    50	
+    51	  --text-body-lg: 16px;
+    52	  --text-body-lg--line-height: 1.6;
+    53	
+    54	  --text-subheading: 30px;
+    55	  --text-subheading--line-height: 1.22;
+    56	  --text-subheading--letter-spacing: -0.6px;
+    57	
+    58	  --text-heading: 36px;
+    59	  --text-heading--line-height: 1.15;
+    60	
+    61	  --text-display: 48px;
+    62	  --text-display--line-height: 1.17;
+    63	  --text-display--letter-spacing: -0.99px;
+    64	
+    65	  /* ---- Spacing · [F] --------------------------------------------------- */
+    66	  --spacing-element: 8px;
+    67	  --spacing-card: 12px;
+    68	  --spacing-section: 48px;
+    69	  --spacing-band: 96px;
+    70	
+    71	  /* ---- Shape · [F] soft for people, [O] sharp for data ------------------ */
+    72	  --radius-button: 6px;
+    73	  --radius-card: 12px;
+    74	  --radius-default: 4px;
+    75	  --radius-data: 0px;
+    76	
+    77	  /* ---- Elevation · [F] inset hairlines, [T] restraint ------------------- */
+    78	  --shadow-card:
+    79	    rgba(228, 229, 225, 0.3) 0 1px 0 0 inset,
+    80	    rgba(110, 111, 109, 0.1) 0 -1px 0 0 inset;
+    81	  --shadow-interactive: rgba(24, 25, 22, 0.06) 0 1px 2px 0;
+    82	
+    83	  /* ---- Layout · [F] ---------------------------------------------------- */
+    84	  --container-page: 1232px;
+    85	
+    86	  /* ---- Motion · [A] ---------------------------------------------------- */
+    87	  --default-transition-duration: 0.15s;
+    88	  --default-transition-timing-function: ease;
+    89	}
+     1	# Image attribution — STOCK, NOT WITS'S OWN WORK
+     2	
+     3	**These photographs are not WITS's work and must not ship.**
+     4	
+     5	They are present so the layout, crops, aspect ratios and interactions can be
+     6	evaluated with real images in place. Devin authorised this explicitly on
+     7	2026-08-15 for prototype purposes, and will add a deployment guard that blocks
+     8	shipping a generated site containing third-party stock. That guard is out of
+     9	scope here.
+    10	
+    11	Source: Unsplash (unsplash.com). Retrieved 2026-08-15 via crawl4ai search-page
+    12	scrape, then fetched from `images.unsplash.com`. The Unsplash licence permits
+    13	free commercial and non-commercial use without attribution; this file exists for
+    14	provenance, not because attribution is required.
+    15	
+    16	| File | Unsplash photo ID | Used for |
+    17	|---|---|---|
+    18	| `hero.jpg` | `photo-1528845922818-cc5462be9a63` | Hero — fibre tester on a live switch |
+    19	| `fiber.jpg` | `photo-1594915440248-1e419eba6611` | What you receive — fibre patch panel |
+    20	| `copper.jpg` | `photo-1517373116369-9bdb8cdc9f62` | Gallery — copper patching |
+    21	| `itroom.jpg` | `photo-1580106815433-a5b1d1d53d85` | Gallery — equipment room aisle |
+    22	| `office.jpg` | `photo-1462826303086-329426d1aef5` | Gallery — commercial office interior |
+    23	| `rack.jpg` | `photo-1591808216268-ce0b82787efe` | About — rack detail |
+    24	
+    25	## Selection rule applied
+    26	
+    27	Per `DESIGN.md` §8, direction comes from Refero style `b11e1e78` (Ambrook):
+    28	*"candid, slightly desaturated photography … real people in natural or work
+    29	environments"*.
+    30	
+    31	Deliberately **rejected** from the candidate set: every glowing-blue abstract
+    32	fibre-optic shot. That imagery is the dominant stock cliché for this trade and
+    33	contradicts the restraint of the design system — it signals "telecom brochure",
+    34	not "documented cable plant". Also rejected: a data-centre shot carrying a
+    35	visible third-party brand mark.
+    36	
+    37	## Replacement brief
+    38	
+    39	When WITS commissions its own photography:
+    40	
+    41	> 16:9 and 4:3, colour. Candid and slightly desaturated. Real work in progress —
+    42	> a technician terminating a patch panel, a clean IDF with labelled runs, a rack
+    43	> mid-build. Natural light. No posed stock, no stage-lit server rooms, no
+    44	> imagery of another company's install. Shot on a WITS job site with the
+    45	> customer's written permission.
+    46	
+    47	One photographable reference project is listed as an outstanding intake gap in
+    48	`CLAIMS.md`.
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "nl -ba index.html | sed -n '225,470p'; nl -ba site.css | sed -n '1,420p'; rg -n \"animation|transition|@keyframes|:hover|:focus|scroll|IntersectionObserver|requestAnimationFrame|<script|video|marquee|transform|opacity|parallax\" index.html site.css tokens.css theme.css" in /Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+ succeeded in 0ms:
+   225	  <!-- Process -->
+   226	  <section class="shell band band--tight" id="process">
+   227	    <div class="band__head">
+   228	      <p class="label">What to expect</p>
+   229	      <h2>How a project runs.</h2>
+   230	    </div>
+   231	    <div class="steps">
+   232	      <article class="step">
+   233	        <p class="step__n">01</p>
+   234	        <h3>Call</h3>
+   235	        <p>Tell us the site, the scope, and the timeline you&rsquo;re working to.</p>
+   236	      </article>
+   237	      <article class="step">
+   238	        <p class="step__n">02</p>
+   239	        <h3>Walkthrough</h3>
+   240	        <p>We look at the space, the pathways, and what is already in the walls before quoting anything.</p>
+   241	      </article>
+   242	      <article class="step">
+   243	        <p class="step__n">03</p>
+   244	        <h3>Written estimate</h3>
+   245	        <p>Scope, materials, and schedule in writing, so you can hold it against anything else on your desk.</p>
+   246	      </article>
+   247	      <article class="step">
+   248	        <p class="step__n">04</p>
+   249	        <h3>Install and handover</h3>
+   250	        <p>Installed, tested, labeled, documented. You get the records, not just the cable.</p>
+   251	      </article>
+   252	    </div>
+   253	  </section>
+   254	
+   255	  <!-- The work · environment and trade, NOT claimed as WITS projects. Case
+   256	       studies arrive when WITS has photographed its own jobs. -->
+   257	  <section class="shell band band--tight" id="work">
+   258	    <div class="band__head">
+   259	      <p class="label">The work</p>
+   260	      <h2>What this looks like on site.</h2>
+   261	    </div>
+   262	    <div class="gallery">
+   263	      <figure class="shot">
+   264	        <img src="img/copper.jpg" width="1400" height="933" alt="Copper patch cables dressed into a panel." loading="lazy">
+   265	        <figcaption class="shot__cap">Copper patching, dressed and identified</figcaption>
+   266	      </figure>
+   267	      <figure class="shot">
+   268	        <img src="img/itroom.jpg" width="1400" height="933" alt="An equipment room aisle with racks either side." loading="lazy">
+   269	        <figcaption class="shot__cap">IT room, laid out before anything is pulled</figcaption>
+   270	      </figure>
+   271	      <figure class="shot">
+   272	        <img src="img/office.jpg" width="1400" height="933" alt="A commercial office interior with meeting room and glazing." loading="lazy">
+   273	        <figcaption class="shot__cap">The environment it all disappears into</figcaption>
+   274	      </figure>
+   275	    </div>
+   276	  </section>
+   277	
+   278	  <!-- Who you're dealing with · "personal service" is a stated differentiator
+   279	       and the first build had no person on the page at all. -->
+   280	  <section class="shell band band--tight" id="about">
+   281	    <div class="about">
+   282	      <figure class="shot shot--portrait">
+   283	        <img src="img/rack.jpg" width="1400" height="2100" alt="Rack detail with dressed cabling." loading="lazy">
+   284	      </figure>
+   285	      <div>
+   286	        <p class="label">Who you&rsquo;re dealing with</p>
+   287	        <h2>Thirty years of this, fifteen of it here.</h2>
+   288	        <p class="lede">
+   289	          WITS is small on purpose. The person who walks your site is the person
+   290	          who quotes it and the person you call when something needs looking at
+   291	          again. That is what &ldquo;personal service&rdquo; is supposed to mean,
+   292	          and it is the reason the work gets documented the way it does &mdash;
+   293	          because we are the ones who come back to it.
+   294	        </p>
+   295	        <p class="lede">
+   296	          Fifteen years running this business in Florida and Colorado, thirty
+   297	          years in the trade before and through it.
+   298	        </p>
+   299	      </div>
+   300	    </div>
+   301	  </section>
+   302	
+   303	  <!-- Coverage -->
+   304	  <section class="shell band band--tight" id="coverage">
+   305	    <div class="band__head">
+   306	      <p class="label">Coverage</p>
+   307	      <h2>Where we work.</h2>
+   308	    </div>
+   309	    <div class="coverage__grid">
+   310	      <div class="coverage__card">
+   311	        <p class="label">Service area</p>
+   312	        <p class="coverage__primary">Orlando, Florida</p>
+   313	        <ul class="coverage__regions">
+   314	          <li><span>Orlando metro</span><span>Primary</span></li>
+   315	          <li><span>Florida</span><span>Statewide</span></li>
+   316	          <li><span>Colorado</span><span>Served</span></li>
+   317	        </ul>
+   318	      </div>
+   319	      <div class="coverage__card">
+   320	        <p class="label">Who we work with</p>
+   321	        <p class="coverage__primary">Commercial buildings.</p>
+   322	        <ul class="coverage__regions">
+   323	          <li><span>Commercial businesses</span><span>&mdash;</span></li>
+   324	          <li><span>Offices and suites</span><span>&mdash;</span></li>
+   325	          <li><span>New construction</span><span>&mdash;</span></li>
+   326	        </ul>
+   327	      </div>
+   328	    </div>
+   329	  </section>
+   330	
+   331	  <!-- FAQ · expanded past the brief's three to the questions commercial buyers
+   332	       actually screen on. -->
+   333	  <section class="shell band band--tight" id="faq">
+   334	    <div class="band__head">
+   335	      <p class="label">Questions</p>
+   336	      <h2>Asked often.</h2>
+   337	    </div>
+   338	    <div class="faq">
+   339	      <details open>
+   340	        <summary>What does WITS install?</summary>
+   341	        <p>
+   342	          Network structured cabling, fiber optic cabling, and IT room design are
+   343	          the core of it. We also handle data network cabling, access point
+   344	          installation, camera systems, audio/visual cabling, and
+   345	          troubleshooting. If it carries a signal through a commercial building,
+   346	          it is probably on the list &mdash; call and ask.
+   347	        </p>
+   348	      </details>
+   349	      <details>
+   350	        <summary>How long does a project take?</summary>
+   351	        <p>
+   352	          It depends on the size of the site and how much access we get. A single
+   353	          suite is a different job from a floor in an occupied building or a new
+   354	          build still on the schedule. You get a schedule in writing with the
+   355	          estimate, before any work starts, rather than a guess on the phone.
+   356	        </p>
+   357	      </details>
+   358	      <details>
+   359	        <summary>Can you troubleshoot cabling someone else installed?</summary>
+   360	        <p>
+   361	          Yes. Tracing faults, re-terminating bad runs, and making sense of an
+   362	          undocumented install is regular work here. Thirty years in the field
+   363	          mostly means having already seen it.
+   364	        </p>
+   365	      </details>
+   366	      <details>
+   367	        <summary>Can you work in an occupied building?</summary>
+   368	        <p>
+   369	          Yes. Occupied floors, live suites and tenanted buildings are normal
+   370	          commercial work. Access windows, noise and after-hours requirements get
+   371	          agreed before we mobilise, not discovered on day one.
+   372	        </p>
+   373	      </details>
+   374	      <details>
+   375	        <summary>Is there a minimum job size?</summary>
+   376	        <p>
+   377	          No fixed minimum. Small jobs and single-drop calls are worth the phone
+   378	          call &mdash; we would rather tell you it is a twenty-minute fix than
+   379	          have you wait on a quote for it.
+   380	        </p>
+   381	      </details>
+   382	      <details>
+   383	        <summary>Do we get test results and a record of what was installed?</summary>
+   384	        <p>
+   385	          Yes. Certification results for the runs installed and a record of the
+   386	          plant are part of handover, not an extra. If a previous installer left
+   387	          you without either, that is something we can put right on its own.
+   388	        </p>
+   389	      </details>
+   390	      <details>
+   391	        <summary>Are you insured and licensed?</summary>
+   392	        <p>
+   393	          Yes. A certificate of insurance can be issued to the general contractor
+   394	          or building owner on request, and licensing details are supplied with
+   395	          the estimate.
+   396	        </p>
+   397	      </details>
+   398	      <details>
+   399	        <summary>Do you travel outside Orlando?</summary>
+   400	        <p>
+   401	          Orlando and Central Florida are the main service area. Work elsewhere in
+   402	          Florida and in Colorado is normal &mdash; ask, and we will tell you
+   403	          straight whether it makes sense for your job.
+   404	        </p>
+   405	      </details>
+   406	    </div>
+   407	  </section>
+   408	
+   409	  <!-- Contact · [N] the single dark band -->
+   410	  <section class="contact" id="contact">
+   411	    <div class="shell contact__grid">
+   412	      <div>
+   413	        <h2>Call for an estimate.</h2>
+   414	        <p class="contact__lede">
+   415	          Tell us what the building needs. We walk the site, then put the scope,
+   416	          the schedule, and the price in writing.
+   417	        </p>
+   418	        <div class="contact__actions">
+   419	          <a class="btn btn--on-dark" href="tel:+14075550142">Call (407) 555-0142</a>
+   420	        </div>
+   421	      </div>
+   422	      <div class="contact__lines">
+   423	        <div class="contact__line">
+   424	          <p class="label">Phone</p>
+   425	          <a class="contact__value" href="tel:+14075550142">(407) 555-0142</a>
+   426	        </div>
+   427	        <div class="contact__line">
+   428	          <p class="label">Email</p>
+   429	          <a class="contact__value" href="mailto:estimates@witscabling.example">estimates@witscabling.example</a>
+   430	        </div>
+   431	      </div>
+   432	    </div>
+   433	  </section>
+   434	
+   435	</main>
+   436	
+   437	<footer class="footer">
+   438	  <div class="shell footer__inner">
+   439	    <span>Wiggins Information Technology Services</span>
+   440	    <span>Structured cabling &middot; Orlando, FL</span>
+   441	    <span>Florida &middot; Colorado</span>
+   442	  </div>
+   443	</footer>
+   444	
+   445	</body>
+   446	</html>
+     1	/**
+     2	 * WITS — composition
+     3	 *
+     4	 * Colour, type and shape come from tokens.css — no raw colour, no raw font.
+     5	 *
+     6	 * Composition scalars (hairlines, optical sizes, measures, breakpoints, the
+     7	 * 44px touch target) are NOT from Refero. Refero supplies a vocabulary, not a
+     8	 * layout. Those values are this build's own decisions and are marked where
+     9	 * they are not obvious. Layout rules: DESIGN.md §4–§9.
+    10	 */
+    11	
+    12	*,
+    13	*::before,
+    14	*::after { box-sizing: border-box; }
+    15	
+    16	html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    17	
+    18	body {
+    19	  margin: 0;
+    20	  background: var(--surface-0);
+    21	  color: var(--color-ink);
+    22	  font-family: var(--font-sans);
+    23	  font-size: var(--text-body-lg);
+    24	  line-height: var(--text-body-lg-lh);
+    25	  font-weight: var(--weight-regular);
+    26	}
+    27	
+    28	/* ---- Primitives -------------------------------------------------------- */
+    29	
+    30	.shell {
+    31	  max-inline-size: var(--page-max);           /* [F] 1232px */
+    32	  margin-inline: auto;
+    33	  padding-inline: var(--page-gutter);
+    34	}
+    35	
+    36	/* [O] mono annotation label — the technical register of the whole page */
+    37	.label {
+    38	  font-family: var(--font-mono);
+    39	  font-size: var(--text-label);
+    40	  line-height: var(--text-label-lh);
+    41	  letter-spacing: var(--text-label-ls);
+    42	  text-transform: uppercase;
+    43	  color: var(--color-ink-secondary);
+    44	  margin: 0;
+    45	}
+    46	
+    47	.label--on-accent { color: color-mix(in srgb, var(--color-ink) 72%, transparent); }
+    48	
+    49	h1, h2, h3 { margin: 0; font-weight: var(--weight-strong); }
+    50	
+    51	h1 {
+    52	  font-size: var(--text-display);
+    53	  line-height: var(--text-display-lh);
+    54	  letter-spacing: var(--text-display-ls);
+    55	  text-wrap: balance;
+    56	}
+    57	
+    58	h2 {
+    59	  font-size: var(--text-heading);
+    60	  line-height: var(--text-heading-lh);
+    61	  text-wrap: balance;
+    62	}
+    63	
+    64	h3 {
+    65	  font-size: var(--text-body-lg);
+    66	  line-height: var(--text-body-lg-lh);
+    67	}
+    68	
+    69	p { margin: 0; }
+    70	
+    71	.lede {
+    72	  font-size: var(--text-body-lg);
+    73	  line-height: var(--text-body-lg-lh);
+    74	  color: var(--color-ink-secondary);
+    75	  max-inline-size: 54ch;
+    76	  text-wrap: pretty;
+    77	}
+    78	
+    79	/* ---- Actions ----------------------------------------------------------- */
+    80	
+    81	/* [F] Primary Action Button. Text colour is a documented accessibility
+    82	 * override: [F] specifies white on Accent Orange, which measures 3.32:1 and
+    83	 * fails WCAG AA for normal text. Ink on accent measures 5.55:1 and passes.
+    84	 * [A]'s own primary button uses dark text on its accent, so the override has
+    85	 * precedent inside the reference set. */
+    86	.btn {
+    87	  display: inline-flex;
+    88	  align-items: center;
+    89	  justify-content: center;
+    90	  gap: var(--space-xs);
+    91	  min-block-size: 44px;
+    92	  padding: 8px var(--space-md);
+    93	  border-radius: var(--radius-button);
+    94	  font-family: var(--font-sans);
+    95	  font-size: var(--text-body-lg);
+    96	  font-weight: var(--weight-strong);
+    97	  text-decoration: none;
+    98	  cursor: pointer;
+    99	  transition: background-color var(--motion-fast) var(--motion-ease),
+   100	              color var(--motion-fast) var(--motion-ease),
+   101	              border-color var(--motion-fast) var(--motion-ease);
+   102	}
+   103	
+   104	.btn--primary {
+   105	  background: var(--color-accent);
+   106	  border: 1px solid var(--color-accent-edge);
+   107	  color: var(--color-ink);
+   108	  box-shadow: var(--shadow-interactive);
+   109	}
+   110	
+   111	.btn--primary:hover { background: var(--color-accent-edge); color: var(--surface-1); }
+   112	
+   113	/* [F] Secondary Ghost Button */
+   114	.btn--ghost {
+   115	  background: transparent;
+   116	  border: 1px solid var(--color-ink-secondary);
+   117	  color: var(--color-ink-secondary);
+   118	}
+   119	
+   120	.btn--ghost:hover { border-color: var(--color-ink); color: var(--color-ink); }
+   121	
+   122	.btn--on-dark {
+   123	  background: var(--color-accent);
+   124	  border: 1px solid var(--color-accent-edge);
+   125	  color: var(--color-ink);
+   126	}
+   127	
+   128	.btn--on-dark:hover { background: var(--surface-1); border-color: var(--surface-1); }
+   129	
+   130	:where(a, button, summary):focus-visible {
+   131	  outline: 2px solid var(--color-accent);
+   132	  outline-offset: 3px;
+   133	}
+   134	
+   135	/* ---- Masthead · [O] mono nav, [F] sticky ------------------------------- */
+   136	
+   137	.masthead {
+   138	  position: sticky;
+   139	  inset-block-start: 0;
+   140	  z-index: 10;
+   141	  background: color-mix(in srgb, var(--surface-0) 92%, transparent);
+   142	  backdrop-filter: blur(8px);
+   143	  border-block-end: var(--border-hairline);
+   144	}
+   145	
+   146	.masthead__inner {
+   147	  display: flex;
+   148	  align-items: center;
+   149	  gap: var(--space-lg);
+   150	  min-block-size: 64px;
+   151	}
+   152	
+   153	.wordmark {
+   154	  display: flex;
+   155	  flex-direction: column;
+   156	  gap: 1px;
+   157	  text-decoration: none;
+   158	  color: var(--color-ink);
+   159	  /* Does not grow. Fixing the header defect where the logo took all the
+   160	   * free space and pushed the nav off the end. */
+   161	  flex: 0 0 auto;
+   162	}
+   163	
+   164	.wordmark__mark {
+   165	  font-family: var(--font-mono);
+   166	  font-size: var(--text-body-lg);
+   167	  font-weight: var(--weight-strong);
+   168	  letter-spacing: 0.02em;
+   169	}
+   170	
+   171	.wordmark__expand {
+   172	  font-family: var(--font-mono);
+   173	  font-size: var(--text-caption);
+   174	  line-height: var(--text-caption-lh);
+   175	  letter-spacing: 0.06em;
+   176	  text-transform: uppercase;
+   177	  color: var(--color-ink-secondary);
+   178	}
+   179	
+   180	.masthead__nav {
+   181	  display: flex;
+   182	  gap: var(--space-lg);
+   183	  margin-inline-start: auto;
+   184	}
+   185	
+   186	.masthead__nav a {
+   187	  font-family: var(--font-mono);
+   188	  font-size: var(--text-label);
+   189	  letter-spacing: var(--text-label-ls);
+   190	  text-transform: uppercase;
+   191	  color: var(--color-ink-secondary);
+   192	  text-decoration: none;
+   193	  transition: color var(--motion-fast) var(--motion-ease);
+   194	}
+   195	
+   196	.masthead__nav a:hover { color: var(--color-accent-edge); }
+   197	
+   198	.masthead__call {
+   199	  flex: 0 0 auto;
+   200	  font-family: var(--font-mono);
+   201	  font-size: var(--text-body);
+   202	  font-weight: var(--weight-strong);
+   203	  color: var(--color-ink);
+   204	  text-decoration: none;
+   205	  padding: var(--space-xs) var(--space-sm);
+   206	  border: var(--border-strong);
+   207	  border-radius: var(--radius-button);
+   208	  white-space: nowrap;
+   209	  transition: background-color var(--motion-fast) var(--motion-ease),
+   210	              color var(--motion-fast) var(--motion-ease);
+   211	}
+   212	
+   213	.masthead__call:hover { background: var(--color-ink); color: var(--surface-1); }
+   214	
+   215	/* ---- Bands ------------------------------------------------------------- */
+   216	
+   217	.band { padding-block: var(--space-band); }        /* 2 × [F] sectionGap */
+   218	.band--sunk { background: var(--surface-2); }
+   219	.band--tight { padding-block: var(--space-section); }
+   220	
+   221	.band__head {
+   222	  display: flex;
+   223	  flex-direction: column;
+   224	  gap: var(--space-sm);
+   225	  margin-block-end: var(--space-2xl);
+   226	  max-inline-size: 62ch;
+   227	}
+   228	
+   229	/* ---- Hero · [F] split, proposition left, structured visual right -------- */
+   230	
+   231	.hero { padding-block: var(--space-band) var(--space-band); }
+   232	
+   233	.hero__grid {
+   234	  display: grid;
+   235	  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+   236	  gap: var(--space-2xl);
+   237	  align-items: center;
+   238	}
+   239	
+   240	.hero__copy { display: flex; flex-direction: column; gap: var(--space-lg); }
+   241	
+   242	.hero__actions {
+   243	  display: flex;
+   244	  flex-wrap: wrap;
+   245	  gap: var(--space-sm);
+   246	  margin-block-start: var(--space-xs);
+   247	}
+   248	
+   249	.hero__aside {
+   250	  font-family: var(--font-mono);
+   251	  font-size: var(--text-label);
+   252	  letter-spacing: var(--text-label-ls);
+   253	  color: var(--color-ink-secondary);
+   254	  text-transform: uppercase;
+   255	}
+   256	
+   257	/* ---- Spec panel · [F] Data Display Console, [O] 0px radius -------------- */
+   258	
+   259	.spec {
+   260	  background: var(--surface-inverted);
+   261	  border-radius: var(--radius-data);
+   262	  padding: var(--space-lg);
+   263	  font-family: var(--font-mono);
+   264	  font-size: var(--text-body);
+   265	  line-height: 1.5;
+   266	}
+   267	
+   268	.spec__bar {
+   269	  display: flex;
+   270	  align-items: center;
+   271	  justify-content: space-between;
+   272	  gap: var(--space-sm);
+   273	  padding-block-end: var(--space-sm);
+   274	  margin-block-end: var(--space-sm);
+   275	  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 30%, transparent);
+   276	  font-size: var(--text-label);
+   277	  letter-spacing: var(--text-label-ls);
+   278	  text-transform: uppercase;
+   279	  color: var(--color-console-ink);
+   280	}
+   281	
+   282	.spec__signal { color: var(--color-signal); }
+   283	
+   284	.spec__row {
+   285	  display: grid;
+   286	  grid-template-columns: 13ch minmax(0, 1fr);
+   287	  gap: var(--space-sm);
+   288	  padding-block: 7px;
+   289	  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 16%, transparent);
+   290	}
+   291	
+   292	.spec__row:last-of-type { border-block-end: 0; }
+   293	
+   294	.spec__key {
+   295	  color: var(--color-console-ink);
+   296	  font-size: var(--text-label);
+   297	  letter-spacing: var(--text-label-ls);
+   298	  text-transform: uppercase;
+   299	  padding-block-start: 2px;
+   300	}
+   301	
+   302	.spec__val { color: var(--surface-1); }
+   303	
+   304	/* ---- Scope · [F] grid, [O] mono index ---------------------------------- */
+   305	
+   306	.scope__primary {
+   307	  display: grid;
+   308	  grid-template-columns: repeat(3, minmax(0, 1fr));
+   309	  gap: var(--space-xl);
+   310	}
+   311	
+   312	.scope__item {
+   313	  display: flex;
+   314	  flex-direction: column;
+   315	  gap: var(--space-sm);
+   316	  padding-block-start: var(--space-md);
+   317	  border-block-start: 2px solid var(--color-ink);   /* [O] index rule, 0 radius */
+   318	}
+   319	
+   320	.scope__index {
+   321	  font-family: var(--font-mono);
+   322	  font-size: var(--text-label);
+   323	  letter-spacing: var(--text-label-ls);
+   324	  /* accent-edge, not accent: [F]'s Accent Orange on canvas measures 3.17:1 and
+   325	   * fails AA at this size. Accent Edge is 5.11:1 and is [F]'s own token. */
+   326	  color: var(--color-accent-edge);
+   327	}
+   328	
+   329	.scope__item h3 {
+   330	  font-size: var(--text-subheading);
+   331	  line-height: var(--text-subheading-lh);
+   332	  letter-spacing: var(--text-subheading-ls);
+   333	}
+   334	
+   335	.scope__item p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   336	
+   337	.scope__also {
+   338	  margin-block-start: var(--space-2xl);
+   339	  padding-block-start: var(--space-lg);
+   340	  border-block-start: var(--border-hairline);
+   341	  display: grid;
+   342	  grid-template-columns: 13ch minmax(0, 1fr);
+   343	  gap: var(--space-lg);
+   344	  align-items: start;
+   345	}
+   346	
+   347	.scope__list {
+   348	  list-style: none;
+   349	  margin: 0;
+   350	  padding: 0;
+   351	  display: grid;
+   352	  /* Five services, one row. auto-fit produced a 4+1 split that orphaned the
+   353	   * last item and left a ragged gap. */
+   354	  grid-template-columns: repeat(5, minmax(0, 1fr));
+   355	  gap: var(--space-xs) var(--space-lg);
+   356	}
+   357	
+   358	.scope__list li {
+   359	  font-family: var(--font-mono);
+   360	  font-size: var(--text-body);
+   361	  color: var(--color-ink-secondary);
+   362	  padding-block: 6px;
+   363	  border-block-end: var(--border-hairline);
+   364	}
+   365	
+   366	/* ---- Accent band · [O] full-bleed hard divider -------------------------- */
+   367	
+   368	.creed {
+   369	  background: var(--color-accent);
+   370	  color: var(--color-ink);
+   371	  padding-block: var(--space-band);
+   372	}
+   373	
+   374	.creed__statement {
+   375	  font-size: var(--text-heading);
+   376	  line-height: 1.25;
+   377	  font-weight: var(--weight-strong);
+   378	  letter-spacing: -0.4px;
+   379	  max-inline-size: 26ch;
+   380	  margin-block-start: var(--space-sm);
+   381	}
+   382	
+   383	.creed__grid {
+   384	  display: grid;
+   385	  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+   386	  gap: var(--space-2xl);
+   387	  align-items: end;
+   388	}
+   389	
+   390	.creed__note {
+   391	  font-size: var(--text-body-lg);
+   392	  line-height: 1.6;
+   393	  color: var(--color-ink);
+   394	  max-inline-size: 46ch;
+   395	}
+   396	
+   397	.creed__rule {
+   398	  border: 0;
+   399	  border-block-start: 1px solid color-mix(in srgb, var(--color-ink) 30%, transparent);
+   400	  margin-block: var(--space-lg);
+   401	}
+   402	
+   403	/* ---- Process ----------------------------------------------------------- */
+   404	
+   405	.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xl); }
+   406	
+   407	.step {
+   408	  display: flex;
+   409	  flex-direction: column;
+   410	  gap: var(--space-xs);
+   411	  padding-block-start: var(--space-sm);
+   412	  border-block-start: var(--border-hairline);
+   413	}
+   414	
+   415	.step__n {
+   416	  font-family: var(--font-mono);
+   417	  font-size: var(--text-label);
+   418	  letter-spacing: var(--text-label-ls);
+   419	  color: var(--color-accent-edge);
+   420	}
+theme.css:87:  --default-transition-duration: 0.15s;
+theme.css:88:  --default-transition-timing-function: ease;
+site.css:16:html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+site.css:42:  text-transform: uppercase;
+site.css:99:  transition: background-color var(--motion-fast) var(--motion-ease),
+site.css:111:.btn--primary:hover { background: var(--color-accent-edge); color: var(--surface-1); }
+site.css:120:.btn--ghost:hover { border-color: var(--color-ink); color: var(--color-ink); }
+site.css:128:.btn--on-dark:hover { background: var(--surface-1); border-color: var(--surface-1); }
+site.css:130::where(a, button, summary):focus-visible {
+site.css:176:  text-transform: uppercase;
+site.css:190:  text-transform: uppercase;
+site.css:193:  transition: color var(--motion-fast) var(--motion-ease);
+site.css:196:.masthead__nav a:hover { color: var(--color-accent-edge); }
+site.css:209:  transition: background-color var(--motion-fast) var(--motion-ease),
+site.css:213:.masthead__call:hover { background: var(--color-ink); color: var(--surface-1); }
+site.css:254:  text-transform: uppercase;
+site.css:278:  text-transform: uppercase;
+site.css:298:  text-transform: uppercase;
+site.css:497:  text-transform: uppercase;
+site.css:619:  transition: color var(--motion-fast) var(--motion-ease);
+site.css:623:.faq summary:hover { color: var(--color-accent-edge); }
+site.css:687:  transition: color var(--motion-fast) var(--motion-ease);
+site.css:691:.contact__value:hover { text-decoration: underline; text-underline-offset: 4px; }
+site.css:708:  text-transform: uppercase;
+site.css:732:   * It now wraps to a scrollable second row instead of disappearing. */
+site.css:742:    scrollbar-width: none;
+site.css:744:  .masthead__nav::-webkit-scrollbar { display: none; }
+site.css:772:  html { scroll-behavior: auto; }
+site.css:774:    transition-duration: 1ms !important;
+site.css:775:    animation-duration: 1ms !important;
+
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "nl -ba site.css | sed -n '403,714p'; rg -n \"background:|border-radius:|box-shadow:|padding-block:\" site.css | sed -n '1,260p'; rg -n \"[0-9]+ years|years|minimum|insured|licensed|licensing|certificate|statewide|normal|always|every|site walk|written estimate|schedule|occupied|after-hours|warranty|guarantee\" index.html" in /Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+ succeeded in 0ms:
+   403	/* ---- Process ----------------------------------------------------------- */
+   404	
+   405	.steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-xl); }
+   406	
+   407	.step {
+   408	  display: flex;
+   409	  flex-direction: column;
+   410	  gap: var(--space-xs);
+   411	  padding-block-start: var(--space-sm);
+   412	  border-block-start: var(--border-hairline);
+   413	}
+   414	
+   415	.step__n {
+   416	  font-family: var(--font-mono);
+   417	  font-size: var(--text-label);
+   418	  letter-spacing: var(--text-label-ls);
+   419	  color: var(--color-accent-edge);
+   420	}
+   421	
+   422	.step h3 { font-weight: var(--weight-strong); }
+   423	.step p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   424	
+   425	/* ---- Coverage ---------------------------------------------------------- */
+   426	
+   427	.coverage__grid {
+   428	  display: grid;
+   429	  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+   430	  gap: var(--space-2xl);
+   431	  align-items: start;
+   432	}
+   433	
+   434	.coverage__card {
+   435	  background: var(--surface-1);
+   436	  border: var(--border-hairline);
+   437	  border-radius: var(--radius-card);       /* [F] soft — this is content */
+   438	  box-shadow: var(--shadow-card);
+   439	  padding: var(--space-xl);
+   440	  display: flex;
+   441	  flex-direction: column;
+   442	  gap: var(--space-sm);
+   443	}
+   444	
+   445	.coverage__primary {
+   446	  font-size: var(--text-subheading);
+   447	  line-height: var(--text-subheading-lh);
+   448	  letter-spacing: var(--text-subheading-ls);
+   449	  font-weight: var(--weight-strong);
+   450	}
+   451	
+   452	.coverage__regions {
+   453	  list-style: none;
+   454	  margin: 0;
+   455	  padding: 0;
+   456	  display: flex;
+   457	  flex-direction: column;
+   458	}
+   459	
+   460	.coverage__regions li {
+   461	  display: flex;
+   462	  justify-content: space-between;
+   463	  gap: var(--space-md);
+   464	  font-family: var(--font-mono);
+   465	  font-size: var(--text-body);
+   466	  padding-block: 10px;
+   467	  border-block-end: var(--border-hairline);
+   468	}
+   469	
+   470	.coverage__regions li:last-child { border-block-end: 0; }
+   471	.coverage__regions span:last-child { color: var(--color-ink-secondary); }
+   472	
+   473	/* ---- Photography plate · [A] art direction ----------------------------- */
+   474	
+   475	
+   476	/* ---- Photography · [A] candid, slightly desaturated, real work ---------- */
+   477	
+   478	.shot { margin: 0; display: flex; flex-direction: column; gap: var(--space-xs); }
+   479	
+   480	.shot img {
+   481	  display: block;
+   482	  inline-size: 100%;
+   483	  block-size: auto;
+   484	  border-radius: var(--radius-card);      /* [F] soft — this is content */
+   485	  /* [A]: "candid, slightly desaturated photography". Applied as a treatment
+   486	   * so every image on the site sits in one register regardless of source. */
+   487	  filter: saturate(0.88) contrast(1.03);
+   488	}
+   489	
+   490	.shot--hero img { aspect-ratio: 16 / 10; object-fit: cover; object-position: 50% 45%; }
+   491	.shot--portrait img { aspect-ratio: 3 / 4; object-fit: cover; block-size: 100%; }
+   492	
+   493	.shot__cap {
+   494	  font-family: var(--font-mono);
+   495	  font-size: var(--text-label);
+   496	  letter-spacing: var(--text-label-ls);
+   497	  text-transform: uppercase;
+   498	  color: var(--color-ink-secondary);
+   499	}
+   500	
+   501	.hero__visual { display: flex; flex-direction: column; gap: var(--space-md); }
+   502	
+   503	/* ---- Who this is for --------------------------------------------------- */
+   504	
+   505	.audience {
+   506	  display: grid;
+   507	  grid-template-columns: repeat(4, minmax(0, 1fr));
+   508	  gap: var(--space-xl);
+   509	}
+   510	
+   511	.audience__item {
+   512	  display: flex;
+   513	  flex-direction: column;
+   514	  gap: var(--space-xs);
+   515	  padding-block-start: var(--space-md);
+   516	  border-block-start: var(--border-hairline);
+   517	}
+   518	
+   519	.audience__item h3 { font-weight: var(--weight-strong); }
+   520	.audience__item p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   521	
+   522	/* ---- What you receive -------------------------------------------------- */
+   523	
+   524	.receive {
+   525	  display: grid;
+   526	  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+   527	  gap: var(--space-2xl);
+   528	  align-items: start;
+   529	}
+   530	
+   531	.receive__list { display: flex; flex-direction: column; }
+   532	
+   533	.receive__row {
+   534	  display: grid;
+   535	  grid-template-columns: 4ch minmax(0, 1fr);
+   536	  gap: var(--space-md);
+   537	  padding-block: var(--space-md);
+   538	  border-block-end: var(--border-hairline);
+   539	}
+   540	
+   541	.receive__row:first-child { border-block-start: var(--border-hairline); }
+   542	
+   543	.receive__n {
+   544	  font-family: var(--font-mono);
+   545	  font-size: var(--text-label);
+   546	  letter-spacing: var(--text-label-ls);
+   547	  color: var(--color-accent-edge);
+   548	  padding-block-start: 4px;
+   549	}
+   550	
+   551	.receive__row h3 { font-weight: var(--weight-strong); margin-block-end: var(--space-2xs); }
+   552	.receive__row p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   553	
+   554	/* ---- Before we start · commercial qualification ------------------------ */
+   555	
+   556	.quals {
+   557	  list-style: none;
+   558	  margin: 0;
+   559	  padding: 0;
+   560	  display: grid;
+   561	  grid-template-columns: repeat(4, minmax(0, 1fr));
+   562	  gap: var(--space-xl);
+   563	}
+   564	
+   565	.quals li {
+   566	  display: flex;
+   567	  flex-direction: column;
+   568	  gap: var(--space-xs);
+   569	  padding: var(--space-lg);
+   570	  background: var(--surface-1);
+   571	  border: var(--border-hairline);
+   572	  border-radius: var(--radius-card);
+   573	  box-shadow: var(--shadow-card);
+   574	}
+   575	
+   576	.quals p { font-size: var(--text-body); line-height: var(--text-body-lh); color: var(--color-ink-secondary); }
+   577	
+   578	/* ---- Gallery ----------------------------------------------------------- */
+   579	
+   580	.gallery {
+   581	  display: grid;
+   582	  grid-template-columns: repeat(3, minmax(0, 1fr));
+   583	  gap: var(--space-lg);
+   584	}
+   585	
+   586	.gallery .shot img { aspect-ratio: 4 / 3; object-fit: cover; }
+   587	
+   588	/* ---- About ------------------------------------------------------------- */
+   589	
+   590	.about {
+   591	  display: grid;
+   592	  grid-template-columns: minmax(0, 0.62fr) minmax(0, 1.38fr);
+   593	  gap: var(--space-2xl);
+   594	  align-items: center;
+   595	}
+   596	
+   597	.about h2 { margin-block: var(--space-sm) var(--space-md); }
+   598	.about .lede + .lede { margin-block-start: var(--space-md); }
+   599	
+   600	/* ---- FAQ · [O] 0 radius, hairline rules -------------------------------- */
+   601	
+   602	.faq { border-block-start: var(--border-hairline); }
+   603	
+   604	.faq details {
+   605	  border-block-end: var(--border-hairline);
+   606	  border-radius: var(--radius-data);
+   607	}
+   608	
+   609	.faq summary {
+   610	  display: flex;
+   611	  align-items: center;
+   612	  justify-content: space-between;
+   613	  gap: var(--space-md);
+   614	  padding-block: var(--space-lg);
+   615	  cursor: pointer;
+   616	  list-style: none;
+   617	  font-size: var(--text-body-lg);
+   618	  font-weight: var(--weight-strong);
+   619	  transition: color var(--motion-fast) var(--motion-ease);
+   620	}
+   621	
+   622	.faq summary::-webkit-details-marker { display: none; }
+   623	.faq summary:hover { color: var(--color-accent-edge); }
+   624	
+   625	.faq summary::after {
+   626	  content: "+";
+   627	  font-family: var(--font-mono);
+   628	  font-size: var(--text-body-lg);
+   629	  color: var(--color-accent-edge);
+   630	  flex: 0 0 auto;
+   631	}
+   632	
+   633	.faq details[open] summary::after { content: "\2212"; }
+   634	
+   635	.faq p {
+   636	  padding-block-end: var(--space-lg);
+   637	  font-size: var(--text-body);
+   638	  line-height: var(--text-body-lh);
+   639	  color: var(--color-ink-secondary);
+   640	  max-inline-size: 68ch;
+   641	}
+   642	
+   643	/* ---- Contact · [N] the one dark band ----------------------------------- */
+   644	
+   645	.contact {
+   646	  background: var(--surface-inverted);
+   647	  color: var(--surface-1);
+   648	  padding-block: var(--space-band);
+   649	}
+   650	
+   651	.contact__grid {
+   652	  display: grid;
+   653	  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+   654	  gap: var(--space-2xl);
+   655	  align-items: center;
+   656	}
+   657	
+   658	.contact h2 { font-size: var(--text-heading); line-height: var(--text-heading-lh); }
+   659	
+   660	.contact__lede {
+   661	  color: var(--color-console-ink);
+   662	  font-size: var(--text-body-lg);
+   663	  line-height: var(--text-body-lg-lh);
+   664	  max-inline-size: 46ch;
+   665	  margin-block-start: var(--space-md);
+   666	}
+   667	
+   668	.contact__lines { display: flex; flex-direction: column; gap: var(--space-md); }
+   669	
+   670	.contact__line {
+   671	  display: flex;
+   672	  flex-direction: column;
+   673	  gap: var(--space-2xs);
+   674	  padding-block: var(--space-md);
+   675	  border-block-end: 1px solid color-mix(in srgb, var(--color-console-ink) 26%, transparent);
+   676	}
+   677	
+   678	.contact__line .label { color: var(--color-console-ink); }
+   679	
+   680	.contact__value {
+   681	  font-family: var(--font-mono);
+   682	  font-size: var(--text-subheading);
+   683	  line-height: 1.2;
+   684	  letter-spacing: var(--text-subheading-ls);
+   685	  color: var(--surface-1);
+   686	  text-decoration: none;
+   687	  transition: color var(--motion-fast) var(--motion-ease);
+   688	  overflow-wrap: anywhere;
+   689	}
+   690	
+   691	.contact__value:hover { text-decoration: underline; text-underline-offset: 4px; }
+   692	
+   693	.contact__actions { margin-block-start: var(--space-lg); }
+   694	
+   695	/* ---- Footer ------------------------------------------------------------ */
+   696	
+   697	.footer { padding-block: var(--space-section); border-block-start: var(--border-hairline); }
+   698	
+   699	.footer__inner {
+   700	  display: flex;
+   701	  flex-wrap: wrap;
+   702	  gap: var(--space-md) var(--space-lg);
+   703	  align-items: baseline;
+   704	  justify-content: space-between;
+   705	  font-family: var(--font-mono);
+   706	  font-size: var(--text-label);
+   707	  letter-spacing: var(--text-label-ls);
+   708	  text-transform: uppercase;
+   709	  color: var(--color-ink-secondary);
+   710	}
+   711	
+   712	/* ---- Responsive -------------------------------------------------------- */
+   713	
+   714	@media (max-width: 960px) {
+20:  background: var(--surface-0);
+93:  border-radius: var(--radius-button);
+105:  background: var(--color-accent);
+108:  box-shadow: var(--shadow-interactive);
+111:.btn--primary:hover { background: var(--color-accent-edge); color: var(--surface-1); }
+115:  background: transparent;
+123:  background: var(--color-accent);
+128:.btn--on-dark:hover { background: var(--surface-1); border-color: var(--surface-1); }
+141:  background: color-mix(in srgb, var(--surface-0) 92%, transparent);
+207:  border-radius: var(--radius-button);
+213:.masthead__call:hover { background: var(--color-ink); color: var(--surface-1); }
+217:.band { padding-block: var(--space-band); }        /* 2 × [F] sectionGap */
+218:.band--sunk { background: var(--surface-2); }
+219:.band--tight { padding-block: var(--space-section); }
+231:.hero { padding-block: var(--space-band) var(--space-band); }
+260:  background: var(--surface-inverted);
+261:  border-radius: var(--radius-data);
+288:  padding-block: 7px;
+362:  padding-block: 6px;
+369:  background: var(--color-accent);
+371:  padding-block: var(--space-band);
+435:  background: var(--surface-1);
+437:  border-radius: var(--radius-card);       /* [F] soft — this is content */
+438:  box-shadow: var(--shadow-card);
+466:  padding-block: 10px;
+484:  border-radius: var(--radius-card);      /* [F] soft — this is content */
+537:  padding-block: var(--space-md);
+570:  background: var(--surface-1);
+572:  border-radius: var(--radius-card);
+573:  box-shadow: var(--shadow-card);
+606:  border-radius: var(--radius-data);
+614:  padding-block: var(--space-lg);
+646:  background: var(--surface-inverted);
+648:  padding-block: var(--space-band);
+674:  padding-block: var(--space-md);
+697:.footer { padding-block: var(--space-section); border-block-start: var(--border-hairline); }
+733:  .masthead__inner { flex-wrap: wrap; padding-block: var(--space-xs); }
+745:  .masthead__nav a { white-space: nowrap; padding-block: var(--space-2xs); }
+7:<meta name="description" content="Wiggins Information Technology Services installs structured cabling, fiber, and IT rooms for commercial buildings in the Orlando area. 30 years in the field. Call for an estimate.">
+48:          commercial buildings around Orlando. Thirty years in the field, fifteen
+49:          running this business, and every run labeled and documented so the next
+71:          <div class="spec__row"><span class="spec__key">In business</span><span class="spec__val">15 years</span></div>
+72:          <div class="spec__row"><span class="spec__key">In the field</span><span class="spec__val">30 years</span></div>
+75:          <div class="spec__row"><span class="spec__key">Estimates</span><span class="spec__val">By phone, then a site walk</span></div>
+117:          years.
+144:        <p>Cabling designed into the build and coordinated with the general contractor&rsquo;s schedule, rather than squeezed in at the end.</p>
+148:        <p>New suites, floor changes, and relocations &mdash; including work in buildings that stay occupied while it happens.</p>
+169:          You should be able to open the closet in five years and still know what
+170:          every cable does.
+176:          Quality workmanship, attention to detail and reliability are what every
+206:       the audit; every line here needs WITS sign-off (CLAIMS.md). -->
+219:      <li><span class="label">Licensing</span><p>Florida low-voltage licensing details supplied with the estimate.</p></li>
+245:        <p>Scope, materials, and schedule in writing, so you can hold it against anything else on your desk.</p>
+287:        <h2>Thirty years of this, fifteen of it here.</h2>
+296:          Fifteen years running this business in Florida and Colorado, thirty
+297:          years in the trade before and through it.
+353:          suite is a different job from a floor in an occupied building or a new
+354:          build still on the schedule. You get a schedule in writing with the
+362:          undocumented install is regular work here. Thirty years in the field
+367:        <summary>Can you work in an occupied building?</summary>
+369:          Yes. Occupied floors, live suites and tenanted buildings are normal
+370:          commercial work. Access windows, noise and after-hours requirements get
+375:        <summary>Is there a minimum job size?</summary>
+377:          No fixed minimum. Small jobs and single-drop calls are worth the phone
+391:        <summary>Are you insured and licensed?</summary>
+393:          Yes. A certificate of insurance can be issued to the general contractor
+394:          or building owner on request, and licensing details are supplied with
+402:          Florida and in Colorado is normal &mdash; ask, and we will tell you
+416:          the schedule, and the price in writing.
+
+codex
+The source confirms a fully static build: there is no script, keyframe, or scroll-triggered behavior, and every shipped hover is a color/border/text-decoration change. I’m now separating presentation defects from unsupported business claims so the trust check does not mistake internal comments for user-visible disclosure.
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc 'find .. -maxdepth 2 -type f -print | sort; if [ -f ../CLAIMS.md ]; then nl -ba ../CLAIMS.md; fi; if [ -f ../BRIEF.md ]; then nl -ba ../BRIEF.md; fi; if [ -f CLAIMS.md ]; then nl -ba CLAIMS.md; fi' in /Users/zero-suminc./projects/one-box/spikes/refero-baseline/site
+ succeeded in 0ms:
+../BRIEF.md
+../CLAIMS.md
+../DESIGN.md
+../RESEARCH-LOG.md
+../SITE-STRUCTURE.md
+../audit/grade-desktop.png
+../audit/grade-mobile.png
+../audit/outside-grade-log.txt
+../audit/outside-grade-prompt.txt
+../contrast-audit.mjs
+../shot.mjs
+../shots/wits-desktop.png
+../shots/wits-mobile.png
+../site/index.html
+../site/site.css
+../site/theme.css
+../site/tokens.css
+     1	# Claims register — WITS
+     2	
+     3	Every statement on the page that is **not** supplied by `BRIEF.md`, and
+     4	therefore needs WITS sign-off before launch.
+     5	
+     6	Raised by the GPT-5.6 audit (2026-08-15), which was right that the build's copy
+     7	outran its evidence and that the spec panel's "every value is from the brief"
+     8	comment was false. Two invented policies were removed outright; the rest are
+     9	listed here rather than deleted, because a contractor site stripped of every
+    10	specific is useless. They need confirming, not erasing.
+    11	
+    12	**Status key** — `CONFIRM` needs a yes/no from WITS · `REMOVED` already cut ·
+    13	`SOURCED` traced to the brief and safe.
+    14	
+    15	## Removed before this register was written
+    16	
+    17	| Claim | Where | Why removed |
+    18	|---|---|---|
+    19	| "no forms" | Spec panel, Estimates row | The brief forbids an online **booking/scheduling system**. It says nothing about a simple inquiry form. Stating it inside a panel headed "Company record" made an invented policy look like a documented fact. |
+    20	| "Commercial only." | Coverage card | The brief names a target **audience**. It never says WITS refuses residential work. Replaced with "Commercial buildings." |
+    21	| "work we do every week" | Scope lede | A frequency claim the brief does not support. |
+    22	| Photography plate + shot list | Own section | Production documentation on a public page. The direction moved to `DESIGN.md` §8. Replaced 2026-08-15 with real stock photography for layout evaluation — see `site/img/ATTRIBUTION.md`; it must not ship. |
+    23	
+    24	## Needs confirmation
+    25	
+    26	| # | Claim | Where | Status |
+    27	|---:|---|---|---|
+    28	| 1 | "every run labeled and documented so the next person to open the closet can read it" | Hero lede | **CONFIRM** — this is the site's central promise. If WITS does not label and document to this standard on every job, the whole page is mis-sold and the copy must change. |
+    29	| 2 | "Every drop labeled at both ends and recorded on a plan you keep." | Scope 01 | **CONFIRM** — specifically whether the customer receives a retained record. |
+    30	| 3 | "Single-mode and multimode between closets, floors, and buildings." | Scope 02 | **CONFIRM** — that both fibre types are offered. |
+    31	| 4 | "Terminated, tested, and handed over together with the results." | Scope 02 | **CONFIRM** — whether test results are actually handed over, and in what form (Fluke certification reports?). |
+    32	| 5 | "Racks, pathways, grounding, and cable management laid out before anything gets pulled" | Scope 03 | **CONFIRM** — that grounding is in scope. It is often a separate trade. |
+    33	| 6 | The four-step process: Call → Walkthrough → Written estimate → Install and handover | Process | **CONFIRM** — all four. A free on-site walkthrough before quoting is a real commercial commitment. |
+    34	| 7 | "Scope, materials, and schedule in writing" | Process 03 | **CONFIRM** — that estimates are written and include a schedule. |
+    35	| 8 | "Installed, tested, labeled, documented. You get the records, not just the cable." | Process 04 | **CONFIRM** — duplicate of 1/4, stated as a deliverable. |
+    36	| 9 | "Florida — Statewide" | Coverage | **CONFIRM** — the brief says the service area is "Colorado and Florida". Whether that means the whole of Florida or Central Florida is an inference. |
+    37	| 10 | "Colorado — Served" | Coverage | **CONFIRM** — same, and whether Colorado work is still active or historical. |
+    38	| 11 | "You get a schedule in writing with the estimate, before any work starts" | FAQ 2 | **CONFIRM** — duplicate of 7. |
+    39	| 12 | "Tracing faults, re-terminating bad runs, and making sense of an undocumented install is regular work here." | FAQ 3 | **CONFIRM** — the brief lists troubleshooting as a service but not its frequency. |
+    40	| 13 | "If it carries a signal through a commercial building, it is probably on the list" | FAQ 1 | **CONFIRM** — a scope claim broader than the eight listed services. |
+    41	
+    42	## Added 2026-08-15 with the new sections
+    43	
+    44	The audit's missing-section list was built out. Those sections carry claims the
+    45	brief never supplied, so they land here rather than being presented as fact.
+    46	**The "Before we start" and "What you receive" sections are entirely pending —
+    47	if WITS cannot stand behind them, they come out, not get softened.**
+    48	
+    49	| # | Claim | Where | Status |
+    50	|---:|---|---|---|
+    51	| 14 | Certificate of insurance issued to GC or building owner on request | Before we start | **CONFIRM — blocking.** Whether WITS carries commercial general liability, at what limits, and whether it can issue a COI. |
+    52	| 15 | "Florida low-voltage licensing details supplied with the estimate" | Before we start | **CONFIRM — blocking.** Whether WITS holds an applicable FL low-voltage licence and its number. |
+    53	| 16 | Badging, induction, working hours and building access agreed before mobilisation | Before we start | **CONFIRM** |
+    54	| 17 | Written scope agreed in advance, variations made visible | Before we start | **CONFIRM** |
+    55	| 18 | "Every run identified at both ends, matching the record" | What you receive | **CONFIRM** — duplicate of 1/2 as a stated deliverable. |
+    56	| 19 | "Certification results for the runs installed, handed over with the job" | What you receive | **CONFIRM** — and with what instrument. |
+    57	| 20 | "A plan of what was installed and where it terminates, that you keep" | What you receive | **CONFIRM** — whether an as-built record is produced as standard. |
+    58	| 21 | "The same contact through quoting, install and anything after" | What you receive | **CONFIRM** |
+    59	| 22 | "Coordinated with the general contractor's schedule" | Who this is for | **CONFIRM** |
+    60	| 23 | Work in buildings that stay occupied | Who this is for, FAQ | **CONFIRM** |
+    61	| 24 | "WITS is small on purpose… the person who walks your site is the person who quotes it" | About | **CONFIRM — blocking.** This is a structural claim about how the business is staffed. |
+    62	| 25 | "No fixed minimum" job size | FAQ | **CONFIRM** |
+    63	| 26 | Insured and licensed (FAQ restatement) | FAQ | **CONFIRM — blocking.** Duplicate of 14/15. |
+    64	| 27 | After-hours / access-window agreement before mobilisation | FAQ | **CONFIRM** |
+    65	| 28 | Willingness to travel within FL and to CO | FAQ | **CONFIRM** — duplicate of 9/10. |
+    66	
+    67	### Still absent, deliberately
+    68	
+    69	- **No owner name, photo or bio.** The About section carries the argument without
+    70	  naming a person, because the brief supplied no one. A real name, face and
+    71	  short history should replace the generic copy — "personal service" is a stated
+    72	  differentiator and it currently has nobody attached to it.
+    73	- **No case studies.** The gallery shows *what the work looks like*, captioned by
+    74	  trade activity. Nothing is presented as a WITS project, because none can be
+    75	  evidenced yet.
+    76	
+    77	## Sourced — no action
+    78	
+    79	15 years in business · 30 years industry experience · the eight services and
+    80	their priority split · Orlando primary area · Florida and Colorado · commercial
+    81	businesses, offices, new construction · call for an estimate as the primary CTA
+    82	· phone and email prominent · no online booking · the five differentiators
+    83	verbatim · the three FAQ subjects.
+    84	
+    85	## Still missing from the intake
+    86	
+    87	Not claims — gaps. A second intake pass should collect these, because
+    88	commercial buyers ask for them and their absence costs work:
+    89	
+    90	1. **Insurance and COI readiness.** GCs will not let an uninsured sub on site.
+    91	2. **Applicable Florida low-voltage licensing.** "No certifications" answers a
+    92	   different question; licensing is not a certification.
+    93	3. **Warranty terms** — labour, and any manufacturer warranty WITS can extend.
+    94	4. **Testing and handover documentation** — what the customer actually receives.
+    95	5. **Occupied-building and after-hours working.** A live office fit-out is a
+    96	   different sale from a new build.
+    97	6. **Minimum job size and typical lead time.**
+    98	7. **Owner name and history.** "Personal service" is a stated differentiator,
+    99	   and there is currently no person anywhere on the page carrying it.
+   100	8. **One photographable reference project**, with customer permission.
+   101	9. **Real phone, email, domain, logo, brand colours.**
+     1	# Standard test brief — WITS
+     2	
+     3	This is the **canonical intake** for comparing build avenues. Every avenue
+     4	(Refero-only baseline, current pipeline, layout-IR, future variants) must be
+     5	given exactly this brief, with nothing added and nothing removed, so the
+     6	outputs are comparable.
+     7	
+     8	Version: 1. Frozen 2026-08-15. Do not edit — fork to `BRIEF-v2.md` if it changes.
+     9	
+    10	---
+    11	
+    12	## Business Overview
+    13	
+    14	- **Business name:** Wiggins Information Technology Services (WITS)
+    15	- **Business description:** Structured cabling and technology infrastructure
+    16	  installation services.
+    17	- **In business:** 15 years
+    18	- **Industry experience:** 30 years
+    19	- **Primary service area:** Orlando, Florida area
+    20	- **Service areas:** Colorado and Florida
+    21	- **Certifications:** none
+    22	- **Key differentiators:**
+    23	  - Quality workmanship
+    24	  - Attention to detail
+    25	  - Reliability
+    26	  - Personal service
+    27	  - Customer satisfaction
+    28	
+    29	## Services & Priorities
+    30	
+    31	Primary priority:
+    32	- Network structured cabling
+    33	- Fiber optic cabling
+    34	- IT room design
+    35	
+    36	Also offered:
+    37	- Data network cabling
+    38	- Access point installation
+    39	- Camera systems
+    40	- Audio/visual cabling
+    41	- Troubleshooting
+    42	
+    43	No services need to be phased out or downplayed.
+    44	
+    45	## Target Audience
+    46	
+    47	- Commercial businesses
+    48	- Offices
+    49	- New construction projects
+    50	
+    51	Customers needing: reliable network infrastructure, new office/network
+    52	installations, IT room design, fiber installation, cabling upgrades,
+    53	troubleshooting and infrastructure problem-solving.
+    54	
+    55	## Visual Direction
+    56	
+    57	- Existing logo and brand colors are available; files provided separately.
+    58	- Open to either a light or dark website background.
+    59	- No specific competitor/inspiration websites.
+    60	- Desired feel: professional, modern, trustworthy, clean, technical,
+    61	  dependable, high-quality, approachable.
+    62	
+    63	## Existing Content
+    64	
+    65	- No existing project photos or videos.
+    66	- Stock imagery and/or new professional project photography will be needed.
+    67	- No existing bios, testimonials, reviews, or case studies.
+    68	- No existing website or old copy to reuse.
+    69	- All website content must be developed from scratch.
+    70	
+    71	## Call to Action
+    72	
+    73	- **Primary CTA:** Call for an estimate.
+    74	- Feature both phone and email prominently.
+    75	- Keep the contact process simple.
+    76	- No online booking/scheduling system.
+    77	
+    78	## FAQs
+    79	
+    80	Should address: services offered, project timelines, troubleshooting.
+    81	No special policies or requirements to highlight upfront.
+    82	
+    83	## Logistics
+    84	
+    85	- No existing domain name; domain selection needed.
+    86	- No predetermined additional pages.
+    87	- Designer recommends the site structure/pages.
+    88	- No hard deadline or launch date.
+    89	
+    90	## Additional Notes
+    91	
+    92	- Customer satisfaction is an important priority.
+    93	- The site should communicate WITS as an experienced, reliable, detail-oriented
+    94	  commercial technology installation company.
+    95	- **Primary purpose:** establish trust and get commercial customers to call for
+    96	  an estimate.
+    97	
+    98	---
+    99	
+   100	## Constraints that bind every avenue
+   101	
+   102	1. No invented certifications, awards, licenses, or memberships.
+   103	2. No invented testimonials, client names, review counts, or star ratings.
+   104	3. No invented project photography presented as WITS's own work.
+   105	4. Numbers that may be stated: 15 years in business, 30 years industry
+   106	   experience. Nothing else.
+
+codex
+# Outside grade
+
+## Per-dimension grades
+
+| # | Dimension | Grade | Evidence (one sentence, cite a selector, file, or screenshot region) |
+|---|-----------|-------|----------------------------------------------------------------------|
+| 1 | Hero distinctiveness | D+ | `.hero__grid` is a conventional copy-and-buttons/photo split with no entrance choreography, while the dark `.spec` panel adds only a modest industry-specific touch. |
+| 2 | Color character | C | `tokens.css:16-38` provides off-white, orange, charcoal, and a minor teal signal, but the desktop screenshot shows orange used flatly while nearly every middle section remains the same white surface. |
+| 3 | Motion design | F | `index.html` contains no script and `site.css` has no keyframes or transforms; its hover rules at `site.css:111-213,619-691` only swap color, border, background, or underline. |
+| 4 | Section division & rhythm | D+ | Nearly every content section uses identical `.shell.band.band--tight` treatment and 48px padding, leaving the orange `.creed` and final dark `.contact` as the only meaningful scene changes. |
+| 5 | Card craft | D+ | `.quals li` and `.coverage__card` are literal white boxes with a hairline border and inert inset shadow, with no layered treatment, action, reveal, or hover response. |
+| 6 | Visual hierarchy | C | The recurring `.label` eyebrows and 48px/36px heading scale establish basic order, but the screenshots remain dense with many similarly weighted small-text grids and no dominant focal point after the hero. |
+| 7 | Variety / anti-monotony | B- | `.receive`, `.gallery`, `.about`, `.coverage__grid`, and `.faq` vary between split media, imagery, cards, and rows, although their identical white shells make those topology changes feel less pronounced. |
+| 8 | Balance & composition | C+ | The desktop hero, `.receive`, and `.about` splits distribute weight competently, but the mobile screenshot becomes an extremely long sequence of narrow stacked blocks and the two-row scrolling header crowds the opening viewport. |
+| 9 | Bespoke-ness | C | Cabling imagery, mono labels, the spec console, and unusually specific copy fit the trade, but the placeholder palette, absent supplied logo, generic stock photography, and lack of signature motion keep it readily transferable to another contractor. |
+
+## Overall grade
+
+D+
+
+This is organized, readable, and more varied than a bare template, but the presentation still reproduces the benchmark’s decisive failures: a generic static hero, almost no surface progression, rudimentary cards, and color-swap-only interaction across a very long page. Its content specificity cannot compensate for a motion grade of F and multiple D-range craft dimensions.
+
+## Ranked fixes
+
+1. Recompose the hero around a full-bleed cabling image, an offset/layered company-record panel, and a staged copy-to-image entrance.
+Hero distinctiveness: D+ to B; Bespoke-ness: C to B-; Motion: F to C+.
+
+2. Build a page-level surface arc: warm opening, tinted scope panel, dark technical handover section, image-bleed work section, and a distinct closing CTA.
+Section division: D+ to B; Color character: C to B; Variety: B- to B.
+
+3. Add an IntersectionObserver reveal system with asymmetric section entrances, grouped-item stagger, moving 200–300ms hover states, and a complete reduced-motion fallback.
+Motion design: F to B.
+
+4. Replace the 48px/36px polite type scale with a committed 80–96px desktop display, stronger section-heading contrast, and fewer competing body-sized elements.
+Visual hierarchy: C to B; Hero distinctiveness: D+ to B-.
+
+5. Turn qualification and coverage boxes into one reusable technical-card formula with tinted depth, numbered/icon chips, edge illumination, stronger anatomy, and hover lift.
+Card craft: D+ to B; Color character: C to B-.
+
+6. Replace or visibly qualify the stock gallery, then art-direct approved WITS photography with purposeful crops, overlays, cable-path motifs, and offset annotations tied to image details.
+Bespoke-ness: C to B+; Balance: C+ to B.
+
+7. Consolidate overlapping scope, audience, handover, qualification, and process copy into fewer scenes with deliberately varied 64–144px spacing.
+Section division: D+ to B-; Balance: C+ to B; Visual hierarchy: C to B-.
+
+8. Replace the mobile header’s permanent second scrolling row with a compact accessible menu and tune mobile section density rather than merely stacking every desktop grid.
+Balance: C+ to B-; Hero distinctiveness: D+ to C+.
+
+## Trust check
+
+- The site explicitly invents prohibited licensing and insurance claims: “Florida low-voltage licensing details” and “Are you insured and licensed? Yes” render as facts despite no support in the brief.
+- Numerous unconfirmed operating promises ship as facts, including universal labeling/documentation, certification reports and as-built records, site walkthroughs, written schedules, occupied-building work, after-hours coordination, no minimum job size, statewide travel, and the same personal contact throughout.
+- “WITS is small on purpose” and “the person who walks your site is the person who quotes it” invent a staffing model absent from the brief.
+- The page violates the numeric constraint with “five years,” “Four ways,” numbered 01–04 sequences, a “twenty-minute fix,” and the placeholder telephone number.
+- `(407) 555-0142` and `estimates@witscabling.example` are visibly fake contact details placed in primary conversion paths.
+- The stock photographs are presented under “The work” and “What this looks like on site” without rendered disclosure; source comments and `img/ATTRIBUTION.md` admit they are not WITS projects and “must not ship.”
+- The available logo and brand colors were not incorporated: the rendered wordmark is plain text and `tokens.css:26-29` identifies orange as a temporary brand-swap placeholder.
+tokens used
+63,707

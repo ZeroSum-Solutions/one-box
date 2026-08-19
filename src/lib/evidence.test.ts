@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { compile } from "tailwindcss";
+import postcss from "postcss";
 import { chromium } from "playwright";
 import { buildSite } from "./builder";
 import { createRun, sitePaths } from "./runstate";
@@ -228,6 +229,58 @@ describe("evidence artifact derivation", () => {
     expect(JSON.stringify(ledger.clientEvidence)).not.toContain("storagePath");
   });
 
+  it("quotes a font family carrying an apostrophe so the theme CSS still parses", () => {
+    // Observed live on run PKcE4L_4j7Z1: the orchestrator picked "Suisse Int'l".
+    // Emitted raw, the apostrophe opens a CSS string that never closes and
+    // PostCSS kills the whole build with "Unterminated string: 'l;'".
+    const apostrophized = DesignTokensSchema.parse({
+      ...tokens,
+      fonts: [{ ...tokens.fonts[0], family: "Suisse Int'l" }],
+    });
+    const inventory = buildTokenInventory(apostrophized, 1, ["refero-1"]);
+    const plan = buildTailwindPlan(inventory, 1);
+    const css = renderTailwindThemeCss(inventory, plan);
+
+    expect(css).toContain(`--ds-font-sans: "Suisse Int'l";`);
+    expect(() => postcss.parse(css)).not.toThrow();
+  });
+
+  it("repoints a camelCase var reference in component-state CSS at the kebab-case token", () => {
+    // Observed live on runs PKcE4L_4j7Z1 and mPHVbkER-Qu8: the model writes
+    // var(--color-primaryContrast) into a component-state declaration while the
+    // defined variable is --color-primary-contrast. The reference resolves to
+    // nothing, the declaration is dropped, and token-drift fails the build.
+    const camelCased = DesignTokensSchema.parse({
+      ...tokens,
+      colors: [
+        ...tokens.colors,
+        {
+          name: "Surface alt",
+          value: "#24282c",
+          cssVar: "--color-surface-alt",
+          role: "Alternate surface",
+        },
+      ],
+      componentStates: [
+        {
+          component: "Primary Button",
+          states: {
+            default:
+              "background-color: var(--color-primary); color: var(--color-surfaceAlt); border: none;",
+          },
+        },
+      ],
+    });
+    const inventory = buildTokenInventory(camelCased, 1, ["refero-1"]);
+    const plan = buildTailwindPlan(inventory, 1);
+    const css = renderTailwindThemeCss(inventory, plan);
+
+    expect(css).toContain("var(--color-surface-alt)");
+    expect(css).not.toContain("var(--color-surfaceAlt)");
+    // An unknown variable must still read as drift, not be renamed into a real one.
+    expect(css).toContain("var(--color-primary)");
+  });
+
   it("derives traceable token, Tailwind, CSS, and QA artifacts", () => {
     const inventory = buildTokenInventory(tokens, 1, ["refero-1"]);
     const plan = buildTailwindPlan(inventory, 1);
@@ -328,7 +381,12 @@ describe("evidence artifact derivation", () => {
     } finally {
       await browser.close();
     }
-  });
+    // This case launches a real browser AND compiles Tailwind, so it lands near
+    // 5s on an idle machine and tips past vitest's 5s default under parallel
+    // load — it failed at 5006ms in one full-suite run while passing 14/14 three
+    // times in isolation. The timeout is the harness, not the assertion; the
+    // assertions above are unchanged.
+  }, 30_000);
 
   it("renders a machine-readable design.md contract in canonical section order", () => {
     const markdown = renderDesignContract(intake, tokens, lock);
@@ -352,14 +410,14 @@ describe("evidence artifact derivation", () => {
       const productionColorTokens = {
         ...tokens,
         colors: [
-          { name: "Background", value: "#ffffff", cssVar: "--color-bg", role: "Page background" },
-          { name: "Surface", value: "#f7f5f2", cssVar: "--color-surface", role: "Primary surface" },
-          { name: "Surface alt", value: "#ebe8e2", cssVar: "--color-surface-alt", role: "Alternate surface" },
-          { name: "Text", value: "#151719", cssVar: "--color-text", role: "Body text" },
-          { name: "Text muted", value: "#555b61", cssVar: "--color-text-muted", role: "Secondary text" },
-          { name: "Primary", value: "#174ea6", cssVar: "--color-primary", role: "Actions and headings" },
-          { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary" },
-          { name: "Border", value: "#c8c4bc", cssVar: "--color-border", role: "Dividers" },
+          { name: "Background", value: "#ffffff", cssVar: "--color-bg", role: "Page background", forbiddenContexts: [] },
+          { name: "Surface", value: "#f7f5f2", cssVar: "--color-surface", role: "Primary surface", forbiddenContexts: [] },
+          { name: "Surface alt", value: "#ebe8e2", cssVar: "--color-surface-alt", role: "Alternate surface", forbiddenContexts: [] },
+          { name: "Text", value: "#151719", cssVar: "--color-text", role: "Body text", forbiddenContexts: [] },
+          { name: "Text muted", value: "#555b61", cssVar: "--color-text-muted", role: "Secondary text", forbiddenContexts: [] },
+          { name: "Primary", value: "#174ea6", cssVar: "--color-primary", role: "Actions and headings", forbiddenContexts: [] },
+          { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary", forbiddenContexts: [] },
+          { name: "Border", value: "#c8c4bc", cssVar: "--color-border", role: "Dividers", forbiddenContexts: [] },
         ],
       };
       await fs.writeFile(
@@ -388,12 +446,12 @@ describe("evidence artifact derivation", () => {
       ...tokens,
       colors: [
         ...tokens.colors,
-        { name: "Background", value: "#111315", cssVar: "--color-bg", role: "Page background" },
-        { name: "Text", value: "#faf9f7", cssVar: "--color-text", role: "Body text" },
-        { name: "Muted", value: "#c9c5bf", cssVar: "--color-text-muted", role: "Secondary text" },
-        { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary" },
-        { name: "Border", value: "#77716a", cssVar: "--color-border", role: "Dividers" },
-        { name: "Surface alt", value: "#24282c", cssVar: "--color-surface-alt", role: "Alternate surface" },
+        { name: "Background", value: "#111315", cssVar: "--color-bg", role: "Page background", forbiddenContexts: [] },
+        { name: "Text", value: "#faf9f7", cssVar: "--color-text", role: "Body text", forbiddenContexts: [] },
+        { name: "Muted", value: "#c9c5bf", cssVar: "--color-text-muted", role: "Secondary text", forbiddenContexts: [] },
+        { name: "Primary contrast", value: "#ffffff", cssVar: "--color-primary-contrast", role: "Text on primary", forbiddenContexts: [] },
+        { name: "Border", value: "#77716a", cssVar: "--color-border", role: "Dividers", forbiddenContexts: [] },
+        { name: "Surface alt", value: "#24282c", cssVar: "--color-surface-alt", role: "Alternate surface", forbiddenContexts: [] },
       ],
     };
     const inventory = buildTokenInventory(runtimeTokens, 1, ["fixture"]);

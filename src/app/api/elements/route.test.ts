@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   applyStructuredElementEdit: vi.fn(),
   elementHistoryState: vi.fn(async () => ({ canUndo: false, canRedo: false })),
+  elementTree: vi.fn(async () => []),
   moveElementHistory: vi.fn(),
 }));
 
@@ -12,6 +13,7 @@ vi.mock("../../../lib/elementEditor", async (importOriginal) => {
     ...actual,
     applyStructuredElementEdit: mocks.applyStructuredElementEdit,
     elementHistoryState: mocks.elementHistoryState,
+    elementTree: mocks.elementTree,
     moveElementHistory: mocks.moveElementHistory,
   };
 });
@@ -60,9 +62,10 @@ describe("element route authorization", () => {
     );
     expect(response.status).toBe(403);
     expect(mocks.elementHistoryState).not.toHaveBeenCalled();
+    expect(mocks.elementTree).not.toHaveBeenCalled();
   });
 
-  it("allows method-aware no-Origin GET and configured bearer POST", async () => {
+  it("allows method-aware no-Origin GET and configured bearer POST, merging history and the layers tree", async () => {
     const getResponse = await GET(
       new Request("http://localhost:3000/api/elements?runId=test-run", {
         headers: { Host: "localhost:3000" },
@@ -70,6 +73,12 @@ describe("element route authorization", () => {
     );
     expect(getResponse.status).toBe(200);
     expect(mocks.elementHistoryState).toHaveBeenCalledWith("test-run");
+    expect(mocks.elementTree).toHaveBeenCalledWith("test-run");
+    expect(await getResponse.json()).toEqual({
+      canUndo: false,
+      canRedo: false,
+      tree: [],
+    });
 
     process.env.ONE_BOX_API_TOKEN = "route-test-token";
     const bearer = postRequest({ Authorization: "Bearer route-test-token" });

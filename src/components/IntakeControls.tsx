@@ -148,110 +148,113 @@ export function IntakeControls({
               </label>
             ))}
           </div>
-
-          <details className="intake-research">
-            <summary>Research settings</summary>
-            <div className="intake-research__panel" role="group" aria-label="Design Research">
-              <label className="intake-toggle">
-                <input
-                  type="checkbox"
-                  checked={research.enabled}
-                  onChange={(event) =>
-                    onResearchChange({ ...research, enabled: event.target.checked })
-                  }
-                  disabled={disabled}
-                />
-                <span>
-                  <strong>Use research before generation</strong>
-                  <small>
-                    Gather the research lanes selected below before the build.
-                  </small>
-                </span>
-              </label>
-              <div className="intake-research__options">
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={research.businessIntelligence}
-                    onChange={(event) =>
-                      onResearchChange({
-                        ...research,
-                        businessIntelligence: event.target.checked,
-                      })
-                    }
-                    disabled={disabled || !research.enabled}
-                  />
-                  <span>
-                    Business and competitor context
-                    <small>
-                      Runs only when paid Firecrawl discovery is separately approved below.
-                    </small>
-                  </span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    name="refero-design-evidence"
-                    checked={research.referoDesignEvidence}
-                    onChange={(event) =>
-                      onResearchChange({
-                        ...research,
-                        referoDesignEvidence: event.target.checked,
-                      })
-                    }
-                    disabled={
-                      disabled ||
-                      !research.enabled ||
-                      !referoDesignEvidenceAvailable
-                    }
-                  />
-                  <span>
-                    Design-reference evidence
-                    {!referoDesignEvidenceAvailable && (
-                      <small>
-                        Not connected in this project.{" "}
-                        <a href={referoConnectUrl}>Connect Refero</a> once; ONE BOX
-                        stores the refreshable OAuth session locally and outside Git.
-                      </small>
-                    )}
-                  </span>
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={research.allowPaidFirecrawlFallback}
-                    onChange={(event) =>
-                      onResearchChange({
-                        ...research,
-                        allowPaidFirecrawlFallback: event.target.checked,
-                      })
-                    }
-                    disabled={disabled || !research.enabled}
-                  />
-                  <span>
-                    {FIRECRAWL_CONSENT_LABEL}
-                    <small>{FIRECRAWL_CONSENT_HELP}</small>
-                  </span>
-                </label>
-                {research.enabled &&
-                  research.businessIntelligence &&
-                  !research.allowPaidFirecrawlFallback && (
-                    <p role="status">
-                      Competitor discovery will be skipped unless paid Firecrawl discovery is approved.
-                    </p>
-                  )}
-              </div>
-            </div>
-          </details>
           <button
             type="button"
-            className="intake-target__done"
+            className="intake-target__done btn-ghost"
             onClick={() => {
               if (targetMenuRef.current) targetMenuRef.current.open = false;
             }}
           >
             Done
           </button>
+        </div>
+      </details>
+
+      <details className="intake-research">
+        <summary className={research.enabled ? "intake-research__summary intake-research__summary--active" : "intake-research__summary"}>
+          <span className="badge__dot" aria-hidden="true" />
+          Research settings
+        </summary>
+        <div className="intake-research__panel" role="group" aria-label="Design Research">
+          <label className="intake-toggle">
+            <input
+              type="checkbox"
+              checked={research.enabled}
+              onChange={(event) =>
+                onResearchChange({ ...research, enabled: event.target.checked })
+              }
+              disabled={disabled}
+            />
+            <span>
+              <strong>Use research before generation</strong>
+              <small>
+                Gather the research lanes selected below before the build.
+              </small>
+            </span>
+          </label>
+          <div className="intake-research__options">
+            <label>
+              <input
+                type="checkbox"
+                checked={research.businessIntelligence}
+                onChange={(event) =>
+                  onResearchChange({
+                    ...research,
+                    businessIntelligence: event.target.checked,
+                  })
+                }
+                disabled={disabled || !research.enabled}
+              />
+              <span>
+                Business and competitor context
+                <small>
+                  Runs only when paid Firecrawl discovery is separately approved below.
+                </small>
+              </span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                name="refero-design-evidence"
+                checked={research.referoDesignEvidence}
+                onChange={(event) =>
+                  onResearchChange({
+                    ...research,
+                    referoDesignEvidence: event.target.checked,
+                  })
+                }
+                disabled={
+                  disabled ||
+                  !research.enabled ||
+                  !referoDesignEvidenceAvailable
+                }
+              />
+              <span>
+                Design-reference evidence
+                {!referoDesignEvidenceAvailable && (
+                  <small>
+                    Not connected in this project.{" "}
+                    <a href={referoConnectUrl}>Connect Refero</a> once; ONE BOX
+                    stores the refreshable OAuth session locally and outside Git.
+                  </small>
+                )}
+              </span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={research.allowPaidFirecrawlFallback}
+                onChange={(event) =>
+                  onResearchChange({
+                    ...research,
+                    allowPaidFirecrawlFallback: event.target.checked,
+                  })
+                }
+                disabled={disabled || !research.enabled}
+              />
+              <span>
+                {FIRECRAWL_CONSENT_LABEL}
+                <small>{FIRECRAWL_CONSENT_HELP}</small>
+              </span>
+            </label>
+            {research.enabled &&
+              research.businessIntelligence &&
+              !research.allowPaidFirecrawlFallback && (
+                <p role="status">
+                  Competitor discovery will be skipped unless paid Firecrawl discovery is approved.
+                </p>
+              )}
+          </div>
         </div>
       </details>
 

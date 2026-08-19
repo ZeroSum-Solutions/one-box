@@ -1,0 +1,110 @@
+{
+  "contractId": "ambrook",
+  "sourceStyle": {
+    "id": "b11e1e78-3c62-45df-bf28-17c97718ed7d",
+    "name": "Ambrook"
+  },
+  "northStar": {
+    "value": "Rustic ledger on cream parchment",
+    "provenance": {
+      "field": "North star",
+      "quote": "docs/refero-mcp-research.md Finding 2: \"North star — one-line visual thesis ('Rustic ledger on cream parchment')\", presented as the Ambrook fetch's own returned value."
+    }
+  },
+  "sectionRhythm": {
+    "contentSurfaces": ["raised", "page", "raised", "page"],
+    "heroSurface": "page",
+    "ctaSurface": "accent",
+    "provenance": {
+      "field": "Layout & section rhythm",
+      "quote": "docs/refero-mcp-research.md Finding 2: \"Layout & section rhythm — 'sections alternate between Greige Canvas and Warm Paper', 'alternating text-left/image-right', '3-column card grid for services'\". Mapped: Greige Canvas -> page, Warm Paper -> raised. The two-token alternation itself is sourced; which of the two tokens leads (page vs raised) on any given content section is this contract's own deterministic choice, not a value the doc recorded position-by-position."
+    }
+  },
+  "surfaceLevels": {
+    "page": {
+      "purpose": "Greige Canvas — base page surface, the calmer of the two alternating tones",
+      "provenance": {
+        "field": "Layout & section rhythm / Surfaces",
+        "quote": "\"sections alternate between Greige Canvas and Warm Paper\" (Finding 2)."
+      }
+    },
+    "raised": {
+      "purpose": "Warm Paper — the second alternating tone, used for content sections that need to read as a distinct card/document surface",
+      "provenance": {
+        "field": "Layout & section rhythm / Surfaces",
+        "quote": "\"sections alternate between Greige Canvas and Warm Paper\" (Finding 2)."
+      }
+    },
+    "inverted": {
+      "purpose": "assumed — no dark/inverted surface is recorded anywhere for Ambrook in either source doc; this contract keeps the level defined but unused by its rhythm",
+      "provenance": {
+        "field": "Surfaces",
+        "quote": "assumed"
+      }
+    },
+    "accent": {
+      "purpose": "Harvest Gold — primary CTA surface only, never a body fill or large band",
+      "provenance": {
+        "field": "Color roles",
+        "quote": "docs/refero-mcp-research.md Finding 2: \"Color roles — every hex has a named role ('Harvest Gold — primary CTA only')\", presented as the Ambrook fetch's own returned value."
+      }
+    }
+  },
+  "density": {
+    "class": "comfortable",
+    "baseGapStep": 2,
+    "provenance": {
+      "field": "Spacing & shapes (north-star descriptor used as proxy)",
+      "quote": "assumed — Finding 2 names \"Spacing & shapes — density, ...\" as a field category the full style returns, but neither doc records Ambrook's actual density value. Inferred from RESEARCH-LOG.md's verdict descriptor for Ambrook: \"Warm, grounded, tactile\" — a tactile, grounded register reads as generous/comfortable spacing, not compact."
+    }
+  },
+  "media": {
+    "treatment": "photography",
+    "framing": "documentary-inset",
+    "provenance": {
+      "field": "Imagery guidance",
+      "quote": "spikes/refero-baseline/RESEARCH-LOG.md §3 and §5 (repeated): \"Photography art direction (candid, desaturated, real work environments) | Ambrook\"; §2 verdict: \"Warm, grounded, tactile; candid desaturated work photography\". 'Documentary-inset' framing (a supporting plate, not a full-bleed hero mass) is this contract's own translation of 'candid, real work environments' into the framing enum — candid documentary photography reads as evidence alongside the copy, not as a dominating graphic hero."
+    }
+  },
+  "motion": {
+    "durationClass": "moderate",
+    "easingClass": "organic",
+    "provenance": {
+      "field": "Motion philosophy",
+      "quote": "assumed — RESEARCH-LOG.md §3: \"Sometimes motion philosophy (Ambrook: durations and easing)\" confirms the FIELD exists for Ambrook, but no actual duration/easing values are recorded in either doc."
+    }
+  },
+  "componentPosture": {
+    "radiusClass": "soft",
+    "depthMode": "shadow",
+    "provenance": {
+      "field": "Component recipes",
+      "quote": "docs/refero-mcp-research.md Finding 2 caveat: \"styles contain internal inconsistencies (Ambrook's components say 3.75px button radius; its prompt guide says 9999px pill) — synthesis must reconcile, never trust a single field blindly.\" Reconciled here: the primary component-spec value (3.75px, a soft near-flat radius) is kept over the secondary Agent Prompt Guide's pill value, per Finding 2's own instruction to reconcile rather than average. depthMode is not itself sourced from an Ambrook-specific shadow value (none recorded) — assumed 'shadow' over 'border' from the tactile/paper north-star language (soft elevation reads as tactile; hard rules read as technical)."
+    }
+  },
+  "rejects": [
+    {
+      "rule": "Accent colour (Harvest Gold) is reserved for the primary CTA only — never a body highlight, large fill, or secondary accent",
+      "provenance": {
+        "field": "Color roles",
+        "quote": "\"Harvest Gold — primary CTA only\" (Finding 2)."
+      }
+    },
+    {
+      "rule": "No glossy, over-lit, staged corporate stock photography — imagery stays candid and desaturated",
+      "provenance": {
+        "field": "Do's/Don'ts (inferred from Imagery guidance)",
+        "quote": "assumed — no literal Do/Don't list item is recorded for Ambrook in either doc; this is the natural entailment of the documented imagery direction 'candid, slightly desaturated ... real work environments' (RESEARCH-LOG §3/§5), not an invented rule from nothing."
+      }
+    }
+  ],
+  "assumptions": [
+    { "field": "density.class", "rationale": "No density value recorded for Ambrook; inferred from the 'Warm, grounded, tactile' verdict descriptor (RESEARCH-LOG §2)." },
+    { "field": "density.baseGapStep", "rationale": "Same gap — no numeric spacing recorded; step 2 chosen as this schema's 'comfortable' default, one step looser than the compact default used for the contrasting Pipe contract." },
+    { "field": "surfaceLevels.inverted.purpose", "rationale": "No dark/inverted surface recorded anywhere for Ambrook; defined but deliberately unused by sectionRhythm." },
+    { "field": "motion.durationClass", "rationale": "RESEARCH-LOG confirms Ambrook has a recorded motion philosophy but neither doc quotes its duration values." },
+    { "field": "motion.easingClass", "rationale": "Same — easing personality is known to exist for Ambrook, its class is not recorded." },
+    { "field": "componentPosture.depthMode", "rationale": "No shadow token value recorded for Ambrook; 'shadow' chosen over 'border' as the reading consistent with 'tactile'/'grounded', not a directly quoted value." },
+    { "field": "sectionRhythm alternation ordering", "rationale": "The doc records that the two named surfaces alternate; it does not record which one a given section index gets. This contract's own deterministic cycle (raised, page, raised, page) is a composition choice, not a transcribed value." }
+  ]
+}

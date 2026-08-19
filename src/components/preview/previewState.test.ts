@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCompactDefault,
   breakpointForWidth,
   clampPanelWidth,
+  didComposerTargetChange,
+  isCompactWorkspace,
   isTrustedEditorMessage,
   isRunBoundRequestCurrent,
   isWorkbenchStateRestoredForRun,
@@ -14,6 +17,8 @@ import {
   readEditorStateMessage,
   restoreWorkbenchState,
   workbenchSizeForWidth,
+  DEFAULT_WORKBENCH_STATE,
+  type PersistedWorkbenchState,
 } from "./previewState";
 
 describe("preview editor message guard", () => {
@@ -42,6 +47,16 @@ describe("preview editor message guard", () => {
         },
       }),
     ).toMatchObject({ selection: { assetKind: "image" } });
+  });
+
+  it("accepts a container selection (a section holding other editable nodes)", () => {
+    expect(
+      readEditorStateMessage({
+        ...valid,
+        state: "selected",
+        selection: { ...valid.selection, tag: "section", behavior: "container" },
+      }),
+    ).toMatchObject({ selection: { behavior: "container" } });
   });
 
   it("rejects malformed and state-inconsistent payloads", () => {
@@ -98,6 +113,49 @@ describe("preview editor message guard", () => {
     );
   });
 
+  it("accepts a selection carrying a validated ancestor chain", () => {
+    expect(
+      readEditorStateMessage({
+        ...valid,
+        selection: { ...valid.selection, parentChain: ["hero"] },
+        canStepBack: true,
+      }),
+    ).toMatchObject({
+      selection: { parentChain: ["hero"] },
+      canStepBack: true,
+    });
+  });
+
+  it("rejects a malformed or oversized ancestor chain", () => {
+    expect(
+      readEditorStateMessage({
+        ...valid,
+        selection: { ...valid.selection, parentChain: ["not a valid id!"] },
+      }),
+    ).toBeNull();
+    expect(
+      readEditorStateMessage({
+        ...valid,
+        selection: {
+          ...valid.selection,
+          parentChain: Array.from({ length: 21 }, () => "hero"),
+        },
+      }),
+    ).toBeNull();
+    expect(
+      readEditorStateMessage({
+        ...valid,
+        selection: { ...valid.selection, parentChain: "hero" },
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects a non-boolean canStepBack", () => {
+    expect(
+      readEditorStateMessage({ ...valid, canStepBack: "yes" }),
+    ).toBeNull();
+  });
+
   it("rejects legacy and unknown protocols", () => {
     expect(
       readEditorStateMessage({
@@ -120,6 +178,29 @@ describe("preview workbench state", () => {
   it("rejects stale edit and paid-asset completions after run navigation", () => {
     expect(isRunBoundRequestCurrent("run-a", "run-a")).toBe(true);
     expect(isRunBoundRequestCurrent("run-a", "run-b")).toBe(false);
+  });
+
+  it("flags a composer target change only when the editId actually differs", () => {
+    // Re-selecting the exact same element (a click that re-fires the same
+    // editId, or an unrelated state update carrying it) must not nuke a
+    // draft the user is still typing.
+    expect(didComposerTargetChange("hero.headline", "hero.headline")).toBe(
+      false,
+    );
+    // Selecting a different element while a draft is unsent -- the
+    // regression this predicate exists to close: A's draft must not
+    // silently re-attach to B once the target moves out from under it.
+    expect(didComposerTargetChange("hero.headline", "why-us.point-1")).toBe(
+      true,
+    );
+    // Clearing the selection (chip's Clear button, round-tripped through
+    // overlay.js as selection: null) is also a target change -- the draft
+    // must not survive to reattach to whatever gets selected next.
+    expect(didComposerTargetChange("hero.headline", null)).toBe(true);
+    // The very first selection of a session: no prior target existed, so
+    // there is nothing for a stale draft to have been written against.
+    expect(didComposerTargetChange(null, "hero.headline")).toBe(true);
+    expect(didComposerTargetChange(null, null)).toBe(false);
   });
 
   it("falls back and keeps persistence best-effort when storage is unavailable", () => {
@@ -186,17 +267,64 @@ describe("preview workbench state", () => {
     expect(workbenchSizeForWidth(519)).toBe("normal");
     expect(workbenchSizeForWidth(520)).toBe("expanded");
     expect(panelWidthBounds(1280)).toEqual({ min: 300, max: 960 });
-    expect(panelWidthBounds(454)).toEqual({ min: 220, max: 220 });
+    // Below the compact threshold the bound is the overlay's own viewport
+    // margin, not the old fixed 220px floor a shared-space panel needed.
+    expect(panelWidthBounds(454)).toEqual({ min: 240, max: 400 });
   });
 
   it("maps named preview widths to reachable workbench positions", () => {
     expect(panelWidthForBreakpoint("desktop", 1280)).toBe(300);
-    expect(panelWidthForBreakpoint("tablet", 1280)).toBe(512);
-    expect(panelWidthForBreakpoint("mobile", 1280)).toBe(889);
+    // The preview viewport spends 34px of leftover space on chrome the
+    // iframe never sees (.preview-viewport padding + .preview-frame
+    // border, PREVIEW_FRAME_CHROME) before the named preset width, so the
+    // panel must claim 34px less than the naive 1280 - 1 - preset to leave
+    // the generated site an exact preset-width viewport.
+    expect(panelWidthForBreakpoint("tablet", 1280)).toBe(478);
+    expect(panelWidthForBreakpoint("mobile", 1280)).toBe(855);
 
     // Narrow windows clamp safely instead of forcing content off-screen.
-    expect(panelWidthForBreakpoint("desktop", 454)).toBe(220);
-    expect(panelWidthForBreakpoint("mobile", 454)).toBe(220);
+    expect(panelWidthForBreakpoint("desktop", 454)).toBe(240);
+    expect(panelWidthForBreakpoint("mobile", 454)).toBe(240);
+  });
+
+  it("treats sub-880px workspaces as compact, where the workbench overlays instead of sharing space", () => {
+    expect(isCompactWorkspace(879)).toBe(true);
+    expect(isCompactWorkspace(880)).toBe(false);
+  });
+
+  it("bounds the compact-workspace overlay by the viewport, never floored at a desktop-sized minimum", () => {
+    expect(panelWidthBounds(375)).toEqual({ min: 240, max: 343 });
+    expect(panelWidthBounds(600)).toEqual({ min: 240, max: 400 });
+    expect(panelWidthBounds(850)).toEqual({ min: 240, max: 400 });
+  });
+
+  it("defaults the rail to collapsed on a compact workspace so the preview keeps the full viewport", () => {
+    const open: PersistedWorkbenchState = {
+      ...DEFAULT_WORKBENCH_STATE,
+      size: "expanded",
+      lastOpenSize: "expanded",
+    };
+    expect(applyCompactDefault(open, 600)).toEqual({
+      ...open,
+      size: "collapsed",
+      lastOpenSize: "expanded",
+    });
+    expect(applyCompactDefault(DEFAULT_WORKBENCH_STATE, 600)).toEqual({
+      ...DEFAULT_WORKBENCH_STATE,
+      size: "collapsed",
+      lastOpenSize: "normal",
+    });
+
+    // Non-compact workspaces and already-collapsed state are untouched
+    // (identity-preserving — no needless re-render off a new object).
+    expect(applyCompactDefault(DEFAULT_WORKBENCH_STATE, 1280)).toBe(
+      DEFAULT_WORKBENCH_STATE,
+    );
+    const alreadyCollapsed: PersistedWorkbenchState = {
+      ...DEFAULT_WORKBENCH_STATE,
+      size: "collapsed",
+    };
+    expect(applyCompactDefault(alreadyCollapsed, 600)).toBe(alreadyCollapsed);
   });
 
   it("keeps named canvas widths exact when the workbench reaches its cap", () => {
@@ -225,8 +353,11 @@ describe("preview workbench state", () => {
   });
 
   it("finds preview snap points without making fluid resizing sticky", () => {
-    expect(nearestPreviewBreakpoint(512, 1280)).toBe("tablet");
-    expect(nearestPreviewBreakpoint(889, 1280)).toBe("mobile");
+    // Snap targets are panelWidthForBreakpoint's own output (478/855 at this
+    // workspace width, after PREVIEW_FRAME_CHROME), not the preset pixel
+    // values themselves -- those name the iframe's width, not the panel's.
+    expect(nearestPreviewBreakpoint(478, 1280)).toBe("tablet");
+    expect(nearestPreviewBreakpoint(855, 1280)).toBe("mobile");
     expect(nearestPreviewBreakpoint(300, 1280)).toBe("desktop");
     expect(nearestPreviewBreakpoint(600, 1280)).toBeNull();
   });

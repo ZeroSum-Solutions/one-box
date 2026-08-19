@@ -182,7 +182,7 @@ export function ResearchFindingsContent({ state }: { state: ResearchState }) {
 
   const { ledger } = state;
   return (
-    <section className="evidence-readable" aria-label="Saved research findings">
+    <section className="evidence-readable research-card" aria-label="Saved research findings">
       <p className="eyebrow">{"{ Saved Research }"}</p>
       <p>
         Business intelligence and Refero design references are retained as

@@ -290,7 +290,7 @@ describe("chat intake request", () => {
     expect(parsed.intakeContext.research.allowPaidFirecrawlFallback).toBe(true);
   });
 
-  it("defaults omitted paid fallback consent to false", () => {
+  it("defaults omitted paid fallback consent to true", () => {
     const request = buildChatRequest(
       [{ id: "message-1", role: "user", content: "Build Acme" }],
       context,
@@ -304,7 +304,7 @@ describe("chat intake request", () => {
       ...request,
       intakeContext: { ...request.intakeContext, research },
     });
-    expect(parsed.intakeContext.research.allowPaidFirecrawlFallback).toBe(false);
+    expect(parsed.intakeContext.research.allowPaidFirecrawlFallback).toBe(true);
   });
 
   it("forces the request target, research, and uploads over model values", () => {
