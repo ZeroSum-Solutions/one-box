@@ -2,18 +2,18 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const FIXTURE_IMPORT = /(?:from\s*|import\s*\()\s*["'][^"']*test-support\/buildSiteFixture(?:\.ts)?["']/;
+const FIXTURE_IMPORT = /(?:from\s*|import\s*(?:\(\s*)?)["'][^"']*test-support\/buildSiteFixture(?:\.ts)?["']/;
 
 describe("production fixture import boundary", () => {
-  it("keeps the live-publishing fixture helper out of app and pipeline modules", async () => {
-    const appRoot = path.join(process.cwd(), "src", "app");
-    const appSources = (await fs.readdir(appRoot, { recursive: true }))
-      .filter((relativePath) => /\.(?:ts|tsx)$/.test(relativePath))
-      .map((relativePath) => path.join(appRoot, relativePath));
-    const productionSources = [
-      path.join(process.cwd(), "src", "lib", "pipeline.ts"),
-      ...appSources,
-    ];
+  it("keeps the live-publishing fixture helper out of all production source", async () => {
+    const srcRoot = path.join(process.cwd(), "src");
+    const productionSources = (await fs.readdir(srcRoot, { recursive: true }))
+      .filter(
+        (relativePath) =>
+          /\.(?:ts|tsx)$/.test(relativePath) &&
+          !/\.(?:test|spec)\.(?:ts|tsx)$/.test(relativePath),
+      )
+      .map((relativePath) => path.join(srcRoot, relativePath));
     const offenders: string[] = [];
 
     for (const sourcePath of productionSources) {

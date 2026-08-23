@@ -42,3 +42,23 @@ candidate output. Pipeline replay suppresses stale evidence-gated completion,
 not only legacy completion, whenever an unserved promotable candidate exists.
 A mechanical import guard keeps the test-only live publication helper out of
 production app and pipeline modules.
+
+## Fix Round 2
+
+Promotable candidates are parked before pause, configuration, cost-cap, or
+pipeline execution. Reconnect replays only nonterminal history plus current
+cost; it neither appends an error nor resumes work. A built stage now accepts
+only an exact present `promotable` candidate, and `stageBuild` independently
+requires the durable gate disposition to be `promotable` before it can finish.
+Missing, `failed`, or `ready-for-gates` post-build state fails closed before
+legacy completion or evidence visual QA. Unproven completion is no longer
+synthesized from stage or stale visual-QA state; a recorded historical live
+completion remains replayable only when no candidate exists.
+
+The standalone live-publishing fixture requires
+`ONEBOX_TEST_FIXTURE_PUBLISH=1` in addition to a non-production runtime. Only
+intentional smoke, canvas, and unit-test consumers set it. The import boundary
+now scans every non-test/spec TypeScript source under `src/`, including
+components, middleware, and library modules. If fixture publication and
+restoration both fail, both errors are reported and the retired snapshot is
+left intact for diagnosis/recovery.

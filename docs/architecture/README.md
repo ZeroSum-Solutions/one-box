@@ -129,8 +129,11 @@ theme lives at
 `evidence/approved/runtime-tailwind-theme.css`; compilation copies it into the
 candidate bundle but never writes it into the live site. Standalone tests and
 browser fixtures use `test-support/buildSiteFixture.ts`, whose explicit live
-copy/swap helper rejects production runtime use and is not imported by app or
-pipeline routes.
+copy/swap helper requires `ONEBOX_TEST_FIXTURE_PUBLISH=1`, rejects production
+runtime use even with that flag, and is not imported by any non-test/spec
+TypeScript source under `src/`. Intentional smoke and canvas scripts set the
+flag at their fixture boundary. If the staging rename and restoration both
+fail, the helper reports both errors and preserves the retired snapshot.
 
 After compilation, `gateBuiltCandidate(runId)` reuses
 `runCandidateGates(runId)` and moves `ready-for-gates` to `failed` when any
@@ -143,9 +146,13 @@ restored exactly. If gate execution throws before a receipt exists, provenance
 becomes `failed` without inventing a receipt or hash. Initial failure leaves no
 served site; rebuild failure leaves the complete live inventory and canonical
 run-root gate report unchanged. A promotable candidate is still unserved, and
-the pipeline stops before visual QA or a live-complete event. OBX-014 owns
-promotion and resumption of the existing visual-QA flow; OBX-015 owns
-cross-process locking and crash recovery.
+the pipeline parks before approval pauses, configuration checks, cost-cap
+errors, resumed execution, visual QA, or a live-complete event. A built stage
+accepts only an exact present `promotable` candidate, and independently asserts
+that the durable gate disposition is `promotable`; absent, `failed`, or
+`ready-for-gates` state fails closed. The existing visual-QA continuation stays
+in place behind this boundary for OBX-014 to reconnect after promotion.
+OBX-015 owns cross-process locking and crash recovery.
 
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events
@@ -153,8 +160,12 @@ and repeated narrative cards, attach to in-flight emissions, and flush queued
 event writes before closing. Evidence truth is derived from persisted artifacts;
 the intake artifact owns the user's research choice, while `run.json` owns the
 current stage and approval state. For both legacy and evidence-gated runs, a
-promotable candidate suppresses stale live-completion replay or synthesis and
-resumes pipeline execution until OBX-014 provides a closed promotion proof.
+promotable candidate suppresses stale live-completion replay or synthesis,
+replays only nonterminal history and current cost, and returns without resuming
+pipeline execution. Stage completion or stale approved visual QA cannot
+synthesize a live terminal. Historical live completion is replayed only when
+it is already recorded and no candidate exists; OBX-014 must provide the future
+closed promotion proof and continuation.
 
 `src/lib/productionTarget.ts` owns the production target policy. Persisted
 contracts continue to parse `website`, `web-app`, and `ios-app` so historical

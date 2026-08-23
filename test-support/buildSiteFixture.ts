@@ -14,21 +14,44 @@ function assertFixtureRuntime(): void {
   if (process.env.NODE_ENV === "production") {
     throw new Error("test-only builder fixture is disabled in production");
   }
+  if (process.env.ONEBOX_TEST_FIXTURE_PUBLISH !== "1") {
+    throw new Error(
+      "test-only builder fixture requires explicit authorization",
+    );
+  }
 }
+
+interface FixturePublishDependencies {
+  rename(from: string, to: string): Promise<void>;
+}
+
+const defaultFixturePublishDependencies: FixturePublishDependencies = {
+  rename: fs.rename,
+};
 
 export async function publishBuildFixture(
   stagingDir: string,
   publishDir: string,
+  dependencies: FixturePublishDependencies = defaultFixturePublishDependencies,
 ): Promise<void> {
   assertFixtureRuntime();
   const retired = `${publishDir}.retired-${process.pid}`;
   const hadPrevious = await fs.stat(publishDir).then(() => true).catch(() => false);
-  if (hadPrevious) await fs.rename(publishDir, retired);
+  if (hadPrevious) await dependencies.rename(publishDir, retired);
   try {
-    await fs.rename(stagingDir, publishDir);
-  } catch (error) {
-    if (hadPrevious) await fs.rename(retired, publishDir).catch(() => {});
-    throw error;
+    await dependencies.rename(stagingDir, publishDir);
+  } catch (publishError) {
+    if (hadPrevious) {
+      try {
+        await dependencies.rename(retired, publishDir);
+      } catch (restoreError) {
+        throw new AggregateError(
+          [publishError, restoreError],
+          "fixture publication failed and the retired site could not be restored",
+        );
+      }
+    }
+    throw publishError;
   }
   if (hadPrevious) await fs.rm(retired, { recursive: true, force: true });
 }

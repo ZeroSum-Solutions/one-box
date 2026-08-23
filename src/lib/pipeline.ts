@@ -80,8 +80,12 @@ import {
 } from "./tools/refero";
 import { generateImage } from "./tools/higgsfield";
 import { localLibraryCandidates, localLibraryRecord } from "./tools/locallib";
-import { buildSite, gateBuiltCandidate } from "./builder";
-import { inspectCandidate } from "./candidate";
+import {
+  buildSite,
+  gateBuiltCandidate,
+  type CandidateGateDisposition,
+} from "./builder";
+import { inspectCandidate, type CandidateInspection } from "./candidate";
 import { assertWebsiteProductionRun } from "./productionTarget";
 import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
@@ -394,6 +398,26 @@ async function acquireRunStart(runId: string): Promise<() => void> {
 
 const PIPELINE_STAGES = ["scanned", "locked", "synthesized", "built"] as const;
 
+export function assertBuiltCandidateParked(
+  candidate: CandidateInspection,
+): true {
+  if (
+    candidate.status === "present" &&
+    candidate.provenance.state === "promotable"
+  ) {
+    return true;
+  }
+  throw new Error("built stage requires a promotable candidate");
+}
+
+export function assertPromotableBuildDisposition(
+  disposition: CandidateGateDisposition,
+): void {
+  if (disposition.state !== "promotable") {
+    throw new Error("candidate gate disposition is not promotable");
+  }
+}
+
 function replayEventKey(event: PipelineEvent): string {
   return JSON.stringify(event);
 }
@@ -592,6 +616,9 @@ export async function runPipeline(
   const candidateAwaitingPromotion =
     candidate.status === "present" &&
     candidate.provenance.state === "promotable";
+  const recordedLiveCompletion =
+    candidate.status === "absent" &&
+    history.some((event) => event.type === "complete");
   const gatedComplete =
     run.pipelineVersion === "evidence-gated-v2" &&
     run.stages.built.status === "done" &&
@@ -602,23 +629,19 @@ export async function runPipeline(
         artifactApprovalState(artifact) === "approved"
   );
   if (
-    !candidateAwaitingPromotion &&
+    recordedLiveCompletion &&
     (gatedComplete ||
       (run.pipelineVersion === "legacy-v1" &&
         PIPELINE_STAGES.every((name) => run.stages[name]?.status === "done")))
   ) {
     replayHistory(true);
     emit({ type: "cost", usd: run.costUsd });
-    if (!history.some((event) => event.type === "complete")) {
-      // pre-log run: no history to replay, so synthesize the terminal event
-      const complete: PipelineEvent = {
-        type: "complete",
-        runId,
-        previewUrl: `/preview/${runId}`,
-      };
-      await dependencies.appendEvent(runId, complete);
-      emit(complete);
-    }
+    return;
+  }
+
+  if (candidateAwaitingPromotion) {
+    replayHistory(false);
+    emit({ type: "cost", usd: run.costUsd });
     return;
   }
 
@@ -767,11 +790,7 @@ async function executeLegacyPipeline(runId: string, emit: Emit) {
     await stage(runId, "built", emit, () =>
       stageBuild(runId, intake, synth, emit)
     );
-    const candidate = await inspectCandidate(runId);
-    if (
-      candidate.status === "present" &&
-      candidate.provenance.state === "promotable"
-    ) {
+    if (assertBuiltCandidateParked(await inspectCandidate(runId))) {
       return;
     }
     const run = await loadRun(runId);
@@ -897,6 +916,13 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
     }
     const run = await loadRun(runId);
     const workflowStage = run.evidenceWorkflow.currentStage;
+    if (
+      workflowStage === "build" &&
+      run.stages.built.status === "done" &&
+      assertBuiltCandidateParked(await inspectCandidate(runId))
+    ) {
+      return;
+    }
     const expectedType = EVIDENCE_STAGE_ARTIFACT[workflowStage];
     const existing = latestWorkflowArtifact(run, expectedType);
 
@@ -1119,11 +1145,7 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
         tailwindComponentUtilityClasses(approvedPlan.artifact)
       )
     );
-    const candidate = await inspectCandidate(runId);
-    if (
-      candidate.status === "present" &&
-      candidate.provenance.state === "promotable"
-    ) {
+    if (assertBuiltCandidateParked(await inspectCandidate(runId))) {
       return;
     }
     const qa = await runThreeWidthVisualQa(
@@ -2472,6 +2494,7 @@ async function stageBuild(
       `blocking candidate gates failed: ${stillFailing.map((r) => r.gate).join(", ")}`
     );
   }
+  assertPromotableBuildDisposition(disposition);
   emit({
     type: "card",
     stage: "built",

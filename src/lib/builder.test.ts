@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSite, deriveTextMuted, findDanglingTokenRefs } from "./builder";
 import {
   buildAndPublishSiteFixture,
@@ -107,12 +107,43 @@ describe("Website-only builds", () => {
     }
   });
 
-  it("makes the fixture publication helper unreachable in production", async () => {
-    vi.stubEnv("NODE_ENV", "production");
+  it.each([
+    [
+      "build and publish",
+      () => buildAndPublishSiteFixture({} as Parameters<typeof buildSite>[0]),
+    ],
+    [
+      "publish",
+      () => publishBuildFixture("unused-staging", "unused-publish"),
+    ],
+  ])("requires explicit fixture authorization to %s", async (_label, invoke) => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "");
     try {
-      await expect(
-        buildAndPublishSiteFixture({} as Parameters<typeof buildSite>[0])
-      ).rejects.toThrow("test-only builder fixture is disabled in production");
+      await expect(invoke()).rejects.toThrow(
+        "test-only builder fixture requires explicit authorization",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each([
+    [
+      "build and publish",
+      () => buildAndPublishSiteFixture({} as Parameters<typeof buildSite>[0]),
+    ],
+    [
+      "publish",
+      () => publishBuildFixture("unused-staging", "unused-publish"),
+    ],
+  ])("makes the fixture %s helper unreachable in production", async (_label, invoke) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "1");
+    try {
+      await expect(invoke()).rejects.toThrow(
+        "test-only builder fixture is disabled in production",
+      );
     } finally {
       vi.unstubAllEnvs();
     }
@@ -257,9 +288,13 @@ describe("deriveTextMuted", () => {
 
 describe("publishBuildFixture", () => {
   const roots: string[] = [];
-  afterEach(async () =>
-    Promise.all(roots.splice(0).map((r) => fs.rm(r, { recursive: true, force: true })))
-  );
+  beforeEach(() => vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "1"));
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await Promise.all(
+      roots.splice(0).map((r) => fs.rm(r, { recursive: true, force: true })),
+    );
+  });
 
   async function staged(previous?: string) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-publish-"));
@@ -298,5 +333,37 @@ describe("publishBuildFixture", () => {
     const { publishDir } = await staged("old");
     await expect(publishBuildFixture(path.join(publishDir, "..", "nope"), publishDir)).rejects.toThrow();
     expect(await fs.readFile(path.join(publishDir, "index.html"), "utf8")).toBe("old");
+  });
+
+  it("preserves the retired snapshot and reports both errors when publish and restore fail", async () => {
+    const { publishDir, stagingDir } = await staged("old");
+    const retired = `${publishDir}.retired-${process.pid}`;
+    const publishError = new Error("staging rename failed");
+    const restoreError = new Error("retired restore failed");
+    const rename = vi.fn(async (from: string, to: string) => {
+      if (from === stagingDir && to === publishDir) throw publishError;
+      if (from === retired && to === publishDir) throw restoreError;
+      await fs.rename(from, to);
+    });
+
+    let caught: unknown;
+    try {
+      await publishBuildFixture(stagingDir, publishDir, { rename });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect((caught as AggregateError).errors).toEqual([
+      publishError,
+      restoreError,
+    ]);
+    expect(await fs.readFile(path.join(retired, "index.html"), "utf8")).toBe(
+      "old",
+    );
+    await expect(fs.stat(publishDir)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(path.join(stagingDir, "index.html"), "utf8")).toBe(
+      "new",
+    );
   });
 });

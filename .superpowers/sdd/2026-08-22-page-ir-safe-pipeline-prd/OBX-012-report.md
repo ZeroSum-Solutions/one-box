@@ -187,3 +187,69 @@ With a temporary forbidden pipeline import, exit `1` named
   `test-support/buildSiteFixture`.
 - OBX-011 candidate gate runtime, Website-only policy, fixture runtime guard,
   Page IR, repair, promotion, and OBX-015 recovery/locking remain unchanged.
+
+## Fix Round 2 — park promotable candidate runs
+
+Controller review found three sustained boundaries. A promotable reconnect
+suppressed completion but still advanced into pause, preflight, cost-cap, and
+execution. The two post-build paths treated promotable as a negative
+early-return, so any other re-read state fell into live completion or visual
+QA. The standalone fixture publisher also lacked affirmative authorization,
+its import scan covered only app/pipeline files, and it discarded restoration
+errors.
+
+### Fix Round 2 RED evidence
+
+- `npm test -- --run src/lib/pipelineReplay.test.ts src/lib/builder.test.ts`:
+  exit `1`; 2 files failed, 7 tests failed and 32 passed. The four parking
+  cases resumed or appended a cost-cap error, both fixture exports ran without
+  affirmative authorization, and the double-rename case did not produce an
+  `AggregateError`.
+- `npm test -- --run src/lib/pipelineReplay.test.ts`: exit `1`; 4 tests failed
+  and 14 passed because missing, `failed`, and `ready-for-gates` post-build
+  state plus a non-promotable clean receipt had no exact disposition guard.
+- The expanded import-boundary mutation failed with
+  `src/components/intakeRequest.ts` as the sole offender after a deliberate
+  side-effect fixture import. The probe was removed before GREEN.
+- The final controller-level integration RED exited `1`; 3 tests failed and
+  18 passed because legacy completion was still synthesized for missing,
+  `failed`, and `ready-for-gates` candidates before the internal guard ran.
+
+### Fix Round 2 behavior
+
+- `runPipeline` inspects candidate state once at the replay boundary. An exact
+  present `promotable` candidate replays nonterminal history and current cost,
+  then returns before pause, configuration, cost-cap, or execution. Over-cap
+  parked runs append no error.
+- Both execution paths require exact present `promotable` state after a built
+  stage and return. Evidence built-stage resume checks the same boundary before
+  an existing visual-QA artifact can complete or restart QA. `stageBuild`
+  separately rejects any gate disposition other than `promotable`, even if its
+  receipt rows appear clean.
+- Stage and stale visual-QA state no longer synthesize a live completion.
+  Previously recorded historical live completion remains replay-only when no
+  candidate exists. Promotion and live continuation remain OBX-014 work.
+- Both fixture exports require `ONEBOX_TEST_FIXTURE_PUBLISH=1` and reject
+  production even when authorized. Only intentional unit, smoke, and canvas
+  consumers set the flag. The mechanical boundary covers all non-test/spec
+  TypeScript and TSX under `src/`, including side-effect imports.
+- If staged publication fails and restoration also fails, the publisher throws
+  an `AggregateError` containing both failures and leaves the retired snapshot
+  untouched. No cross-process recovery or locking was added.
+
+### Fix Round 2 verification
+
+- Focused pipeline, builder, evidence, and boundary suite: exit `0`; 4 files,
+  65 tests passed.
+- Full `npm test`: exit `0`; 67 files passed and 2 skipped; 629 tests passed
+  and 2 skipped.
+- `npm run typecheck`: exit `0`.
+- `npm run lint`: exit `0`; 0 errors and 6 pre-existing warnings.
+- `git diff --check`: exit `0`.
+- Security report validation: `OK`; range gitleaks scan passed with no leaks.
+- Project-documentation verification: `status: ok`.
+
+`npm run test:smoke` still exits `1` before fixture execution on Node 26.7.0:
+the unchanged strip-only loader rejects the TypeScript parameter property in
+`src/lib/productionTarget.ts:63`. The same baseline blocker was recorded by
+OBX-011, OBX-012, and Fix Round 1; no Fix Round 2 path executes before failure.

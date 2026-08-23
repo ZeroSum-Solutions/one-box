@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { compile } from "tailwindcss";
 import postcss from "postcss";
 import { chromium } from "playwright";
@@ -29,6 +29,7 @@ import {
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     temporaryDirectories.splice(0).map((directory) =>
       fs.rm(directory, { recursive: true, force: true })
@@ -484,6 +485,7 @@ describe("evidence artifact derivation", () => {
   });
 
   it("records passing visual QA at desktop, tablet, and mobile widths", async () => {
+    vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "1");
     const runId = await createRun({ pipelineVersion: "legacy-v1" });
     const runRoot = sitePaths(runId).root;
     const site = sitePaths(runId).site;

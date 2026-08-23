@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Intake, PipelineEvent, RunState } from "./contracts";
 import {
+  assertBuiltCandidateParked,
+  assertPromotableBuildDisposition,
   projectPipelineReplayEvents,
   replayedConfigurationErrorIsCurrent,
   replayedPauseIsCurrent,
@@ -49,6 +51,84 @@ const disabledResearchIntake = {
 } satisfies Intake;
 
 describe("pipeline replay", () => {
+  it.each([
+    ["missing", { status: "absent" }],
+    [
+      "failed",
+      { status: "present", provenance: { state: "failed" } },
+    ],
+    [
+      "ready-for-gates",
+      { status: "present", provenance: { state: "ready-for-gates" } },
+    ],
+  ])(
+    "fails closed before legacy completion or visual QA when the post-build candidate is %s",
+    (_label, candidate) => {
+      const emitComplete = vi.fn();
+      const runVisualQa = vi.fn();
+
+      expect(() => {
+        if (!assertBuiltCandidateParked(candidate as never)) {
+          emitComplete();
+          runVisualQa();
+        }
+      }).toThrow("built stage requires a promotable candidate");
+      expect(emitComplete).not.toHaveBeenCalled();
+      expect(runVisualQa).not.toHaveBeenCalled();
+    },
+  );
+
+  it("rejects a nominally clean gate result whose durable disposition is not promotable", () => {
+    expect(() =>
+      assertPromotableBuildDisposition({
+        state: "failed",
+        receipt: {
+          reports: [{ gate: "fixture", pass: true, blocking: true }],
+        },
+      } as never),
+    ).toThrow("candidate gate disposition is not promotable");
+  });
+
+  it.each([
+    ["missing", { status: "absent" }],
+    [
+      "failed",
+      { status: "present", provenance: { state: "failed" } },
+    ],
+    [
+      "ready-for-gates",
+      { status: "present", provenance: { state: "ready-for-gates" } },
+    ],
+  ])(
+    "does not synthesize legacy completion when the built candidate is %s",
+    async (_label, candidate) => {
+      const run = pendingRun("closed-built-run");
+      run.pipelineVersion = "legacy-v1";
+      for (const stage of Object.values(run.stages)) stage.status = "done";
+      const emit = vi.fn();
+      const appendEvent = vi.fn().mockResolvedValue(undefined);
+      const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+      await runPipeline("closed-built-run", emit, {
+        readEvents: vi.fn().mockResolvedValue([]),
+        loadRun: vi.fn().mockResolvedValue(run),
+        loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+        appendEvent,
+        inspectCandidate: vi.fn().mockResolvedValue(candidate),
+        executePipeline,
+      } as never);
+
+      expect(emit).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "complete" }),
+      );
+      expect(appendEvent).not.toHaveBeenCalledWith(
+        "closed-built-run",
+        expect.objectContaining({ type: "complete" }),
+      );
+      expect(executePipeline).toHaveBeenCalledOnce();
+    },
+  );
+
   it.each(["web-app", "ios-app"] as const)(
     "rejects %s before history, events, or pipeline execution",
     async (projectTarget) => {
@@ -243,7 +323,7 @@ describe("pipeline replay", () => {
     expect(secondEmit).not.toHaveBeenCalledWith(staleError);
   });
 
-  it("durably appends synthesized gated completion before emitting it", async () => {
+  it("does not synthesize gated completion without a recorded live transition", async () => {
     const run = pendingRun("complete-run");
     run.stages.built.status = "done";
     run.evidenceWorkflow.currentStage = "build";
@@ -283,31 +363,48 @@ describe("pipeline replay", () => {
         },
       },
     ];
-    let finishAppend!: () => void;
-    const appendBlocked = new Promise<void>((resolve) => {
-      finishAppend = resolve;
-    });
-    const appendEvent = vi.fn(async () => appendBlocked);
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
     const emit = vi.fn();
-    const execution = runPipeline("complete-run", emit, {
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+    await runPipeline("complete-run", emit, {
       readEvents: vi.fn().mockResolvedValue([]),
       loadRun: vi.fn().mockResolvedValue(run),
       loadArtifact: vi.fn(),
       appendEvent,
-      executePipeline: vi.fn(),
+      executePipeline,
     });
 
-    await vi.waitFor(() => expect(appendEvent).toHaveBeenCalledOnce());
+    expect(appendEvent).not.toHaveBeenCalled();
     expect(emit).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "complete" })
     );
-    finishAppend();
-    await execution;
-    expect(emit).toHaveBeenCalledWith({
+    expect(executePipeline).toHaveBeenCalledOnce();
+  });
+
+  it("still replays a recorded legacy live completion when no candidate exists", async () => {
+    const run = pendingRun("recorded-live-run");
+    run.pipelineVersion = "legacy-v1";
+    for (const stage of Object.values(run.stages)) stage.status = "done";
+    const complete: PipelineEvent = {
       type: "complete",
-      runId: "complete-run",
-      previewUrl: "/preview/complete-run",
-    });
+      runId: "recorded-live-run",
+      previewUrl: "/preview/recorded-live-run",
+    };
+    const emit = vi.fn();
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+    await runPipeline("recorded-live-run", emit, {
+      readEvents: vi.fn().mockResolvedValue([complete]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent: vi.fn().mockResolvedValue(undefined),
+      inspectCandidate: vi.fn().mockResolvedValue({ status: "absent" }),
+      executePipeline,
+    } as never);
+
+    expect(emit).toHaveBeenCalledWith(complete);
+    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
+    expect(executePipeline).not.toHaveBeenCalled();
   });
 
   it("does not report a promotable candidate as a completed live build", async () => {
@@ -332,7 +429,53 @@ describe("pipeline replay", () => {
     expect(emit).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "complete" }),
     );
-    expect(executePipeline).toHaveBeenCalledOnce();
+    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
+    expect(executePipeline).not.toHaveBeenCalled();
+  });
+
+  it("parks an over-cap promotable run without appending a new terminal error", async () => {
+    const run = pendingRun("promotable-over-cap-run");
+    run.costUsd = 4;
+    run.costCapUsd = 3;
+    const progress: PipelineEvent = {
+      type: "card",
+      stage: "built",
+      title: "Candidate ready for promotion",
+      body: "The verified candidate is not live.",
+    };
+    const emit = vi.fn();
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+    await runPipeline("promotable-over-cap-run", emit, {
+      readEvents: vi.fn().mockResolvedValue([
+        {
+          type: "complete",
+          runId: "promotable-over-cap-run",
+          previewUrl: "/preview/promotable-over-cap-run",
+        },
+        progress,
+      ] satisfies PipelineEvent[]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      inspectCandidate: vi.fn().mockResolvedValue({
+        status: "present",
+        provenance: { state: "promotable" },
+      }),
+      executePipeline,
+    } as never);
+
+    expect(emit).toHaveBeenCalledWith(progress);
+    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 4 });
+    expect(emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "complete" }),
+    );
+    expect(emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error" }),
+    );
+    expect(appendEvent).not.toHaveBeenCalled();
+    expect(executePipeline).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -412,7 +555,8 @@ describe("pipeline replay", () => {
         "promotable-gated-run",
         expect.objectContaining({ type: "complete" }),
       );
-      expect(executePipeline).toHaveBeenCalledOnce();
+      expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
+      expect(executePipeline).not.toHaveBeenCalled();
     },
   );
 

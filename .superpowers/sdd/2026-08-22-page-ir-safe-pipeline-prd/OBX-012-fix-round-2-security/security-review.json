@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0",
+  "ref": "0d08a01faec3bbfb269c03733beea819c84604bc",
+  "base": {
+    "status": "AVAILABLE",
+    "value": "be5d778df998e1bddb74b0e77888f96dc1cb7ffc",
+    "unavailable_reason": null,
+    "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/range.txt:1-2"}]
+  },
+  "scope": {
+    "changed_paths": [
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md",
+      "docs/architecture/README.md",
+      "docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/smoke/gates-smoke.mjs",
+      "src/lib/builder.test.ts",
+      "src/lib/evidence.test.ts",
+      "src/lib/pipeline.ts",
+      "src/lib/pipelineReplay.test.ts",
+      "src/lib/productionFixtureBoundary.test.ts",
+      "test-support/buildSiteFixture.ts"
+    ],
+    "captured_diff_paths": [
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md",
+      "docs/architecture/README.md",
+      "docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/smoke/gates-smoke.mjs",
+      "src/lib/builder.test.ts",
+      "src/lib/evidence.test.ts",
+      "src/lib/pipeline.ts",
+      "src/lib/pipelineReplay.test.ts",
+      "src/lib/productionFixtureBoundary.test.ts",
+      "test-support/buildSiteFixture.ts"
+    ],
+    "path_classification": [
+      {"path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md","surfaces":[],"evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md:190"}]},
+      {"path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","surfaces":[],"evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md:82"}]},
+      {"path":"docs/architecture/README.md","surfaces":[],"evidence":[{"class":"STATIC","citation":"docs/architecture/README.md:130"}]},
+      {"path":"docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","surfaces":[],"evidence":[{"class":"STATIC","citation":"docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md:46"}]},
+      {"path":"scripts/e2e/canvas-contract.mjs","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"scripts/e2e/canvas-contract.mjs:87"}]},
+      {"path":"scripts/e2e/canvas-coverage.mjs","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"scripts/e2e/canvas-coverage.mjs:57"}]},
+      {"path":"scripts/smoke/gates-smoke.mjs","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"scripts/smoke/gates-smoke.mjs:41"}]},
+      {"path":"src/lib/builder.test.ts","surfaces":["authorization","untrusted-input"],"evidence":[{"class":"STATIC","citation":"src/lib/builder.test.ts:110"}]},
+      {"path":"src/lib/evidence.test.ts","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"src/lib/evidence.test.ts:485"}]},
+      {"path":"src/lib/pipeline.ts","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"src/lib/pipeline.ts:616"}]},
+      {"path":"src/lib/pipelineReplay.test.ts","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"src/lib/pipelineReplay.test.ts:53"}]},
+      {"path":"src/lib/productionFixtureBoundary.test.ts","surfaces":["authorization","untrusted-input"],"evidence":[{"class":"STATIC","citation":"src/lib/productionFixtureBoundary.test.ts:7"}]},
+      {"path":"test-support/buildSiteFixture.ts","surfaces":["authorization","untrusted-input"],"evidence":[{"class":"STATIC","citation":"test-support/buildSiteFixture.ts:13"}]}
+    ],
+    "sensitive_surfaces": ["authorization","untrusted-input"],
+    "diff_command_id": "CMD-001",
+    "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt:1-13"}]
+  },
+  "commands": [
+    {
+      "id": "CMD-001",
+      "purpose": "diff",
+      "command": "git diff --name-only be5d778df998e1bddb74b0e77888f96dc1cb7ffc...0d08a01faec3bbfb269c03733beea819c84604bc",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "be5d778df998e1bddb74b0e77888f96dc1cb7ffc...0d08a01faec3bbfb269c03733beea819c84604bc",
+      "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt:1-13"}],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-002",
+      "purpose": "secrets-scan",
+      "command": "gitleaks detect --source . --no-banner --redact --log-opts be5d778df998e1bddb74b0e77888f96dc1cb7ffc..0d08a01faec3bbfb269c03733beea819c84604bc",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "be5d778df998e1bddb74b0e77888f96dc1cb7ffc..0d08a01faec3bbfb269c03733beea819c84604bc",
+      "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt:1-3"}],
+      "unavailable_reason": null
+    }
+  ],
+  "exports": {
+    "state": "NONE",
+    "items": [],
+    "evidence": [{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md:33-36"}],
+    "unavailable_reason": null
+  },
+  "secrets_scan": {
+    "result": "PASS",
+    "command_id": "CMD-002",
+    "scope": "RANGE",
+    "comparison": "be5d778df998e1bddb74b0e77888f96dc1cb7ffc..0d08a01faec3bbfb269c03733beea819c84604bc",
+    "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt:1-3"}],
+    "unavailable_reason": null
+  },
+  "export_policy": {
+    "result": "PASS",
+    "evidence": [{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md:33-36"}],
+    "unavailable_reason": null
+  },
+  "coverage": [
+    {"surface":"prompt-injection","state":"NOT-APPLICABLE","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md:24-26"}],"unavailable_reason":null},
+    {"surface":"secrets","state":"REVIEWED","evidence":[{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt:1-3"}],"unavailable_reason":null},
+    {"surface":"authentication","state":"NOT-APPLICABLE","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md:3-5"}],"unavailable_reason":null},
+    {"surface":"authorization","state":"REVIEWED","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md:7-15"}],"unavailable_reason":null},
+    {"surface":"untrusted-input","state":"REVIEWED","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md:17-22"}],"unavailable_reason":null},
+    {"surface":"export","state":"NOT-APPLICABLE","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md:33-36"}],"unavailable_reason":null}
+  ],
+  "findings": [],
+  "verdict": "PASS"
+}

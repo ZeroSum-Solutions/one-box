@@ -84,6 +84,7 @@ registerHooks({
     }
   },
 });
+process.env.ONEBOX_TEST_FIXTURE_PUBLISH = "1";
 const { buildAndPublishSiteFixture } = await import("../../test-support/buildSiteFixture.ts");
 
 const fixtureRunId = `canvas-contract-${Date.now().toString(36)}`;

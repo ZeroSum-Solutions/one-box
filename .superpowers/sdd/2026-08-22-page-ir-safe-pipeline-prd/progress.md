@@ -94,3 +94,16 @@
   prevents app or pipeline imports of the test-only live publication helper.
   Focused verification: 62 passed. Full suite: 616 passed, 2 skipped.
   Typecheck and lint pass; security review: PASS with no findings.
+- OBX-012 Fix Round 2: verified. Promotable runs now park before pause,
+  preflight, cost-cap, or execution and replay only nonterminal history plus
+  current cost. Built-stage continuation accepts only exact present
+  `promotable` state, and stage completion separately requires the durable
+  disposition to be `promotable`; absent, failed, and ready candidates fail
+  closed before completion or visual QA. Unproven live completion is no longer
+  synthesized. The fixture publisher now requires explicit test authorization,
+  all production TypeScript source is mechanically import-guarded, and a
+  double rename failure preserves the retired snapshot while surfacing both
+  errors. Focused verification: 65 passed. Full suite: 629 passed, 2 skipped.
+  Typecheck and lint pass; security review: PASS with no findings. The legacy
+  smoke command remains baseline-blocked on Node 26 strip-only handling of
+  `productionTarget.ts` before fixture execution.

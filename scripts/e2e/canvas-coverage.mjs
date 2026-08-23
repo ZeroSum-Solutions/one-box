@@ -54,6 +54,7 @@ registerHooks({
   },
 });
 
+process.env.ONEBOX_TEST_FIXTURE_PUBLISH = "1";
 const { buildAndPublishSiteFixture } = await import("../../test-support/buildSiteFixture.ts");
 
 const base = process.env.ONEBOX_BASE_URL ?? "http://localhost:3000";

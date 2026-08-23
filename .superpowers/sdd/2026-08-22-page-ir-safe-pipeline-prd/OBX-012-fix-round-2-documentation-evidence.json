@@ -1,0 +1,73 @@
+{
+  "base": "be5d778df998e1bddb74b0e77888f96dc1cb7ffc",
+  "changed_surfaces": ["behavior", "interface", "setup", "operations", "code_location"],
+  "change_manifest": [
+    {"status":"A","path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"A","path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"A","path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"A","path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/range.txt","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"A","path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/security-review.json","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"docs/architecture/README.md","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"scripts/e2e/canvas-contract.mjs","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"scripts/e2e/canvas-coverage.mjs","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"scripts/smoke/gates-smoke.mjs","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"src/lib/builder.test.ts","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"src/lib/evidence.test.ts","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"src/lib/pipeline.ts","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"src/lib/pipelineReplay.test.ts","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"src/lib/productionFixtureBoundary.test.ts","surfaces":["behavior","interface","setup","operations","code_location"]},
+    {"status":"M","path":"test-support/buildSiteFixture.ts","surfaces":["behavior","interface","setup","operations","code_location"]}
+  ],
+  "duplicate_truth": {
+    "status": "single-owner",
+    "owners": [
+      {"surface":"behavior","canonical_owner":"docs/architecture/README.md#Data and safety boundaries"},
+      {"surface":"interface","canonical_owner":"docs/architecture/README.md#Data and safety boundaries"},
+      {"surface":"setup","canonical_owner":"docs/architecture/README.md#Data and safety boundaries"},
+      {"surface":"operations","canonical_owner":"docs/architecture/README.md#Data and safety boundaries"},
+      {"surface":"code_location","canonical_owner":"docs/architecture/README.md#Data and safety boundaries"}
+    ]
+  },
+  "document_reviews": [
+    {
+      "document": "docs/architecture/README.md",
+      "preimage": {"kind":"git","sha256":"aae0fc4ed2e86f63c80ef3e24fd54312cc33a8b5cdc0f2080a5d351b9af6876c"},
+      "current_sha256": "26e003adb22ccf6997a3e19ceddca3baec6f2f4eedf8c2c303ff8363e4702a94",
+      "unchecked_markdown": [
+        {"classification":"non-runnable","kind":"non-shell-fence","language":"text","line":12,"source_sha256":"dae18fcec170588df16ae9710c9f7b706ede1820b58f2c29b7e4a6efc7603492"},
+        {"classification":"non-runnable","kind":"non-shell-fence","language":"text","line":41,"source_sha256":"56eea3a4ee72f050504d1d1c5b63981e33302ab1d9d3e548681accf952cc2c04"}
+      ],
+      "commands": []
+    }
+  ],
+  "entries": [
+    {
+      "surface":"behavior",
+      "source":{"change_paths":[".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/range.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/security-review.json",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","docs/architecture/README.md","docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","scripts/e2e/canvas-contract.mjs","scripts/e2e/canvas-coverage.mjs","scripts/smoke/gates-smoke.mjs","src/lib/builder.test.ts","src/lib/evidence.test.ts","src/lib/pipeline.ts","src/lib/pipelineReplay.test.ts","src/lib/productionFixtureBoundary.test.ts","test-support/buildSiteFixture.ts"],"canonical_evidence":{"path":"docs/architecture/README.md","heading":"Data and safety boundaries"}},
+      "disposition":"updated","canonical_owner":"docs/architecture/README.md#Data and safety boundaries","document":"docs/architecture/README.md"
+    },
+    {
+      "surface":"interface",
+      "source":{"change_paths":[".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/range.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/security-review.json",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","docs/architecture/README.md","docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","scripts/e2e/canvas-contract.mjs","scripts/e2e/canvas-coverage.mjs","scripts/smoke/gates-smoke.mjs","src/lib/builder.test.ts","src/lib/evidence.test.ts","src/lib/pipeline.ts","src/lib/pipelineReplay.test.ts","src/lib/productionFixtureBoundary.test.ts","test-support/buildSiteFixture.ts"],"canonical_evidence":{"path":"docs/architecture/README.md","heading":"Data and safety boundaries"}},
+      "disposition":"updated","canonical_owner":"docs/architecture/README.md#Data and safety boundaries","document":"docs/architecture/README.md"
+    },
+    {
+      "surface":"setup",
+      "source":{"change_paths":[".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/range.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/security-review.json",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","docs/architecture/README.md","docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","scripts/e2e/canvas-contract.mjs","scripts/e2e/canvas-coverage.mjs","scripts/smoke/gates-smoke.mjs","src/lib/builder.test.ts","src/lib/evidence.test.ts","src/lib/pipeline.ts","src/lib/pipelineReplay.test.ts","src/lib/productionFixtureBoundary.test.ts","test-support/buildSiteFixture.ts"],"canonical_evidence":{"path":"docs/architecture/README.md","heading":"Data and safety boundaries"}},
+      "disposition":"updated","canonical_owner":"docs/architecture/README.md#Data and safety boundaries","document":"docs/architecture/README.md"
+    },
+    {
+      "surface":"operations",
+      "source":{"change_paths":[".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/range.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/security-review.json",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","docs/architecture/README.md","docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","scripts/e2e/canvas-contract.mjs","scripts/e2e/canvas-coverage.mjs","scripts/smoke/gates-smoke.mjs","src/lib/builder.test.ts","src/lib/evidence.test.ts","src/lib/pipeline.ts","src/lib/pipelineReplay.test.ts","src/lib/productionFixtureBoundary.test.ts","test-support/buildSiteFixture.ts"],"canonical_evidence":{"path":"docs/architecture/README.md","heading":"Data and safety boundaries"}},
+      "disposition":"updated","canonical_owner":"docs/architecture/README.md#Data and safety boundaries","document":"docs/architecture/README.md"
+    },
+    {
+      "surface":"code_location",
+      "source":{"change_paths":[".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-paths.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/diff-review.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/gitleaks.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/range.txt",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-2-security/security-review.json",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","docs/architecture/README.md","docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","scripts/e2e/canvas-contract.mjs","scripts/e2e/canvas-coverage.mjs","scripts/smoke/gates-smoke.mjs","src/lib/builder.test.ts","src/lib/evidence.test.ts","src/lib/pipeline.ts","src/lib/pipelineReplay.test.ts","src/lib/productionFixtureBoundary.test.ts","test-support/buildSiteFixture.ts"],"canonical_evidence":{"path":"docs/architecture/README.md","heading":"Data and safety boundaries"}},
+      "disposition":"updated","canonical_owner":"docs/architecture/README.md#Data and safety boundaries","document":"docs/architecture/README.md"
+    }
+  ]
+}

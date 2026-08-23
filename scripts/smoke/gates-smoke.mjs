@@ -38,6 +38,7 @@ registerHooks({
   },
 });
 
+process.env.ONEBOX_TEST_FIXTURE_PUBLISH = "1";
 const { buildAndPublishSiteFixture } = await import("../../test-support/buildSiteFixture.ts");
 const { runGates } = await import("../../src/lib/gates.ts");
 
