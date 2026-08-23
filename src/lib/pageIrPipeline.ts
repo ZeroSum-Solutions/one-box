@@ -783,6 +783,7 @@ export async function loadPersistedPageIr(
 
 export interface MaterializePageIrCandidateHooks {
   beforeCandidateRename?: () => void | Promise<void>;
+  afterCandidateRetire?: () => void | Promise<void>;
   afterCandidateRename?: () => void | Promise<void>;
 }
 
@@ -806,18 +807,58 @@ async function installCandidateDirectory(
 ): Promise<void> {
   const token = `${process.pid}-${randomBytes(6).toString("hex")}`;
   const retired = `${target}.retired-${token}`;
+  const parent = path.dirname(target);
   const hadPrevious = Boolean(await lstatMaybe(target));
   let committed = false;
+  let installed = false;
+  let retiredPrevious = false;
   await hooks.beforeCandidateRename?.();
-  if (hadPrevious) await fs.rename(target, retired);
   try {
+    if (hadPrevious) {
+      await fs.rename(target, retired);
+      retiredPrevious = true;
+      await syncDirectory(parent);
+      await hooks.afterCandidateRetire?.();
+    }
     await fs.rename(staging, target);
+    installed = true;
+    await syncDirectory(parent);
     committed = true;
     await hooks.afterCandidateRename?.();
-    if (hadPrevious) await fs.rm(retired, { recursive: true, force: true });
+    if (retiredPrevious) {
+      await fs.rm(retired, { recursive: true, force: true });
+      retiredPrevious = false;
+      await syncDirectory(parent);
+    }
   } catch (error) {
-    if (!committed && hadPrevious) {
-      await fs.rename(retired, target).catch(() => {});
+    if (!committed) {
+      try {
+        if (installed) {
+          await fs.rename(target, staging);
+          installed = false;
+        }
+        if (retiredPrevious) {
+          await fs.rename(retired, target);
+          retiredPrevious = false;
+        }
+        await syncDirectory(parent);
+      } catch (restoreError) {
+        throw new AggregateError(
+          [error, restoreError],
+          "candidate swap failed and the prior candidate could not be restored",
+        );
+      }
+    } else if (retiredPrevious) {
+      try {
+        await fs.rm(retired, { recursive: true, force: true });
+        retiredPrevious = false;
+        await syncDirectory(parent);
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          "candidate publish completed but retired-candidate cleanup failed",
+        );
+      }
     }
     throw error;
   }
@@ -877,7 +918,7 @@ export async function materializePageIrCandidate(
     );
     const manifestSha256 = candidateManifestSha256(compilation.manifest);
     const current = await inspectCandidate(request.runId);
-    if (
+    const matchesCurrentCompilation = Boolean(
       current.status === "present" &&
       current.manifest &&
       ["ready-for-gates", "promotable", "promoted", "failed"].includes(
@@ -892,7 +933,12 @@ export async function materializePageIrCandidate(
       ) &&
       current.provenance.candidateManifestSha256 === manifestSha256 &&
       current.provenance.buildSha256 === compilation.manifest.buildSha256 &&
-      JSON.stringify(current.manifest) === JSON.stringify(compilation.manifest)
+      JSON.stringify(current.manifest) === JSON.stringify(compilation.manifest),
+    );
+    if (
+      matchesCurrentCompilation &&
+      current.status === "present" &&
+      current.manifest
     ) {
       await validateCandidateInputArtifactHashes(
         request.runId,
@@ -905,6 +951,14 @@ export async function materializePageIrCandidate(
         provenance: current.provenance,
       };
     }
+    if (
+      current.status === "present" &&
+      ["failed", "promotable", "promoted"].includes(current.provenance.state)
+    ) {
+      throw new Error(
+        `Page IR ${current.provenance.state} candidate is parked and cannot be replaced by materialization`,
+      );
+    }
 
     const candidateRoot = path.join(runRoot, "candidate");
     const staging = `${candidateRoot}.building-${process.pid}-${randomBytes(6).toString("hex")}`;
@@ -912,10 +966,17 @@ export async function materializePageIrCandidate(
     await fs.mkdir(stagingSite, { recursive: true });
     let committed = false;
     try {
+      const outputDirectories = new Set([stagingSite]);
       for (const file of compilation.files) {
         const output = path.join(stagingSite, ...file.path.split("/"));
         await fs.mkdir(path.dirname(output), { recursive: true });
+        outputDirectories.add(path.dirname(output));
         await writeExclusive(output, file.bytes);
+      }
+      for (const directory of [...outputDirectories].sort(
+        (left, right) => right.length - left.length,
+      )) {
+        await syncDirectory(directory);
       }
       await validateCandidateInventory(stagingSite, compilation.manifest);
       const createdAt = new Date().toISOString();
@@ -948,6 +1009,7 @@ export async function materializePageIrCandidate(
         path.join(staging, "provenance.json"),
         `${JSON.stringify(ready, null, 2)}\n`,
       );
+      await syncDirectory(staging);
       await validateCandidateInputArtifactHashes(
         request.runId,
         inputArtifactHashes,

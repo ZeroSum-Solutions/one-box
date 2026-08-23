@@ -293,6 +293,41 @@ async function candidateRequest(runId: string, bytes = COMPILER_WEBP_BYTES) {
   };
 }
 
+async function parkCandidateInState(
+  runId: string,
+  state: "failed" | "promotable" | "promoted",
+) {
+  const candidateRoot = path.join(sitePaths(runId).root, "candidate");
+  const provenancePath = path.join(candidateRoot, "provenance.json");
+  const provenance = JSON.parse(await fs.readFile(provenancePath, "utf8"));
+  const nextAt = () =>
+    new Date(Date.parse(provenance.history.at(-1).at) + 1).toISOString();
+  if (state === "failed") {
+    provenance.state = "failed";
+    provenance.history.push({ state: "failed", at: nextAt() });
+  } else {
+    const gates = Buffer.from("{}\n");
+    await fs.writeFile(path.join(candidateRoot, "gates.json"), gates);
+    provenance.gateReportSha256 = createHash("sha256")
+      .update(gates)
+      .digest("hex");
+    provenance.state = "promotable";
+    provenance.history.push({ state: "promotable", at: nextAt() });
+    if (state === "promoted") {
+      provenance.state = "promoted";
+      provenance.promotedBuildSha256 = provenance.buildSha256;
+      provenance.history.push({ state: "promoted", at: nextAt() });
+    }
+  }
+  provenance.compilerVersion = "stale-page-ir-compiler@1";
+  await fs.writeFile(provenancePath, JSON.stringify(provenance, null, 2));
+  return {
+    provenance: await fs.readFile(provenancePath),
+    manifest: await fs.readFile(path.join(candidateRoot, "manifest.json")),
+    index: await fs.readFile(path.join(candidateRoot, "site", "index.html")),
+  };
+}
+
 afterEach(async () => {
   await Promise.all(
     testRunIds
@@ -873,6 +908,31 @@ describe("Page IR candidate materialization", () => {
     ).toEqual(before.bundle);
   });
 
+  it.each(["failed", "promotable", "promoted"] as const)(
+    "preserves a stale %s candidate instead of compiling over its lifecycle state",
+    async (state) => {
+      const runId = await createApprovedPageIrRun();
+      await preparePersistedPageIr(runId);
+      const request = await candidateRequest(runId);
+      await materializePageIrCandidate(request);
+      const before = await parkCandidateInState(runId, state);
+      const candidateRoot = path.join(sitePaths(runId).root, "candidate");
+
+      await expect(materializePageIrCandidate(request)).rejects.toThrow(
+        /parked|preserve|cannot replace/i,
+      );
+      expect(
+        await fs.readFile(path.join(candidateRoot, "provenance.json")),
+      ).toEqual(before.provenance);
+      expect(
+        await fs.readFile(path.join(candidateRoot, "manifest.json")),
+      ).toEqual(before.manifest);
+      expect(
+        await fs.readFile(path.join(candidateRoot, "site", "index.html")),
+      ).toEqual(before.index);
+    },
+  );
+
   it("rejects template authority and invalid compiler assets before candidate or live writes", async () => {
     const templateRun = await createApprovedPageIrRun("template-v1");
     const templateRequest = await candidateRequest(templateRun);
@@ -965,6 +1025,38 @@ describe("Page IR candidate materialization", () => {
     ).rejects.toThrow(/after candidate rename/);
     await expect(materializePageIrCandidate(request)).resolves.toMatchObject({
       status: "reused",
+    });
+  });
+
+  it("restores the prior candidate and reaps swap leftovers after a post-retire failure", async () => {
+    const runId = await createApprovedPageIrRun();
+    await preparePersistedPageIr(runId);
+    const request = await candidateRequest(runId);
+    await materializePageIrCandidate(request);
+    const runRoot = sitePaths(runId).root;
+    const candidateRoot = path.join(runRoot, "candidate");
+    const provenancePath = path.join(candidateRoot, "provenance.json");
+    const stale = JSON.parse(await fs.readFile(provenancePath, "utf8"));
+    stale.compilerVersion = "stale-page-ir-compiler@1";
+    await fs.writeFile(provenancePath, JSON.stringify(stale, null, 2));
+    const before = await fs.readFile(provenancePath);
+
+    await expect(
+      materializePageIrCandidate(request, {
+        afterCandidateRetire: () => {
+          throw new Error("after candidate retire");
+        },
+      }),
+    ).rejects.toThrow(/after candidate retire/);
+    expect(await fs.readFile(provenancePath)).toEqual(before);
+    expect(
+      (await fs.readdir(runRoot)).filter((entry) =>
+        /^candidate\.(?:building|retired)-/.test(entry),
+      ),
+    ).toEqual([]);
+
+    await expect(materializePageIrCandidate(request)).resolves.toMatchObject({
+      status: "created",
     });
   });
 });
