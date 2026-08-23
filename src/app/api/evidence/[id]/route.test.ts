@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +22,20 @@ import {
   sitePaths,
   transitionEvidenceArtifactApproval,
 } from "../../../../lib/runstate";
-import { ARTIFACTS, DesignTokensSchema, IntakeSchema, ReferenceLockSchema } from "../../../../lib/contracts";
+import {
+  ARTIFACTS,
+  CANDIDATE_GATE_EXPECTATIONS,
+  CandidateGateReceiptV1Schema,
+  CandidateProvenanceV1Schema,
+  DesignTokensSchema,
+  type HumanVisualReviewCriteria,
+  IntakeSchema,
+  ReferenceLockSchema,
+} from "../../../../lib/contracts";
+import {
+  candidateManifestSha256,
+  createCandidateManifest,
+} from "../../../../lib/candidate";
 import {
   buildCssArchitecture,
   buildTailwindPlan,
@@ -31,6 +45,10 @@ import {
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
 
 const runIds: string[] = [];
+
+function sha256(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
 
 const passingGateReports = [{
   gate: "axe",
@@ -43,21 +61,22 @@ const passingGateReports = [{
 function humanReview(overrides: { failedCriterion?: "businessSpecificity" } = {}) {
   const criterion = (status: "pass" | "fail") =>
     status === "fail" ? { status, findings: "The page reads like a generic template." } : { status };
+  const criteria: HumanVisualReviewCriteria = {
+    briefFidelity: criterion("pass"),
+    visualHierarchy: criterion("pass"),
+    spacingAndComposition: criterion("pass"),
+    businessSpecificity: criterion(overrides.failedCriterion === "businessSpecificity" ? "fail" : "pass"),
+    designAndReferenceAlignment: {
+      ...criterion("pass"),
+      referenceContext: "design-and-references",
+    },
+  };
   return {
     action: "record-human-visual-review",
     reviewerName: "Devin",
     reviewerKind: "human",
     humanAttestation: true,
-    criteria: {
-      briefFidelity: criterion("pass"),
-      visualHierarchy: criterion("pass"),
-      spacingAndComposition: criterion("pass"),
-      businessSpecificity: criterion(overrides.failedCriterion === "businessSpecificity" ? "fail" : "pass"),
-      designAndReferenceAlignment: {
-        ...criterion("pass"),
-        referenceContext: "design-and-references",
-      },
-    },
+    criteria,
   };
 }
 
@@ -153,6 +172,80 @@ async function fixtureVisualQaRun() {
     },
   });
   return { runId, buildSha256 };
+}
+
+async function markLiveBundlePromoted(runId: string) {
+  const roots = sitePaths(runId);
+  const manifest = await createCandidateManifest(roots.site);
+  const candidateManifestHash = candidateManifestSha256(manifest);
+  const receipt = CandidateGateReceiptV1Schema.parse({
+    schemaVersion: 1,
+    runId,
+    candidateManifestSha256: candidateManifestHash,
+    buildSha256: manifest.buildSha256,
+    reports: CANDIDATE_GATE_EXPECTATIONS.map(({ gate, blocking }) => ({
+      gate,
+      blocking,
+      pass: true,
+      details: [],
+      ranAt: "2026-08-22T12:00:02.000Z",
+    })),
+  });
+  const receiptBytes = Buffer.from(JSON.stringify(receipt, null, 2));
+  const provenance = CandidateProvenanceV1Schema.parse({
+    schemaVersion: 1,
+    candidateId: `${runId}-candidate`,
+    runId,
+    createdAt: "2026-08-22T12:00:00.000Z",
+    state: "promoted",
+    history: [
+      { state: "preparing", at: "2026-08-22T12:00:00.000Z" },
+      { state: "ready-for-gates", at: "2026-08-22T12:00:01.000Z" },
+      { state: "promotable", at: "2026-08-22T12:00:02.000Z" },
+      { state: "promoted", at: "2026-08-22T12:00:03.000Z" },
+    ],
+    inputArtifactHashes: [{ path: "intake.json", sha256: "a".repeat(64) }],
+    layoutAuthority: "template-v1",
+    compilerVersion: "fixture-v1",
+    candidateManifestSha256: candidateManifestHash,
+    buildSha256: manifest.buildSha256,
+    gateReportSha256: sha256(receiptBytes),
+    promotedBuildSha256: manifest.buildSha256,
+  });
+  const metadata = path.join(roots.site, ".one-box");
+  await fs.mkdir(metadata);
+  await Promise.all([
+    fs.writeFile(
+      path.join(metadata, "candidate-manifest.json"),
+      JSON.stringify(manifest, null, 2),
+    ),
+    fs.writeFile(
+      path.join(metadata, "provenance.json"),
+      JSON.stringify(provenance, null, 2),
+    ),
+    fs.writeFile(path.join(metadata, "gates.json"), receiptBytes),
+  ]);
+  return provenance;
+}
+
+async function approveVisualQa(runId: string, buildSha256: string) {
+  await transitionEvidenceArtifactApproval(runId, "visual-qa", 1, "in-review");
+  await transitionEvidenceArtifactApproval(
+    runId,
+    "visual-qa",
+    1,
+    "approved",
+    {
+      humanVisualReview: {
+        reviewerName: "Devin",
+        reviewerKind: "human",
+        humanAttestation: true,
+        reviewedAt: "2026-08-22T12:00:04.000Z",
+        buildSha256,
+        criteria: humanReview().criteria,
+      },
+    },
+  );
 }
 
 function context(runId: string) {
@@ -286,6 +379,92 @@ describe("evidence workspace routes", () => {
       },
     });
     expect(JSON.stringify(exported)).not.toContain("data:image");
+  });
+
+  it("blocks export when a promoted bundle has only a stale visual approval", async () => {
+    const { runId, buildSha256 } = await fixtureVisualQaRun();
+    await approveVisualQa(runId, buildSha256);
+    await fs.writeFile(path.join(sitePaths(runId).site, "index.html"), "promoted");
+    await markLiveBundlePromoted(runId);
+    await fs.writeFile(
+      path.join(sitePaths(runId).root, "gates.json"),
+      JSON.stringify([{ gate: "opposite-root-copy", pass: true }]),
+    );
+
+    const response = await EXPORT(
+      new Request(`http://localhost:3000/api/evidence/${runId}/export`, {
+        headers: { Origin: "http://localhost:3000", Host: "localhost:3000" },
+      }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/current promoted build.*visual approval/i),
+    });
+  });
+
+  it("blocks export when a promoted bundle has no effective visual approval", async () => {
+    const { runId } = await fixtureVisualQaRun();
+    await markLiveBundlePromoted(runId);
+
+    const response = await EXPORT(
+      new Request(`http://localhost:3000/api/evidence/${runId}/export`, {
+        headers: { Origin: "http://localhost:3000", Host: "localhost:3000" },
+      }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/current promoted build.*visual approval/i),
+    });
+  });
+
+  it("blocks export when canonical live metadata is corrupt even if root gates pass", async () => {
+    const { runId, buildSha256 } = await fixtureVisualQaRun();
+    await markLiveBundlePromoted(runId);
+    await approveVisualQa(runId, buildSha256);
+    await fs.writeFile(
+      path.join(sitePaths(runId).site, ".one-box", "gates.json"),
+      JSON.stringify({ corrupt: true }),
+    );
+    await fs.writeFile(
+      path.join(sitePaths(runId).root, "gates.json"),
+      JSON.stringify([{ gate: "root-only", blocking: true, pass: true }]),
+    );
+
+    const response = await EXPORT(
+      new Request(`http://localhost:3000/api/evidence/${runId}/export`, {
+        headers: { Origin: "http://localhost:3000", Host: "localhost:3000" },
+      }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: expect.stringMatching(/live bundle metadata is invalid/i),
+    });
+  });
+
+  it("exports a promoted bundle only after a human review bound to its hash", async () => {
+    const { runId, buildSha256 } = await fixtureVisualQaRun();
+    const promoted = await markLiveBundlePromoted(runId);
+    expect(promoted.promotedBuildSha256).toBe(buildSha256);
+    await approveVisualQa(runId, buildSha256);
+    await fs.writeFile(
+      path.join(sitePaths(runId).root, "gates.json"),
+      JSON.stringify([{ gate: "opposite-root-copy", pass: false }]),
+    );
+
+    const response = await EXPORT(
+      new Request(`http://localhost:3000/api/evidence/${runId}/export`, {
+        headers: { Origin: "http://localhost:3000", Host: "localhost:3000" },
+      }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(200);
   });
 
   it("regenerates, approves, and exports an immutable contract revision", async () => {

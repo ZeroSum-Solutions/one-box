@@ -148,15 +148,43 @@ disposition are one same-process transaction: if the provenance rename fails,
 the prior receipt bytes and provenance bytes, or their prior absence, are
 restored exactly. If gate execution throws before a receipt exists, provenance
 becomes `failed` without inventing a receipt or hash. Initial failure leaves no
-served site; rebuild failure leaves the complete live inventory and canonical
-run-root gate report unchanged. A promotable candidate is still unserved, and
+served site; rebuild failure leaves the complete live inventory and its
+authoritative gate report unchanged. A promotable candidate is still unserved, and
 the pipeline parks before approval pauses, configuration checks, cost-cap
 errors, resumed execution, visual QA, or a live-complete event. A built stage
 accepts only an exact present `promotable` candidate, and independently asserts
 that the durable gate disposition is `promotable`; absent, `failed`, or
-`ready-for-gates` state fails closed. The existing visual-QA continuation stays
-in place behind this boundary for OBX-014 to reconnect after promotion.
-OBX-015 owns cross-process locking and crash recovery.
+`ready-for-gates` state fails closed. Pipeline sequencing remains parked at this
+boundary until OBX-024 invokes the closed promotion operation. OBX-015 owns
+startup/resume recovery beyond same-process rollback.
+
+`promoteCandidate(runId)` acquires the shared site-authority lock exactly once,
+then revalidates the exact `promotable` provenance, deterministic manifest,
+candidate inventory, and full passing receipt before any live rename and again
+immediately before commit. It stages one durable `site/` directory whose
+reserved `.one-box/` metadata contains the deterministic candidate manifest,
+promoted provenance, and canonical candidate gate receipt. The generated-site
+build hash excludes only that closed metadata directory and uses the same
+inventory algorithm as candidate provenance and visual QA. Directory swap,
+promoted-candidate provenance, and visual-approval replacement roll back to the
+prior complete site and approval history on any authoritative failure. After
+the site and promoted provenance are durable, the prior visual decision becomes
+superseded and a new pending visual-QA version is created with the promoted build
+hash; later mechanical and named-human review can never inherit the old hash.
+The old site is retired only after the new bundle, promotion provenance, and
+visual state are durable; cleanup failure leaves the committed new bundle
+authoritative for OBX-015 recovery instead of reporting promotion failure.
+Run-root `gates.json` is a best-effort compatibility projection of the receipt
+reports and is never read to decide live, release, export, or client-handoff
+status.
+
+`withReleaseAuthorization` is the common release/export/client-handoff guard.
+Under the same site authority it validates the canonical live metadata and
+requires the latest effective named-human visual approval, QA artifact hash, and
+review hash to equal the promoted build hash. The evidence export route uses this
+guard; preview and guarded editing remain available while review is stale.
+Historical sites without promoted-bundle metadata, including read-only
+non-Website records, retain their existing export compatibility.
 
 `repairFailedCandidate(runId, provider)` accepts only a durable authorized run
 with one closed, inventory-valid `failed` candidate and a strict full-suite
@@ -183,8 +211,8 @@ closed and cannot reopen the provider allowance. Same-process reconnects park a
 completed-but-failed repair instead of rebuilding it, replaying only the current
 persisted terminal build error rather than an earlier stale terminal. Repair
 never writes live `site/`, the canonical live gate report, or approved evidence.
-Promotion, crash recovery, and cross-process site-authority locking remain owned
-by OBX-014 and OBX-015.
+Atomic promotion is the separate OBX-014 operation described above; OBX-015
+retains startup/resume recovery for interrupted or leftover retired directories.
 
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events
@@ -198,7 +226,8 @@ pipeline execution. Stage completion or stale approved visual QA cannot
 synthesize a live terminal. Historical live completion is replayed only when
 it is already recorded and no candidate exists. At an incomplete build stage,
 stale visual QA also cannot pause or bypass the candidate build path. OBX-014
-must provide the future closed promotion proof and continuation.
+provides the callable closed promotion and release proof; OBX-024 owns the later
+exactly-once pipeline checkpoint and continuation that invokes it.
 
 `src/lib/productionTarget.ts` owns the production target policy. Persisted
 contracts continue to parse `website`, `web-app`, and `ios-app` so historical

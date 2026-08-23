@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { sitePaths } from "../../../../../lib/runstate";
 import { ARTIFACTS, SiteManifestSchema } from "../../../../../lib/contracts";
+import { LIVE_BUNDLE_METADATA_DIR } from "../../../../../lib/liveBundle";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -81,6 +82,9 @@ export async function GET(
   if (parts.some((part) => part === null))
     return new Response("forbidden", { status: 403 });
   const safeParts = parts as string[];
+  if (safeParts[0] === LIVE_BUNDLE_METADATA_DIR) {
+    return new Response("not found", { status: 404 });
+  }
 
   const roots = sitePaths(id);
   // research/* serves scan artifacts to the chat UI; gates.json and DESIGN.md

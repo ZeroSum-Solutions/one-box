@@ -2,13 +2,22 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { runGates } from "./gates";
-import { withFileLock } from "./fileLock";
 import {
   invalidateApprovedVisualQaUnderSiteAuthority,
   RunNotFoundError,
   sitePaths,
 } from "./runstate";
+import {
+  assertSafeRunId,
+  withSiteAuthorityLock,
+} from "./siteAuthority";
 import type { GateReport } from "./contracts";
+
+export {
+  assertSafeRunId,
+  withSiteAuthorityLock,
+} from "./siteAuthority";
+export type { SiteAuthorityOptions } from "./siteAuthority";
 
 export type GateRunner = (
   runId: string,
@@ -69,17 +78,6 @@ async function failingBlockingGates(runId: string): Promise<Set<string>> {
   }
 }
 
-const mutationLocks = new Map<string, Promise<unknown>>();
-
-export interface SiteAuthorityOptions {
-  runRoot?: string;
-}
-
-export function assertSafeRunId(runId: string): string {
-  if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) throw new Error("bad runId");
-  return runId;
-}
-
 export async function atomicWrite(filePath: string, content: string | Buffer): Promise<void> {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   const temporary = path.join(
@@ -113,26 +111,6 @@ async function restoreFiles(snapshots: Map<string, Buffer | null>): Promise<void
       await atomicWrite(filePath, content);
     }
   }
-}
-
-export function withSiteAuthorityLock<T>(
-  runId: string,
-  operation: () => Promise<T>,
-  options: SiteAuthorityOptions = {},
-): Promise<T> {
-  assertSafeRunId(runId);
-  const runRoot = options.runRoot ?? sitePaths(runId).root;
-  const coordinationDirectory = path.join(runRoot, ".site-authority-lock");
-  const lockKey = `${runId}:${coordinationDirectory}`;
-  const previous = mutationLocks.get(lockKey) ?? Promise.resolve();
-  const crossProcessOperation = () =>
-    withFileLock(coordinationDirectory, operation);
-  const next = previous.then(crossProcessOperation, crossProcessOperation);
-  const guarded = next.catch(() => undefined);
-  mutationLocks.set(lockKey, guarded);
-  return next.finally(() => {
-    if (mutationLocks.get(lockKey) === guarded) mutationLocks.delete(lockKey);
-  });
 }
 
 export interface GuardedMutationOptions<T> {

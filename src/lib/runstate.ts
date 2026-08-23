@@ -11,6 +11,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
+  ARTIFACTS,
   ARTIFACT_APPROVAL_TRANSITIONS,
   ArtifactApprovalStateSchema,
   CANDIDATE_DIR,
@@ -41,6 +42,7 @@ import {
 import {
   assertCanonicalTokenInventory,
   assertTailwindPlanMatchesInventory,
+  buildVisualQa,
 } from "./evidence";
 import { withFileLock } from "./fileLock";
 
@@ -152,8 +154,24 @@ async function atomicWrite(filePath: string, content: string | Uint8Array): Prom
     dir,
     `.${path.basename(filePath)}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`
   );
-  await fs.writeFile(tmpPath, content);
-  await fs.rename(tmpPath, filePath);
+  try {
+    const handle = await fs.open(tmpPath, "wx");
+    try {
+      await handle.writeFile(content);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await fs.rename(tmpPath, filePath);
+    const directory = await fs.open(dir, "r");
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+  } finally {
+    await fs.rm(tmpPath, { force: true });
+  }
 }
 
 function isEnoent(err: unknown): boolean {
@@ -459,6 +477,34 @@ export function artifactApprovalState(
   return workflowArtifactApprovalState(artifact);
 }
 
+/** Shared release/export/client-handoff decision. Preview and editing do not
+ * call this guard. */
+export function assertVisualQaApprovedForBuild(
+  state: RunState,
+  buildSha256: string,
+): WorkflowArtifactVersion {
+  const visualQa = latestArtifact(state, "visual-qa");
+  const transition = visualQa?.approvalTransitions.at(-1);
+  const review = transition?.humanVisualReview;
+  if (
+    !visualQa ||
+    visualQa.artifactType !== "visual-qa" ||
+    artifactApprovalState(visualQa) !== "approved" ||
+    visualQa.artifact.buildSha256 !== buildSha256 ||
+    review?.reviewerKind !== "human" ||
+    review.humanAttestation !== true ||
+    review.buildSha256 !== buildSha256 ||
+    Object.values(review.criteria).some(
+      (criterion) => criterion.status !== "pass",
+    )
+  ) {
+    throw new EvidenceWorkflowError(
+      "current promoted build requires a current promoted-build visual approval before release, export, or client handoff",
+    );
+  }
+  return visualQa;
+}
+
 export function workflowArtifactVersionPath(
   artifactType: WorkflowArtifactType,
   version: number
@@ -707,6 +753,7 @@ export function transitionEvidenceArtifactApproval(
  * run transaction. */
 export function invalidateApprovedVisualQaUnderSiteAuthority(
   runId: string,
+  options: { afterInvalidation?: () => void | Promise<void> } = {},
 ): Promise<boolean> {
   return withRunTransaction(runId, async (transaction) => {
     const artifact = latestArtifact(transaction.state, "visual-qa");
@@ -731,7 +778,70 @@ export function invalidateApprovedVisualQaUnderSiteAuthority(
       workflowArtifactAliasPath("visual-qa"),
       JSON.stringify(invalidated, null, 2)
     );
+    await options.afterInvalidation?.();
     return true;
+  });
+}
+
+/** Invalidate the prior visual decision and create the exact promoted-build
+ * review placeholder in one run-state transaction. The caller already owns
+ * site authority, so this helper must never reacquire it. */
+export function preparePromotedVisualQaUnderSiteAuthority(
+  runId: string,
+  buildSha256: string,
+  options: { afterPreparation?: () => void | Promise<void> } = {},
+): Promise<{
+  visualApprovalInvalidated: boolean;
+  artifact: WorkflowArtifactVersion;
+}> {
+  return withRunTransaction(runId, async (transaction) => {
+    const previous = latestArtifact(transaction.state, "visual-qa");
+    const sourceCssArchitectureVersion = previous?.artifactType === "visual-qa"
+      ? previous.artifact.sourceCssArchitectureVersion
+      : latestArtifact(transaction.state, "css-architecture")?.version;
+    if (!sourceCssArchitectureVersion) {
+      throw new EvidenceWorkflowError(
+        "promoted visual QA requires a current CSS architecture",
+      );
+    }
+
+    let visualApprovalInvalidated = false;
+    if (previous) {
+      const approval = artifactApprovalState(previous);
+      if (["draft", "in-review", "approved"].includes(approval)) {
+        await transaction.transitionEvidenceArtifactApproval(
+          "visual-qa",
+          previous.version,
+          "revision-requested",
+          {
+            actor: "candidate-promotion",
+            note: "Prior visual QA invalidated by an atomically promoted build.",
+          },
+        );
+        visualApprovalInvalidated = true;
+      }
+    }
+
+    const pending = buildVisualQa(sourceCssArchitectureVersion, buildSha256);
+    const artifact = await transaction.saveEvidenceArtifactVersion(
+      { artifactType: "visual-qa", artifact: pending },
+      {
+        actor: "candidate-promotion",
+        note: "Review placeholder bound to the atomically promoted build hash.",
+      },
+    );
+    await transaction.writeArtifact(
+      ARTIFACTS.visualQa,
+      `${JSON.stringify(pending, null, 2)}\n`,
+    );
+    if (previous) {
+      await transaction.writeArtifact(
+        workflowArtifactAliasPath("visual-qa"),
+        JSON.stringify(previous, null, 2),
+      );
+    }
+    await options.afterPreparation?.();
+    return { visualApprovalInvalidated, artifact };
   });
 }
 

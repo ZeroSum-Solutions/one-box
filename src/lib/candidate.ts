@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { constants, type BigIntStats } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -7,13 +7,37 @@ import {
   CandidateManifestV1Schema,
   CandidateProvenanceV1Schema,
   CandidateStateSchema,
+  CandidateGateReceiptV1Schema,
   MAX_CANDIDATE_BYTES as CONTRACT_MAX_CANDIDATE_BYTES,
   type CandidateFileRecord,
   type CandidateManifestV1,
   type CandidateProvenanceV1,
   type CandidateState,
+  type CandidateGateReceiptV1,
 } from "./contracts";
-import { candidatePaths, type CandidatePaths } from "./runstate";
+import {
+  candidatePaths,
+  preparePromotedVisualQaUnderSiteAuthority,
+  sitePaths,
+  type CandidatePaths,
+} from "./runstate";
+import { assertWebsiteProductionRun } from "./productionTarget";
+import { withSiteAuthorityLock } from "./siteAuthority";
+import {
+  candidateBuildSha256,
+  LIVE_BUNDLE_GATES_FILE,
+  LIVE_BUNDLE_MANIFEST_FILE,
+  LIVE_BUNDLE_METADATA_DIR,
+  LIVE_BUNDLE_PROVENANCE_FILE,
+} from "./liveBundle";
+
+export {
+  candidateBuildSha256,
+  LIVE_BUNDLE_GATES_FILE,
+  LIVE_BUNDLE_MANIFEST_FILE,
+  LIVE_BUNDLE_METADATA_DIR,
+  LIVE_BUNDLE_PROVENANCE_FILE,
+} from "./liveBundle";
 
 export const MAX_CANDIDATE_BYTES = CONTRACT_MAX_CANDIDATE_BYTES;
 export const CANDIDATE_DIAGNOSTIC_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -58,19 +82,6 @@ function canonicalize(value: unknown): unknown {
 
 function sha256(bytes: string | Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
-}
-
-function buildSha256(files: CandidateFileRecord[]): string {
-  const hash = createHash("sha256");
-  for (const file of files) {
-    hash.update(file.path);
-    hash.update("\0");
-    hash.update(String(file.sizeBytes));
-    hash.update("\0");
-    hash.update(file.sha256);
-    hash.update("\0");
-  }
-  return hash.digest("hex");
 }
 
 export function candidateManifestSha256(
@@ -151,6 +162,7 @@ async function hashOpenedRegularFile(
 
 async function inventoryRegularFiles(
   siteRoot: string,
+  ignoredTopLevel = new Set<string>(),
 ): Promise<CandidateFileRecord[]> {
   const rootStat = await fs.lstat(siteRoot, { bigint: true });
   assertDirectory(rootStat, "candidate site root");
@@ -163,6 +175,7 @@ async function inventoryRegularFiles(
       left < right ? -1 : left > right ? 1 : 0,
     );
     for (const entry of entries) {
+      if (directory === siteRoot && ignoredTopLevel.has(entry)) continue;
       const absolute = path.join(directory, entry);
       const relative = path.relative(siteRoot, absolute).split(path.sep).join("/");
       const stat = await fs.lstat(absolute, { bigint: true });
@@ -212,7 +225,7 @@ export async function createCandidateManifest(
     entry: "index.html",
     files,
     totalBytes: files.reduce((total, file) => total + file.sizeBytes, 0),
-    buildSha256: buildSha256(files),
+    buildSha256: candidateBuildSha256(files),
   });
 }
 
@@ -239,9 +252,17 @@ export async function validateCandidateInventory(
   siteRoot: string,
   manifest: CandidateManifestV1,
 ): Promise<void> {
+  return validateInventory(siteRoot, manifest);
+}
+
+async function validateInventory(
+  siteRoot: string,
+  manifest: CandidateManifestV1,
+  ignoredTopLevel = new Set<string>(),
+): Promise<void> {
   const expected = CandidateManifestV1Schema.parse(manifest);
   await assertManifestPathsAreRegular(siteRoot, expected);
-  const actual = await inventoryRegularFiles(siteRoot);
+  const actual = await inventoryRegularFiles(siteRoot, ignoredTopLevel);
   const actualByPath = new Map(actual.map((file) => [file.path, file]));
   const expectedPaths = new Set(expected.files.map((file) => file.path));
 
@@ -263,7 +284,7 @@ export async function validateCandidateInventory(
   if (actual.reduce((total, file) => total + file.sizeBytes, 0) !== expected.totalBytes) {
     throw new Error("candidate total size mismatch");
   }
-  if (buildSha256(actual) !== expected.buildSha256) {
+  if (candidateBuildSha256(actual) !== expected.buildSha256) {
     throw new Error("candidate build SHA-256 mismatch");
   }
 }
@@ -509,4 +530,458 @@ export async function cleanupCandidateDiagnostics(
   }
   await fs.rm(paths.root, { recursive: true, force: false });
   return { removed: true, reason };
+}
+
+export type PromotionFaultStep =
+  | "after-revalidation"
+  | "before-staging-sync"
+  | "after-staging"
+  | "after-live-retired"
+  | "before-retired-directory-sync"
+  | "after-live-replaced"
+  | "before-live-directory-sync"
+  | "before-provenance-sync"
+  | "after-provenance-committed"
+  | "before-visual-approval-invalidation"
+  | "after-visual-approval-invalidation"
+  | "before-retired-cleanup"
+  | "before-rollback";
+
+export interface PromotionOptions {
+  /** Deterministic same-process fault seam used only by transaction tests. */
+  injectFault?: (step: PromotionFaultStep) => void | Promise<void>;
+}
+
+export interface PromotionResult {
+  buildSha256: string;
+  candidateManifestSha256: string;
+  gateReportSha256: string;
+  visualApprovalInvalidated: boolean;
+  compatibilityCopyUpdated: boolean;
+  retiredCleanupPending: boolean;
+}
+
+export type PromotedLiveBundleInspection =
+  | { status: "absent" }
+  | {
+      status: "present";
+      manifest: CandidateManifestV1;
+      provenance: CandidateProvenanceV1;
+      receipt: CandidateGateReceiptV1;
+    };
+
+type PromotableCandidateSnapshot = {
+  manifest: CandidateManifestV1;
+  provenance: CandidateProvenanceV1;
+  receipt: CandidateGateReceiptV1;
+  manifestBytes: Buffer;
+  provenanceBytes: Buffer;
+  receiptBytes: Buffer;
+};
+
+function liveMetadataPath(liveSite: string, fileName: string): string {
+  return path.join(liveSite, LIVE_BUNDLE_METADATA_DIR, fileName);
+}
+
+/** Canonical live authority. The run-root gates.json compatibility copy is
+ * deliberately never read here. */
+export async function inspectPromotedLiveBundle(
+  runId: string,
+): Promise<PromotedLiveBundleInspection> {
+  candidatePaths(runId);
+  const liveSite = sitePaths(runId).site;
+  const metadata = path.join(liveSite, LIVE_BUNDLE_METADATA_DIR);
+  const metadataStat = await lstatMaybe(metadata);
+  if (!metadataStat) return { status: "absent" };
+  assertDirectory(metadataStat, "live bundle metadata");
+  const entries = (await fs.readdir(metadata)).sort();
+  const expectedEntries = [
+    LIVE_BUNDLE_GATES_FILE,
+    LIVE_BUNDLE_MANIFEST_FILE,
+    LIVE_BUNDLE_PROVENANCE_FILE,
+  ].sort();
+  if (JSON.stringify(entries) !== JSON.stringify(expectedEntries)) {
+    throw new Error("live bundle metadata inventory is not closed");
+  }
+  const [manifestBytes, provenanceBytes, receiptBytes] = await Promise.all([
+    readRegularFile(
+      liveMetadataPath(liveSite, LIVE_BUNDLE_MANIFEST_FILE),
+      "live candidate manifest",
+    ),
+    readRegularFile(
+      liveMetadataPath(liveSite, LIVE_BUNDLE_PROVENANCE_FILE),
+      "live promotion provenance",
+    ),
+    readRegularFile(
+      liveMetadataPath(liveSite, LIVE_BUNDLE_GATES_FILE),
+      "live canonical gate receipt",
+    ),
+  ]);
+  const manifest = CandidateManifestV1Schema.parse(
+    JSON.parse(manifestBytes.toString("utf8")),
+  );
+  const provenance = CandidateProvenanceV1Schema.parse(
+    JSON.parse(provenanceBytes.toString("utf8")),
+  );
+  const receipt = CandidateGateReceiptV1Schema.parse(
+    JSON.parse(receiptBytes.toString("utf8")),
+  );
+  if (
+    provenance.runId !== runId ||
+    provenance.state !== "promoted" ||
+    provenance.promotedBuildSha256 !== manifest.buildSha256 ||
+    provenance.candidateManifestSha256 !== candidateManifestSha256(manifest) ||
+    provenance.gateReportSha256 !== sha256(receiptBytes) ||
+    receipt.runId !== runId ||
+    receipt.candidateManifestSha256 !== provenance.candidateManifestSha256 ||
+    receipt.buildSha256 !== provenance.promotedBuildSha256 ||
+    receipt.reports.some((report) => report.blocking && !report.pass)
+  ) {
+    throw new Error("live promotion metadata bindings do not match");
+  }
+  if (
+    manifest.files.some(
+      (file) => file.path.split("/")[0] === LIVE_BUNDLE_METADATA_DIR,
+    )
+  ) {
+    throw new Error("live manifest inventories reserved promotion metadata");
+  }
+  await validateInventory(
+    liveSite,
+    manifest,
+    new Set([LIVE_BUNDLE_METADATA_DIR]),
+  );
+  return { status: "present", manifest, provenance, receipt };
+}
+
+async function syncFile(filePath: string): Promise<void> {
+  const handle = await fs.open(filePath, constants.O_RDONLY | NOFOLLOW);
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function syncDirectory(directory: string): Promise<void> {
+  const handle = await fs.open(directory, constants.O_RDONLY);
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function syncTree(root: string): Promise<void> {
+  const directories: string[] = [];
+  async function visit(directory: string): Promise<void> {
+    directories.push(directory);
+    for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+      const absolute = path.join(directory, entry.name);
+      const stat = await fs.lstat(absolute);
+      if (stat.isSymbolicLink()) {
+        throw new Error(`promotion staging path is a symlink: ${entry.name}`);
+      }
+      if (stat.isDirectory()) await visit(absolute);
+      else if (stat.isFile()) await syncFile(absolute);
+      else throw new Error(`promotion staging path is not regular: ${entry.name}`);
+    }
+  }
+  await visit(root);
+  for (const directory of directories.reverse()) await syncDirectory(directory);
+}
+
+async function durableAtomicWrite(
+  filePath: string,
+  content: string | Uint8Array,
+): Promise<void> {
+  const directory = path.dirname(filePath);
+  await fs.mkdir(directory, { recursive: true });
+  const temporary = path.join(
+    directory,
+    `.${path.basename(filePath)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`,
+  );
+  try {
+    const handle = await fs.open(temporary, "wx");
+    try {
+      await handle.writeFile(content);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+    await fs.rename(temporary, filePath);
+    await syncDirectory(directory);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+function nextPromotionTimestamp(provenance: CandidateProvenanceV1): string {
+  const last = Date.parse(provenance.history.at(-1)!.at);
+  return new Date(Math.max(Date.now(), last)).toISOString();
+}
+
+async function readPromotableCandidateSnapshot(
+  runId: string,
+): Promise<PromotableCandidateSnapshot> {
+  const inspection = await inspectCandidate(runId);
+  if (
+    inspection.status !== "present" ||
+    !inspection.manifest ||
+    inspection.provenance.state !== "promotable"
+  ) {
+    throw new Error("candidate must be exactly promotable before promotion");
+  }
+  if (
+    inspection.manifest.files.some(
+      (file) => file.path.split("/")[0] === LIVE_BUNDLE_METADATA_DIR,
+    )
+  ) {
+    throw new Error("candidate inventory contains reserved live metadata");
+  }
+  const paths = candidatePaths(runId);
+  const [manifestBytes, provenanceBytes, receiptBytes] = await Promise.all([
+    readRegularFile(paths.manifest, "candidate manifest"),
+    readRegularFile(paths.provenance, "candidate provenance"),
+    readRegularFile(paths.gates, "candidate gate receipt"),
+  ]);
+  const manifest = CandidateManifestV1Schema.parse(
+    JSON.parse(manifestBytes.toString("utf8")),
+  );
+  const provenance = CandidateProvenanceV1Schema.parse(
+    JSON.parse(provenanceBytes.toString("utf8")),
+  );
+  const receipt = CandidateGateReceiptV1Schema.parse(
+    JSON.parse(receiptBytes.toString("utf8")),
+  );
+  if (
+    provenance.runId !== runId ||
+    provenance.state !== "promotable" ||
+    provenance.candidateManifestSha256 !== candidateManifestSha256(manifest) ||
+    provenance.buildSha256 !== manifest.buildSha256 ||
+    provenance.gateReportSha256 !== sha256(receiptBytes) ||
+    receipt.runId !== runId ||
+    receipt.candidateManifestSha256 !== provenance.candidateManifestSha256 ||
+    receipt.buildSha256 !== provenance.buildSha256
+  ) {
+    throw new Error("candidate gate receipt does not match the promotable candidate");
+  }
+  if (receipt.reports.some((report) => report.blocking && !report.pass)) {
+    throw new Error("blocking candidate gate prevents promotion");
+  }
+  await validateCandidateInventory(paths.site, manifest);
+  return {
+    manifest,
+    provenance,
+    receipt,
+    manifestBytes,
+    provenanceBytes,
+    receiptBytes,
+  };
+}
+
+async function assertCandidateSnapshotUnchanged(
+  runId: string,
+  expected: PromotableCandidateSnapshot,
+): Promise<void> {
+  const current = await readPromotableCandidateSnapshot(runId);
+  if (
+    !current.manifestBytes.equals(expected.manifestBytes) ||
+    !current.provenanceBytes.equals(expected.provenanceBytes) ||
+    !current.receiptBytes.equals(expected.receiptBytes)
+  ) {
+    throw new Error("candidate promotion inputs changed before commit");
+  }
+}
+
+async function stageLiveBundle(
+  stagingSite: string,
+  snapshot: PromotableCandidateSnapshot,
+  promotedProvenanceBytes: Buffer,
+): Promise<void> {
+  const paths = candidatePaths(snapshot.provenance.runId);
+  await fs.mkdir(stagingSite, { recursive: false });
+  for (const file of snapshot.manifest.files) {
+    const source = path.join(paths.site, ...file.path.split("/"));
+    const bytes = await readRegularFile(source, `candidate file ${file.path}`);
+    if (bytes.byteLength !== file.sizeBytes || sha256(bytes) !== file.sha256) {
+      throw new Error(`candidate file changed while staging: ${file.path}`);
+    }
+    const target = path.join(stagingSite, ...file.path.split("/"));
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, bytes, { flag: "wx" });
+  }
+  await validateCandidateInventory(stagingSite, snapshot.manifest);
+  const metadata = path.join(stagingSite, LIVE_BUNDLE_METADATA_DIR);
+  await fs.mkdir(metadata);
+  await Promise.all([
+    fs.writeFile(
+      path.join(metadata, LIVE_BUNDLE_MANIFEST_FILE),
+      snapshot.manifestBytes,
+      { flag: "wx" },
+    ),
+    fs.writeFile(
+      path.join(metadata, LIVE_BUNDLE_PROVENANCE_FILE),
+      promotedProvenanceBytes,
+      { flag: "wx" },
+    ),
+    fs.writeFile(
+      path.join(metadata, LIVE_BUNDLE_GATES_FILE),
+      snapshot.receiptBytes,
+      { flag: "wx" },
+    ),
+  ]);
+}
+
+/**
+ * Atomically publish one exact promotable candidate. OBX-024 owns pipeline
+ * sequencing; callers here receive only the closed site-authority operation.
+ */
+export function promoteCandidate(
+  runId: string,
+  options: PromotionOptions = {},
+): Promise<PromotionResult> {
+  return withSiteAuthorityLock(runId, async () => {
+    await assertWebsiteProductionRun(runId);
+    const roots = sitePaths(runId);
+    const snapshot = await readPromotableCandidateSnapshot(runId);
+    await options.injectFault?.("after-revalidation");
+
+    const promotedProvenance = transitionCandidateProvenance(
+      snapshot.provenance,
+      "promoted",
+      nextPromotionTimestamp(snapshot.provenance),
+      { promotedBuildSha256: snapshot.manifest.buildSha256 },
+    );
+    const promotedProvenanceBytes = Buffer.from(
+      JSON.stringify(promotedProvenance, null, 2),
+    );
+    const token = `${process.pid}-${randomBytes(6).toString("hex")}`;
+    const stagingSite = path.join(roots.root, `.site-promotion-stage-${token}`);
+    const retiredSite = path.join(roots.root, `.site-promotion-retired-${token}`);
+    const candidateProvenancePath = candidatePaths(runId).provenance;
+    let hadPrevious = false;
+    let liveRetired = false;
+    let liveReplaced = false;
+    let provenanceCommitted = false;
+    let committed = false;
+
+    try {
+      await stageLiveBundle(stagingSite, snapshot, promotedProvenanceBytes);
+      await options.injectFault?.("before-staging-sync");
+      await syncTree(stagingSite);
+      await options.injectFault?.("after-staging");
+      await assertCandidateSnapshotUnchanged(runId, snapshot);
+
+      hadPrevious = await lstatMaybe(roots.site).then(Boolean);
+      if (hadPrevious) {
+        await fs.rename(roots.site, retiredSite);
+        liveRetired = true;
+        await options.injectFault?.("before-retired-directory-sync");
+        await syncDirectory(roots.root);
+      }
+      await options.injectFault?.("after-live-retired");
+      await fs.rename(stagingSite, roots.site);
+      liveReplaced = true;
+      await options.injectFault?.("before-live-directory-sync");
+      await syncDirectory(roots.root);
+      await options.injectFault?.("after-live-replaced");
+
+      await options.injectFault?.("before-provenance-sync");
+      await durableAtomicWrite(candidateProvenancePath, promotedProvenanceBytes);
+      provenanceCommitted = true;
+      await options.injectFault?.("after-provenance-committed");
+      await options.injectFault?.("before-visual-approval-invalidation");
+      const { visualApprovalInvalidated } =
+        await preparePromotedVisualQaUnderSiteAuthority(
+          runId,
+          snapshot.manifest.buildSha256,
+          {
+            afterPreparation: () =>
+              options.injectFault?.("after-visual-approval-invalidation"),
+          },
+        );
+      committed = true;
+
+      let compatibilityCopyUpdated = true;
+      try {
+        await durableAtomicWrite(
+          path.join(roots.root, "gates.json"),
+          JSON.stringify(snapshot.receipt.reports, null, 2),
+        );
+      } catch {
+        compatibilityCopyUpdated = false;
+      }
+
+      let retiredCleanupPending = false;
+      if (liveRetired) {
+        try {
+          await options.injectFault?.("before-retired-cleanup");
+          await fs.rm(retiredSite, { recursive: true, force: false });
+          await syncDirectory(roots.root);
+        } catch {
+          retiredCleanupPending = true;
+        }
+      }
+      return {
+        buildSha256: snapshot.manifest.buildSha256,
+        candidateManifestSha256:
+          snapshot.provenance.candidateManifestSha256!,
+        gateReportSha256: snapshot.provenance.gateReportSha256!,
+        visualApprovalInvalidated,
+        compatibilityCopyUpdated,
+        retiredCleanupPending,
+      };
+    } catch (error) {
+      if (committed) throw error;
+      const rollbackErrors: unknown[] = [];
+      try {
+        await options.injectFault?.("before-rollback");
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+      if (provenanceCommitted) {
+        try {
+          await durableAtomicWrite(
+            candidateProvenancePath,
+            snapshot.provenanceBytes,
+          );
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      if (liveReplaced) {
+        try {
+          await fs.rename(roots.site, stagingSite);
+          liveReplaced = false;
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      if (liveRetired) {
+        try {
+          await fs.rename(retiredSite, roots.site);
+          liveRetired = false;
+        } catch (rollbackError) {
+          rollbackErrors.push(rollbackError);
+        }
+      }
+      try {
+        await syncDirectory(roots.root);
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+      if (rollbackErrors.length > 0) {
+        throw new AggregateError(
+          [error, ...rollbackErrors],
+          "candidate promotion failed and rollback was incomplete",
+        );
+      }
+      throw error;
+    } finally {
+      if (!committed) {
+        await fs.rm(stagingSite, { recursive: true, force: true }).catch(() => {});
+      }
+    }
+  });
 }

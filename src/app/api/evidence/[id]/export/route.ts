@@ -8,11 +8,12 @@ import {
 } from "../../../../../lib/productionTarget";
 import {
   loadArtifact,
-  loadRun,
+  EvidenceWorkflowError,
   RunNotFoundError,
   workflowArtifactVersionPath,
   workflowArtifactAliasPath,
 } from "../../../../../lib/runstate";
+import { withReleaseAuthorization } from "../../../../../lib/release";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
@@ -26,50 +27,55 @@ export async function GET(
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   try {
-    const [run, rawIntake] = await Promise.all([
-      loadRun(id),
-      loadArtifact(id, ARTIFACTS.intake),
-    ]);
-    const compatibility =
-      rawIntake === null || rawIntake === undefined
-        ? undefined
-        : classifyPersistedIntakeCompatibility(rawIntake);
-    const body = JSON.stringify(
-      {
-        exportedAt: new Date().toISOString(),
-        runId: id,
-        projectTarget: compatibility?.projectTarget,
-        compatibility,
-        pipelineVersion: run.pipelineVersion,
-        workflow: run.evidenceWorkflow,
-        artifacts: run.evidenceWorkflow.artifacts.map((artifact) => ({
-          artifactType: artifact.artifactType,
-          version: artifact.version,
-          approvalState: artifact.approvalTransitions.at(-1)?.state,
-          artifactPath: workflowArtifactVersionPath(
-            artifact.artifactType,
-            artifact.version
-          ),
-          currentAliasPath: workflowArtifactAliasPath(artifact.artifactType),
-          sha256: createHash("sha256")
-            .update(JSON.stringify(artifact.artifact))
-            .digest("hex"),
-          payload: artifact.artifact,
-        })),
-      },
-      null,
-      2
-    );
-    return new Response(body, {
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Content-Disposition": `attachment; filename="one-box-${id}-evidence.json"`,
-        "Cache-Control": "no-store",
-      },
+    return await withReleaseAuthorization(id, async ({ run }) => {
+      const rawIntake = await loadArtifact(id, ARTIFACTS.intake);
+      const compatibility =
+        rawIntake === null || rawIntake === undefined
+          ? undefined
+          : classifyPersistedIntakeCompatibility(rawIntake);
+      const body = JSON.stringify(
+        {
+          exportedAt: new Date().toISOString(),
+          runId: id,
+          projectTarget: compatibility?.projectTarget,
+          compatibility,
+          pipelineVersion: run.pipelineVersion,
+          workflow: run.evidenceWorkflow,
+          artifacts: run.evidenceWorkflow.artifacts.map((artifact) => ({
+            artifactType: artifact.artifactType,
+            version: artifact.version,
+            approvalState: artifact.approvalTransitions.at(-1)?.state,
+            artifactPath: workflowArtifactVersionPath(
+              artifact.artifactType,
+              artifact.version
+            ),
+            currentAliasPath: workflowArtifactAliasPath(artifact.artifactType),
+            sha256: createHash("sha256")
+              .update(JSON.stringify(artifact.artifact))
+              .digest("hex"),
+            payload: artifact.artifact,
+          })),
+        },
+        null,
+        2
+      );
+      return new Response(body, {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="one-box-${id}-evidence.json"`,
+          "Cache-Control": "no-store",
+        },
+      });
     });
   } catch (error) {
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });
+    }
+    if (error instanceof EvidenceWorkflowError) {
+      return Response.json(
+        { error: error.message },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
     }
     throw error;
   }

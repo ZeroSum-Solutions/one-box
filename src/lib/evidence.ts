@@ -7,6 +7,10 @@ import { promisify } from "node:util";
 import { chromium, type Page } from "playwright";
 import { withSiteAuthorityLock } from "./siteMutation";
 import {
+  candidateBuildSha256,
+  LIVE_BUNDLE_METADATA_DIR,
+} from "./liveBundle";
+import {
   CssArchitectureSchema,
   DesignResearchLedgerSchema,
   TailwindPlanSchema,
@@ -784,25 +788,40 @@ export function runThreeWidthVisualQa(
 export async function computeSiteBuildSha256(
   siteDirectory: string
 ): Promise<string> {
-  const hash = createHash("sha256");
+  const files: Array<{ path: string; sizeBytes: number; sha256: string }> = [];
   async function visit(directory: string): Promise<void> {
     const entries = (await fs.readdir(directory, { withFileTypes: true })).sort(
       (left, right) => left.name.localeCompare(right.name)
     );
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
-      const relative = path.relative(siteDirectory, absolute);
+      const relative = path
+        .relative(siteDirectory, absolute)
+        .split(path.sep)
+        .join("/");
+      if (
+        directory === siteDirectory &&
+        entry.name === LIVE_BUNDLE_METADATA_DIR
+      ) {
+        if (!entry.isDirectory()) {
+          throw new Error("live bundle metadata must be a directory");
+        }
+        continue;
+      }
       if (entry.isDirectory()) await visit(absolute);
       else if (entry.isFile()) {
-        hash.update(relative);
-        hash.update("\0");
-        hash.update(await fs.readFile(absolute));
-        hash.update("\0");
-      }
+        const bytes = await fs.readFile(absolute);
+        files.push({
+          path: relative,
+          sizeBytes: bytes.byteLength,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        });
+      } else throw new Error(`live site path is not regular: ${relative}`);
     }
   }
   await visit(siteDirectory);
-  return hash.digest("hex");
+  files.sort((left, right) => left.path.localeCompare(right.path));
+  return candidateBuildSha256(files);
 }
 
 /**

@@ -86,6 +86,29 @@ describe("public site artifact boundary", () => {
     expect(await response.text()).not.toContain(secret);
   });
 
+  it("does not serve canonical live-bundle authority metadata", async () => {
+    await fs.writeFile(
+      path.join(runRoot, "site", "manifest.json"),
+      JSON.stringify({
+        entry: "index.html",
+        files: ["index.html"],
+        assets: [],
+        builtAt: "2026-08-22T00:00:00.000Z",
+        complete: true,
+      }),
+    );
+    await fs.mkdir(path.join(runRoot, "site", ".one-box"));
+    await fs.writeFile(
+      path.join(runRoot, "site", ".one-box", "provenance.json"),
+      "canonical-private-authority",
+    );
+
+    const response = await request([".one-box", "provenance.json"]);
+
+    expect(response.status).not.toBe(200);
+    expect(await response.text()).not.toContain("canonical-private-authority");
+  });
+
   it("does not serve candidate bytes through a candidate-shaped site URL or symlink", async () => {
     await fs.writeFile(
       path.join(runRoot, "site", "manifest.json"),

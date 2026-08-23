@@ -99,6 +99,16 @@ the full candidate gate suite and becomes `failed` or `promotable`; neither
 outcome mutates the live site, and promotion remains a separate OBX-014
 operation.
 
+OBX-014 now implements that separate operation. Promotion revalidates the exact
+promotable candidate under the shared site-authority lock, swaps one durable
+`site/` bundle containing closed `.one-box/` manifest/provenance/gate metadata,
+and only after the authoritative commit supersedes the prior visual decision
+and creates a pending visual-QA version bound to the promoted hash. The run-root
+`gates.json` is now only a derived compatibility projection; release, evidence
+export, and client handoff validate the canonical bundle plus a named human
+review bound to its promoted build hash. OBX-024 still owns calling this
+operation from the resumable pipeline, and OBX-015 owns startup crash recovery.
+
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and
 the workspace concatenated them into `/api/sites/<id>//Users/…`. Fixed at the
