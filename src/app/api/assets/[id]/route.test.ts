@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import { afterEach, describe, expect, it } from "vitest";
 import { POST } from "./route";
+import { ARTIFACTS, IntakeSchema } from "../../../../lib/contracts";
+import { createRun, saveArtifact, sitePaths } from "../../../../lib/runstate";
 
 const context = { params: Promise.resolve({ id: "asset-test" }) };
+const runIds: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    runIds.splice(0).map((runId) =>
+      fs.rm(sitePaths(runId).root, { recursive: true, force: true })
+    )
+  );
+});
 
 function request(body: unknown, authorized = true) {
   return new Request("http://localhost:3000/api/assets/asset-test", {
@@ -70,5 +82,37 @@ describe("project assets API", () => {
       context,
     );
     expect(response.status).toBe(400);
+  });
+
+  it("rejects non-Website asset placement before library mutation", async () => {
+    const runId = await createRun();
+    runIds.push(runId);
+    await saveArtifact(runId, ARTIFACTS.intake, IntakeSchema.parse({
+      businessName: "Legacy App",
+      category: "service",
+      location: "Austin, TX",
+      services: ["Help"],
+      primaryAction: "quote",
+      projectTarget: "web-app",
+    }));
+    const response = await POST(
+      new Request(`http://localhost:3000/api/assets/${runId}`, {
+        method: "POST",
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "place",
+          assetId: "asset-legacy",
+          editId: "hero.image",
+        }),
+      }),
+      { params: Promise.resolve({ id: runId }) },
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "unsupported-project-target", projectTarget: "web-app" });
   });
 });

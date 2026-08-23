@@ -50,8 +50,9 @@ describe("IntakeComposer", () => {
     const html = renderComposer();
     expect(html).toContain("A responsive public-facing site for marketing, information, lead generation, or sales.");
     expect(html).toContain("Next.js and Tailwind CSS");
-    expect(html).toContain("An interactive browser product with screens, workflows, and application behavior.");
-    expect(html).toContain("A touch-first iPhone experience with mobile navigation and platform-appropriate interactions.");
+    expect(html).not.toContain("Web app");
+    expect(html).not.toContain("iOS");
+    expect(html.match(/name="project-target"/g)).toHaveLength(1);
     expect(html).toContain("Research settings");
     expect(html).toContain("Gather the research lanes selected below before the build.");
     expect(html).toContain("Business and competitor context");
@@ -77,7 +78,7 @@ describe("IntakeComposer", () => {
     expect(GUIDANCE_PROMPTS).toEqual([
       "Tell us about the company you run or want to build.",
       "Share anything that will help us understand it.",
-      "Choose Website, Web app, or iOS app.",
+      "Website is the production target for Phase 1.",
       "Try Research to sharpen the result.",
       "Add any files you want us to use.",
     ]);

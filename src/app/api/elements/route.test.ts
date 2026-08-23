@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -19,13 +20,21 @@ vi.mock("../../../lib/elementEditor", async (importOriginal) => {
 });
 
 import { GET, POST } from "./route";
+import { ARTIFACTS, IntakeSchema } from "../../../lib/contracts";
+import { createRun, saveArtifact, sitePaths } from "../../../lib/runstate";
 
 const originalToken = process.env.ONE_BOX_API_TOKEN;
+const runIds: string[] = [];
 
-afterEach(() => {
+afterEach(async () => {
   vi.clearAllMocks();
   if (originalToken === undefined) delete process.env.ONE_BOX_API_TOKEN;
   else process.env.ONE_BOX_API_TOKEN = originalToken;
+  await Promise.all(
+    runIds.splice(0).map((runId) =>
+      fs.rm(sitePaths(runId).root, { recursive: true, force: true })
+    )
+  );
 });
 
 function postRequest(headers: Record<string, string>) {
@@ -85,5 +94,36 @@ describe("element route authorization", () => {
     expect((await POST(bearer.request)).status).toBe(400);
     expect(bearer.json).toHaveBeenCalledOnce();
     expect(mocks.applyStructuredElementEdit).not.toHaveBeenCalled();
+  });
+
+  it("rejects non-Website undo before element history mutation", async () => {
+    const runId = await createRun();
+    runIds.push(runId);
+    await saveArtifact(runId, ARTIFACTS.intake, IntakeSchema.parse({
+      businessName: "Legacy App",
+      category: "service",
+      location: "Austin, TX",
+      services: ["Help"],
+      primaryAction: "quote",
+      projectTarget: "ios-app",
+    }));
+
+    const response = await POST(new Request("http://localhost:3000/api/elements", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "undo", runId }),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-project-target",
+      projectTarget: "ios-app",
+    });
+    expect(mocks.moveElementHistory).not.toHaveBeenCalled();
   });
 });

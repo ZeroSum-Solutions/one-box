@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import fs from "node:fs/promises";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   inspect: vi.fn(async () => ({ tokens: [], canRevert: false })),
@@ -15,6 +16,19 @@ vi.mock("../../../lib/siteTokens", async (importOriginal) => ({
 }));
 
 import { GET, POST } from "./route";
+import { ARTIFACTS, IntakeSchema } from "../../../lib/contracts";
+import { createRun, saveArtifact, sitePaths } from "../../../lib/runstate";
+
+const runIds: string[] = [];
+
+afterEach(async () => {
+  vi.clearAllMocks();
+  await Promise.all(
+    runIds.splice(0).map((runId) =>
+      fs.rm(sitePaths(runId).root, { recursive: true, force: true })
+    )
+  );
+});
 
 describe("token route authorization", () => {
   const hostileHeaders: Record<string, string>[] = [{}, { Origin: "https://evil.example", "Content-Type": "application/json" }];
@@ -29,5 +43,26 @@ describe("token route authorization", () => {
     expect((await GET(new Request("http://localhost:3000/api/tokens?runId=test-run", { headers: { Host: "localhost:3000" } }))).status).toBe(200);
     const request = new Request("http://localhost:3000/api/tokens", { method: "POST", headers: { Host: "localhost:3000", Origin: "http://localhost:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" }, body: "{}" });
     expect((await POST(request)).status).toBe(400);
+  });
+  it("rejects non-Website token revert before mutation", async () => {
+    const runId = await createRun();
+    runIds.push(runId);
+    await saveArtifact(runId, ARTIFACTS.intake, IntakeSchema.parse({
+      businessName: "Legacy App",
+      category: "service",
+      location: "Austin, TX",
+      services: ["Help"],
+      primaryAction: "quote",
+      projectTarget: "web-app",
+    }));
+    const request = new Request("http://localhost:3000/api/tokens", {
+      method: "POST",
+      headers: { Host: "localhost:3000", Origin: "http://localhost:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "revert", runId }),
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "unsupported-project-target", projectTarget: "web-app" });
+    expect(mocks.revert).not.toHaveBeenCalled();
   });
 });

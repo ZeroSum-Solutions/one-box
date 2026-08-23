@@ -13,6 +13,10 @@ import {
 import { ImageGenerationBudgetError } from "../../../../lib/imageGenerationBudget";
 import { isLocalApiAuthorized } from "../../../../lib/localApiAuth";
 import { BlockingMutationError } from "../../../../lib/siteMutation";
+import {
+  assertWebsiteProductionRun,
+  websiteOnlyProductionResponse,
+} from "../../../../lib/productionTarget";
 
 export const maxDuration = 300;
 
@@ -27,6 +31,8 @@ function serializeLibrary(runId: string, library: ImageLibrary) {
 }
 
 function errorResponse(error: unknown) {
+  const targetResponse = websiteOnlyProductionResponse(error);
+  if (targetResponse) return targetResponse;
   if (error instanceof ZodError) {
     return Response.json(
       { error: error.issues.map((issue) => issue.message).join("; ") },
@@ -95,7 +101,11 @@ export async function POST(
   }
   try {
     const { id } = await context.params;
+    if (!/^[a-z0-9_-]{4,40}$/i.test(id)) {
+      return Response.json({ error: "bad run id" }, { status: 400 });
+    }
     const body = AssetMutationRequestSchema.parse(await request.json());
+    await assertWebsiteProductionRun(id);
 
     if (body.action === "place") {
       const result = await placeLibraryImage(id, body.assetId, body.editId);

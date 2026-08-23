@@ -49,6 +49,33 @@ const disabledResearchIntake = {
 } satisfies Intake;
 
 describe("pipeline replay", () => {
+  it.each(["web-app", "ios-app"] as const)(
+    "rejects %s before history, events, or pipeline execution",
+    async (projectTarget) => {
+      const dependencies = {
+        readEvents: vi.fn().mockResolvedValue([]),
+        loadRun: vi.fn().mockResolvedValue(pendingRun("legacy-target-run")),
+        loadArtifact: vi.fn().mockResolvedValue({
+          ...disabledResearchIntake,
+          projectTarget,
+        }),
+        appendEvent: vi.fn(),
+        executePipeline: vi.fn().mockResolvedValue(undefined),
+      };
+
+      await expect(
+        runPipeline("legacy-target-run", vi.fn(), dependencies as never)
+      ).rejects.toMatchObject({
+        code: "unsupported-project-target",
+        projectTarget,
+      });
+      expect(dependencies.readEvents).not.toHaveBeenCalled();
+      expect(dependencies.loadRun).not.toHaveBeenCalled();
+      expect(dependencies.appendEvent).not.toHaveBeenCalled();
+      expect(dependencies.executePipeline).not.toHaveBeenCalled();
+    }
+  );
+
   it("projects historical audit events into one current journey", () => {
     const error: PipelineEvent = {
       type: "error",

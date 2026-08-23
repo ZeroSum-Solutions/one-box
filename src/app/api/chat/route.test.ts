@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 const context = {
-  projectTarget: "ios-app" as const,
+  projectTarget: "website" as const,
   research: {
     enabled: true,
     businessIntelligence: false,
@@ -165,6 +165,61 @@ describe("chat intake request", () => {
     expect(model).not.toHaveBeenCalled();
   });
 
+  it.each(["web-app", "ios-app"] as const)(
+    "rejects forged %s production intake before attempts, configuration, or model work",
+    async (projectTarget) => {
+      const model = vi.fn(() => ({
+        toUIMessageStreamResponse: () => Response.json({ started: false }),
+      }));
+      const inspectIntakeAttempt = vi.fn();
+      const reserveIntakeAttempt = vi.fn().mockResolvedValue({
+        state: "reserved",
+        runId: "forged-target-run",
+      });
+      const preflight = vi.fn().mockReturnValue({
+        ok: true,
+        blocking: [],
+        advisory: [],
+      });
+      const response = await handleChat(
+        new Request("http://localhost:3000/api/chat", {
+          method: "POST",
+          headers: {
+            Host: "localhost:3000",
+            Origin: "http://localhost:3000",
+            "Sec-Fetch-Site": "same-origin",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(
+            buildChatRequest(
+              [{ id: "message-1", role: "user", content: "Build Acme" }],
+              { ...context, projectTarget },
+              ATTEMPT_ID
+            )
+          ),
+        }),
+        {
+          streamText: model as never,
+          inspectIntakeAttempt: inspectIntakeAttempt as never,
+          reserveIntakeAttempt: reserveIntakeAttempt as never,
+          preflight,
+        }
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({
+        code: "unsupported-project-target",
+        error: "Phase 1 production supports Website projects only.",
+        projectTarget,
+        action: "Start a new Website project to generate, retry, or rebuild.",
+      });
+      expect(inspectIntakeAttempt).not.toHaveBeenCalled();
+      expect(reserveIntakeAttempt).not.toHaveBeenCalled();
+      expect(preflight).not.toHaveBeenCalled();
+      expect(model).not.toHaveBeenCalled();
+    }
+  );
+
   it("replays a completed attempt even when current runtime configuration is missing", async () => {
     const model = vi.fn();
     const preflight = vi.fn();
@@ -218,7 +273,7 @@ describe("chat intake request", () => {
         certifications: [],
         claims: [],
         vibeWords: [],
-        projectTarget: "ios-app",
+        projectTarget: "website",
         research: context.research,
         uploads: [],
       },
@@ -339,7 +394,7 @@ describe("chat intake request", () => {
       authoritativeUploads
     );
 
-    expect(intake.projectTarget).toBe("ios-app");
+    expect(intake.projectTarget).toBe("website");
     expect(intake.research).toEqual(context.research);
     expect(intake.uploads).toEqual(authoritativeUploads);
     expect(intake.uploads[0].fileName).not.toBe(context.uploads[0].fileName);
@@ -408,7 +463,7 @@ describe("chat intake request", () => {
       certifications: [],
       claims: [],
       vibeWords: [],
-      projectTarget: "ios-app" as const,
+      projectTarget: "website" as const,
       research: context.research,
       uploads: [],
     };
@@ -444,6 +499,49 @@ describe("chat intake request", () => {
     expect(ensureRun).toHaveBeenCalledOnce();
     expect(claimUploadSession).toHaveBeenCalledOnce();
   });
+
+  it.each(["web-app", "ios-app"] as const)(
+    "defends exported pipeline start against %s before reserving a run",
+    async (projectTarget) => {
+      const dependencies = {
+        ensureRun: vi.fn(),
+        claimUploadSession: vi.fn(),
+        removeRun: vi.fn(),
+        runIntakeAttempt: vi.fn(),
+        startStage: vi.fn(),
+        saveArtifact: vi.fn(),
+        finishStage: vi.fn(),
+      };
+
+      await expect(
+        startPipelineFromIntake(
+          {
+            businessName: "Acme",
+            category: "service",
+            location: "Reno, NV",
+            services: ["Installation"],
+            primaryAction: "quote",
+            certifications: [],
+            claims: [],
+            vibeWords: [],
+            projectTarget,
+            research: context.research,
+            uploads: [],
+          },
+          { ...context, projectTarget } as never,
+          ATTEMPT_ID,
+          "a".repeat(64),
+          dependencies as never
+        )
+      ).rejects.toMatchObject({
+        code: "unsupported-project-target",
+        projectTarget,
+      });
+      expect(dependencies.runIntakeAttempt).not.toHaveBeenCalled();
+      expect(dependencies.ensureRun).not.toHaveBeenCalled();
+      expect(dependencies.saveArtifact).not.toHaveBeenCalled();
+    }
+  );
 
   it("short-circuits a completed replay before model work", async () => {
     const model = vi.fn();

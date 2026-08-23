@@ -31,6 +31,10 @@ import {
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
 import { runGates } from "../../../../lib/gates";
 import { requiredReferenceContext } from "../../../../lib/referenceContext";
+import {
+  assertWebsiteProductionRun,
+  websiteOnlyProductionResponse,
+} from "../../../../lib/productionTarget";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
@@ -181,6 +185,7 @@ export async function POST(
   }
 
   try {
+    await assertWebsiteProductionRun(id);
     const before = await loadRun(id);
     if (before.pipelineVersion !== "evidence-gated-v2") {
       return Response.json(
@@ -401,6 +406,8 @@ export async function POST(
     }
     return Response.json(responsePayload(await loadRun(id)));
   } catch (error) {
+    const targetResponse = websiteOnlyProductionResponse(error);
+    if (targetResponse) return targetResponse;
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });
     }

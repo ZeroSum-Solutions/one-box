@@ -189,6 +189,35 @@ describe("evidence workspace routes", () => {
     expect((await POST(request(runId, { action: "submit" }, "https://evil.example"), context(runId))).status).toBe(403);
   });
 
+  it("rejects a non-Website action before changing evidence state", async () => {
+    const runId = await fixtureRun();
+    await saveArtifact(
+      runId,
+      ARTIFACTS.intake,
+      IntakeSchema.parse({
+        businessName: "Legacy App",
+        category: "service",
+        location: "Austin, TX",
+        services: ["Help"],
+        primaryAction: "quote",
+        projectTarget: "ios-app",
+      })
+    );
+    const before = await loadRun(runId);
+
+    const response = await POST(
+      request(runId, { action: "submit" }),
+      context(runId)
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-project-target",
+      projectTarget: "ios-app",
+    });
+    expect(await loadRun(runId)).toEqual(before);
+  });
+
   it("rejects saving an artifact type outside the current stage", async () => {
     const runId = await fixtureRun();
     await POST(request(runId, { action: "request-revision", note: "Clarify" }), context(runId));

@@ -9,6 +9,10 @@ import {
 } from "../../../lib/elementEditor";
 import { BlockingMutationError } from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
+import {
+  assertWebsiteProductionRun,
+  websiteOnlyProductionResponse,
+} from "../../../lib/productionTarget";
 
 export const maxDuration = 300;
 
@@ -41,12 +45,18 @@ export async function POST(request: Request) {
   }
   try {
     const body = ElementMutationRequestSchema.parse(await request.json());
+    if (!/^[a-z0-9_-]{4,40}$/i.test(body.runId)) {
+      return Response.json({ error: "bad runId" }, { status: 400 });
+    }
+    await assertWebsiteProductionRun(body.runId);
     const result =
       body.action === "apply"
         ? await applyStructuredElementEdit(body.runId, body.editId, body.patch)
         : await moveElementHistory(body.runId, body.action);
     return Response.json({ ok: true, ...result });
   } catch (error) {
+    const targetResponse = websiteOnlyProductionResponse(error);
+    if (targetResponse) return targetResponse;
     if (error instanceof ZodError) {
       return Response.json({ error: error.issues.map((issue) => issue.message).join("; ") }, { status: 400 });
     }

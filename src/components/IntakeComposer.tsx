@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import type {
-  ProjectTarget,
+  ProductionProjectTarget,
   ResearchConfiguration,
   UploadMetadata,
 } from "@/lib/contracts";
@@ -17,7 +17,7 @@ import { IntakeControls } from "./IntakeControls";
 export const GUIDANCE_PROMPTS = [
   "Tell us about the company you run or want to build.",
   "Share anything that will help us understand it.",
-  "Choose Website, Web app, or iOS app.",
+  "Website is the production target for Phase 1.",
   "Try Research to sharpen the result.",
   "Add any files you want us to use.",
 ] as const;
@@ -26,11 +26,11 @@ interface IntakeComposerProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  projectTarget: ProjectTarget;
+  projectTarget: ProductionProjectTarget;
   research: ResearchConfiguration;
   uploads: UploadMetadata[];
   uploadSession: string | null;
-  onProjectTargetChange: (target: ProjectTarget) => void;
+  onProjectTargetChange: (target: ProductionProjectTarget) => void;
   onResearchChange: (research: ResearchConfiguration) => void;
   onUploadsChange: (uploads: UploadMetadata[]) => void;
   onUploadSessionChange: (handle: string | null) => void;

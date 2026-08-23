@@ -8,6 +8,7 @@ import { z } from "zod";
 import {
   IntakeSchema,
   ProjectTargetSchema,
+  ProductionProjectTargetSchema,
   ResearchConfigurationSchema,
   UploadMetadataSchema,
   ARTIFACTS,
@@ -35,6 +36,10 @@ import {
   runIntakeAttempt,
   type IntakeAttemptResult,
 } from "../../../lib/intakeAttempts";
+import {
+  assertWebsiteProductionTarget,
+  websiteOnlyProductionResponse,
+} from "../../../lib/productionTarget";
 
 export const maxDuration = 120;
 
@@ -57,7 +62,7 @@ const UIMessageRequestSchema = z
 
 export const IntakeContextRequestSchema = z
   .object({
-    projectTarget: ProjectTargetSchema,
+    projectTarget: ProductionProjectTargetSchema,
     research: ResearchConfigurationSchema.transform(enforceResearchInvariant),
     uploads: z.array(UploadMetadataSchema).max(5),
     uploadSession: z
@@ -156,6 +161,7 @@ export async function startPipelineFromIntake(
     finishStage,
   }
 ): Promise<StartPipelineResult> {
+  assertWebsiteProductionTarget(intakeContext.projectTarget);
   return dependencies.runIntakeAttempt(attemptId, requestFingerprint, async (runId) => {
     await dependencies.ensureRun(runId, {
       // Captured once here; the persisted run is authoritative from then on,
@@ -207,6 +213,23 @@ export async function handleChat(
     body = await req.json();
   } catch {
     return Response.json({ error: "Invalid JSON request" }, { status: 400 });
+  }
+  const targetProbe = z
+    .object({
+      intakeContext: z
+        .object({ projectTarget: ProjectTargetSchema })
+        .passthrough(),
+    })
+    .passthrough()
+    .safeParse(body);
+  if (targetProbe.success) {
+    try {
+      assertWebsiteProductionTarget(targetProbe.data.intakeContext.projectTarget);
+    } catch (error) {
+      const response = websiteOnlyProductionResponse(error);
+      if (response) return response;
+      throw error;
+    }
   }
   const parsedRequest = ChatRequestSchema.safeParse(body);
   if (!parsedRequest.success) {

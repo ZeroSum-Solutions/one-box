@@ -2,7 +2,29 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { deriveTextMuted, findDanglingTokenRefs, publishBuild } from "./builder";
+import { buildSite, deriveTextMuted, findDanglingTokenRefs, publishBuild } from "./builder";
+
+describe("Website-only builds", () => {
+  it.each(["web-app", "ios-app"] as const)(
+    "rejects %s before creating a staging directory",
+    async (projectTarget) => {
+      const runId = `obx001-${projectTarget}`;
+      const staging = path.join(process.cwd(), "sites", runId, "site.building");
+      await fs.rm(path.dirname(staging), { recursive: true, force: true });
+
+      await expect(
+        buildSite({
+          runId,
+          intake: { projectTarget },
+        } as Parameters<typeof buildSite>[0])
+      ).rejects.toMatchObject({
+        code: "unsupported-project-target",
+        projectTarget,
+      });
+      await expect(fs.stat(staging)).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  );
+});
 
 // ENG-008. A generated site shipped `--border-subtle: 1px solid
 // var(--color-stone-grey)` against a --color-stone-grey that no token defined.

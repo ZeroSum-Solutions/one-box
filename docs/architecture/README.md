@@ -88,6 +88,13 @@ event writes before closing. Evidence truth is derived from persisted artifacts;
 the intake artifact owns the user's research choice, while `run.json` owns the
 current stage and approval state.
 
+`src/lib/productionTarget.ts` owns the production target policy. Persisted
+contracts continue to parse `website`, `web-app`, and `ios-app` so historical
+records remain readable, while new intake uses the separate literal Website
+schema. The shared guard runs before intake reservation, pipeline replay or
+execution, builder staging writes, and active reference, evidence, edit,
+element, token, motion, and asset mutations.
+
 Refero authentication follows the MCP server's browser OAuth flow. The Next.js
 process persists its own refreshable OAuth client state under the ignored
 `.one-box/oauth/` boundary; it does not copy Codex's separate OAuth session or

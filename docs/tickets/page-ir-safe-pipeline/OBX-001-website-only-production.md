@@ -1,7 +1,7 @@
 ---
 id: OBX-001
 title: Enforce Website-only production intake
-status: ready
+status: verified
 priority: P0
 epic: Scope
 depends_on: []

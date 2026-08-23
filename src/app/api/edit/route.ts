@@ -32,6 +32,10 @@ import { describeTokensForEdit } from "../../../lib/editorPromptContext";
 import { BlockingMutationError } from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
 import { classifyEditInstruction } from "../../../lib/editPreflight";
+import {
+  assertWebsiteProductionRun,
+  websiteOnlyProductionResponse,
+} from "../../../lib/productionTarget";
 
 export const maxDuration = 300;
 
@@ -67,6 +71,13 @@ export async function POST(req: Request) {
   } = parsed.data;
   if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) {
     return Response.json({ error: "bad runId" }, { status: 400 });
+  }
+  try {
+    await assertWebsiteProductionRun(runId);
+  } catch (error) {
+    const response = websiteOnlyProductionResponse(error);
+    if (response) return response;
+    throw error;
   }
 
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;

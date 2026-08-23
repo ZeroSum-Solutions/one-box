@@ -83,6 +83,7 @@ import {
 import { generateImage } from "./tools/higgsfield";
 import { localLibraryCandidates, localLibraryRecord } from "./tools/locallib";
 import { buildSite } from "./builder";
+import { assertWebsiteProductionRun } from "./productionTarget";
 import { runGates } from "./gates";
 import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
@@ -536,6 +537,7 @@ export async function runPipeline(
   emit: Emit,
   dependencies: RunPipelineDependencies = defaultRunPipelineDependencies
 ) {
+  await assertWebsiteProductionRun(runId, dependencies.loadArtifact);
   const releaseStart = await acquireRunStart(runId);
   let startReleased = false;
   const release = () => {

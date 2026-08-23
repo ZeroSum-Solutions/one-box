@@ -9,6 +9,10 @@ import { z } from "zod";
 
 export const ProjectTargetSchema = z.enum(["website", "web-app", "ios-app"]);
 export type ProjectTarget = z.infer<typeof ProjectTargetSchema>;
+export const ProductionProjectTargetSchema = z.literal("website");
+export type ProductionProjectTarget = z.infer<
+  typeof ProductionProjectTargetSchema
+>;
 
 export const ResearchConfigurationSchema = z.object({
   enabled: z.boolean().default(true),

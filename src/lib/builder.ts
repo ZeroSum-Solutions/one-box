@@ -15,6 +15,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { compile } from "tailwindcss";
 import { collectDefinedCssVars, findUnresolvedCssVarRefs } from "./cssVars";
+import { assertWebsiteProductionTarget } from "./productionTarget";
 
 const execFileAsync = promisify(execFile);
 import {
@@ -69,6 +70,7 @@ export async function compileTailwindUtilities(
 
 export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   const runId = assertSafeRunId(input.runId);
+  assertWebsiteProductionTarget(input.intake.projectTarget);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
   await assertBuildAuthorized(runRoot);
   const publishDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);

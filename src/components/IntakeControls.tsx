@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type {
-  ProjectTarget,
+  ProductionProjectTarget,
   ResearchConfiguration,
   UploadMetadata,
 } from "@/lib/contracts";
@@ -13,11 +13,11 @@ import {
 } from "./researchConsent";
 
 interface IntakeControlsProps {
-  projectTarget: ProjectTarget;
+  projectTarget: ProductionProjectTarget;
   research: ResearchConfiguration;
   uploads: UploadMetadata[];
   uploadSession: string | null;
-  onProjectTargetChange: (target: ProjectTarget) => void;
+  onProjectTargetChange: (target: ProductionProjectTarget) => void;
   onResearchChange: (research: ResearchConfiguration) => void;
   onUploadsChange: (uploads: UploadMetadata[]) => void;
   onUploadSessionChange: (handle: string | null) => void;
@@ -29,7 +29,7 @@ interface IntakeControlsProps {
 }
 
 const TARGETS: Array<{
-  value: ProjectTarget;
+  value: ProductionProjectTarget;
   label: string;
   outcome: string;
   tooling: string;
@@ -44,26 +44,6 @@ const TARGETS: Array<{
       "Built as a responsive Next.js and Tailwind CSS site, with motion only where it improves the experience.",
     context:
       "Website selected. Describe the company, audience, pages, and action you want visitors to take.",
-  },
-  {
-    value: "web-app",
-    label: "Web app",
-    outcome:
-      "An interactive browser product with screens, workflows, and application behavior.",
-    tooling:
-      "Structured as a Next.js browser application; data, accounts, integrations, and deployment follow the scope you describe.",
-    context:
-      "Web app selected. Describe the users, core workflow, important screens, and what success looks like.",
-  },
-  {
-    value: "ios-app",
-    label: "iOS app",
-    outcome:
-      "A touch-first iPhone experience with mobile navigation and platform-appropriate interactions.",
-    tooling:
-      "Focused on iPhone screens and interaction design; native packaging is not implied unless the project scope includes it.",
-    context:
-      "iOS app selected. Describe the users, main mobile task, essential screens, and device capabilities it needs.",
   },
 ];
 

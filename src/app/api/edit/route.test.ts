@@ -90,6 +90,36 @@ describe("edit route authorization", () => {
     expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
   });
 
+  it("rejects a non-Website edit before model, provider, or mutation work", async () => {
+    mocks.loadArtifact.mockResolvedValue({ projectTarget: "web-app" });
+    mocks.applyElementHtmlEdit.mockResolvedValue({ gates: [] });
+    mocks.loadRun.mockResolvedValue({ costUsd: 0 });
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.title",
+        instruction: "Change the heading",
+      }),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-project-target",
+      projectTarget: "web-app",
+    });
+    expect(mocks.generateJson).not.toHaveBeenCalled();
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+    expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
   it("reserves provider credits before image generation and records completion", async () => {
     mocks.loadArtifact.mockResolvedValue({
       imageryBrief: {
