@@ -334,6 +334,26 @@ function expectTreeSnapshot(
   }
 }
 
+async function writeApprovedEvidenceSentinels(runId: string) {
+  const root = path.join(sitePaths(runId).root, "evidence", "approved");
+  await fs.mkdir(path.join(root, "assets"), { recursive: true });
+  await fs.writeFile(
+    path.join(root, "visual-qa.json"),
+    Buffer.from("approved-evidence-sentinel"),
+  );
+  await fs.writeFile(
+    path.join(root, "assets", "reference.bin"),
+    Buffer.from([0, 1, 2, 255]),
+  );
+  return { root, snapshot: await snapshotTree(root) };
+}
+
+async function expectApprovedEvidenceSentinels(
+  sentinels: Awaited<ReturnType<typeof writeApprovedEvidenceSentinels>>,
+): Promise<void> {
+  expectTreeSnapshot(await snapshotTree(sentinels.root), sentinels.snapshot);
+}
+
 async function rebindFailedCandidate(runId: string): Promise<void> {
   const paths = candidatePaths(runId);
   const manifest = await createCandidateManifest(paths.site);
@@ -986,6 +1006,30 @@ describe("failed candidate repair", () => {
     expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
   });
 
+  it("rejects a failed candidate without a preceding ready-for-gates disposition", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const provenance = CandidateProvenanceV1Schema.parse(
+      JSON.parse(await fs.readFile(candidate.paths.provenance, "utf8")),
+    );
+    await writeJson(candidate.paths.provenance, {
+      ...provenance,
+      history: provenance.history.filter(
+        (_event, index) => index !== provenance.history.length - 2,
+      ),
+    });
+    const before = await snapshotTree(candidate.paths.root);
+    const provider = vi.fn();
+
+    await expect(repairFailedCandidate(runId, provider)).rejects.toThrow(
+      "candidate repair requires a failed full-suite disposition",
+    );
+
+    expect(provider).not.toHaveBeenCalled();
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
+  });
+
   it("rejects linked candidate artifacts before claiming the allowance", async () => {
     const { repairFailedCandidate } = candidateRepairApi();
     const { runId, candidate } = await createFailedRepairCandidate();
@@ -1139,11 +1183,19 @@ describe("failed candidate repair", () => {
     const { runId, candidate } = await createFailedRepairCandidate();
     const before = await snapshotTree(candidate.paths.root);
 
-    await expect(
-      repairFailedCandidate(runId, async () => ({
-        files: [{ path: "tokens.css", content: "x".repeat(1024 * 1024 + 1) }],
-      })),
-    ).rejects.toThrow(/repair.*size|repair.*bytes|too big/i);
+    const error: unknown = await repairFailedCandidate(runId, async () => ({
+      files: [
+        { path: "index.html", content: "é".repeat(300_000) },
+        { path: "tokens.css", content: "é".repeat(300_000) },
+      ],
+    })).catch((reason: unknown) => reason);
+    expect((error as { issues?: unknown }).issues).toEqual([
+      {
+        code: "custom",
+        path: ["files"],
+        message: "candidate repair output exceeds the aggregate repair byte limit",
+      },
+    ]);
 
     expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
     expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
@@ -1289,6 +1341,8 @@ describe("failed candidate repair", () => {
   it("releases provider failures but consumes a completed repair that still fails gates", async () => {
     const { repairFailedCandidate } = candidateRepairApi();
     const first = await createFailedRepairCandidate();
+    const live = await writeLiveSentinels(first.runId);
+    const approvedEvidence = await writeApprovedEvidenceSentinels(first.runId);
 
     await expect(
       repairFailedCandidate(first.runId, async () => {
@@ -1305,6 +1359,8 @@ describe("failed candidate repair", () => {
     expect(result?.state).toBe("failed");
     expect((await loadRun(first.runId)).stages.built.gateRepairAttempts).toBe(1);
     expect(gateHarness.state.contrastCalls).toHaveLength(2);
+    await expectLiveSentinels(first.runId, live);
+    await expectApprovedEvidenceSentinels(approvedEvidence);
 
     await expect(
       repairFailedCandidate(first.runId, async () => {
@@ -1349,6 +1405,8 @@ describe("failed candidate repair", () => {
       await snapshotTree(first.candidate.paths.root),
       candidateBeforeReconnect,
     );
+    await expectLiveSentinels(first.runId, live);
+    await expectApprovedEvidenceSentinels(approvedEvidence);
   });
 
   it("replays only the current build error when reconnecting to a consumed failed repair", async () => {
@@ -1424,6 +1482,8 @@ describe("failed candidate repair", () => {
   it("consumes the allowance when repaired-candidate gate execution fails", async () => {
     const { repairFailedCandidate } = candidateRepairApi();
     const { runId, candidate } = await createFailedRepairCandidate();
+    const live = await writeLiveSentinels(runId);
+    const approvedEvidence = await writeApprovedEvidenceSentinels(runId);
 
     await expect(
       repairFailedCandidate(runId, async (request) => {
@@ -1438,17 +1498,23 @@ describe("failed candidate repair", () => {
     expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(1);
     expect(JSON.parse(await fs.readFile(candidate.paths.provenance, "utf8")))
       .toMatchObject({ state: "failed" });
+    await expectLiveSentinels(runId, live);
+    await expectApprovedEvidenceSentinels(approvedEvidence);
     gateHarness.state.gotoError = undefined;
     await expect(
       repairFailedCandidate(runId, async () => {
         throw new Error("completed repair must not call provider twice");
       }),
     ).resolves.toBeUndefined();
+    await expectLiveSentinels(runId, live);
+    await expectApprovedEvidenceSentinels(approvedEvidence);
   });
 
   it("fails closed and consumes the allowance when repaired disposition publication fails", async () => {
     const { repairFailedCandidate } = candidateRepairApi();
     const { runId, candidate } = await createFailedRepairCandidate();
+    const live = await writeLiveSentinels(runId);
+    const approvedEvidence = await writeApprovedEvidenceSentinels(runId);
     const realRename = fs.rename.bind(fs);
     let seeded = false;
     vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
@@ -1475,10 +1541,14 @@ describe("failed candidate repair", () => {
     expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(1);
     expect(JSON.parse(await fs.readFile(candidate.paths.provenance, "utf8")))
       .toMatchObject({ state: "failed" });
+    await expectLiveSentinels(runId, live);
+    await expectApprovedEvidenceSentinels(approvedEvidence);
     await expect(
       repairFailedCandidate(runId, async () => {
         throw new Error("completed repair must not call provider twice");
       }),
     ).resolves.toBeUndefined();
+    await expectLiveSentinels(runId, live);
+    await expectApprovedEvidenceSentinels(approvedEvidence);
   });
 });
