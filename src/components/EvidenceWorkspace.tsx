@@ -18,6 +18,7 @@ import {
   type WorkflowArtifactVersion,
 } from "../lib/contracts";
 import type { RequiredReferenceContext } from "../lib/referenceContext";
+import type { PersistedIntakeCompatibility } from "../lib/productionTarget";
 import {
   ArtifactSource,
   CheckTable,
@@ -756,13 +757,16 @@ export function ArtifactPreview({
 
 export function EvidenceWorkspace({
   initialRun,
+  compatibility,
   requiredReferenceContext = initialRun.referenceMode === "none"
     ? "explicit-no-reference"
     : "design-and-references",
 }: {
   initialRun: RunState;
+  compatibility?: PersistedIntakeCompatibility;
   requiredReferenceContext?: RequiredReferenceContext;
 }) {
+  const legacyReadOnly = compatibility?.readOnly === true;
   const [run, setRun] = useState(initialRun);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -818,7 +822,8 @@ export function EvidenceWorkspace({
   const shownApproval = shown ? workflowArtifactApprovalState(shown) : null;
   const palette = useMemo(() => buildPaletteLookup(run), [run]);
   const canApproveAndContinue = Boolean(
-    current &&
+    !legacyReadOnly &&
+      current &&
       current.artifactType !== "visual-qa" &&
       (approval === "draft" || approval === "in-review" || (approval === "approved" && nextStage))
   );
@@ -826,13 +831,19 @@ export function EvidenceWorkspace({
   // but they still start life in draft and need a way into in-review, or the
   // gate can be entered and never left (BLOCKER: draft has no exit control).
   const canSubmitVisualQaDraft = Boolean(
-    current && current.artifactType === "visual-qa" && approval === "draft"
+    !legacyReadOnly &&
+      current &&
+      current.artifactType === "visual-qa" &&
+      approval === "draft"
   );
   // A revision-requested artifact's only forward move is a new version; give
   // it the same pinned header spot the other gates get instead of leaving the
   // header actionless while the save control waits at the panel's bottom.
   const canSaveRevisionFromHeader = Boolean(
-    current && current.artifactType !== "visual-qa" && approval === "revision-requested"
+    !legacyReadOnly &&
+      current &&
+      current.artifactType !== "visual-qa" &&
+      approval === "revision-requested"
   );
   const humanReviewReady =
     reviewerName.trim().length > 0 &&
@@ -994,7 +1005,17 @@ export function EvidenceWorkspace({
         <p className="evidence-workspace__sub">Run {run.id}. Every stage is versioned and must be approved in order.</p>
       </header>
 
-      {run.referenceSelection?.status === "pending" && (
+      {legacyReadOnly && compatibility && (
+        <div className="preview-alert" role="status">
+          <strong className="preview-alert__title">{compatibility.label}</strong>
+          <span className="preview-alert__detail">{compatibility.message}</span>
+          <Link className="btn-ghost btn-mini" href={`/preview/${run.id}`}>
+            Open preview
+          </Link>
+        </div>
+      )}
+
+      {!legacyReadOnly && run.referenceSelection?.status === "pending" && (
         <ReferenceSelectionPanel runId={run.id} initial={run.referenceSelection} />
       )}
 
@@ -1139,11 +1160,11 @@ export function EvidenceWorkspace({
 
           {/* Every action that reads the note is gated on an artifact, so a
               stage with no draft must not show the field at all. */}
-          {current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
+          {!legacyReadOnly && current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
             Review note
             <textarea value={note} onChange={(event) => setNote(event.target.value)} />
           </label>}
-          {approval === "in-review" && current?.artifactType === "visual-qa" && (
+          {!legacyReadOnly && approval === "in-review" && current?.artifactType === "visual-qa" && (
             <section className="evidence-readable" aria-labelledby="human-visual-review-title">
               <h3 id="human-visual-review-title">Human visual review</h3>
               <p>Only a person can submit this decision. Gemini and other model audits stay advisory and cannot fill this review.</p>
@@ -1185,15 +1206,15 @@ export function EvidenceWorkspace({
                 Open build preview
               </Link>
             )}
-            {!current && (
+            {!legacyReadOnly && !current && (
               <Link className="btn-ghost" href={`/?run=${run.id}`}>
                 Resume generation
               </Link>
             )}
-            {approval === "in-review" && current?.artifactType === "visual-qa" && (
+            {!legacyReadOnly && approval === "in-review" && current?.artifactType === "visual-qa" && (
               <button className="btn-primary" disabled={busy || !humanReviewReady} onClick={submitHumanReview}>Submit human visual review</button>
             )}
-            {approval === "revision-requested" && current?.artifactType === "visual-qa" && (
+            {!legacyReadOnly && approval === "revision-requested" && current?.artifactType === "visual-qa" && (
               <button className="btn-ghost" disabled={busy} onClick={() => void action({ action: "regenerate-visual-qa" })}>
                 Regenerate visual QA from current build
               </button>

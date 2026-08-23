@@ -408,6 +408,44 @@ describe("EvidenceWorkspace with no draft for the current stage", () => {
   });
 });
 
+describe("EvidenceWorkspace legacy compatibility", () => {
+  it("labels a legacy target read-only while keeping preview and export available", () => {
+    const run = {
+      id: "legacy-run",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "evidence", artifacts: [] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace
+        initialRun={run}
+        compatibility={{
+          mode: "legacy-read-only",
+          projectTarget: "web-app",
+          label: "legacy/experimental",
+          readOnly: true,
+          message:
+            "Legacy/experimental and read-only in Phase 1; preview/export available; start a new Website project for generation/edit.",
+        }}
+      />,
+    );
+
+    expect(html).toContain("legacy/experimental");
+    expect(html).toContain("read-only in Phase 1");
+    expect(html).toContain(`/api/evidence/${run.id}/export`);
+    expect(html).toContain(`/preview/${run.id}`);
+    expect(html).not.toContain("Resume generation");
+    expect(html).not.toContain("Approve &amp; continue");
+    expect(html).not.toContain("Review note");
+  });
+});
+
 // ENG-009: crawlSite and capture() record ABSOLUTE filesystem paths in the
 // scan artifact, and rendering one as a URL produced /api/sites/<id>//Users/…
 // and a 404. Existing runs still hold absolute values on disk, so the URL

@@ -12,6 +12,50 @@ export const WEBSITE_ONLY_PRODUCTION_ERROR = {
   action: "Start a new Website project to generate, retry, or rebuild.",
 } as const;
 
+export const LEGACY_PROJECT_COMPATIBILITY_MESSAGE =
+  "Legacy/experimental and read-only in Phase 1; preview/export available; start a new Website project for generation/edit.";
+
+export type PersistedIntakeCompatibility =
+  | {
+      mode: "phase-1-website";
+      projectTarget: "website";
+      label: "website";
+      readOnly: false;
+      message: null;
+    }
+  | {
+      mode: "legacy-read-only";
+      projectTarget: Exclude<ProjectTarget, "website">;
+      label: "legacy/experimental";
+      readOnly: true;
+      message: typeof LEGACY_PROJECT_COMPATIBILITY_MESSAGE;
+    };
+
+/** Classifies persisted intake without saving, backfilling, or narrowing its schema. */
+export function classifyPersistedIntakeCompatibility(
+  rawIntake: unknown,
+): PersistedIntakeCompatibility {
+  const { projectTarget } = IntakeSchema.pick({ projectTarget: true })
+    .passthrough()
+    .parse(rawIntake);
+  if (projectTarget === "website") {
+    return {
+      mode: "phase-1-website",
+      projectTarget,
+      label: "website",
+      readOnly: false,
+      message: null,
+    };
+  }
+  return {
+    mode: "legacy-read-only",
+    projectTarget,
+    label: "legacy/experimental",
+    readOnly: true,
+    message: LEGACY_PROJECT_COMPATIBILITY_MESSAGE,
+  };
+}
+
 export class WebsiteOnlyProductionError extends Error {
   readonly code = WEBSITE_ONLY_PRODUCTION_ERROR.code;
   readonly action = WEBSITE_ONLY_PRODUCTION_ERROR.action;
@@ -43,9 +87,7 @@ export async function assertWebsiteProductionRun(
 ): Promise<"website" | undefined> {
   const raw = await loadIntake(runId, ARTIFACTS.intake);
   if (raw === null || raw === undefined) return undefined;
-  const { projectTarget } = IntakeSchema.pick({ projectTarget: true })
-    .passthrough()
-    .parse(raw);
+  const { projectTarget } = classifyPersistedIntakeCompatibility(raw);
   assertWebsiteProductionTarget(projectTarget);
   return projectTarget;
 }

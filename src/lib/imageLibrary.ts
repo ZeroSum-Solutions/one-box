@@ -666,6 +666,11 @@ export function listProjectImages(runId: string, sitesRoot?: string) {
   );
 }
 
+/** Reads only the durable catalog. It never reconciles site bytes or writes aliases. */
+export function readProjectImages(runId: string, sitesRoot?: string) {
+  return readCatalog(libraryPaths(runId, sitesRoot).catalog);
+}
+
 export function assetPublicUrl(runId: string, item: ImageLibraryItem) {
   if (!item.outputPath?.startsWith("site/")) return null;
   const relative = item.outputPath.slice("site/".length);

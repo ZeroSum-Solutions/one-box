@@ -13,6 +13,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { Workbench, type WorkbenchTool } from "@/components/preview/Workbench";
+import type { PersistedIntakeCompatibility } from "@/lib/productionTarget";
 import {
   DEFAULT_WORKBENCH_STATE,
   applyCompactDefault,
@@ -109,6 +110,9 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     null,
   );
   const [isResizing, setIsResizing] = useState(false);
+  const [compatibility, setCompatibility] =
+    useState<PersistedIntakeCompatibility | null>(null);
+  const [compatibilityLoaded, setCompatibilityLoaded] = useState(false);
 
   useLayoutEffect(() => {
     activeRunIdRef.current = id;
@@ -149,6 +153,8 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
       setWidthMenuOpen(false);
       setWidthAnnouncement(null);
       setIsResizing(false);
+      setCompatibility(null);
+      setCompatibilityLoaded(false);
       setWorkbench(
         applyCompactDefault(
           restoreWorkbenchState(localStorage, id),
@@ -168,6 +174,33 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   }, [id, restoredRunId, workbench]);
 
   const restored = isWorkbenchStateRestoredForRun(restoredRunId, id);
+  const legacyReadOnly = compatibility?.readOnly === true;
+  const interactive = restored && compatibilityLoaded && !legacyReadOnly;
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`/api/evidence/${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { compatibility?: PersistedIntakeCompatibility }
+          | null;
+        if (cancelled || !response.ok) return;
+        setCompatibility(payload?.compatibility ?? null);
+        setCompatibilityLoaded(true);
+        if (payload?.compatibility?.readOnly) {
+          setWorkbench((current) => ({ ...current, mode: "view" }));
+        }
+      } catch {
+        // Editing remains unavailable when compatibility cannot be confirmed.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   useEffect(() => {
     if (!restored) return;
@@ -561,7 +594,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
 
   async function submitEdit(options: { confirmRedirect?: boolean; instruction?: string } = {}) {
     const submittedInstruction = options.instruction ?? instruction.trim();
-    if (!restored || !selection || !submittedInstruction || isEditing) return;
+    if (!interactive || !selection || !submittedInstruction || isEditing) return;
     const requestRunId = id;
     const controller = new AbortController();
     pendingEditAbortRef.current?.abort();
@@ -646,12 +679,13 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         : "100%",
   } as CSSProperties;
   const panelBounds = panelWidthBounds(workspaceWidth);
-  const iframeSrc = `/api/sites/${encodeURIComponent(id)}/index.html${workbench.mode === "edit" ? "?edit=1" : ""}`;
+  const effectiveMode: PreviewMode = interactive ? workbench.mode : "view";
+  const safeIframeSrc = `/api/sites/${encodeURIComponent(id)}/index.html${effectiveMode === "edit" ? "?edit=1" : ""}`;
 
   return (
     <main
       ref={workspaceRef}
-      className={`preview-layout preview-layout--${workbench.size}`}
+      className={`preview-layout preview-layout--${interactive ? workbench.size : "collapsed"}`}
       style={style}
     >
       <header className="preview-header">
@@ -670,18 +704,18 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           >
             <button
               type="button"
-              className={`seg-pill ${workbench.mode === "view" ? "seg-pill--active" : ""}`}
+              className={`seg-pill ${effectiveMode === "view" ? "seg-pill--active" : ""}`}
               disabled={!restored}
-              aria-pressed={workbench.mode === "view"}
+              aria-pressed={effectiveMode === "view"}
               onClick={() => setMode("view")}
             >
               View
             </button>
             <button
               type="button"
-              className={`seg-pill ${workbench.mode === "edit" ? "seg-pill--active" : ""}`}
-              disabled={!restored}
-              aria-pressed={workbench.mode === "edit"}
+              className={`seg-pill ${effectiveMode === "edit" ? "seg-pill--active" : ""}`}
+              disabled={!interactive}
+              aria-pressed={effectiveMode === "edit"}
               onClick={() => setMode("edit")}
             >
               Edit
@@ -696,7 +730,14 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         </div>
       </header>
 
-      {blockedGates.length > 0 && (
+      {legacyReadOnly && compatibility && (
+        <div className="preview-alert" role="status">
+          <strong className="preview-alert__title">{compatibility.label}</strong>
+          <span className="preview-alert__detail">{compatibility.message}</span>
+        </div>
+      )}
+
+      {!legacyReadOnly && blockedGates.length > 0 && (
         <div className="preview-alert" role="status">
           <strong className="preview-alert__title">
             This build did not pass its gates, so it cannot accept edits.
@@ -716,23 +757,23 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           className="preview-viewport"
           aria-label="Rendered site preview"
         >
-          {restored && (
+          {interactive && (
             <a href="#workbench-tools" className="visually-hidden preview-skip-link">
               Skip to workbench
             </a>
           )}
           {restored ? (
             <iframe
-              key={`${iframeVersion}:${workbench.mode}`}
+              key={`${iframeVersion}:${effectiveMode}`}
               ref={iframeRef}
               className="preview-frame"
-              src={iframeSrc}
+              src={safeIframeSrc}
               sandbox={
-                workbench.mode === "view"
+                effectiveMode === "view"
                   ? "allow-scripts allow-forms allow-popups allow-downloads"
                   : "allow-scripts"
               }
-              title={`${workbench.mode === "view" ? "View" : "Edit"} site preview`}
+              title={`${effectiveMode === "view" ? "View" : "Edit"} site preview`}
             />
           ) : (
             <div className="preview-frame-pending" role="status">
@@ -741,7 +782,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           )}
         </section>
 
-        <div
+        {interactive && <div
           className={`preview-divider ${isResizing ? "preview-divider--active" : ""}`}
           role="separator"
           aria-label="Resize preview and workbench"
@@ -756,9 +797,9 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           onPointerUp={handleResizePointerUp}
           onPointerCancel={handleResizePointerUp}
           onKeyDown={handleDividerKeyDown}
-        />
+        />}
 
-        {restored ? (
+        {interactive ? (
           <Workbench
           key={id}
           runId={id}

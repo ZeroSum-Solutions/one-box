@@ -33,6 +33,8 @@ import { runGates } from "../../../../lib/gates";
 import { requiredReferenceContext } from "../../../../lib/referenceContext";
 import {
   assertWebsiteProductionRun,
+  classifyPersistedIntakeCompatibility,
+  type PersistedIntakeCompatibility,
   websiteOnlyProductionResponse,
 } from "../../../../lib/productionTarget";
 
@@ -97,10 +99,15 @@ function latestCurrentArtifact(run: Awaited<ReturnType<typeof loadRun>>) {
     .sort((left, right) => right.version - left.version)[0];
 }
 
-function responsePayload(run: Awaited<ReturnType<typeof loadRun>>) {
+function responsePayload(
+  run: Awaited<ReturnType<typeof loadRun>>,
+  compatibility?: PersistedIntakeCompatibility,
+) {
   const currentArtifact = latestCurrentArtifact(run);
   return {
     runId: run.id,
+    projectTarget: compatibility?.projectTarget,
+    compatibility,
     pipelineVersion: run.pipelineVersion,
     workflow: run.evidenceWorkflow,
     currentArtifact,
@@ -157,7 +164,15 @@ export async function GET(
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   try {
-    return Response.json(responsePayload(await loadRun(id)));
+    const [run, rawIntake] = await Promise.all([
+      loadRun(id),
+      loadArtifact(id, ARTIFACTS.intake),
+    ]);
+    const compatibility =
+      rawIntake === null || rawIntake === undefined
+        ? undefined
+        : classifyPersistedIntakeCompatibility(rawIntake);
+    return Response.json(responsePayload(run, compatibility));
   } catch (error) {
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });

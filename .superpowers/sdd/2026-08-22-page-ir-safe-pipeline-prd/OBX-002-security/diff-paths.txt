@@ -1,0 +1,15 @@
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-002-report.md
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md
+docs/architecture/README.md
+docs/tickets/page-ir-safe-pipeline/OBX-002-legacy-target-compatibility.md
+src/app/api/assets/[id]/route.test.ts
+src/app/api/assets/[id]/route.ts
+src/app/api/evidence/[id]/export/route.ts
+src/app/api/evidence/[id]/route.ts
+src/app/api/legacyCompatibility.test.ts
+src/app/evidence/[id]/page.tsx
+src/app/preview/[id]/page.tsx
+src/components/EvidenceWorkspace.test.tsx
+src/components/EvidenceWorkspace.tsx
+src/lib/imageLibrary.ts
+src/lib/productionTarget.ts

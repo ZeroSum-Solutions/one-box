@@ -37,3 +37,7 @@
 - OBX-001: verified — Website is the only new production target; shared guards reject
   non-Website create/start/resume/rebuild and active mutation paths before work or writes.
   Focused verification: 112 passed. Full suite: 529 passed, 2 skipped.
+- OBX-002: verified. Persisted non-Website targets remain intact and readable, preview
+  and evidence export remain available with legacy/read-only metadata, and legacy asset
+  GET uses a pure catalog read. Focused verification: 24 passed. Full suite: 535 passed,
+  2 skipped.

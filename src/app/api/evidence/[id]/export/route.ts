@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { isLocalApiAuthorized } from "../../../../../lib/localApiAuth";
 import {
+  ARTIFACTS,
+} from "../../../../../lib/contracts";
+import {
+  classifyPersistedIntakeCompatibility,
+} from "../../../../../lib/productionTarget";
+import {
+  loadArtifact,
   loadRun,
   RunNotFoundError,
   workflowArtifactVersionPath,
@@ -19,11 +26,20 @@ export async function GET(
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   try {
-    const run = await loadRun(id);
+    const [run, rawIntake] = await Promise.all([
+      loadRun(id),
+      loadArtifact(id, ARTIFACTS.intake),
+    ]);
+    const compatibility =
+      rawIntake === null || rawIntake === undefined
+        ? undefined
+        : classifyPersistedIntakeCompatibility(rawIntake);
     const body = JSON.stringify(
       {
         exportedAt: new Date().toISOString(),
         runId: id,
+        projectTarget: compatibility?.projectTarget,
+        compatibility,
         pipelineVersion: run.pipelineVersion,
         workflow: run.evidenceWorkflow,
         artifacts: run.evidenceWorkflow.artifacts.map((artifact) => ({

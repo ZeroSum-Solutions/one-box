@@ -1,7 +1,7 @@
 ---
 id: OBX-002
 title: Quarantine legacy non-website runs without data loss
-status: ready
+status: verified
 priority: P1
 epic: Scope
 depends_on: [OBX-001]

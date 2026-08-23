@@ -93,7 +93,13 @@ contracts continue to parse `website`, `web-app`, and `ios-app` so historical
 records remain readable, while new intake uses the separate literal Website
 schema. The shared guard runs before intake reservation, pipeline replay or
 execution, builder staging writes, and active reference, evidence, edit,
-element, token, motion, and asset mutations.
+element, token, motion, and asset mutations. Its read-only compatibility
+classifier preserves an explicit historical target and applies the existing
+Website default only when `projectTarget` is absent. Legacy non-Website preview
+and evidence views show one legacy/read-only notice; evidence GET and export
+include target and compatibility metadata. Asset GET uses a pure catalog read
+for those records, so viewing one cannot reconcile the image ledger, approval
+aliases, run state, or site bytes.
 
 Refero authentication follows the MCP server's browser OAuth flow. The Next.js
 process persists its own refreshable OAuth client state under the ignored

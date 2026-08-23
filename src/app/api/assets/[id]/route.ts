@@ -8,6 +8,7 @@ import {
   generateProjectImage,
   listProjectImages,
   placeLibraryImage,
+  readProjectImages,
   type ImageLibrary,
 } from "../../../../lib/imageLibrary";
 import { ImageGenerationBudgetError } from "../../../../lib/imageGenerationBudget";
@@ -15,8 +16,11 @@ import { isLocalApiAuthorized } from "../../../../lib/localApiAuth";
 import { BlockingMutationError } from "../../../../lib/siteMutation";
 import {
   assertWebsiteProductionRun,
+  classifyPersistedIntakeCompatibility,
   websiteOnlyProductionResponse,
 } from "../../../../lib/productionTarget";
+import { ARTIFACTS } from "../../../../lib/contracts";
+import { loadArtifact } from "../../../../lib/runstate";
 
 export const maxDuration = 300;
 
@@ -79,9 +83,20 @@ export async function GET(
   }
   try {
     const { id } = await context.params;
-    const library = await listProjectImages(id);
+    if (!/^[a-z0-9_-]{4,40}$/i.test(id)) {
+      return Response.json({ error: "bad run id" }, { status: 400 });
+    }
+    const rawIntake = await loadArtifact(id, ARTIFACTS.intake);
+    const compatibility =
+      rawIntake === null || rawIntake === undefined
+        ? undefined
+        : classifyPersistedIntakeCompatibility(rawIntake);
+    const library = compatibility?.readOnly
+      ? await readProjectImages(id)
+      : await listProjectImages(id);
     return Response.json({
-      models: IMAGE_MODELS,
+      models: compatibility?.readOnly ? [] : IMAGE_MODELS,
+      compatibility,
       library: serializeLibrary(id, library),
     });
   } catch (error) {
