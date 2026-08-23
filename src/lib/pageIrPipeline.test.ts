@@ -10,7 +10,12 @@ import {
   type WorkflowArtifactDraft,
 } from "./contracts";
 import { buildTailwindPlan, buildTokenInventory } from "./evidence";
-import { candidateManifestSha256 } from "./candidate";
+import {
+  candidateManifestSha256,
+  inspectCandidate,
+  validateCandidateInventory,
+} from "./candidate";
+import { pageIrSha256 } from "./pageIrHash";
 import {
   advanceEvidenceWorkflow,
   createRun,
@@ -34,6 +39,29 @@ import {
 const HASH = "a".repeat(64);
 const OTHER_HASH = "b".repeat(64);
 const testRunIds: string[] = [];
+
+function canonicalizeProof(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeProof);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, child]) => [key, canonicalizeProof(child)]),
+    );
+  }
+  return value;
+}
+
+function bindingSetProofSha256(
+  runId: string,
+  sources: Array<{ kind: string; version: number; sha256: string }>,
+) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify(canonicalizeProof({ schemaVersion: 1, runId, sources })),
+    )
+    .digest("hex");
+}
 
 function workflowDrafts(): WorkflowArtifactDraft[] {
   const designTokens = {
@@ -449,9 +477,27 @@ describe("PageIrSourceBundleV1Schema", () => {
     reordered.sourceArtifacts.reverse();
     expect(schema.safeParse(reordered).success).toBe(false);
 
+    const reorderedUpstream = structuredClone(sourceBundle());
+    reorderedUpstream.upstreamBindings.reverse();
+    expect(schema.safeParse(reorderedUpstream).success).toBe(false);
+
+    const missingUpstream = structuredClone(sourceBundle());
+    missingUpstream.upstreamBindings.pop();
+    expect(schema.safeParse(missingUpstream).success).toBe(false);
+
+    const duplicateUpstream = structuredClone(sourceBundle());
+    duplicateUpstream.upstreamBindings[1] = {
+      ...duplicateUpstream.upstreamBindings[0],
+    };
+    expect(schema.safeParse(duplicateUpstream).success).toBe(false);
+
     const staleChain = structuredClone(sourceBundle());
     staleChain.sourceArtifacts[1].sourceLayoutDecisionVersion = 5;
     expect(schema.safeParse(staleChain).success).toBe(false);
+
+    const mismatchedSourceVersions = structuredClone(sourceBundle());
+    mismatchedSourceVersions.sourceArtifacts[0].sourceVersions!.evidence = 2;
+    expect(schema.safeParse(mismatchedSourceVersions).success).toBe(false);
 
     const unknown = { ...sourceBundle(), latestAlias: "v1" };
     expect(schema.safeParse(unknown).success).toBe(false);
@@ -559,7 +605,8 @@ describe("Page IR source bundle persistence", () => {
 
   it("keeps approval append-only and rejects model or partial review authority", async () => {
     const runId = await createApprovedPageIrRun();
-    await proposePageIrSourceBundle(sourceProposal(runId));
+    const proposal = sourceProposal(runId);
+    const proposed = await proposePageIrSourceBundle(proposal);
 
     await expect(
       transitionPageIrSourceBundleReview(runId, "in-review", {
@@ -603,6 +650,45 @@ describe("Page IR source bundle persistence", () => {
     );
     expect(approved.reviewTransitions).toHaveLength(3);
 
+    const reloaded = await loadApprovedPageIrSourceBundle(runId);
+    expect(reloaded.bundle).toEqual(approved);
+    expect(reloaded.bundle.payloadSha256).toBe(proposed.payloadSha256);
+    expect(reloaded.bundle.upstreamBindings).toEqual(proposed.upstreamBindings);
+    expect(
+      reloaded.bundle.reviewTransitions.map((entry) => entry.state),
+    ).toEqual(["draft", "in-review", "approved"]);
+    expect(reloaded.bundle.reviewTransitions.at(-1)?.humanReview).toMatchObject(
+      {
+        reviewerName: "Devin",
+        reviewerKind: "human",
+        humanAttestation: true,
+        payloadSha256: proposed.payloadSha256,
+        criteria: {
+          layoutDecision: "pass",
+          content: "pass",
+          assets: "pass",
+          upstreamBindings: "pass",
+          sourceChain: "pass",
+        },
+      },
+    );
+    for (const source of proposal.sources) {
+      expect(reloaded.sourceBytes[source.kind]).toEqual(source.bytes);
+    }
+    expect(
+      JSON.parse(
+        await fs.readFile(
+          path.join(
+            sitePaths(runId).root,
+            "page-ir-sources",
+            "v1",
+            "bundle.json",
+          ),
+          "utf8",
+        ),
+      ),
+    ).toEqual(approved);
+
     await expect(
       transitionPageIrSourceBundleReview(runId, "rejected", {
         actorKind: "human",
@@ -623,11 +709,6 @@ describe("Page IR source bundle persistence", () => {
 
     const runId = await createApprovedPageIrRun();
     await approveSourceBundle(runId);
-    const oversized = sourceProposal(runId);
-    oversized.sources[0].bytes = Buffer.alloc(MAX_PAGE_IR_ARTIFACT_BYTES + 1);
-    await expect(proposePageIrSourceBundle(oversized)).rejects.toThrow(
-      /maximum|too_big|invalid/i,
-    );
     const sourceRoot = path.join(
       sitePaths(runId).root,
       "page-ir-sources",
@@ -661,6 +742,19 @@ describe("Page IR source bundle persistence", () => {
     await expect(loadApprovedPageIrSourceBundle(runId)).rejects.toThrow(
       /symlink|regular|non-linked/i,
     );
+  });
+
+  it("rejects an oversized source before creating the source root", async () => {
+    const runId = await createApprovedPageIrRun();
+    const oversized = sourceProposal(runId);
+    oversized.sources[0].bytes = Buffer.alloc(MAX_PAGE_IR_ARTIFACT_BYTES + 1);
+
+    await expect(proposePageIrSourceBundle(oversized)).rejects.toThrow(
+      /source artifact bytes exceed the supported maximum/i,
+    );
+    await expect(
+      fs.stat(path.join(sitePaths(runId).root, "page-ir-sources")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it(
@@ -749,6 +843,11 @@ describe("initial persisted Page IR", () => {
     ]);
     expect(first.pageIrSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(first.bindingSetSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(first.pageIrSha256).toBe(pageIrSha256(first.pageIr));
+    expect(first.bindingSetSha256).toBe(
+      bindingSetProofSha256(first.runId, first.lineage.sources),
+    );
+    await expect(loadPersistedPageIr(runId)).resolves.toEqual(first);
     expect(
       JSON.parse(
         await fs.readFile(
@@ -774,6 +873,16 @@ describe("initial persisted Page IR", () => {
     );
     await fs.writeFile(pageIrPath, original);
 
+    const hashBitTamper = JSON.parse(original.toString("utf8"));
+    hashBitTamper.pageIrSha256 = `${
+      hashBitTamper.pageIrSha256[0] === "0" ? "1" : "0"
+    }${hashBitTamper.pageIrSha256.slice(1)}`;
+    await fs.writeFile(pageIrPath, JSON.stringify(hashBitTamper));
+    await expect(loadPersistedPageIr(runId)).rejects.toThrow(
+      /Page IR SHA-256 mismatch/i,
+    );
+    await fs.writeFile(pageIrPath, original);
+
     const sourcePath = path.join(
       sitePaths(runId).root,
       "page-ir-sources",
@@ -786,6 +895,39 @@ describe("initial persisted Page IR", () => {
       /SHA-256|conflict|stale/i,
     );
     expect(await fs.readFile(pageIrPath)).toEqual(original);
+  });
+
+  it("reuses an identical checkpoint without rewriting and rejects a self-consistent binding conflict", async () => {
+    const runId = await createApprovedPageIrRun();
+    await approveSourceBundle(runId);
+    const persisted = await deriveAndPersistInitialPageIr(runId);
+    const pageIrPath = path.join(sitePaths(runId).root, "page-ir.json");
+    const original = await fs.readFile(pageIrPath);
+    const originalStat = await fs.stat(pageIrPath, { bigint: true });
+
+    await expect(deriveAndPersistInitialPageIr(runId)).resolves.toEqual(
+      persisted,
+    );
+    expect(await fs.readFile(pageIrPath)).toEqual(original);
+    expect((await fs.stat(pageIrPath, { bigint: true })).mtimeNs).toBe(
+      originalStat.mtimeNs,
+    );
+
+    const conflicting = structuredClone(persisted);
+    conflicting.lineage.sources[0].sha256 = OTHER_HASH;
+    conflicting.bindingSetSha256 = bindingSetProofSha256(
+      runId,
+      conflicting.lineage.sources,
+    );
+    const conflictBytes = Buffer.from(
+      `${JSON.stringify(conflicting, null, 2)}\n`,
+    );
+    await fs.writeFile(pageIrPath, conflictBytes);
+
+    await expect(deriveAndPersistInitialPageIr(runId)).rejects.toThrow(
+      /conflicts with the current derivation bindings|cannot be overwritten/i,
+    );
+    expect(await fs.readFile(pageIrPath)).toEqual(conflictBytes);
   });
 
   it("retries safely around the Page IR atomic rename boundary", async () => {
@@ -840,6 +982,17 @@ describe("Page IR candidate materialization", () => {
     expect(new Set([first.status, second.status])).toEqual(
       new Set(["created", "reused"]),
     );
+    expect(first.manifest).toEqual(second.manifest);
+    expect(first.provenance).toEqual(second.provenance);
+    expect(first.manifest.buildSha256).toBe(second.manifest.buildSha256);
+    expect(first.provenance.candidateManifestSha256).toBe(
+      second.provenance.candidateManifestSha256,
+    );
+    expect(
+      (await fs.readdir(sitePaths(runId).root)).filter((entry) =>
+        /^candidate(?:\.|$)/.test(entry),
+      ),
+    ).toEqual(["candidate"]);
     const result = first.status === "created" ? first : second;
     expect(result.provenance).toMatchObject({
       layoutAuthority: "page-ir-v1",
@@ -875,9 +1028,12 @@ describe("Page IR candidate materialization", () => {
     const runId = await createApprovedPageIrRun();
     await preparePersistedPageIr(runId);
     const request = await candidateRequest(runId);
+    const runRoot = sitePaths(runId).root;
+    const liveRoot = path.join(runRoot, "site");
+    await fs.mkdir(liveRoot, { recursive: true });
+    await fs.writeFile(path.join(liveRoot, "index.html"), "last-known-good");
     await materializePageIrCandidate(request);
 
-    const runRoot = sitePaths(runId).root;
     const provenancePath = path.join(runRoot, "candidate", "provenance.json");
     const provenance = JSON.parse(await fs.readFile(provenancePath, "utf8"));
     const at = new Date(
@@ -886,11 +1042,35 @@ describe("Page IR candidate materialization", () => {
     provenance.state = "failed";
     provenance.history.push({ state: "failed", at });
     await fs.writeFile(provenancePath, JSON.stringify(provenance, null, 2));
+    const manifestPath = path.join(runRoot, "candidate", "manifest.json");
+    const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+    const candidateFiles = Object.fromEntries(
+      await Promise.all(
+        manifest.files.map(async (file: { path: string }) => [
+          file.path,
+          await fs.readFile(
+            path.join(runRoot, "candidate", "site", ...file.path.split("/")),
+          ),
+        ]),
+      ),
+    );
     const before = {
       provenance: await fs.readFile(provenancePath),
+      manifest: await fs.readFile(manifestPath),
+      candidateFiles,
+      live: await fs.readFile(path.join(liveRoot, "index.html")),
       pageIr: await fs.readFile(path.join(runRoot, "page-ir.json")),
       bundle: await fs.readFile(
         path.join(runRoot, "page-ir-sources", "v1", "bundle.json"),
+      ),
+      layoutDecision: await fs.readFile(
+        path.join(runRoot, "page-ir-sources", "v1", "layout-decision.json"),
+      ),
+      content: await fs.readFile(
+        path.join(runRoot, "page-ir-sources", "v1", "content.json"),
+      ),
+      assets: await fs.readFile(
+        path.join(runRoot, "page-ir-sources", "v1", "assets.json"),
       ),
     };
 
@@ -898,6 +1078,17 @@ describe("Page IR candidate materialization", () => {
       status: "parked-failed",
     });
     expect(await fs.readFile(provenancePath)).toEqual(before.provenance);
+    expect(await fs.readFile(manifestPath)).toEqual(before.manifest);
+    for (const [relativePath, bytes] of Object.entries(before.candidateFiles)) {
+      expect(
+        await fs.readFile(
+          path.join(runRoot, "candidate", "site", ...relativePath.split("/")),
+        ),
+      ).toEqual(bytes);
+    }
+    expect(await fs.readFile(path.join(liveRoot, "index.html"))).toEqual(
+      before.live,
+    );
     expect(await fs.readFile(path.join(runRoot, "page-ir.json"))).toEqual(
       before.pageIr,
     );
@@ -906,6 +1097,21 @@ describe("Page IR candidate materialization", () => {
         path.join(runRoot, "page-ir-sources", "v1", "bundle.json"),
       ),
     ).toEqual(before.bundle);
+    expect(
+      await fs.readFile(
+        path.join(runRoot, "page-ir-sources", "v1", "layout-decision.json"),
+      ),
+    ).toEqual(before.layoutDecision);
+    expect(
+      await fs.readFile(
+        path.join(runRoot, "page-ir-sources", "v1", "content.json"),
+      ),
+    ).toEqual(before.content);
+    expect(
+      await fs.readFile(
+        path.join(runRoot, "page-ir-sources", "v1", "assets.json"),
+      ),
+    ).toEqual(before.assets);
   });
 
   it.each(["failed", "promotable", "promoted"] as const)(
@@ -937,8 +1143,11 @@ describe("Page IR candidate materialization", () => {
     const templateRun = await createApprovedPageIrRun("template-v1");
     const templateRequest = await candidateRequest(templateRun);
     await expect(materializePageIrCandidate(templateRequest)).rejects.toThrow(
-      /requires page-ir-v1|authority/i,
+      "Page IR candidate materialization requires page-ir-v1 authority; persisted run uses template-v1",
     );
+    await expect(
+      fs.stat(path.join(sitePaths(templateRun).root, "page-ir.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
     await expect(
       fs.stat(path.join(sitePaths(templateRun).root, "candidate")),
     ).rejects.toMatchObject({ code: "ENOENT" });
@@ -972,6 +1181,9 @@ describe("Page IR candidate materialization", () => {
     await materializePageIrCandidate(request);
     const runRoot = sitePaths(runId).root;
     const provenancePath = path.join(runRoot, "candidate", "provenance.json");
+    const liveRoot = path.join(runRoot, "site");
+    await fs.mkdir(liveRoot, { recursive: true });
+    await fs.writeFile(path.join(liveRoot, "index.html"), "last-known-good");
     const stale = JSON.parse(await fs.readFile(provenancePath, "utf8"));
     stale.compilerVersion = "stale-page-ir-compiler@1";
     await fs.writeFile(provenancePath, JSON.stringify(stale, null, 2));
@@ -980,10 +1192,37 @@ describe("Page IR candidate materialization", () => {
       bundle: await fs.readFile(
         path.join(runRoot, "page-ir-sources", "v1", "bundle.json"),
       ),
+      live: await fs.readFile(path.join(liveRoot, "index.html")),
     };
-    await expect(materializePageIrCandidate(request)).resolves.toMatchObject({
-      status: "created",
+    const replaced = await materializePageIrCandidate(request);
+    expect(replaced.status).toBe("created");
+    const persisted = await loadPersistedPageIr(runId);
+    const inspection = await inspectCandidate(runId);
+    expect(inspection).toMatchObject({
+      status: "present",
+      provenance: {
+        state: "ready-for-gates",
+        compilerVersion: "page-ir-static@1",
+        layoutAuthority: "page-ir-v1",
+        pageIrSha256: persisted.pageIrSha256,
+        candidateManifestSha256: candidateManifestSha256(replaced.manifest),
+        buildSha256: replaced.manifest.buildSha256,
+      },
+      manifest: replaced.manifest,
     });
+    await validateCandidateInventory(
+      path.join(runRoot, "candidate", "site"),
+      replaced.manifest,
+    );
+    for (const file of replaced.manifest.files) {
+      const bytes = await fs.readFile(
+        path.join(runRoot, "candidate", "site", ...file.path.split("/")),
+      );
+      expect(bytes.byteLength).toBe(file.sizeBytes);
+      expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+        file.sha256,
+      );
+    }
     expect(await fs.readFile(path.join(runRoot, "page-ir.json"))).toEqual(
       authoritativeBefore.pageIr,
     );
@@ -992,6 +1231,9 @@ describe("Page IR candidate materialization", () => {
         path.join(runRoot, "page-ir-sources", "v1", "bundle.json"),
       ),
     ).toEqual(authoritativeBefore.bundle);
+    expect(await fs.readFile(path.join(liveRoot, "index.html"))).toEqual(
+      authoritativeBefore.live,
+    );
 
     const abandoned = JSON.parse(await fs.readFile(provenancePath, "utf8"));
     abandoned.state = "abandoned";
