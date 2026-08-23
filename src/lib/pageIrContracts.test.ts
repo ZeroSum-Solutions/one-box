@@ -246,7 +246,7 @@ describe("LayoutProgramV1Schema", () => {
     const multiParent = validLayout();
     (multiParent.nodes.find((node) => node.id === "footer") as { childIds: string[] }).childIds.push("hero_text");
     const orphan = validLayout();
-    orphan.nodes.push({ id: "orphan", kind: "group", childIds: [], responsive } as never);
+    orphan.nodes.push({ id: "orphan", kind: "group", childIds: [], responsive: responsive() } as never);
     const deep = validLayout();
     const details = deep.nodes.find((node) => node.id === "details") as { childIds: string[] };
     details.childIds = ["deep_1"];
@@ -282,6 +282,25 @@ describe("LayoutProgramV1Schema", () => {
     (nested.nodes.find((node) => node.id === "hero") as { childIds: string[] }).childIds.push("details");
     expect(LayoutProgramV1Schema.safeParse(nested).success).toBe(false);
   });
+
+  it.each(["header", "main", "footer"] as const)(
+    "rejects a layout missing its required %s landmark",
+    (landmark) => {
+      const value = validLayout();
+      value.nodes = value.nodes.filter((node) => node.id !== landmark);
+      (value.nodes.find((node) => node.id === "document") as { childIds: string[] }).childIds =
+        (value.nodes.find((node) => node.id === "document") as { childIds: string[] }).childIds.filter(
+          (childId) => childId !== landmark
+        );
+      const result = LayoutProgramV1Schema.safeParse(value);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues.map((issue) => issue.message)).toContain(
+          `layout requires exactly one ${landmark} landmark`
+        );
+      }
+    }
+  );
 
   it("enforces node, child, grid-column, and depth bounds", () => {
     const tooManyNodes = validLayout();
@@ -320,6 +339,63 @@ describe("PageIRV1Schema", () => {
       result.success,
       result.success ? "" : JSON.stringify(result.error.issues)
     ).toBe(true);
+    expect(PageIRV1Schema.parse(value)).toEqual(value);
+  });
+
+  it("accepts every chosen registry kind and token category", () => {
+    const parsed = PageIRV1Schema.parse(validPageIr());
+    expect([...new Set(parsed.content.map((entry) => entry.kind))]).toEqual([
+      "heading",
+      "text",
+      "list",
+    ]);
+    expect(parsed.tokens.map((token) => token.category)).toEqual([
+      "color",
+      "typography",
+      "spacing",
+      "radius",
+      "shadow",
+      "motion",
+    ]);
+    expect([...new Set(parsed.assets.map((asset) => asset.kind))]).toEqual(["image"]);
+    expect(parsed.actions.map((action) => action.kind)).toEqual([
+      "scroll-to",
+      "call",
+      "email",
+      "external",
+    ]);
+  });
+
+  it("rejects unknown registry and action discriminants", () => {
+    const mutations: Array<(value: ReturnType<typeof validPageIr>) => void> = [
+      (value) => { value.content[0] = { ...value.content[0], kind: "html" } as never; },
+      (value) => { value.content[0] = { ...value.content[0], kind: "form" } as never; },
+      (value) => { value.tokens[0] = { ...value.tokens[0], category: "custom" } as never; },
+      (value) => { value.assets[0] = { ...value.assets[0], kind: "video" } as never; },
+      (value) => { value.actions[0] = { ...value.actions[0], kind: "javascript" } as never; },
+      (value) => { value.actions[0] = { ...value.actions[0], kind: "submit" } as never; },
+    ];
+    for (const mutate of mutations) {
+      const value = validPageIr();
+      mutate(value);
+      expect(PageIRV1Schema.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("permits bounded valid unused registry entries by the v1 liveness policy", () => {
+    const value = validPageIr();
+    value.content.push({ id: "unused_copy", kind: "text", text: "Reserved editor copy" });
+    value.tokens.push({ id: "unused_color", category: "color" });
+    value.assets.push({
+      id: "unused_image",
+      kind: "image",
+      sha256: "b".repeat(64),
+      mediaType: "image/webp",
+      width: 400,
+      height: 300,
+      sizeBytes: 1_024,
+    });
+    value.actions.push({ id: "unused_call", kind: "call", phone: "+1 555 010 0300" });
     expect(PageIRV1Schema.parse(value)).toEqual(value);
   });
 
