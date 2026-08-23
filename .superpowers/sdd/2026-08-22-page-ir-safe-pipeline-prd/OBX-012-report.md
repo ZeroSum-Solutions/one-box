@@ -253,3 +253,53 @@ errors.
 the unchanged strip-only loader rejects the TypeScript parameter property in
 `src/lib/productionTarget.ts:63`. The same baseline blocker was recorded by
 OBX-011, OBX-012, and Fix Round 1; no Fix Round 2 path executes before failure.
+
+## Fix Round 3 — bind candidate assets and stale QA
+
+Controller review found two remaining trust gaps. Hero provenance hashed bytes
+from the stable authorization read, but rendering reopened the source path, so
+a substitution between those operations could place different bytes in the
+candidate. Separately, an incomplete evidence build with stale approved visual
+QA could emit a live completion and preview before rebuilding.
+
+### Fix Round 3 RED evidence
+
+The focused command was:
+
+```text
+npx vitest run src/lib/builderHeroAuthorization.test.ts src/lib/pipelineStaleVisualQa.test.ts
+```
+
+Exit `1`: 2 files failed and 2 tests failed. The hero candidate contained the
+substituted bytes rather than the bytes bound in provenance. The stale-QA run
+resolved through its old terminal branch instead of proceeding toward the
+build path and failing closed on its intentionally incomplete upstream fixture.
+
+### Fix Round 3 behavior
+
+- Build input authorization returns the retained hero buffer alongside its
+  provenance hash. Candidate rendering derives the extension from the
+  authorized source name, writes the retained bytes, and never reopens the
+  source path. Existing candidate-only compression and final manifest hashing
+  remain unchanged.
+- Existing evidence artifacts pause only pre-build review stages. At `build`,
+  stale visual QA is ignored unless the earlier exact built-and-promotable park
+  has already returned. An incomplete build therefore reaches `stageBuild` or
+  fails closed on missing approved inputs; it cannot complete, preview, or
+  pause from old QA.
+- Recorded historical completion replay remains exclusively in `runPipeline`
+  and still requires candidate absence. Promotion and live continuation remain
+  OBX-014 work.
+
+### Fix Round 3 verification
+
+- New regression suite: exit `0`; 2 files and 2 tests passed.
+- Focused builder, evidence, pipeline replay, and regression suite: exit `0`;
+  5 files and 66 tests passed.
+- Full `npm test`: exit `0`; 69 files passed and 2 skipped; 631 tests passed and
+  2 skipped.
+- `npm run typecheck`: exit `0`.
+- `npm run lint`: exit `0`; 0 errors and 6 pre-existing warnings.
+- `git diff --check`: exit `0`.
+- Security and documentation validators: recorded in the Fix Round 3 evidence
+  artifacts.

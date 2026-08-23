@@ -107,3 +107,10 @@
   Typecheck and lint pass; security review: PASS with no findings. The legacy
   smoke command remains baseline-blocked on Node 26 strip-only handling of
   `productionTarget.ts` before fixture execution.
+- OBX-012 Fix Round 3: verified. Hero compilation now writes the exact bytes
+  retained by the stable authorization read and never reopens a substitutable
+  source path; candidate compression and manifest hashing remain downstream.
+  At an incomplete evidence build stage, stale approved visual QA cannot emit
+  completion or preview, pause the run, or bypass candidate rebuilding.
+  Focused verification: 66 passed. Full suite: 631 passed, 2 skipped.
+  Typecheck and lint pass; security review: PASS with no findings.

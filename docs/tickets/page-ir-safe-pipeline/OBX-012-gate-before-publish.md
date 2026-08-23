@@ -62,3 +62,18 @@ now scans every non-test/spec TypeScript source under `src/`, including
 components, middleware, and library modules. If fixture publication and
 restoration both fail, both errors are reported and the retired snapshot is
 left intact for diagnosis/recovery.
+
+## Fix Round 3
+
+Hero authorization now retains the bytes read through the stable no-follow
+file handle and writes those exact bytes into the candidate. Compilation never
+reopens the source hero path after authorization; optional candidate
+compression still runs afterward, and the candidate manifest binds the final
+output bytes.
+
+An approved visual-QA artifact is not proof that the current candidate is live.
+When the evidence workflow is at `build` and the built stage is incomplete, a
+stale visual-QA artifact cannot emit completion, expose a preview, pause the
+workflow, or bypass the build path. Historical completion remains replay-only
+from a recorded event when no candidate exists; OBX-014 still owns promotion
+and the future live continuation.

@@ -124,7 +124,11 @@ approved runtime Tailwind theme when present, and run-owned hero asset when
 present. The run authorization itself uses the same no-follow, nonlinked
 regular-file reader, and its persisted ID must exactly match the validated
 requested run before candidate or staging output can begin. Input artifact
-bytes are hash-bound in candidate provenance. The approved runtime Tailwind
+bytes are hash-bound in candidate provenance. A run-owned hero is read once
+through the stable authorization handle; those retained bytes are written to
+the candidate without reopening the source path. Optional compression then
+operates only on the candidate copy, whose final bytes are bound by the
+candidate manifest. The approved runtime Tailwind
 theme lives at
 `evidence/approved/runtime-tailwind-theme.css`; compilation copies it into the
 candidate bundle but never writes it into the live site. Standalone tests and
@@ -164,8 +168,9 @@ promotable candidate suppresses stale live-completion replay or synthesis,
 replays only nonterminal history and current cost, and returns without resuming
 pipeline execution. Stage completion or stale approved visual QA cannot
 synthesize a live terminal. Historical live completion is replayed only when
-it is already recorded and no candidate exists; OBX-014 must provide the future
-closed promotion proof and continuation.
+it is already recorded and no candidate exists. At an incomplete build stage,
+stale visual QA also cannot pause or bypass the candidate build path. OBX-014
+must provide the future closed promotion proof and continuation.
 
 `src/lib/productionTarget.ts` owns the production target policy. Persisted
 contracts continue to parse `website`, `web-app`, and `ios-app` so historical

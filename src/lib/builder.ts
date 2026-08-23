@@ -95,13 +95,17 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   assertWebsiteProductionTarget(input.intake.projectTarget);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
   await assertBuildAuthorized(runRoot, runId);
-  const inputArtifactHashes = await authorizedInputHashes(runRoot, input);
+  const authorizedInputs = await authorizeBuildInputs(runRoot, input);
   const paths = candidatePaths(runId);
   const stagingRoot = `${paths.root}.building-${process.pid}-${Date.now()}`;
   const siteDir = path.join(stagingRoot, SITE_DIR);
   await rm(stagingRoot, { recursive: true, force: true });
   try {
-    const siteManifest = await compileSiteToDirectory(input, siteDir);
+    const siteManifest = await compileSiteToDirectory(
+      input,
+      siteDir,
+      authorizedInputs.heroImage,
+    );
     const candidateManifest = await createCandidateManifest(siteDir);
     const createdAt = new Date().toISOString();
     const preparing = CandidateProvenanceV1Schema.parse({
@@ -111,7 +115,7 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
       createdAt,
       state: "preparing",
       history: [{ state: "preparing", at: createdAt }],
-      inputArtifactHashes,
+      inputArtifactHashes: authorizedInputs.inputArtifactHashes,
       layoutAuthority: "template-v1",
       compilerVersion: "template-compiler@1",
     });
@@ -290,6 +294,7 @@ export async function gateBuiltCandidate(
 async function compileSiteToDirectory(
   input: BuildSiteInput,
   siteDir: string,
+  heroImage?: { sourcePath: string; bytes: Buffer },
 ): Promise<SiteManifest> {
   await rm(siteDir, { recursive: true, force: true }); // discard a crashed build's leftovers
   await mkdir(path.join(siteDir, "assets"), { recursive: true });
@@ -358,7 +363,7 @@ async function compileSiteToDirectory(
 
   const phone = resolvePhone(input.intake, input.copy);
   const heroMediaHtml = await renderHeroMedia({
-    heroImagePath: input.assets.heroImagePath,
+    heroImage,
     siteDir,
     copy: input.copy,
     intake: input.intake,
@@ -495,10 +500,13 @@ async function readStableBuildInput(
   }
 }
 
-async function authorizedInputHashes(
+async function authorizeBuildInputs(
   runRoot: string,
   input: BuildSiteInput,
-): Promise<Array<{ path: string; sha256: string }>> {
+): Promise<{
+  inputArtifactHashes: Array<{ path: string; sha256: string }>;
+  heroImage?: { sourcePath: string; bytes: Buffer };
+}> {
   const jsonInputs = [
     { path: ARTIFACTS.copy, schema: CopyDocSchema, value: input.copy },
     { path: ARTIFACTS.intake, schema: IntakeSchema, value: input.intake },
@@ -533,6 +541,7 @@ async function authorizedInputHashes(
     }
     hashes.push({ path: ARTIFACTS.tailwindTheme, sha256: sha256(bytes) });
   }
+  let heroImage: { sourcePath: string; bytes: Buffer } | undefined;
   if (input.assets.heroImagePath) {
     const absoluteHero = path.resolve(input.assets.heroImagePath);
     const relativeHero = path.relative(runRoot, absoluteHero).split(path.sep).join("/");
@@ -543,15 +552,14 @@ async function authorizedInputHashes(
     ) {
       throw new Error("hero image must be a run-owned asset");
     }
-    hashes.push({
-      path: relativeHero,
-      sha256: sha256(await readStableBuildInput(absoluteHero, "hero image")),
-    });
+    const bytes = await readStableBuildInput(absoluteHero, "hero image");
+    hashes.push({ path: relativeHero, sha256: sha256(bytes) });
+    heroImage = { sourcePath: absoluteHero, bytes };
   }
   hashes.sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
-  return hashes;
+  return { inputArtifactHashes: hashes, heroImage };
 }
 
 export async function assertBuildAuthorized(
@@ -842,7 +850,7 @@ function pxToRem(px: number): string {
 // ---------- hero media ----------
 
 async function renderHeroMedia(opts: {
-  heroImagePath?: string;
+  heroImage?: { sourcePath: string; bytes: Buffer };
   siteDir: string;
   copy: CopyDoc;
   intake: Intake;
@@ -852,12 +860,12 @@ async function renderHeroMedia(opts: {
   const alt = escapeHtml(
     firstNonEmpty(field(opts.copy, "hero", "image-alt"), `${opts.intake.businessName} team at work`)
   );
-  if (!opts.heroImagePath) {
+  if (!opts.heroImage) {
     return `<div class="hero__media hero__media--placeholder" data-edit-id="hero.image" role="img" aria-label="${alt}"></div>`;
   }
-  const ext = path.extname(opts.heroImagePath) || ".jpg";
+  const ext = path.extname(opts.heroImage.sourcePath) || ".jpg";
   const relPath = `assets/hero${ext}`;
-  await copyFile(opts.heroImagePath, path.join(opts.siteDir, relPath));
+  await writeFile(path.join(opts.siteDir, relPath), opts.heroImage.bytes);
   await compressHeroInPlace(path.join(opts.siteDir, relPath));
   opts.assetEntries.push({ path: relPath, kind: "image", generatedBy: "intake:hero-image" });
   opts.files.push(relPath);

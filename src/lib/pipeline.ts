@@ -926,15 +926,7 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
     const expectedType = EVIDENCE_STAGE_ARTIFACT[workflowStage];
     const existing = latestWorkflowArtifact(run, expectedType);
 
-    if (existing) {
-      if (
-        workflowStage === "build" &&
-        existing.artifactType === "visual-qa" &&
-        artifactApprovalState(existing) === "approved"
-      ) {
-        emit({ type: "complete", runId, previewUrl: `/preview/${runId}` });
-        return;
-      }
+    if (existing && workflowStage !== "build") {
       pauseForApproval(runId, workflowStage, emit);
       return;
     }
