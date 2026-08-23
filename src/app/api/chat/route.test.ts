@@ -44,6 +44,16 @@ const context = {
 };
 
 describe("chat intake request", () => {
+  it("accepts a detailed 30,482-character website brief", () => {
+    const request = buildChatRequest(
+      [{ id: "message-long-brief", role: "user", content: "a".repeat(30_482) }],
+      context,
+      ATTEMPT_ID
+    );
+
+    expect(ChatRequestSchema.safeParse(request).success).toBe(true);
+  });
+
   it("rejects hostile and missing-Origin POSTs before body or model work", async () => {
     for (const origin of ["https://hostile.example", null]) {
       let pulls = 0;

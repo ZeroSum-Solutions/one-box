@@ -40,6 +40,7 @@ import {
   assertWebsiteProductionTarget,
   websiteOnlyProductionResponse,
 } from "../../../lib/productionTarget";
+import { INTAKE_MESSAGE_MAX_CHARS } from "../../../lib/intakeLimits";
 
 export const maxDuration = 120;
 
@@ -52,7 +53,7 @@ const UIMessageRequestSchema = z
         z
           .object({
             type: z.literal("text"),
-            text: z.string().max(20_000),
+            text: z.string().max(INTAKE_MESSAGE_MAX_CHARS),
           })
           .strict()
       )

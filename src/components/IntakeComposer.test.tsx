@@ -38,6 +38,7 @@ describe("IntakeComposer", () => {
     const html = renderComposer();
     expect(html).toContain('class="intake-composer"');
     expect(html).toContain('aria-label="Describe your project"');
+    expect(html).toContain('maxLength="60000"');
     expect(html).toContain('rows="6"');
     expect(html).toContain('aria-label="Add files"');
     expect(html).toContain('class="intake-target__summary"');

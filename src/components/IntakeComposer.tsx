@@ -12,6 +12,7 @@ import type {
   ResearchConfiguration,
   UploadMetadata,
 } from "@/lib/contracts";
+import { INTAKE_MESSAGE_MAX_CHARS } from "../lib/intakeLimits";
 import { IntakeControls } from "./IntakeControls";
 
 export const GUIDANCE_PROMPTS = [
@@ -135,6 +136,7 @@ export function IntakeComposer({
         onPaste={stopGuidance}
         onKeyDown={handleKeyDown}
         placeholder={GUIDANCE_PROMPTS[guidanceIndex]}
+        maxLength={INTAKE_MESSAGE_MAX_CHARS}
         rows={6}
         disabled={disabled}
         aria-label="Describe your project"
