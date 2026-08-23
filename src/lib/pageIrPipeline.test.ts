@@ -1141,6 +1141,9 @@ describe("Page IR candidate materialization", () => {
 
   it("rejects template authority and invalid compiler assets before candidate or live writes", async () => {
     const templateRun = await createApprovedPageIrRun("template-v1");
+    await expect(deriveAndPersistInitialPageIr(templateRun)).rejects.toThrow(
+      "initial Page IR derivation requires page-ir-v1 authority; persisted run uses template-v1",
+    );
     const templateRequest = await candidateRequest(templateRun);
     await expect(materializePageIrCandidate(templateRequest)).rejects.toThrow(
       "Page IR candidate materialization requires page-ir-v1 authority; persisted run uses template-v1",
