@@ -996,7 +996,7 @@ describe("Page IR candidate materialization", () => {
     const result = first.status === "created" ? first : second;
     expect(result.provenance).toMatchObject({
       layoutAuthority: "page-ir-v1",
-      compilerVersion: "page-ir-static@1",
+      compilerVersion: "page-ir-static@2",
       pageIrSha256: persisted.pageIrSha256,
       buildSha256: result.manifest.buildSha256,
     });
@@ -1177,7 +1177,7 @@ describe("Page IR candidate materialization", () => {
     );
   });
 
-  it("replaces only a valid stale candidate and retries around the atomic swap", async () => {
+  it("replaces a valid page-ir-static@1 candidate and retries around the atomic swap", async () => {
     const runId = await createApprovedPageIrRun();
     await preparePersistedPageIr(runId);
     const request = await candidateRequest(runId);
@@ -1188,7 +1188,7 @@ describe("Page IR candidate materialization", () => {
     await fs.mkdir(liveRoot, { recursive: true });
     await fs.writeFile(path.join(liveRoot, "index.html"), "last-known-good");
     const stale = JSON.parse(await fs.readFile(provenancePath, "utf8"));
-    stale.compilerVersion = "stale-page-ir-compiler@1";
+    stale.compilerVersion = "page-ir-static@1";
     await fs.writeFile(provenancePath, JSON.stringify(stale, null, 2));
     const authoritativeBefore = {
       pageIr: await fs.readFile(path.join(runRoot, "page-ir.json")),
@@ -1205,7 +1205,7 @@ describe("Page IR candidate materialization", () => {
       status: "present",
       provenance: {
         state: "ready-for-gates",
-        compilerVersion: "page-ir-static@1",
+        compilerVersion: "page-ir-static@2",
         layoutAuthority: "page-ir-v1",
         pageIrSha256: persisted.pageIrSha256,
         candidateManifestSha256: candidateManifestSha256(replaced.manifest),

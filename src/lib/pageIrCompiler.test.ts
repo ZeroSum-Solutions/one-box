@@ -129,8 +129,9 @@ function replaceImage(
 describe("compilePageIRV1", () => {
   it("pins the compiler version and closed exact inventory", () => {
     const result = compilePageIRV1(compilerRequest());
-    expect(result.compilerVersion).toBe("page-ir-static@1");
-    expect(PAGE_IR_COMPILER_VERSION).toBe("page-ir-static@1");
+    expect(result.compilerVersion).toBe("page-ir-static@2");
+    expect(PAGE_IR_COMPILER_VERSION).toBe("page-ir-static@2");
+    expect(PAGE_IR_COMPILER_VERSION).not.toBe("page-ir-static@1");
     expect(result.files.map((candidate) => candidate.path)).toEqual([
       "assets/hero-image.webp",
       "index.html",
@@ -224,6 +225,23 @@ describe("compilePageIRV1", () => {
     for (const [nodeId, classes] of Object.entries(concreteClasses)) {
       expect(html).toMatch(new RegExp(`id="${nodeId}"[^>]*class="[^"]*${classes}`));
     }
+  });
+
+  it("declares and consumes every fixed rendered color and font", () => {
+    const result = compilePageIRV1(compilerRequest());
+    const siteCss = decode(file(result, "site.css").bytes);
+    const tokensCss = decode(file(result, "tokens.css").bytes);
+
+    expect(tokensCss).toContain("--compiler-canvas:#fff;");
+    expect(siteCss).toContain(
+      "body{margin:0;color:var(--compiler-color);background:var(--compiler-canvas);font-family:var(--compiler-font);line-height:1.5}",
+    );
+    expect(siteCss).toContain(
+      ".skip-link{position:absolute;left:.5rem;top:.5rem;transform:translateY(-200%);background:var(--compiler-canvas);padding:.75rem;z-index:1}",
+    );
+    expect(siteCss.match(/background:var\(--compiler-canvas\)/g)).toHaveLength(2);
+    expect(siteCss).not.toMatch(/(?:color|background):#(?:fff|172033)/);
+    expect(siteCss).not.toContain("font-family:ui-sans-serif,system-ui,sans-serif");
   });
 
   it("emits one stable unique edit ID for every Page IR node", () => {

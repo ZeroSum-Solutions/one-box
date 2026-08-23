@@ -743,7 +743,18 @@ describe("candidate gates", () => {
   });
 
   it("rejects PageIR design token values not declared by candidate tokens.css", async () => {
-    const candidate = await createReadyPageIrCandidate(testRunId("pgi-token-drift"));
+    const candidate = await createReadyPageIrCandidate(
+      testRunId("pgi-token-drift"),
+      compilerPageIr(),
+      {
+        tokensCss: [
+          ":root {",
+          "  --compiler-color: #172033;",
+          "  --compiler-font: ui-sans-serif, system-ui, sans-serif;",
+          "}",
+        ].join("\n"),
+      },
+    );
     gateHarness.state.telHrefs.push("tel:+15550100400");
     gateHarness.state.renderedElements.push({
       tag: "main",

@@ -214,7 +214,7 @@ afterEach(async () => {
 
 describe("candidate gates real browser", () => {
   it(
-    "runs every gate and fails closed on undeclared compiler CSS for PageIR",
+    "passes every blocking gate for compiled PageIR without mutating live sentinels",
     { timeout: 30_000 },
     async () => {
       const runId = `page-ir-real-${process.pid}`;
@@ -243,10 +243,7 @@ describe("candidate gates real browser", () => {
         result.receipt.reports
           .filter((report) => report.blocking && !report.pass)
           .map(({ gate, details }) => ({ gate, details })),
-      ).toEqual([{
-        gate: "token-drift",
-        details: ["<a> backgroundColor rgb(255, 255, 255) not in tokens.css"],
-      }]);
+      ).toEqual([]);
       expect(result.receipt).toMatchObject({
         runId,
         candidateManifestSha256: candidateManifestSha256(compilation.manifest),

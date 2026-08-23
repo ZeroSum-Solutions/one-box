@@ -331,7 +331,7 @@ kind; video and arbitrary embeddable media are not part of v1.
 `src/lib/pageIrCompiler.ts` owns the next pure boundary: numeric-v1 Page IR plus
 an exact in-memory set of hash- and metadata-bound image bytes becomes a sorted
 static inventory, deterministic candidate manifest, and fixed
-`page-ir-static@1` compiler identity. The compiler reparses Page IR, renders the
+`page-ir-static@2` compiler identity. The compiler reparses Page IR, renders the
 layout graph from ordered child IDs, escapes inert content, emits no executable
 source, validates image magic, and returns bytes without reading, writing,
 publishing, or calling a provider. `src/lib/pageIrHash.ts` is the shared pure
@@ -348,10 +348,11 @@ no-JavaScript oracles from validated IR, and revalidate both authority snapshots
 before receipt publication. Template candidates retain their existing run-root
 token/intake and fixed-selector behavior. Token drift remains fail-closed: a PageIR
 design value is allowed only when its exact custom property and normalized value are
-declared in candidate `tokens.css`. The current `page-ir-static@1` compiler still
-hard-codes the skip-link white background in `site.css` without declaring that value
-in `tokens.css`, so an exact compiled candidate correctly receives a blocking
-token-drift failure until OBX-022 makes the compiler output gate-compatible.
+declared in candidate `tokens.css`. `page-ir-static@2` declares its fixed canvas
+background and consumes that token for the body and skip link; its fixed ink and
+font fallbacks are likewise consumed through compiler-owned properties. An exact
+compiled PageIR candidate therefore passes all nine gates without weakening token
+drift, and `page-ir-static@1` candidates are stale for materialization.
 
 ### Persisted layout authority and template fallback
 

@@ -12,7 +12,7 @@ import {
 import { pageIrSha256 } from "./pageIrHash";
 import { candidateBuildSha256 } from "./liveBundle";
 
-export const PAGE_IR_COMPILER_VERSION = "page-ir-static@1" as const;
+export const PAGE_IR_COMPILER_VERSION = "page-ir-static@2" as const;
 
 export interface PageIrCompiledFileV1 {
   path: string;
@@ -95,6 +95,7 @@ function fixedColumns(prefix: "s" | "m" | "l"): string {
 }
 
 const TOKENS_CSS = `:root{
+  --compiler-canvas:#fff;
   --compiler-color:#172033;
   --compiler-font:ui-sans-serif,system-ui,sans-serif;
   --compiler-space:1rem;
@@ -105,12 +106,12 @@ const TOKENS_CSS = `:root{
 
 const SITE_CSS = `*{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;color:#172033;background:#fff;font-family:ui-sans-serif,system-ui,sans-serif;line-height:1.5}
+body{margin:0;color:var(--compiler-color);background:var(--compiler-canvas);font-family:var(--compiler-font);line-height:1.5}
 header,nav,main,footer,section,div{min-width:0}
 header,main,footer{padding:1rem}
 img{display:block;max-width:100%;height:auto}
 a{color:inherit}
-.skip-link{position:absolute;left:.5rem;top:.5rem;transform:translateY(-200%);background:#fff;padding:.75rem;z-index:1}
+.skip-link{position:absolute;left:.5rem;top:.5rem;transform:translateY(-200%);background:var(--compiler-canvas);padding:.75rem;z-index:1}
 .skip-link:focus{transform:none}
 .token-color{color:var(--compiler-color)}
 .token-typography{font-family:var(--compiler-font)}
