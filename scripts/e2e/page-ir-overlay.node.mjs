@@ -18,7 +18,7 @@ registerHooks({
 });
 
 const { compilePageIRV1 } = await import("../../src/lib/pageIrCompiler.ts");
-const { compilerRequest } = await import(
+const { COMPILER_PURPOSE_SECTIONS, compilerRequest } = await import(
   "../../src/lib/test-fixtures/pageIrCompilerFixtures.ts"
 );
 
@@ -52,54 +52,82 @@ async function command(page, action, editId) {
   );
 }
 
-test("compiled PageIR identity navigates leaf to document and back through the overlay", async (t) => {
-  const request = compilerRequest();
-  const compilation = compilePageIRV1(request);
-  const indexFile = compilation.files.find((file) => file.path === "index.html");
-  assert.ok(indexFile, "compiler did not emit index.html");
+function assertSelection(state, editId, parentChain) {
+  assert.equal(state.selection.editId, editId);
+  assert.deepEqual(
+    state.selection.parentChain,
+    parentChain.length > 0 ? parentChain : undefined,
+  );
+}
 
+test("every compiled PageIR purpose navigates leaf to document and back through the overlay", async (t) => {
   const browser = await chromium.launch();
-  t.after(() => browser.close());
-  const page = await browser.newPage();
-  await page.setContent(new TextDecoder().decode(indexFile.bytes));
-  await page.evaluate(() => {
-    window.__oneboxCaptured = [];
-    window.addEventListener("message", (event) => {
-      if (event.data?.type === "onebox-editor-state") {
-        window.__oneboxCaptured.push(event.data);
-      }
-    });
-  });
-  await page.addScriptTag({ path: path.join(repository, "public/overlay.js") });
+  try {
+    for (const [purpose, sections] of Object.entries(COMPILER_PURPOSE_SECTIONS)) {
+      await t.test(purpose, async () => {
+        const firstSection = sections[0];
+        const request = compilerRequest(purpose);
+        const compilation = compilePageIRV1(request);
+        const indexFile = compilation.files.find((file) => file.path === "index.html");
+        assert.ok(indexFile, "compiler did not emit index.html");
 
-  const compiledIds = await page.locator("[data-edit-id]").evaluateAll((elements) =>
-    elements.map((element) => element.getAttribute("data-edit-id")),
-  );
-  for (const expectedId of ["page-h1", "hero", "main", "document"]) {
-    assert.ok(compiledIds.includes(expectedId), `compiled DOM is missing PageIR id ${expectedId}`);
-  }
+        const page = await browser.newPage();
+        try {
+          await page.setContent(new TextDecoder().decode(indexFile.bytes));
+          await page.evaluate(() => {
+            window.__oneboxCaptured = [];
+            window.addEventListener("message", (event) => {
+              if (event.data?.type === "onebox-editor-state") {
+                window.__oneboxCaptured.push(event.data);
+              }
+            });
+          });
+          await page.addScriptTag({ path: path.join(repository, "public/overlay.js") });
 
-  const leaf = await nextEditorState(page, () =>
-    page.locator('[data-edit-id="page-h1"]').dispatchEvent("click"),
-  );
-  assert.equal(leaf.selection.editId, "page-h1");
-  assert.deepEqual(leaf.selection.parentChain, ["hero", "main", "document"]);
+          const compiledIds = await page.locator("[data-edit-id]").evaluateAll((elements) =>
+            elements.map((element) => element.getAttribute("data-edit-id")),
+          );
+          for (const expectedId of ["page-h1", firstSection, "main", "document"]) {
+            assert.ok(compiledIds.includes(expectedId), `compiled DOM is missing PageIR id ${expectedId}`);
+          }
 
-  for (const expectedId of ["hero", "main", "document"]) {
-    const state = await command(page, "select-parent");
-    assert.equal(state.selection.editId, expectedId);
-    assert.equal(state.selection.behavior, "container");
-  }
-  assert.equal(await page.locator("body").getAttribute("contenteditable"), null);
+          const forwardPath = [firstSection, "main", "document"];
+          const leaf = await nextEditorState(page, () =>
+            page.locator('[data-edit-id="page-h1"]').dispatchEvent("click"),
+          );
+          assertSelection(leaf, "page-h1", forwardPath);
 
-  for (const expectedId of ["main", "hero", "page-h1"]) {
-    const state = await command(page, "step-back");
-    assert.equal(state.selection.editId, expectedId);
-  }
+          for (let index = 0; index < forwardPath.length; index += 1) {
+            const state = await command(page, "select-parent");
+            assertSelection(state, forwardPath[index], forwardPath.slice(index + 1));
+            assert.equal(state.selection.behavior, "container");
+          }
+          assert.equal(await page.locator("body").getAttribute("contenteditable"), null);
 
-  for (const expectedId of ["main", "document"]) {
-    const state = await command(page, "select-by-id", expectedId);
-    assert.equal(state.selection.editId, expectedId);
-    assert.ok(compiledIds.includes(state.selection.editId));
+          const backPath = [
+            { editId: "main", parentChain: ["document"] },
+            { editId: firstSection, parentChain: ["main", "document"] },
+            { editId: "page-h1", parentChain: forwardPath },
+          ];
+          for (const expected of backPath) {
+            const state = await command(page, "step-back");
+            assertSelection(state, expected.editId, expected.parentChain);
+          }
+
+          for (const expected of [
+            { editId: "main", parentChain: ["document"] },
+            { editId: "document", parentChain: [] },
+          ]) {
+            const state = await command(page, "select-by-id", expected.editId);
+            assertSelection(state, expected.editId, expected.parentChain);
+            assert.ok(compiledIds.includes(state.selection.editId));
+          }
+        } finally {
+          await page.close();
+        }
+      });
+    }
+  } finally {
+    await browser.close();
   }
 });

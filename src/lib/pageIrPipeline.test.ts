@@ -16,6 +16,7 @@ import {
   validateCandidateInventory,
 } from "./candidate";
 import { pageIrSha256 } from "./pageIrHash";
+import { compilePageIRV1 } from "./pageIrCompiler";
 import {
   addCost,
   advanceEvidenceWorkflow,
@@ -1648,6 +1649,31 @@ describe("Page IR candidate materialization", () => {
         buildSha256: replaced.manifest.buildSha256,
       },
       manifest: replaced.manifest,
+    });
+    const compilation = compilePageIRV1({
+      schemaVersion: 1,
+      pageIr: persisted.pageIr,
+      assets: [
+        {
+          assetId: "hero-image",
+          mediaType: "image/webp",
+          sha256: createHash("sha256")
+            .update(COMPILER_WEBP_BYTES)
+            .digest("hex"),
+          bytes: COMPILER_WEBP_BYTES,
+        },
+      ],
+    });
+    expect(
+      inspection.status === "present"
+        ? inspection.provenance.editorSourceMap
+        : undefined,
+    ).toEqual({
+      schemaVersion: 1,
+      pageIrSha256: persisted.pageIrSha256,
+      bindingSetSha256: persisted.bindingSetSha256,
+      lineage: persisted.lineage,
+      entries: compilation.editorIdentityEntries,
     });
     await validateCandidateInventory(
       path.join(runRoot, "candidate", "site"),

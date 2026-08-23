@@ -75,7 +75,16 @@ test("EVAL-COMP-002: PageIR editor identity survives clean compiles and responsi
   t.after(() => browser.close());
   const page = await browser.newPage();
 
-  for (const purpose of Object.keys(COMPILER_PURPOSE_SECTIONS)) {
+  const purposes = Object.keys(COMPILER_PURPOSE_SECTIONS).sort();
+  assert.deepEqual(purposes, [
+    "brochure-local-service",
+    "campaign-landing",
+    "editorial-index",
+    "institutional-presence",
+    "portfolio-showcase",
+    "saas-marketing",
+  ]);
+  for (const purpose of purposes) {
     let firstCompileEntries;
     for (let compileIndex = 0; compileIndex < CLEAN_COMPILES_PER_PURPOSE; compileIndex += 1) {
       const request = compilerRequest(purpose);

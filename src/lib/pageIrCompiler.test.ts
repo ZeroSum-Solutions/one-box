@@ -190,9 +190,16 @@ describe("compilePageIRV1", () => {
       .map((node) => node.id)
       .sort()
       .map((nodeId) => ({ editId: nodeId, nodeId }));
-    expect(compilePageIRV1(original).editorIdentityEntries).toEqual(expectedEntries);
-    expect(compilePageIRV1(contentChanged).editorIdentityEntries).toEqual(expectedEntries);
-    expect(compilePageIRV1(siblingsChanged).editorIdentityEntries).toEqual(expectedEntries);
+    for (const request of [original, contentChanged, siblingsChanged]) {
+      const result = compilePageIRV1(request);
+      expect(result.editorIdentityEntries).toEqual(expectedEntries);
+      const renderedEntries = [...decode(file(result, "index.html").bytes)
+        .matchAll(/data-edit-id="([A-Za-z][A-Za-z0-9_-]*)"/g)]
+        .map((match) => match[1])
+        .sort()
+        .map((nodeId) => ({ editId: nodeId, nodeId }));
+      expect(renderedEntries).toEqual(expectedEntries);
+    }
   });
 
   it.each(Object.entries(COMPILER_PURPOSE_SECTIONS) as Array<[PagePurposeV1, readonly string[]]>)(

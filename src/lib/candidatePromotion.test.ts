@@ -10,6 +10,7 @@ import {
   CandidateProvenanceV1Schema,
   DesignTokensSchema,
   PAGE_IR_DERIVATION_KINDS,
+  PersistedPageIrV1Schema,
   type CandidateGateReceiptV1,
 } from "./contracts";
 import * as candidateModule from "./candidate";
@@ -36,6 +37,13 @@ import {
 import { withReleaseAuthorization } from "./release";
 import { runGuardedMutation } from "./siteMutation";
 import { materializePromotedPageIrVisualQa } from "./pageIrController";
+import { materializePageIrCandidate } from "./pageIrPipeline";
+import { compilePageIRV1 } from "./pageIrCompiler";
+import { pageIrSha256 } from "./pageIrHash";
+import {
+  COMPILER_WEBP_BYTES,
+  compilerRequest,
+} from "./test-fixtures/pageIrCompilerFixtures";
 import { GET as exportEvidence } from "../app/api/evidence/[id]/export/route";
 import { GET as readSiteArtifact } from "../app/api/sites/[id]/[...path]/route";
 
@@ -99,6 +107,29 @@ const PROMOTION_COMMITTED_BEFORE_CRASH = new Set<PromotionFaultStep>([
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function canonicalizeProof(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeProof);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, child]) => [key, canonicalizeProof(child)]),
+    );
+  }
+  return value;
+}
+
+function bindingSetProofSha256(
+  runId: string,
+  sources: Array<{ kind: string; version: number; sha256: string }>,
+): string {
+  return sha256(
+    Buffer.from(
+      JSON.stringify(canonicalizeProof({ schemaVersion: 1, runId, sources })),
+    ),
+  );
 }
 
 function reports(pass = true): CandidateGateReceiptV1["reports"] {
@@ -352,25 +383,6 @@ async function fixture(
   const receiptBytes = Buffer.from(JSON.stringify(receipt, null, 2));
   await fs.writeFile(candidate.gates, receiptBytes);
   const gateReportSha256 = sha256(receiptBytes);
-  const editorSourceMap = options.pageIr
-    ? {
-        schemaVersion: 1 as const,
-        pageIrSha256: "e".repeat(64),
-        bindingSetSha256: "d".repeat(64),
-        lineage: {
-          schemaVersion: 1 as const,
-          runId,
-          purpose: "brochure-local-service" as const,
-          sources: PAGE_IR_DERIVATION_KINDS.map((kind, index) => ({
-            kind,
-            version: index + 1,
-            sha256: index.toString(16).repeat(64),
-          })),
-          referenceTrace: { mode: "explicit-none" as const, sources: [] },
-        },
-        entries: [{ editId: "document", nodeId: "document" }],
-      }
-    : undefined;
   const provenance = CandidateProvenanceV1Schema.parse({
     schemaVersion: 1,
     candidateId: `${runId}-candidate`,
@@ -384,9 +396,8 @@ async function fixture(
     ],
     inputArtifactHashes: [{ path: "intake.json", sha256: intakeSha256 }],
     layoutAuthority: options.pageIr ? "page-ir-v1" : "template-v1",
-    compilerVersion: options.pageIr ? "page-ir-static@3" : "fixture-v1",
+    compilerVersion: "fixture-v1",
     ...(options.pageIr ? { pageIrSha256: "e".repeat(64) } : {}),
-    ...(editorSourceMap ? { editorSourceMap } : {}),
     candidateManifestSha256,
     buildSha256: manifest.buildSha256,
     gateReportSha256,
@@ -399,8 +410,84 @@ async function fixture(
     candidate,
     manifest,
     receipt,
-    editorSourceMap,
     oldRootReport,
+  };
+}
+
+async function materializedPageIrPromotionFixture() {
+  const prepared = await fixture({ pageIr: true });
+  await fs.rm(prepared.candidate.root, { recursive: true, force: true });
+  const compilerInput = compilerRequest();
+  const compilation = compilePageIRV1(compilerInput);
+  const lineageSources = PAGE_IR_DERIVATION_KINDS.map((kind, index) => ({
+    kind,
+    version: index + 1,
+    sha256: index.toString(16).repeat(64),
+  }));
+  const persisted = PersistedPageIrV1Schema.parse({
+    schemaVersion: 1,
+    runId: prepared.runId,
+    revision: 1,
+    pageIr: compilerInput.pageIr,
+    pageIrSha256: pageIrSha256(compilerInput.pageIr),
+    bindingSetSha256: bindingSetProofSha256(prepared.runId, lineageSources),
+    lineage: {
+      schemaVersion: 1,
+      runId: prepared.runId,
+      purpose: "brochure-local-service",
+      sources: lineageSources,
+      referenceTrace: { mode: "explicit-none", sources: [] },
+    },
+  });
+  await fs.writeFile(
+    path.join(prepared.roots.root, "page-ir.json"),
+    `${JSON.stringify(persisted, null, 2)}\n`,
+  );
+  const uploadPath = path.join(prepared.roots.root, "uploads", "hero.webp");
+  await fs.mkdir(path.dirname(uploadPath), { recursive: true });
+  await fs.writeFile(uploadPath, COMPILER_WEBP_BYTES);
+  const materialized = await materializePageIrCandidate({
+    schemaVersion: 1,
+    runId: prepared.runId,
+    assets: [
+      {
+        assetId: compilerInput.assets[0].assetId,
+        artifactPath: "uploads/hero.webp",
+        mediaType: compilerInput.assets[0].mediaType,
+        sha256: compilerInput.assets[0].sha256,
+      },
+    ],
+  });
+  const receipt = CandidateGateReceiptV1Schema.parse({
+    schemaVersion: 1,
+    runId: prepared.runId,
+    candidateManifestSha256: candidateModule.candidateManifestSha256(
+      materialized.manifest,
+    ),
+    buildSha256: materialized.manifest.buildSha256,
+    reports: reports(),
+  });
+  const receiptBytes = Buffer.from(JSON.stringify(receipt, null, 2));
+  await fs.writeFile(prepared.candidate.gates, receiptBytes);
+  const promotable = candidateModule.transitionCandidateProvenance(
+    materialized.provenance,
+    "promotable",
+    new Date(
+      Date.parse(materialized.provenance.history.at(-1)!.at) + 1,
+    ).toISOString(),
+    { gateReportSha256: sha256(receiptBytes) },
+  );
+  await fs.writeFile(
+    prepared.candidate.provenance,
+    JSON.stringify(promotable, null, 2),
+  );
+  return {
+    ...prepared,
+    manifest: materialized.manifest,
+    receipt,
+    persisted,
+    editorIdentityEntries: compilation.editorIdentityEntries,
+    editorSourceMap: materialized.provenance.editorSourceMap!,
   };
 }
 
@@ -436,16 +523,28 @@ afterEach(async () => {
 
 describe("candidate promotion", () => {
   it("lawfully replaces the promoted PageIR pending QA placeholder once", async () => {
-    const prepared = await fixture({ pageIr: true });
+    const prepared = await materializedPageIrPromotionFixture();
+    expect(prepared.editorSourceMap).toEqual({
+      schemaVersion: 1,
+      pageIrSha256: prepared.persisted.pageIrSha256,
+      bindingSetSha256: prepared.persisted.bindingSetSha256,
+      lineage: prepared.persisted.lineage,
+      entries: prepared.editorIdentityEntries,
+    });
+    const editorSourceMapBytes = Buffer.from(
+      JSON.stringify(prepared.editorSourceMap),
+    );
     await promoteCandidate(prepared.runId);
-    expect(
-      JSON.parse(
-        await fs.readFile(
-          path.join(prepared.roots.site, ".one-box", "provenance.json"),
-          "utf8",
-        ),
-      ).editorSourceMap,
-    ).toEqual(prepared.editorSourceMap);
+    const liveProvenance = JSON.parse(
+      await fs.readFile(
+        path.join(prepared.roots.site, ".one-box", "provenance.json"),
+        "utf8",
+      ),
+    );
+    expect(liveProvenance.editorSourceMap).toEqual(prepared.editorSourceMap);
+    expect(Buffer.from(JSON.stringify(liveProvenance.editorSourceMap))).toEqual(
+      editorSourceMapBytes,
+    );
     let captures = 0;
     const stageVisualQa = async (
       _siteDirectory: string,
