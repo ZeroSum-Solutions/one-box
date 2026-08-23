@@ -1,0 +1,9 @@
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-011-report.md
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md
+docs/architecture/README.md
+docs/tickets/page-ir-safe-pipeline/OBX-011-candidate-gate-target.md
+src/lib/contracts.test.ts
+src/lib/contracts.ts
+src/lib/gates.candidate.integration.test.ts
+src/lib/gates.candidate.test.ts
+src/lib/gates.ts

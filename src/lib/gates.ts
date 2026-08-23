@@ -18,11 +18,14 @@
  * (f) perf-budget   ADVISORY — transfer size + image bytes + DCL under a
  *                    throttled-CPU load; reports numbers, never blocks
  *
- * Path resolution is self-contained (no import from ./runstate) — see the
- * matching note in builder.ts.
+ * Live callers retain their run-ID/options API. Candidate callers use a
+ * separate closed target derived from the OBX-010 candidate contract.
  */
-import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { constants, type BigIntStats } from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium, type Page } from "playwright";
 import { AxeBuilder } from "@axe-core/playwright";
 import {
@@ -33,9 +36,15 @@ import {
   FORBIDDEN_CONTEXTS,
   GateReportSchema,
   IntakeSchema,
+  CandidateGateReceiptV1Schema,
+  RunIdSchema,
+  type CandidateGateReceiptV1,
+  type CandidateProvenanceV1,
   type DesignTokens,
   type GateReport,
 } from "./contracts";
+import { inspectCandidate, validateCandidateInventory } from "./candidate";
+import { candidatePaths } from "./runstate";
 import { findUnresolvedSheetRefs } from "./cssVars";
 import { gateContrast } from "./contrastGate";
 
@@ -45,6 +54,37 @@ export interface RunGatesOptions {
    * omitted, gates load the file straight off disk via file://. */
   baseUrl?: string;
 }
+
+export interface CandidateGateRunResult {
+  receipt: CandidateGateReceiptV1;
+  gateReportSha256: string;
+}
+
+type CandidateGateBinding = Readonly<{
+  candidateManifestSha256: string;
+  buildSha256: string;
+  inputArtifactHashes: ReadonlyArray<
+    CandidateProvenanceV1["inputArtifactHashes"][number]
+  >;
+}>;
+
+type GateTarget = Readonly<{
+  runRoot: string;
+  siteRoot: string;
+  reportPath: string;
+  navigationUrl: string;
+  candidateBinding?: CandidateGateBinding;
+}>;
+
+type GateInputSnapshot = Readonly<{
+  relativePath: string;
+  sha256?: string;
+}>;
+
+const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
+const NONBLOCK = constants.O_NONBLOCK ?? 0;
+const READ_FLAGS = constants.O_RDONLY | NOFOLLOW | NONBLOCK;
+const MAX_GATE_INPUT_BYTES = 100 * 1024 * 1024;
 
 const PERF_BUDGET = {
   totalBytes: 900 * 1024,
@@ -113,17 +153,8 @@ export function evaluateColorRoleCompliance(
 }
 
 export async function runGates(runId: string, opts: RunGatesOptions = {}): Promise<GateReport[]> {
-  const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
-  const siteDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
-  const url = opts.baseUrl ?? `file://${path.join(siteDir, "index.html")}`;
-
-  const tokensCssText = await readFile(path.join(siteDir, "tokens.css"), "utf8");
-  const allowed = parseAllowedTokens(tokensCssText);
-  const tokens = DesignTokensSchema.parse(
-    JSON.parse(await readFile(path.join(runRoot, ARTIFACTS.tokens), "utf8"))
-  );
-  const phone = await readIntakePhone(runRoot);
-  const unresolvedRefs = await findUnresolvedSheetRefs(siteDir, tokensCssText);
+  const target = createLiveGateTarget(runId, opts);
+  const { allowed, tokens, phone, unresolvedRefs } = await prepareGateInputs(target);
 
   // afterEdit re-checks only the two invariants amendment B8 calls out by
   // name (token lint + axe) — the full suite still runs on a fresh build.
@@ -131,22 +162,356 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   // becomes a failing one, and that is the edit path's whole purpose.
   const gateNames = opts.afterEdit
     ? (["token-drift", "color-role-compliance", "axe", "contrast", "mobile-layout"] as const)
-    : (["token-drift", "color-role-compliance", "axe", "contrast", "console-errors", "assets", "no-js", "mobile-layout", "perf-budget"] as const);
+    : FULL_GATE_NAMES;
 
+  const reports = await executeGateSuite(target, gateNames, {
+    allowed,
+    tokens,
+    phone,
+    unresolvedRefs,
+  });
+
+  await fs.mkdir(target.runRoot, { recursive: true });
+  await writeGates(target.runRoot, reports);
+  return reports;
+}
+
+const FULL_GATE_NAMES = [
+  "token-drift",
+  "color-role-compliance",
+  "axe",
+  "contrast",
+  "console-errors",
+  "assets",
+  "no-js",
+  "mobile-layout",
+  "perf-budget",
+] as const;
+
+function createLiveGateTarget(
+  runId: string,
+  opts: RunGatesOptions,
+): GateTarget {
+  const parsedRunId = RunIdSchema.parse(runId);
+  const runRoot = path.join(
+    /*turbopackIgnore: true*/ process.cwd(),
+    SITES_DIR,
+    parsedRunId,
+  );
+  const siteRoot = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
+  return Object.freeze({
+    runRoot,
+    siteRoot,
+    reportPath: path.join(runRoot, ARTIFACTS.gates),
+    navigationUrl:
+      opts.baseUrl ?? `file://${path.join(siteRoot, "index.html")}`,
+  });
+}
+
+function assertDirectory(stat: BigIntStats, label: string): void {
+  if (stat.isSymbolicLink()) throw new Error(`${label} must not be a symlink`);
+  if (!stat.isDirectory()) throw new Error(`${label} must be a directory`);
+}
+
+function sameFile(left: BigIntStats, right: BigIntStats): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+async function assertCandidateDirectories(target: {
+  runRoot: string;
+  candidateRoot: string;
+  siteRoot: string;
+}): Promise<void> {
+  const relativeCandidate = path.relative(target.runRoot, target.candidateRoot);
+  if (
+    relativeCandidate === "" ||
+    relativeCandidate.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeCandidate)
+  ) {
+    throw new Error("candidate root must be inside its run root");
+  }
+  assertDirectory(
+    await fs.lstat(target.runRoot, { bigint: true }),
+    "candidate run root",
+  );
+  assertDirectory(
+    await fs.lstat(target.candidateRoot, { bigint: true }),
+    "candidate root",
+  );
+  assertDirectory(
+    await fs.lstat(target.siteRoot, { bigint: true }),
+    "candidate site root",
+  );
+}
+
+async function createCandidateGateTarget(runId: string): Promise<GateTarget> {
+  // candidatePaths validates before any filesystem or browser operation and
+  // yields the only candidate layout accepted by this public entry point.
+  const paths = candidatePaths(runId);
+  const runRoot = path.dirname(paths.root);
+  await assertCandidateDirectories({
+    runRoot,
+    candidateRoot: paths.root,
+    siteRoot: paths.site,
+  });
+  const inspection = await inspectCandidate(runId);
+  if (inspection.status !== "present" || !inspection.manifest) {
+    throw new Error("candidate is absent or has no validated manifest");
+  }
+  if (inspection.provenance.state !== "ready-for-gates") {
+    throw new Error("candidate must be ready-for-gates");
+  }
+  await validateCandidateInventory(paths.site, inspection.manifest);
+  return Object.freeze({
+    runRoot,
+    siteRoot: paths.site,
+    reportPath: paths.gates,
+    navigationUrl: pathToFileURL(path.join(paths.site, "index.html")).href,
+    candidateBinding: Object.freeze({
+      candidateManifestSha256:
+        inspection.provenance.candidateManifestSha256!,
+      buildSha256: inspection.provenance.buildSha256!,
+      inputArtifactHashes: Object.freeze(
+        inspection.provenance.inputArtifactHashes.map((input) =>
+          Object.freeze({ ...input }),
+        ),
+      ),
+    }),
+  });
+}
+
+async function readStableRegularFile(
+  filePath: string,
+  label: string,
+): Promise<Buffer> {
+  const initial = await fs.lstat(filePath, { bigint: true });
+  if (initial.isSymbolicLink()) throw new Error(`${label} must not be a symlink`);
+  if (!initial.isFile()) throw new Error(`${label} must be a regular file`);
+  if (initial.nlink > BigInt(1)) throw new Error(`${label} must not be a hardlink`);
+  if (initial.size > BigInt(MAX_GATE_INPUT_BYTES)) {
+    throw new Error(`${label} exceeds the gate input size limit`);
+  }
+  const handle = await fs.open(filePath, READ_FLAGS);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (
+      !opened.isFile() ||
+      opened.nlink > BigInt(1) ||
+      !sameFile(initial, opened) ||
+      opened.size !== initial.size
+    ) {
+      throw new Error(`${label} changed before read`);
+    }
+    const bytes = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+    if (!sameFile(opened, after) || opened.size !== after.size) {
+      throw new Error(`${label} changed while read`);
+    }
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+function sha256(bytes: string | Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+function boundInputHash(
+  binding: CandidateGateBinding,
+  relativePath: string,
+): string | undefined {
+  return binding.inputArtifactHashes.find((input) => input.path === relativePath)
+    ?.sha256;
+}
+
+async function snapshotCandidateInput(
+  target: GateTarget,
+  relativePath: string,
+  required: boolean,
+): Promise<{ snapshot: GateInputSnapshot; bytes?: Buffer }> {
+  const absolutePath = path.join(target.runRoot, relativePath);
+  let bytes: Buffer | undefined;
+  try {
+    bytes = await readStableRegularFile(absolutePath, relativePath);
+  } catch (error) {
+    if (
+      !required &&
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: unknown }).code === "ENOENT"
+    ) {
+      const expected = boundInputHash(target.candidateBinding!, relativePath);
+      if (expected) throw new Error(`bound gate input is missing: ${relativePath}`);
+      return { snapshot: { relativePath } };
+    }
+    throw error;
+  }
+  const observedSha256 = sha256(bytes);
+  const expected = boundInputHash(target.candidateBinding!, relativePath);
+  if (expected && expected !== observedSha256) {
+    throw new Error(`gate input SHA-256 does not match provenance: ${relativePath}`);
+  }
+  return {
+    snapshot: { relativePath, sha256: observedSha256 },
+    bytes,
+  };
+}
+
+async function prepareGateInputs(target: GateTarget): Promise<{
+  allowed: AllowedTokens;
+  tokens: DesignTokens;
+  phone?: string;
+  unresolvedRefs: string[];
+  candidateInputSnapshots?: readonly GateInputSnapshot[];
+}> {
+  const tokensCssText = await fs.readFile(
+    path.join(target.siteRoot, "tokens.css"),
+    "utf8",
+  );
+  const allowed = parseAllowedTokens(tokensCssText);
+  if (!target.candidateBinding) {
+    const tokens = DesignTokensSchema.parse(
+      JSON.parse(
+        await fs.readFile(path.join(target.runRoot, ARTIFACTS.tokens), "utf8"),
+      ),
+    );
+    return {
+      allowed,
+      tokens,
+      phone: await readIntakePhone(target.runRoot),
+      unresolvedRefs: await findUnresolvedSheetRefs(
+        target.siteRoot,
+        tokensCssText,
+      ),
+    };
+  }
+
+  const tokenInput = await snapshotCandidateInput(
+    target,
+    ARTIFACTS.tokens,
+    true,
+  );
+  const intakeInput = await snapshotCandidateInput(
+    target,
+    ARTIFACTS.intake,
+    false,
+  );
+  const tokens = DesignTokensSchema.parse(
+    JSON.parse(tokenInput.bytes!.toString("utf8")),
+  );
+  const phone = intakeInput.bytes
+    ? IntakeSchema.parse(JSON.parse(intakeInput.bytes.toString("utf8"))).phone
+    : undefined;
+  return {
+    allowed,
+    tokens,
+    phone,
+    unresolvedRefs: await findUnresolvedSheetRefs(
+      target.siteRoot,
+      tokensCssText,
+    ),
+    candidateInputSnapshots: [tokenInput.snapshot, intakeInput.snapshot],
+  };
+}
+
+async function executeGateSuite(
+  target: GateTarget,
+  gateNames: readonly string[],
+  ctx: {
+    allowed: AllowedTokens;
+    tokens: DesignTokens;
+    phone?: string;
+    unresolvedRefs: string[];
+  },
+): Promise<GateReport[]> {
   const browser = await chromium.launch();
   const reports: GateReport[] = [];
   try {
     for (const name of gateNames) {
-      const report = await runOne(browser, name, url, { allowed, tokens, phone, unresolvedRefs, siteDir });
+      const report = await runOne(browser, name, target.navigationUrl, {
+        ...ctx,
+        siteDir: target.siteRoot,
+      });
       reports.push(GateReportSchema.parse(report));
     }
   } finally {
     await browser.close();
   }
-
-  await mkdir(runRoot, { recursive: true });
-  await writeGates(runRoot, reports);
   return reports;
+}
+
+async function revalidateCandidateTarget(
+  runId: string,
+  target: GateTarget,
+  inputSnapshots: readonly GateInputSnapshot[],
+): Promise<void> {
+  const current = await createCandidateGateTarget(runId);
+  if (
+    current.runRoot !== target.runRoot ||
+    current.siteRoot !== target.siteRoot ||
+    current.reportPath !== target.reportPath ||
+    current.navigationUrl !== target.navigationUrl ||
+    current.candidateBinding?.candidateManifestSha256 !==
+      target.candidateBinding?.candidateManifestSha256 ||
+    current.candidateBinding?.buildSha256 !==
+      target.candidateBinding?.buildSha256 ||
+    JSON.stringify(current.candidateBinding?.inputArtifactHashes) !==
+      JSON.stringify(target.candidateBinding?.inputArtifactHashes)
+  ) {
+    throw new Error("candidate binding changed during gate evaluation");
+  }
+  for (const before of inputSnapshots) {
+    const after = await snapshotCandidateInput(
+      current,
+      before.relativePath,
+      before.relativePath === ARTIFACTS.tokens,
+    );
+    if (after.snapshot.sha256 !== before.sha256) {
+      throw new Error(
+        `gate input changed during candidate evaluation: ${before.relativePath}`,
+      );
+    }
+  }
+}
+
+async function atomicWriteCandidateReceipt(
+  target: GateTarget,
+  bytes: Buffer,
+): Promise<void> {
+  const temporary = `${target.reportPath}.tmp-${process.pid}-${Date.now()}`;
+  try {
+    await fs.writeFile(temporary, bytes, { flag: "wx" });
+    await fs.rename(temporary, target.reportPath);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+export async function runCandidateGates(
+  runId: string,
+): Promise<CandidateGateRunResult> {
+  const target = await createCandidateGateTarget(runId);
+  const prepared = await prepareGateInputs(target);
+  const reports = await executeGateSuite(target, FULL_GATE_NAMES, prepared);
+  await revalidateCandidateTarget(
+    runId,
+    target,
+    prepared.candidateInputSnapshots!,
+  );
+  const receipt = CandidateGateReceiptV1Schema.parse({
+    schemaVersion: 1,
+    runId,
+    candidateManifestSha256:
+      target.candidateBinding!.candidateManifestSha256,
+    buildSha256: target.candidateBinding!.buildSha256,
+    reports,
+  });
+  const receiptBytes = Buffer.from(JSON.stringify(receipt, null, 2));
+  const gateReportSha256 = sha256(receiptBytes);
+  await atomicWriteCandidateReceipt(target, receiptBytes);
+  return { receipt, gateReportSha256 };
 }
 
 async function runOne(
@@ -207,13 +572,13 @@ async function withPage<T>(
 async function writeGates(runRoot: string, reports: GateReport[]): Promise<void> {
   const target = path.join(runRoot, ARTIFACTS.gates);
   const tmp = `${target}.tmp-${process.pid}-${Date.now()}`;
-  await writeFile(tmp, JSON.stringify(reports, null, 2), "utf8");
-  await rename(tmp, target);
+  await fs.writeFile(tmp, JSON.stringify(reports, null, 2), "utf8");
+  await fs.rename(tmp, target);
 }
 
 async function readIntakePhone(runRoot: string): Promise<string | undefined> {
   try {
-    const raw = JSON.parse(await readFile(path.join(runRoot, ARTIFACTS.intake), "utf8"));
+    const raw = JSON.parse(await fs.readFile(path.join(runRoot, ARTIFACTS.intake), "utf8"));
     return IntakeSchema.parse(raw).phone;
   } catch {
     return undefined; // no intake.json in this run — tel: check degrades to informational

@@ -1579,6 +1579,42 @@ export const GateReportSchema = z.object({
 });
 export type GateReport = z.infer<typeof GateReportSchema>;
 
+const CANDIDATE_GATE_ORDER = [
+  "token-drift",
+  "color-role-compliance",
+  "axe",
+  "contrast",
+  "console-errors",
+  "assets",
+  "no-js",
+  "mobile-layout",
+  "perf-budget",
+] as const;
+
+export const CandidateGateReceiptV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: RunIdSchema,
+    candidateManifestSha256: Sha256Schema,
+    buildSha256: Sha256Schema,
+    reports: z.array(GateReportSchema).length(CANDIDATE_GATE_ORDER.length),
+  })
+  .strict()
+  .superRefine((receipt, context) => {
+    for (const [index, gate] of CANDIDATE_GATE_ORDER.entries()) {
+      if (receipt.reports[index]?.gate !== gate) {
+        context.addIssue({
+          code: "custom",
+          path: ["reports", index, "gate"],
+          message: `candidate gate ${index + 1} must be ${gate}`,
+        });
+      }
+    }
+  });
+export type CandidateGateReceiptV1 = z.infer<
+  typeof CandidateGateReceiptV1Schema
+>;
+
 // ---------- Editor ----------
 
 const EditorEvidenceSchema = z.object({

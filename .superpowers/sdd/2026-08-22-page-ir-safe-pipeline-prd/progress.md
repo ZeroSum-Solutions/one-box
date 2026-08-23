@@ -55,3 +55,12 @@
   after its diagnostic walk, and lifecycle history retains all reached-state bindings.
   Focused verification: 56 passed. Full suite: 586 passed, 2 skipped. Security review:
   PASS with no findings.
+- OBX-011: verified. `runCandidateGates(runId)` derives one validated unserved
+  candidate target, always runs all nine gates, emits an atomic hash-bound v1
+  receipt only at `candidate/gates.json`, and revalidates candidate plus mutable
+  gate inputs before that write without changing provenance or lifecycle state.
+  Focused verification: 118 passed. Real-browser candidate path: 9/9 gates and
+  zero blocking failures. Full suite: 596 passed, 2 skipped. Security review:
+  PASS with no findings. The legacy smoke command remains baseline-blocked on
+  Node 26 strip-only handling of `productionTarget.ts`; untouched base `c916d2c`
+  reproduces the same pre-gate error.

@@ -94,9 +94,22 @@ from opened-file sizes before body reads. Provenance retains every binding
 implied by lifecycle history. Cleanup uses the last lifecycle transition rather
 than mtime, retains exactly-24-hour diagnostics, and revalidates the unchanged
 candidate root plus exact provenance immediately before removing only that
-fixed root. Compilation, gate execution, repair, promotion, and crash recovery
-remain separate consumers of this contract and are not performed by the
-candidate module.
+fixed root.
+
+`src/lib/gates.ts` preserves `runGates(runId, options?)` for the live site and
+adds the separate `runCandidateGates(runId)` boundary for an unserved candidate.
+The candidate entry point accepts no path, URL, or after-edit option. It derives
+one private target through the closed candidate paths and read-only inspection,
+runs all nine gates with browser and disk-side CSS reads rooted at the same
+candidate site, then revalidates the manifest, build, and gate-relevant run
+inputs before atomically replacing only the closed candidate root's
+`gates.json`. The versioned
+receipt binds the run, manifest hash, build hash, and complete reports; its exact
+serialized SHA-256 is returned to the later lifecycle owner. Gate execution does
+not select `failed` or `promotable`, mutate provenance, publish the candidate, or
+replace live `site/` or run-root `gates.json`. Compilation, repair, promotion,
+and crash recovery remain separate consumers of this contract and are not
+performed by the candidate or gate modules.
 
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events

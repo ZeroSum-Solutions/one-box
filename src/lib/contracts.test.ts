@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CandidateManifestV1Schema,
   CandidateProvenanceV1Schema,
+  CandidateGateReceiptV1Schema,
   CANDIDATE_STATE_TRANSITIONS,
   CrawlProvenanceSchema,
   ScanResultSchema,
@@ -339,6 +340,51 @@ describe("candidate contracts", () => {
           promotedBuildSha256: HASH_B,
         }),
       ).success,
+    ).toBe(false);
+  });
+
+  it("accepts only a strict receipt for the complete ordered candidate gate suite", () => {
+    const gateNames = [
+      "token-drift",
+      "color-role-compliance",
+      "axe",
+      "contrast",
+      "console-errors",
+      "assets",
+      "no-js",
+      "mobile-layout",
+      "perf-budget",
+    ];
+    const receipt = {
+      schemaVersion: 1,
+      runId: "run-1234",
+      candidateManifestSha256: HASH_A,
+      buildSha256: HASH_B,
+      reports: gateNames.map((gate) => ({
+        gate,
+        pass: true,
+        blocking: gate !== "perf-budget",
+        details: [],
+        ranAt: "2026-08-22T00:00:00.000Z",
+      })),
+    };
+
+    expect(CandidateGateReceiptV1Schema.parse(receipt)).toEqual(receipt);
+    expect(
+      CandidateGateReceiptV1Schema.safeParse({ ...receipt, afterEdit: true })
+        .success,
+    ).toBe(false);
+    expect(
+      CandidateGateReceiptV1Schema.safeParse({
+        ...receipt,
+        reports: receipt.reports.slice(0, -1),
+      }).success,
+    ).toBe(false);
+    expect(
+      CandidateGateReceiptV1Schema.safeParse({
+        ...receipt,
+        reports: [...receipt.reports].reverse(),
+      }).success,
     ).toBe(false);
   });
 });

@@ -1,7 +1,7 @@
 ---
 id: OBX-011
 title: Run the full gate suite against an explicit candidate root
-status: ready
+status: verified
 priority: P0
 epic: Candidate
 depends_on: [OBX-010]
