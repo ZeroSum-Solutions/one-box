@@ -1033,6 +1033,42 @@ describe("candidate gates", () => {
     await expect(fs.stat(candidate.paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("requires exactly the single normalized PageIR call target", async () => {
+    const exact = await createReadyPageIrCandidate(testRunId("pgi-one-tel-exact"));
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    const exactResult = await runCandidateGates(exact.ready.runId);
+    expect(exactResult.receipt.reports.find((report) => report.gate === "assets"))
+      .toEqual(expect.objectContaining({
+        gate: "assets",
+        pass: true,
+        blocking: true,
+        details: [],
+      }));
+
+    gateHarness.reset();
+    const absent = await createReadyPageIrCandidate(testRunId("pgi-one-tel-absent"));
+    const absentResult = await runCandidateGates(absent.ready.runId);
+    expect(absentResult.receipt.reports.find((report) => report.gate === "assets"))
+      .toEqual(expect.objectContaining({
+        gate: "assets",
+        pass: false,
+        blocking: true,
+        details: ['expected PageIR tel: target "tel:+15550100400" was not rendered'],
+      }));
+
+    gateHarness.reset();
+    const extra = await createReadyPageIrCandidate(testRunId("pgi-one-tel-extra"));
+    gateHarness.state.telHrefs.push("tel:+15550100400", "tel:+14155550123");
+    const extraResult = await runCandidateGates(extra.ready.runId);
+    expect(extraResult.receipt.reports.find((report) => report.gate === "assets"))
+      .toEqual(expect.objectContaining({
+        gate: "assets",
+        pass: false,
+        blocking: true,
+        details: ['unexpected PageIR tel: target "tel:+14155550123"'],
+      }));
+  });
+
   it("requires exactly the normalized set of PageIR call targets", async () => {
     const pageIr = structuredClone(compilerPageIr());
     const footer = pageIr.layoutProgram.nodes.find((node) => node.id === "footer")!;
