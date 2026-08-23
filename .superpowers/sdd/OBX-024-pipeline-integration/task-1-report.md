@@ -3,6 +3,7 @@
 ## Commit
 
 - Implementation commit: `6725450372cc16ebc5c361bed7d7b9081cf20467`
+- Review-fix commit: `1afedd58b512d00929222b2b5d9c028420a248f0`
 - Subject: `feat: add durable PageIR candidate boundary`
 - Base: `7a68c157809a127f64e1c3571fcb6fa5eb96b285`
 
@@ -75,3 +76,31 @@ Each cycle used `npm test -- src/lib/pageIrPipeline.test.ts` unless a narrower c
 - Candidate gate compatibility remains limited by the existing token and edit-ID integration mismatch documented in the architecture note.
 - Automated repair of failed PageIR output remains intentionally absent until OBX-031. Failed matching candidates stay parked.
 - No Task 1 acceptance clause remains unresolved.
+
+## Grok 4.6 review adjudication
+
+| Finding | Result | Verified evidence |
+| --- | --- | --- |
+| 1. Candidate swap can replace promoted or promotable state and lose the prior root during a failed swap | FIXED | `materializePageIrCandidate` now refuses to replace stale `failed`, `promotable`, or `promoted` candidates. `installCandidateDirectory` restores the retired candidate after any caught pre-commit failure, reports restoration failure instead of swallowing it, and retains the completed new candidate after a post-commit hook failure. The three-state preservation test and post-retire rollback test cover the regression. |
+| 2. PageIR creation can overwrite another concurrent creator | REJECTED | The existence check, derivation, temporary write, and rename all execute inside `withRunTransaction`. That transaction uses the per-run in-process queue plus the cross-process hard-link `.run-state-lock`. Repository search finds no other `page-ir.json` writer. The existing concurrent-creator and crash-boundary tests prove one byte-identical checkpoint for every cooperating Task 1 creator. |
+| 3. A newer draft should not invalidate a prior approved workflow version | REJECTED | The workflow intentionally has one current nonsuperseded version. Saving a revision requires the prior version to be `revision-requested`, appends `superseded`, and creates the new draft. `EvidenceWorkflowStateSchema` rejects an older active version or more than one nonsuperseded version. Selecting the highest historical approval would revive superseded evidence and violate the current-source chain. |
+| 4. Compiler output paths are written before validation | REJECTED | `compilePageIRV1` constructs only fixed static filenames plus `assets/<validated-asset-id>.<closed-media-extension>`. Before returning, it parses a manifest containing the same file paths through `CandidateManifestV1Schema`, whose file records use `CandidateRelativePathSchema`. Materialization receives no provider or caller-supplied compiler result, and final writes use exclusive create in a fresh random staging tree. |
+| 5. Materialization inverts the site and run lock order | REJECTED | The documented order is site authority first, then a run transaction. Materialization acquires `withSiteAuthorityLock` and performs only read-only `loadRun` calls inside it; it never acquires `withRunTransaction`. Read-only run loads are explicitly unlocked. The implementation follows the established order. |
+| 6. `O_NOFOLLOW` fallback leaves a concrete link or TOCTOU gap | REJECTED | On the target macOS platform, `O_NOFOLLOW` is available. The portable fallback still compares the initial path with the opened file descriptor by device, inode, size, regular-file type, and link count, then repeats the descriptor checks after reading. A swap to different bytes or a hardlink fails closed; a fallback symlink to the exact already-validated inode cannot change the accepted bytes. |
+| 7. Reuse and parking do not revalidate candidate site bytes | REJECTED | `inspectCandidate` parses the manifest, verifies its provenance and build bindings, and calls `validateCandidateInventory` before returning a present candidate. That inventory walk rehashes every candidate file and rejects missing, unexpected, linked, size-mismatched, or hash-mismatched bytes before materialization can reuse or park it. |
+| 8. Candidate publication lacks durable directory sync and leftover handling | FIXED | Staging file directories and the staging root are synced before publication. The run root is synced after retirement, publication, restoration, and retired-root removal. Caught post-retire failures restore the exact prior candidate and leave no build or retired sibling. True process-crash leftovers already use the closed `candidate.building-*` and `candidate.retired-*` names consumed by `recoverCandidateState`, which restores exactly one valid generation or blocks ambiguity. |
+
+### Review-fix RED and GREEN evidence
+
+- RED: `npm test -- src/lib/pageIrPipeline.test.ts -t "preserves a stale|restores the prior candidate"` failed all 4 selected tests. Each stale `failed`, `promotable`, and `promoted` candidate was replaced, and the post-retire hook was ignored.
+- GREEN: the same command passed all 4 selected tests with 14 skipped after lifecycle parking, rollback, cleanup, and directory-sync changes.
+- Focused final: `npm test -- src/lib/pageIrPipeline.test.ts` passed 18 of 18 tests.
+- Full final: `npm test` passed 80 files with 4 skipped; 950 tests passed with 4 skipped.
+- `npm run typecheck`: PASS.
+- `npm run lint`: PASS with 0 errors and the same 6 pre-existing warnings outside the owned files.
+- `git diff --check`: PASS.
+
+### Review-fix residual risk
+
+- The compare-and-create guarantee depends on all repository writers respecting the per-run filesystem lock. No other PageIR writer exists in this revision. An unrelated external process with direct run-directory write access is outside the local single-user service's coordination contract.
+- A real process death between candidate retirement and publication leaves the valid retired generation for the existing startup recovery path. Materialization itself does not duplicate that recovery controller.
