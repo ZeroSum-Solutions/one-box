@@ -1000,6 +1000,18 @@ async function verifiedClaimedUploads(
   return { manifest, uploads };
 }
 
+/** Validate a fallback source's claimed upload manifest and bytes without
+ * creating a child or writing any state. The fallback transaction calls this
+ * before reserving durable child provenance. */
+export async function validateClaimedUploadsForFallback(
+  sourceRunId: string,
+  expectedUploads: UploadMetadata[],
+): Promise<UploadMetadata[]> {
+  if (expectedUploads.length === 0) return [];
+  const source = await verifiedClaimedUploads(sourceRunId, expectedUploads);
+  return source.uploads.map(({ metadata }) => metadata);
+}
+
 /** Clone only intake-bound, server-claimed upload bytes into a fallback child.
  * Every source and existing destination byte is revalidated; writes use a
  * fresh directory and one atomic rename, never links or recursive copying. */

@@ -351,13 +351,15 @@ authority to equal the persisted run, so recovery, repair, inspection, and
 promotion cannot blend the two layouts.
 
 `createTemplateFallbackRun` is the server-side explicit recovery boundary for a
-failed Page IR run. It appends one terminal source link, creates or resumes one
-distinct template child with immutable origin provenance and fresh stage/spend
-counters, and clones only validated intake plus hash-verified claimed uploads.
-It does not copy Page IR, layout, candidate, live site, gate, evidence, or
-visual artifacts. Exact source and child links plus atomic upload installation
-make retries after each committed boundary converge on the same child. OBX-024
-still owns Page IR persistence/routing; OBX-050 owns any operator/API surface.
+failed Page IR run. Under the source lock it validates intake and claimed
+uploads, then persists a private nonterminal transaction claim containing the
+reserved child ID and origin. It creates or resumes that exact template child,
+clones only verified input, and commits the terminal source link only after the
+child intake and uploads are complete. The claim makes pre-link crash retries
+converge without exposing an incomplete child through run state. Page IR,
+layout, candidate, live site, gate, evidence, and visual artifacts are never
+copied. OBX-024 still owns Page IR persistence/routing; OBX-050 owns any
+operator/API surface.
 
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the

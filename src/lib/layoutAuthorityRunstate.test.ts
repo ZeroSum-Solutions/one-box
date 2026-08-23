@@ -16,6 +16,7 @@ import {
 } from "./runstate";
 
 const runIds: string[] = [];
+const fallbackClaimFile = ".template-fallback-claim.json";
 
 afterEach(async () => {
   await Promise.all(
@@ -100,9 +101,60 @@ describe("persisted layout authority", () => {
       ["evidence-gated-v2", 9],
     ]).toContainEqual([persisted.pipelineVersion, persisted.costCapUsd]);
   });
+
+  it("keeps fallback origin off the public create and ensure surfaces", async () => {
+    const origin = {
+      sourceRunId: "source-run",
+      reason: "candidate-gates-failed" as const,
+      failure: { stage: "built" as const, message: "failed" },
+    };
+    const forgedId = `forged-child-${process.pid}`;
+    runIds.push(forgedId);
+    await expect(createRun({
+      id: forgedId,
+      // @ts-expect-error fallback origins are internal transaction provenance
+      fallbackOrigin: origin,
+    })).rejects.toThrow("fallbackOrigin is not a public run option");
+
+    const ordinary = await makeRun();
+    await expect(ensureRun(ordinary, {
+      // @ts-expect-error fallback origins are internal transaction provenance
+      fallbackOrigin: origin,
+    })).rejects.toThrow("fallbackOrigin is not a public run option");
+  });
 });
 
 describe("template fallback transaction", () => {
+  it.each([
+    ["missing", undefined],
+    ["invalid", { businessName: "Incomplete" }],
+  ] as const)("leaves a failed source unlinked when intake is %s", async (_case, rawIntake) => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    if (rawIntake !== undefined) {
+      await saveArtifact(sourceRunId, ARTIFACTS.intake, rawIntake);
+    }
+    await failStage(sourceRunId, "built", "compiler failed");
+    const before = await fs.readFile(
+      path.join(sitePaths(sourceRunId).root, RUN_FILE),
+      "utf8",
+    );
+
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).rejects.toThrow();
+    const source = await loadRun(sourceRunId);
+    if (source.templateFallback) runIds.push(source.templateFallback.childRunId);
+    expect(source.templateFallback).toBeUndefined();
+    expect(await fs.readFile(path.join(sitePaths(sourceRunId).root, RUN_FILE), "utf8"))
+      .toBe(before);
+    await expect(
+      fs.stat(path.join(sitePaths(sourceRunId).root, fallbackClaimFile)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("claims one child, snapshots long failures, clones only intake, and freezes the source", async () => {
     const sourceRunId = await makeRun({
       layoutAuthority: "page-ir-v1",
@@ -225,12 +277,13 @@ describe("template fallback transaction", () => {
     expect((await loadRun(sourceRunId)).templateFallback?.childRunId).toBe(children[0]);
   });
 
-  it("converges after faults at each committed boundary", async () => {
+  it("keeps every pre-link fault resumable and converges through the private claim", async () => {
     for (const boundary of [
-      "afterSourceClaim",
+      "afterClaim",
       "afterChildCreate",
       "afterUploadClone",
       "afterIntakeSave",
+      "afterIntakeFinish",
     ] as const) {
       const sourceRunId = await makeRun({
         layoutAuthority: "page-ir-v1",
@@ -238,6 +291,7 @@ describe("template fallback transaction", () => {
       });
       await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
       await failStage(sourceRunId, "built", `failure at ${boundary}`);
+      const sourceBeforeFault = await loadRun(sourceRunId);
       await expect(
         createTemplateFallbackRun(sourceRunId, "operator-requested-after-failure", {
           [boundary]: () => {
@@ -245,12 +299,216 @@ describe("template fallback transaction", () => {
           },
         }),
       ).rejects.toThrow(`fault:${boundary}`);
-      const linkedChild = (await loadRun(sourceRunId)).templateFallback!.childRunId;
+      const sourceAfterFault = await loadRun(sourceRunId);
+      expect(sourceAfterFault.templateFallback).toBeUndefined();
+      expect(sourceAfterFault).toEqual(sourceBeforeFault);
+      const claim = JSON.parse(await fs.readFile(
+        path.join(sitePaths(sourceRunId).root, fallbackClaimFile),
+        "utf8",
+      )) as { childRunId: string };
+      const linkedChild = claim.childRunId;
       runIds.push(linkedChild);
       await expect(
         createTemplateFallbackRun(sourceRunId, "operator-requested-after-failure"),
       ).resolves.toBe(linkedChild);
       expect((await loadRun(linkedChild)).stages.intake.status).toBe("done");
     }
+  });
+
+  it("does not create a claim when a before-claim fault fires", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+
+    await expect(createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+      { beforeClaim: () => { throw new Error("fault:beforeClaim"); } },
+    )).rejects.toThrow("fault:beforeClaim");
+    expect((await loadRun(sourceRunId)).templateFallback).toBeUndefined();
+    await expect(
+      fs.stat(path.join(sitePaths(sourceRunId).root, fallbackClaimFile)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("fails closed if a generic creator poisons the claimed child id", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    const sourceBefore = await loadRun(sourceRunId);
+    let poisonedChildRunId = "";
+
+    await expect(createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+      {
+        afterClaim: async () => {
+          const claim = JSON.parse(await fs.readFile(
+            path.join(sitePaths(sourceRunId).root, fallbackClaimFile),
+            "utf8",
+          )) as { childRunId: string };
+          poisonedChildRunId = claim.childRunId;
+          runIds.push(poisonedChildRunId);
+          await createRun({ id: poisonedChildRunId });
+        },
+      },
+    )).rejects.toThrow("existing fallback child does not match the durable claim");
+    expect(poisonedChildRunId).not.toBe("");
+    expect(await loadRun(sourceRunId)).toEqual(sourceBefore);
+  });
+
+  it("rejects a tampered private claim without terminalizing the source", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    const sourceBefore = await loadRun(sourceRunId);
+
+    await expect(createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+      { afterClaim: () => { throw new Error("fault:claim-created"); } },
+    )).rejects.toThrow("fault:claim-created");
+    const claimPath = path.join(sitePaths(sourceRunId).root, fallbackClaimFile);
+    const claim = JSON.parse(await fs.readFile(claimPath, "utf8")) as {
+      childRunId: string;
+      origin: { reason: string };
+    };
+    runIds.push(claim.childRunId);
+    claim.origin.reason = "candidate-gates-failed";
+    await fs.writeFile(claimPath, JSON.stringify(claim), "utf8");
+
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).rejects.toThrow("claim conflicts with the failed source");
+    expect(await loadRun(sourceRunId)).toEqual(sourceBefore);
+  });
+
+  it("recovers an origin-bearing orphan child from its durable claim", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    let claimedChildRunId = "";
+
+    await expect(createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+      {
+        afterChildCreate: async () => {
+          const claim = JSON.parse(await fs.readFile(
+            path.join(sitePaths(sourceRunId).root, fallbackClaimFile),
+            "utf8",
+          )) as { childRunId: string };
+          claimedChildRunId = claim.childRunId;
+          throw new Error("fault:orphan-child");
+        },
+      },
+    )).rejects.toThrow("fault:orphan-child");
+    runIds.push(claimedChildRunId);
+    expect((await loadRun(claimedChildRunId)).fallbackOrigin?.sourceRunId)
+      .toBe(sourceRunId);
+    expect((await loadRun(sourceRunId)).templateFallback).toBeUndefined();
+
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).resolves.toBe(claimedChildRunId);
+    expect((await loadRun(claimedChildRunId)).stages.intake.status).toBe("done");
+  });
+
+  it("does not link an origin-bearing child containing prohibited artifacts", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    let claimedChildRunId = "";
+
+    await expect(createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+      {
+        afterChildCreate: async () => {
+          const claim = JSON.parse(await fs.readFile(
+            path.join(sitePaths(sourceRunId).root, fallbackClaimFile),
+            "utf8",
+          )) as { childRunId: string };
+          claimedChildRunId = claim.childRunId;
+          await saveArtifact(claimedChildRunId, ARTIFACTS.pageIr, { prohibited: true });
+          throw new Error("fault:prohibited-child-artifact");
+        },
+      },
+    )).rejects.toThrow("fault:prohibited-child-artifact");
+    runIds.push(claimedChildRunId);
+
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).rejects.toThrow("fallback child contains prohibited artifacts");
+    expect((await loadRun(sourceRunId)).templateFallback).toBeUndefined();
+  });
+
+  it("publishes the source link only after the exact child is complete", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    let childRunId = "";
+
+    await expect(createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+      {
+        afterIntakeFinish: async () => {
+          expect((await loadRun(sourceRunId)).templateFallback).toBeUndefined();
+          const claim = JSON.parse(await fs.readFile(
+            path.join(sitePaths(sourceRunId).root, fallbackClaimFile),
+            "utf8",
+          )) as { childRunId: string };
+          childRunId = claim.childRunId;
+          const child = await loadRun(childRunId);
+          expect(child.fallbackOrigin?.sourceRunId).toBe(sourceRunId);
+          expect(child.stages.intake.status).toBe("done");
+        },
+        afterSourceLink: () => { throw new Error("fault:afterSourceLink"); },
+      },
+    )).rejects.toThrow("fault:afterSourceLink");
+    runIds.push(childRunId);
+    expect((await loadRun(sourceRunId)).templateFallback?.childRunId).toBe(childRunId);
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).resolves.toBe(childRunId);
+  });
+
+  it("returns the linked child after its template pipeline has progressed", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    const childRunId = await createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+    );
+    runIds.push(childRunId);
+    await startStage(childRunId, "scanned");
+    await addCost(childRunId, 0.2);
+
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).resolves.toBe(childRunId);
   });
 });

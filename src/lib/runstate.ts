@@ -8,8 +8,10 @@
  * API route, and tool module builds on — see contracts.ts for the shapes.
  */
 import { createHash, randomBytes } from "node:crypto";
+import { constants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { z } from "zod";
 import {
   ARTIFACTS,
   ARTIFACT_APPROVAL_TRANSITIONS,
@@ -18,6 +20,7 @@ import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
   EVENTS_FILE,
+  FallbackOriginSchema,
   IntakeSchema,
   MODELS,
   normalizeFallbackFailureMessage,
@@ -201,8 +204,6 @@ export interface CreateRunOptions {
   /** Required only when creating a new page-ir-v1 run. Existing runs resume
    * from persisted authority without consulting a future rollout decision. */
   pageIrRolloutPermitted?: boolean;
-  /** Server-owned provenance for createTemplateFallbackRun. */
-  fallbackOrigin?: FallbackOrigin;
   /** defaults to the pinned MODELS from contracts.ts (audit #3: record the
    * exact slugs a run used in its own manifest). */
   modelSlugs?: Record<string, string>;
@@ -211,8 +212,15 @@ export interface CreateRunOptions {
   referencePickerEnabled?: boolean;
 }
 
+function assertPublicCreateRunOptions(opts: object): void {
+  if (Object.prototype.hasOwnProperty.call(opts, "fallbackOrigin")) {
+    throw new Error("fallbackOrigin is not a public run option");
+  }
+}
+
 /** Create a new run directory + run.json. Returns the new run's id. */
 export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
+  assertPublicCreateRunOptions(opts);
   const id = opts.id ?? makeRunId();
   if (!/^[a-z0-9_-]{4,40}$/i.test(id)) throw new Error("bad runId");
   const layoutAuthority = opts.layoutAuthority ?? "template-v1";
@@ -239,7 +247,6 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
     referenceMode: opts.referenceMode,
     referencePickerEnabled: opts.referencePickerEnabled,
     layoutAuthority,
-    fallbackOrigin: opts.fallbackOrigin,
   });
 
   await persistNewRun(state);
@@ -253,6 +260,7 @@ export async function ensureRun(
   runId: string,
   opts: Omit<CreateRunOptions, "id"> = {}
 ): Promise<string> {
+  assertPublicCreateRunOptions(opts);
   try {
     const existing = await loadRun(runId);
     if (
@@ -260,12 +268,6 @@ export async function ensureRun(
       opts.layoutAuthority !== existing.layoutAuthority
     ) {
       throw new Error("existing run layout authority does not match request");
-    }
-    if (
-      opts.fallbackOrigin !== undefined &&
-      JSON.stringify(opts.fallbackOrigin) !== JSON.stringify(existing.fallbackOrigin)
-    ) {
-      throw new Error("existing run fallback origin does not match request");
     }
     return runId;
   } catch (error) {
@@ -401,10 +403,123 @@ export class LayoutAuthorityMismatchError extends Error {
 }
 
 export interface TemplateFallbackHooks {
-  afterSourceClaim?: () => void | Promise<void>;
+  beforeClaim?: () => void | Promise<void>;
+  afterClaim?: () => void | Promise<void>;
   afterChildCreate?: () => void | Promise<void>;
   afterUploadClone?: () => void | Promise<void>;
   afterIntakeSave?: () => void | Promise<void>;
+  afterIntakeFinish?: () => void | Promise<void>;
+  afterSourceLink?: () => void | Promise<void>;
+}
+
+const TEMPLATE_FALLBACK_CLAIM_FILE = ".template-fallback-claim.json";
+const MAX_TEMPLATE_FALLBACK_CLAIM_BYTES = 4_096;
+const TemplateFallbackClaimSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    childRunId: RunIdSchema,
+    origin: FallbackOriginSchema,
+    intakeSha256: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+type TemplateFallbackClaim = z.infer<typeof TemplateFallbackClaimSchema>;
+
+function fallbackClaimPath(sourceRunId: string): string {
+  return path.join(sitePaths(sourceRunId).root, TEMPLATE_FALLBACK_CLAIM_FILE);
+}
+
+async function syncDirectory(directoryPath: string): Promise<void> {
+  const directory = await fs.open(directoryPath, "r");
+  try {
+    await directory.sync();
+  } finally {
+    await directory.close();
+  }
+}
+
+async function readFallbackClaim(
+  sourceRunId: string,
+): Promise<TemplateFallbackClaim | undefined> {
+  const claimPath = fallbackClaimPath(sourceRunId);
+  let before;
+  try {
+    before = await fs.lstat(claimPath);
+  } catch (error) {
+    if (isEnoent(error)) return undefined;
+    throw error;
+  }
+  if (
+    !before.isFile() ||
+    before.isSymbolicLink() ||
+    before.nlink !== 1 ||
+    before.size > MAX_TEMPLATE_FALLBACK_CLAIM_BYTES
+  ) {
+    throw new Error("template fallback claim is not a safe regular file");
+  }
+  const handle = await fs.open(
+    claimPath,
+    constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+  );
+  try {
+    const opened = await handle.stat();
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino ||
+      opened.size > MAX_TEMPLATE_FALLBACK_CLAIM_BYTES
+    ) {
+      throw new Error("template fallback claim changed during validation");
+    }
+    const bytes = await handle.readFile();
+    const after = await handle.stat();
+    if (
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== bytes.byteLength
+    ) {
+      throw new Error("template fallback claim changed during validation");
+    }
+    try {
+      return TemplateFallbackClaimSchema.parse(
+        JSON.parse(bytes.toString("utf8")),
+      );
+    } catch {
+      throw new Error("template fallback claim is invalid");
+    }
+  } finally {
+    await handle.close();
+  }
+}
+
+async function writeFallbackClaim(
+  sourceRunId: string,
+  claim: TemplateFallbackClaim,
+): Promise<void> {
+  const validated = TemplateFallbackClaimSchema.parse(claim);
+  const claimPath = fallbackClaimPath(sourceRunId);
+  const bytes = Buffer.from(JSON.stringify(validated, null, 2));
+  if (bytes.byteLength > MAX_TEMPLATE_FALLBACK_CLAIM_BYTES) {
+    throw new Error("template fallback claim exceeds its closed bound");
+  }
+  let handle;
+  try {
+    handle = await fs.open(claimPath, "wx", 0o600);
+    await handle.writeFile(bytes);
+    await handle.sync();
+  } catch (error) {
+    if (handle) await fs.rm(claimPath, { force: true });
+    throw error;
+  } finally {
+    await handle?.close();
+  }
+  await syncDirectory(path.dirname(claimPath));
+}
+
+async function removeFallbackClaim(sourceRunId: string): Promise<void> {
+  const claimPath = fallbackClaimPath(sourceRunId);
+  await fs.rm(claimPath, { force: true });
+  await syncDirectory(path.dirname(claimPath));
 }
 
 function fallbackFailureSnapshot(state: RunState): FallbackFailureSnapshot {
@@ -431,77 +546,266 @@ function fallbackFailureSnapshot(state: RunState): FallbackFailureSnapshot {
   };
 }
 
+async function loadFallbackSourceIntake(sourceRunId: string) {
+  const rawIntake = await loadArtifact<unknown>(sourceRunId, ARTIFACTS.intake);
+  if (rawIntake === undefined) {
+    throw new Error("template fallback source intake is missing");
+  }
+  try {
+    return IntakeSchema.parse(rawIntake);
+  } catch {
+    throw new Error("template fallback source intake is invalid");
+  }
+}
+
+function fallbackIntakeSha256(intake: z.infer<typeof IntakeSchema>): string {
+  return createHash("sha256").update(JSON.stringify(intake)).digest("hex");
+}
+
+function buildFallbackChildState(
+  childRunId: string,
+  source: RunState,
+  origin: FallbackOrigin,
+): RunState {
+  const stages = Object.fromEntries(
+    STAGES.map((stage) => [
+      stage,
+      { status: "pending" as const, retries: 0, gateRepairAttempts: 0 },
+    ]),
+  ) as RunState["stages"];
+  return RunStateSchema.parse({
+    id: childRunId,
+    createdAt: new Date().toISOString(),
+    pipelineVersion: source.pipelineVersion,
+    stages,
+    costUsd: 0,
+    costCapUsd: source.costCapUsd,
+    modelSlugs: { ...source.modelSlugs },
+    referenceMode: source.referenceMode,
+    referencePickerEnabled: source.referencePickerEnabled,
+    layoutAuthority: "template-v1",
+    fallbackOrigin: origin,
+  });
+}
+
+function assertFallbackChildIdentity(
+  child: RunState,
+  source: RunState,
+  origin: FallbackOrigin,
+): void {
+  assertFallbackChildOrigin(child, origin);
+  if (
+    child.pipelineVersion !== source.pipelineVersion ||
+    child.referenceMode !== source.referenceMode ||
+    child.referencePickerEnabled !== source.referencePickerEnabled ||
+    child.costCapUsd !== source.costCapUsd ||
+    child.costUsd !== 0 ||
+    !equalPersistedValue(child.modelSlugs, source.modelSlugs)
+  ) {
+    throw new Error("existing fallback child does not match the durable claim");
+  }
+}
+
+function assertFallbackChildOrigin(
+  child: RunState,
+  origin: FallbackOrigin,
+): void {
+  if (
+    child.layoutAuthority !== "template-v1" ||
+    !equalPersistedValue(child.fallbackOrigin, origin)
+  ) {
+    throw new Error("existing fallback child does not match the durable claim");
+  }
+}
+
+function assertFallbackChildStages(child: RunState): void {
+  if (child.stages.intake.status !== "done") {
+    throw new Error("fallback child intake is incomplete");
+  }
+  for (const stage of STAGES) {
+    if (stage === "intake") continue;
+    const status = child.stages[stage];
+    if (
+      status.status !== "pending" ||
+      status.retries !== 0 ||
+      status.gateRepairAttempts !== 0 ||
+      status.startedAt !== undefined ||
+      status.finishedAt !== undefined ||
+      status.error !== undefined
+    ) {
+      throw new Error("fallback child contains non-intake pipeline state");
+    }
+  }
+}
+
+async function assertFallbackChildRootClosed(childRunId: string): Promise<void> {
+  const allowed = new Set([
+    ".run-state-lock",
+    "run.json",
+    ARTIFACTS.intake,
+    UPLOADS_DIR,
+  ]);
+  const entries = await fs.readdir(
+    /* turbopackIgnore: true */ sitePaths(childRunId).root,
+  );
+  if (entries.some((entry) => !allowed.has(entry))) {
+    throw new Error("fallback child contains prohibited artifacts");
+  }
+}
+
+async function materializeFallbackChild(
+  claim: TemplateFallbackClaim,
+  source: RunState,
+  sourceIntake: z.infer<typeof IntakeSchema>,
+  hooks: TemplateFallbackHooks,
+): Promise<void> {
+  const { cloneClaimedUploadsForFallback, validateClaimedUploadsForFallback } =
+    await import("./uploads");
+  await withRunLock(claim.childRunId, async () => {
+    let child: RunState;
+    try {
+      child = await loadRun(claim.childRunId);
+      assertFallbackChildIdentity(child, source, claim.origin);
+    } catch (error) {
+      if (!(error instanceof RunNotFoundError)) throw error;
+      child = buildFallbackChildState(claim.childRunId, source, claim.origin);
+      await atomicWrite(
+        runFilePath(claim.childRunId),
+        JSON.stringify(child, null, 2),
+      );
+    }
+    await hooks.afterChildCreate?.();
+
+    const uploads = await cloneClaimedUploadsForFallback(
+      source.id,
+      claim.childRunId,
+      sourceIntake.uploads,
+    );
+    await hooks.afterUploadClone?.();
+    const childIntake = IntakeSchema.parse({ ...sourceIntake, uploads });
+    const existingIntake = await loadArtifact<unknown>(
+      claim.childRunId,
+      ARTIFACTS.intake,
+    );
+    if (existingIntake === undefined) {
+      await saveArtifact(claim.childRunId, ARTIFACTS.intake, childIntake);
+      await hooks.afterIntakeSave?.();
+    } else {
+      let parsedExisting;
+      try {
+        parsedExisting = IntakeSchema.parse(existingIntake);
+      } catch {
+        throw new Error("existing fallback child intake is invalid");
+      }
+      if (!equalPersistedValue(parsedExisting, childIntake)) {
+        throw new Error("existing fallback child intake does not match source");
+      }
+    }
+
+    child = await loadRun(claim.childRunId);
+    assertFallbackChildIdentity(child, source, claim.origin);
+    if (child.stages.intake.status !== "done") {
+      const prior = child.stages.intake;
+      child.stages.intake = {
+        ...prior,
+        status: "done",
+        finishedAt: new Date().toISOString(),
+        error: undefined,
+      };
+      await saveRunUnlocked(child);
+      await hooks.afterIntakeFinish?.();
+    }
+
+    child = await loadRun(claim.childRunId);
+    assertFallbackChildIdentity(child, source, claim.origin);
+    assertFallbackChildStages(child);
+    const verifiedIntake = IntakeSchema.parse(
+      await loadArtifact<unknown>(claim.childRunId, ARTIFACTS.intake),
+    );
+    if (!equalPersistedValue(verifiedIntake, childIntake)) {
+      throw new Error("fallback child intake verification failed");
+    }
+    await validateClaimedUploadsForFallback(
+      claim.childRunId,
+      childIntake.uploads,
+    );
+    await assertFallbackChildRootClosed(claim.childRunId);
+  });
+}
+
 /** Create or resume the one server-owned template fallback for a failed
- * PageIR run. The source link is claimed first; all later steps are exact and
- * idempotent so a retry after any injected crash converges on the same child. */
+ * PageIR run. A private durable claim makes pre-link retries converge; the
+ * terminal source link is committed only after the child is complete. */
 export async function createTemplateFallbackRun(
   sourceRunId: string,
   reason: TemplateFallbackReason,
   hooks: TemplateFallbackHooks = {},
 ): Promise<string> {
-  const reservedChildRunId = makeRunId();
   return withRunLock(sourceRunId, async () => {
     const source = await loadRun(sourceRunId);
     assertRunLayoutAuthority(source, "page-ir-v1", "template fallback source");
     const failure = fallbackFailureSnapshot(source);
-
-    let childRunId = reservedChildRunId;
     if (source.templateFallback) {
       if (source.templateFallback.reason !== reason) {
         throw new Error("template fallback reason conflicts with the claimed child");
       }
-      childRunId = source.templateFallback.childRunId;
       assertFailureSnapshotMatchesState(source, source.templateFallback.failure);
-    } else {
-      source.templateFallback = { childRunId, reason, failure };
-      await saveRunUnlocked(source);
+      const origin: FallbackOrigin = {
+        sourceRunId,
+        reason,
+        failure: source.templateFallback.failure,
+      };
+      const child = await loadRun(source.templateFallback.childRunId);
+      assertFallbackChildOrigin(child, origin);
+      await removeFallbackClaim(sourceRunId);
+      return source.templateFallback.childRunId;
     }
-    await hooks.afterSourceClaim?.();
 
-    const fallbackOrigin: FallbackOrigin = {
+    const sourceIntake = await loadFallbackSourceIntake(sourceRunId);
+    const { validateClaimedUploadsForFallback } = await import("./uploads");
+    await validateClaimedUploadsForFallback(sourceRunId, sourceIntake.uploads);
+    const origin: FallbackOrigin = {
       sourceRunId,
       reason,
       failure,
     };
-    await ensureRun(childRunId, {
-      pipelineVersion: source.pipelineVersion,
-      referenceMode: source.referenceMode,
-      modelSlugs: { ...source.modelSlugs },
-      costCapUsd: source.costCapUsd,
-      referencePickerEnabled: source.referencePickerEnabled,
-      layoutAuthority: "template-v1",
-      fallbackOrigin,
-    });
-    await hooks.afterChildCreate?.();
-
-    const rawIntake = await loadArtifact<unknown>(sourceRunId, ARTIFACTS.intake);
-    if (rawIntake === undefined) {
-      throw new Error("template fallback source intake is missing");
+    const intakeSha256 = fallbackIntakeSha256(sourceIntake);
+    await hooks.beforeClaim?.();
+    let claim = await readFallbackClaim(sourceRunId);
+    if (claim === undefined) {
+      claim = TemplateFallbackClaimSchema.parse({
+        schemaVersion: 1,
+        childRunId: makeRunId(),
+        origin,
+        intakeSha256,
+      });
+      await writeFallbackClaim(sourceRunId, claim);
+    } else if (
+      !equalPersistedValue(claim.origin, origin) ||
+      claim.intakeSha256 !== intakeSha256
+    ) {
+      throw new Error("template fallback claim conflicts with the failed source");
     }
-    const sourceIntake = IntakeSchema.parse(rawIntake);
-    const { cloneClaimedUploadsForFallback } = await import("./uploads");
-    const uploads = await cloneClaimedUploadsForFallback(
-      sourceRunId,
-      childRunId,
-      sourceIntake.uploads,
-    );
-    await hooks.afterUploadClone?.();
+    await hooks.afterClaim?.();
+    await materializeFallbackChild(claim, source, sourceIntake, hooks);
 
-    const childIntake = IntakeSchema.parse({ ...sourceIntake, uploads });
-    const childState = await loadRun(childRunId);
-    if (childState.stages.intake.status !== "done") {
-      await saveArtifact(childRunId, ARTIFACTS.intake, childIntake);
-      await hooks.afterIntakeSave?.();
-      await finishStage(childRunId, "intake");
-    } else {
-      const existingIntake = IntakeSchema.parse(
-        await loadArtifact<unknown>(childRunId, ARTIFACTS.intake),
-      );
-      if (!equalPersistedValue(existingIntake, childIntake)) {
-        throw new Error("existing fallback child intake does not match source");
-      }
+    const reloadedIntake = await loadFallbackSourceIntake(sourceRunId);
+    if (
+      fallbackIntakeSha256(reloadedIntake) !== claim.intakeSha256 ||
+      !equalPersistedValue(reloadedIntake, sourceIntake)
+    ) {
+      throw new Error("template fallback source intake changed during transaction");
     }
-    return childRunId;
+    await validateClaimedUploadsForFallback(sourceRunId, sourceIntake.uploads);
+    source.templateFallback = {
+      childRunId: claim.childRunId,
+      reason,
+      failure,
+    };
+    await saveRunUnlocked(source);
+    await hooks.afterSourceLink?.();
+    await removeFallbackClaim(sourceRunId);
+    return claim.childRunId;
   });
 }
 

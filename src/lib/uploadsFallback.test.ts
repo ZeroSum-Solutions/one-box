@@ -8,6 +8,7 @@ import {
   createTemplateFallbackRun,
   failStage,
   loadArtifact,
+  loadRun,
   saveArtifact,
   sitePaths,
 } from "./runstate";
@@ -104,6 +105,40 @@ describe("fallback claimed upload clone", () => {
     expect(await fs.readFile(path.join(sitePaths(child).uploads, storedName))).toEqual(
       sourceBytes,
     );
+  });
+
+  it("leaves a failed source unlinked when a claimed upload is tampered", async () => {
+    const source = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+      pipelineVersion: "legacy-v1",
+    });
+    runIds.push(source);
+    const expected = metadata();
+    await installClaimedSource(source, expected);
+    await fs.writeFile(
+      path.join(sitePaths(source).uploads, storedName),
+      "tampered",
+    );
+    await saveArtifact(source, ARTIFACTS.intake, IntakeSchema.parse({
+      businessName: "Upload Source",
+      category: "consulting",
+      location: "Portland, OR",
+      services: ["Advisory"],
+      primaryAction: "quote",
+      uploads: [expected],
+    }));
+    await failStage(source, "built", "compiler failed");
+
+    await expect(
+      createTemplateFallbackRun(source, "page-ir-compilation-failed"),
+    ).rejects.toThrow(/integrity/i);
+    const persisted = await loadRun(source);
+    if (persisted.templateFallback) runIds.push(persisted.templateFallback.childRunId);
+    expect(persisted.templateFallback).toBeUndefined();
+    await expect(
+      fs.stat(path.join(sitePaths(source).root, ".template-fallback-claim.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("copies verified bytes atomically and is idempotent", async () => {

@@ -315,10 +315,12 @@ Recorded because they recur.
   rollout-gated Page IR creation, candidate provenance cross-binding, and
   fail-closed guards on the current template builder/pipeline and candidate
   inspection, recovery, promotion, and promoted-live reads.
-- **Implemented:** one append-only terminal fallback link from a failed Page IR
-  source to one fresh template child. Retries reuse that exact child; the child
-  carries an immutable bounded failure snapshot and copies only validated
-  intake and claimed upload bytes through exact path/size/SHA and nonlink checks.
+- **Implemented:** a private durable, nonterminal fallback transaction claim
+  reserves one exact child while the failed source remains unlinked. The source
+  link commits only after the origin-bearing template child has complete,
+  validated intake and claimed upload bytes; path/size/SHA and nonlink checks
+  run before the claim and again before commit. Retries converge on the claim's
+  child across every pre-link crash boundary.
 - **Not included:** Page IR persistence/routing (OBX-024), fallback UI/API or
   environment flags (OBX-050), and Page IR editing (OBX-031).
 
