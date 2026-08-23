@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { assertCanonicalTokenInventory, assertTailwindPlanMatchesInventory } from "./evidence";
+import { pageIrSha256 } from "./pageIrHash";
 import {
   CssArchitectureSchema,
   DesignResearchLedgerSchema,
@@ -26,6 +27,7 @@ import {
 } from "./contracts";
 
 export { PAGE_IR_DERIVATION_KINDS } from "./contracts";
+export { pageIrSha256 } from "./pageIrHash";
 
 const ERROR_LIMIT = 240;
 
@@ -42,27 +44,6 @@ function fail(message: string): never {
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
-}
-
-function canonicalJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (value !== null && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .filter(([, nested]) => nested !== undefined)
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-      .map(([key, nested]) => `${JSON.stringify(key)}:${canonicalJson(nested)}`)
-      .join(",")}}`;
-  }
-  const encoded = JSON.stringify(value);
-  if (encoded === undefined) fail("Page IR contains a non-canonical value");
-  return encoded;
-}
-
-/** The only Page IR hash authority: validated IR over canonical JSON. */
-export function pageIrSha256(pageIr: PageIRV1): string {
-  const validated = PageIRV1Schema.safeParse(pageIr);
-  if (!validated.success) fail("Cannot hash an invalid Page IR artifact");
-  return sha256(new TextEncoder().encode(canonicalJson(validated.data)));
 }
 
 function parseRequest(input: unknown): PageIrDerivationRequestV1 {

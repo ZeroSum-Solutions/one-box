@@ -15,6 +15,7 @@ import {
   pageIrSha256,
   projectPageTokensV1,
 } from "./pageIrDerivation";
+import { pageIrSha256 as purePageIrSha256 } from "./pageIrHash";
 
 function expectDerivationError(input: unknown, message: string) {
   try {
@@ -258,6 +259,7 @@ describe("derivePageIRV1", () => {
     const result = derivePageIRV1(input);
     expect(PageIRV1Schema.parse(result.pageIr)).toEqual(result.pageIr);
     expect(result.pageIrSha256).toBe(pageIrSha256(result.pageIr));
+    expect(pageIrSha256(result.pageIr)).toBe(purePageIrSha256(result.pageIr));
     expect(result.lineage.runId).toBe(input.runId);
     expect(result.lineage.purpose).toBe("campaign-landing");
     expect(result.lineage.sources).toHaveLength(8);

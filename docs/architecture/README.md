@@ -317,10 +317,29 @@ approved token inventory, validates the assembled Page IR, and returns a
 canonical Page IR SHA-256 plus fixed-order, timestamp-free lineage. Raw Refero
 IDs remain only in lineage behind safe Page IR aliases.
 
-Derivation does not compile, persist, promote, or edit `page-ir.json`. Those
-runtime responsibilities remain with OBX-022, OBX-024, and OBX-031 respectively.
-Image is the only Phase 1 Page IR asset kind; video and arbitrary embeddable
-media are not part of v1.
+Derivation itself does not compile, persist, promote, or edit `page-ir.json`.
+Compilation is the separate pure boundary below; runtime persistence/promotion
+and authoritative editing remain with OBX-024 and OBX-031. Image is the only
+Phase 1 Page IR asset kind; video and arbitrary embeddable media are not part of
+v1.
+
+`src/lib/pageIrCompiler.ts` owns the next pure boundary: numeric-v1 Page IR plus
+an exact in-memory set of hash- and metadata-bound image bytes becomes a sorted
+static inventory, deterministic candidate manifest, and fixed
+`page-ir-static@1` compiler identity. The compiler reparses Page IR, renders the
+layout graph from ordered child IDs, escapes inert content, emits no executable
+source, validates image magic, and returns bytes without reading, writing,
+publishing, or calling a provider. `src/lib/pageIrHash.ts` is the shared pure
+authority for the canonical Page IR SHA-256 used by derivation and compilation.
+
+Page IR v1 tokens carry only IDs and categories, not approved client values or
+foreground/background roles. The compiler therefore emits versioned safe
+category fallbacks; this proves mechanical static determinism only, not
+client-owned visual quality. Human `EVAL-WEB-001` and visual qualification remain
+`NOT_RUN` and require a future explicit contract/version decision. The current
+no-JavaScript gate also assumes frozen template edit IDs and a run-root
+`tokens.json`, so OBX-024 must not claim this compiler inventory is gate-compatible
+until that separate integration mismatch is resolved.
 
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the

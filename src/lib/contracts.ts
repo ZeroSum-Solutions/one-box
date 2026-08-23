@@ -527,12 +527,23 @@ export const PageTokenV1Schema = z
   .strict();
 export type PageTokenV1 = z.infer<typeof PageTokenV1Schema>;
 
+export const PageIrAssetMediaTypeV1Schema = z.enum([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/gif",
+]);
+export type PageIrAssetMediaTypeV1 = z.infer<
+  typeof PageIrAssetMediaTypeV1Schema
+>;
+
 export const AssetV1Schema = z
   .object({
     id: IrIdSchema,
     kind: z.literal("image"),
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
-    mediaType: z.enum(["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"]),
+    mediaType: PageIrAssetMediaTypeV1Schema,
     width: z.number().int().positive().max(16_384),
     height: z.number().int().positive().max(16_384),
     sizeBytes: z.number().int().nonnegative().max(PAGE_IR_BOUNDS.maxAssetBytes),
@@ -851,6 +862,48 @@ export const PageIRV1Schema = z
   .strict()
   .superRefine(validatePageIRV1);
 export type PageIRV1 = z.infer<typeof PageIRV1Schema>;
+
+export const PageIrCompilerAssetBindingV1Schema = z
+  .object({
+    assetId: IrIdSchema,
+    mediaType: PageIrAssetMediaTypeV1Schema,
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    bytes: z
+      .instanceof(Uint8Array)
+      .refine((bytes) => bytes.byteLength <= PAGE_IR_BOUNDS.maxAssetBytes, {
+        message: "compiler asset exceeds the supported maximum",
+      }),
+  })
+  .strict();
+export type PageIrCompilerAssetBindingV1 = z.infer<
+  typeof PageIrCompilerAssetBindingV1Schema
+>;
+
+export const PageIrCompilerRequestV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    pageIr: PageIRV1Schema,
+    assets: z
+      .array(PageIrCompilerAssetBindingV1Schema)
+      .max(PAGE_IR_BOUNDS.maxAssets),
+  })
+  .strict()
+  .superRefine((request, context) => {
+    const totalBytes = request.assets.reduce(
+      (total, asset) => total + asset.bytes.byteLength,
+      0,
+    );
+    if (totalBytes > PAGE_IR_BOUNDS.maxAssetBytes) {
+      context.addIssue({
+        code: "custom",
+        path: ["assets"],
+        message: "compiler assets exceed the 100 MiB aggregate maximum",
+      });
+    }
+  });
+export type PageIrCompilerRequestV1 = z.infer<
+  typeof PageIrCompilerRequestV1Schema
+>;
 
 export const ResearchConfigurationSchema = z.object({
   enabled: z.boolean().default(true),
