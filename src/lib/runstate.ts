@@ -796,6 +796,14 @@ export function preparePromotedVisualQaUnderSiteAuthority(
 }> {
   return withRunTransaction(runId, async (transaction) => {
     const previous = latestArtifact(transaction.state, "visual-qa");
+    if (
+      previous?.artifactType === "visual-qa" &&
+      previous.artifact.buildSha256 === buildSha256 &&
+      artifactApprovalState(previous) !== "superseded"
+    ) {
+      await options.afterPreparation?.();
+      return { visualApprovalInvalidated: false, artifact: previous };
+    }
     const sourceCssArchitectureVersion = previous?.artifactType === "visual-qa"
       ? previous.artifact.sourceCssArchitectureVersion
       : latestArtifact(transaction.state, "css-architecture")?.version;

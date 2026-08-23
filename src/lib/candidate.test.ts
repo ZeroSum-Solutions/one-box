@@ -23,6 +23,7 @@ import {
   type CandidateProvenanceV1,
 } from "./contracts";
 import { candidatePaths, sitePaths } from "./runstate";
+import { withSiteAuthorityLock } from "./siteAuthority";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -467,6 +468,37 @@ describe("candidate diagnostic cleanup", () => {
     );
     return paths;
   }
+
+  it("does not remove diagnostics while another site-authority owner is active", async () => {
+    const runId = testRunId("candidate-cleanup-authority");
+    const paths = await writeDiagnostic(
+      runId,
+      "failed",
+      "2026-08-20T00:00:00.000Z",
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const acquired = new Promise<void>((resolve) => { entered = resolve; });
+    const owner = withSiteAuthorityLock(runId, async () => {
+      entered();
+      await held;
+    });
+    await acquired;
+
+    let settled = false;
+    const cleanup = cleanupCandidateDiagnostics(
+      runId,
+      new Date("2026-08-22T00:00:00.000Z"),
+    ).finally(() => { settled = true; });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(settled).toBe(false);
+    await expect(fs.stat(paths.root)).resolves.toBeDefined();
+    release();
+    await owner;
+    await expect(cleanup).resolves.toEqual({ removed: true, reason: "expired" });
+  });
 
   it("keeps a terminal diagnostic exactly 24 hours old and removes it one millisecond later", async () => {
     const now = new Date("2026-08-22T00:00:00.000Z");

@@ -59,6 +59,7 @@ import {
   sitePaths,
 } from "./runstate";
 import { runCandidateGates, type CandidateGateRunResult } from "./gates";
+import { withSiteAuthorityLock } from "./siteAuthority";
 
 const TEMPLATE_DIR = path.join(process.cwd(), "templates", "local-service");
 const RUN_ID_RE = /^[a-z0-9_-]{4,40}$/i;
@@ -102,6 +103,15 @@ export async function compileTailwindUtilities(
 
 export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   const runId = assertSafeRunId(input.runId);
+  assertWebsiteProductionTarget(input.intake.projectTarget);
+  await assertBuildAuthorized(sitePaths(runId).root, runId);
+  return withSiteAuthorityLock(runId, () => buildSiteUnderAuthority(input, runId));
+}
+
+async function buildSiteUnderAuthority(
+  input: BuildSiteInput,
+  runId: string,
+): Promise<SiteManifest> {
   assertWebsiteProductionTarget(input.intake.projectTarget);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
   await assertBuildAuthorized(runRoot, runId);
@@ -685,7 +695,13 @@ async function restoreCandidateReceipt(
   }
 }
 
-export async function gateBuiltCandidate(
+export function gateBuiltCandidate(
+  runId: string,
+): Promise<CandidateGateDisposition> {
+  return withSiteAuthorityLock(runId, () => gateBuiltCandidateUnderAuthority(runId));
+}
+
+async function gateBuiltCandidateUnderAuthority(
   runId: string,
 ): Promise<CandidateGateDisposition> {
   const inspection = await inspectCandidate(runId);
@@ -768,22 +784,58 @@ export async function gateBuiltCandidate(
   }
 }
 
-export async function repairFailedCandidate(
+type PreparedCandidateRepair = {
+  snapshot: FailedCandidateSnapshot;
+  request: CandidateRepairRequest;
+};
+
+async function prepareCandidateRepairUnderAuthority(
   runId: string,
-  provider: CandidateRepairProvider,
-): Promise<CandidateGateDisposition | undefined> {
+): Promise<PreparedCandidateRepair | undefined> {
   await assertBuildAuthorized(sitePaths(runId).root, runId);
   const run = await loadRun(runId);
   if ((run.stages.built.gateRepairAttempts ?? 0) > 0) return undefined;
   const snapshot = await readFailedCandidateSnapshot(runId);
   const request = createCandidateRepairRequest(snapshot);
   const claimed = await claimBuildGateRepair(runId);
-  if (!claimed) return undefined;
+  return claimed ? { snapshot, request } : undefined;
+}
 
+export async function repairFailedCandidate(
+  runId: string,
+  provider: CandidateRepairProvider,
+): Promise<CandidateGateDisposition | undefined> {
+  const prepared = await withSiteAuthorityLock(runId, () =>
+    prepareCandidateRepairUnderAuthority(runId),
+  );
+  if (!prepared) return undefined;
+  let plan: CandidateRepairPlan;
+  try {
+    plan = CandidateRepairPlanSchema.parse(await provider(prepared.request));
+  } catch (error) {
+    try {
+      await withSiteAuthorityLock(runId, () => releaseBuildGateRepair(runId));
+    } catch (releaseError) {
+      throw new AggregateError(
+        [error, releaseError],
+        "candidate repair failed and its allowance could not be released",
+      );
+    }
+    throw error;
+  }
+  return withSiteAuthorityLock(runId, () =>
+    commitCandidateRepairUnderAuthority(runId, prepared.snapshot, plan),
+  );
+}
+
+async function commitCandidateRepairUnderAuthority(
+  runId: string,
+  snapshot: FailedCandidateSnapshot,
+  plan: CandidateRepairPlan,
+): Promise<CandidateGateDisposition | undefined> {
   const stagingRoot = `${snapshot.paths.root}.repairing-${process.pid}-${Date.now()}`;
   let repairCompleted = false;
   try {
-    const plan = CandidateRepairPlanSchema.parse(await provider(request));
     if (!validateCandidateRepairPlan(snapshot, plan)) {
       await releaseBuildGateRepair(runId);
       return undefined;
@@ -814,7 +866,7 @@ export async function repairFailedCandidate(
   }
 
   try {
-    return await gateBuiltCandidate(runId);
+    return await gateBuiltCandidateUnderAuthority(runId);
   } catch (error) {
     try {
       const provenanceBytes = await readStableBuildInput(
@@ -845,22 +897,24 @@ export async function repairFailedCandidate(
   }
 }
 
-export async function gateAndRepairBuiltCandidate(
+export function gateAndRepairBuiltCandidate(
   runId: string,
   provider: CandidateRepairProvider,
 ): Promise<{
   disposition: CandidateGateDisposition;
   repairCompleted: boolean;
 }> {
-  const initial = await gateBuiltCandidate(runId);
-  if (initial.state === "promotable") {
-    return { disposition: initial, repairCompleted: false };
-  }
-  const repaired = await repairFailedCandidate(runId, provider);
-  return {
-    disposition: repaired ?? initial,
-    repairCompleted: repaired !== undefined,
-  };
+  return (async () => {
+    const initial = await gateBuiltCandidate(runId);
+    if (initial.state === "promotable") {
+      return { disposition: initial, repairCompleted: false };
+    }
+    const repaired = await repairFailedCandidate(runId, provider);
+    return {
+      disposition: repaired ?? initial,
+      repairCompleted: repaired !== undefined,
+    };
+  })();
 }
 
 async function compileSiteToDirectory(

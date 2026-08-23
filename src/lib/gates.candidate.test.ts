@@ -24,6 +24,7 @@ import {
   loadRun,
   sitePaths,
 } from "./runstate";
+import { withSiteAuthorityLock } from "./siteAuthority";
 
 const gateHarness = vi.hoisted(() => {
   const state = {
@@ -385,6 +386,57 @@ afterEach(async () => {
 });
 
 describe("candidate gates", () => {
+  it("does not disposition a candidate while another site-authority owner is active", async () => {
+    const runId = testRunId("candidate-authority");
+    const { paths } = await createReadyCandidate(runId);
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const acquired = new Promise<void>((resolve) => { entered = resolve; });
+    const owner = withSiteAuthorityLock(runId, async () => {
+      entered();
+      await held;
+    });
+    await acquired;
+
+    let settled = false;
+    const disposition = gateBuiltCandidate(runId).finally(() => { settled = true; });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(settled).toBe(false);
+    expect(JSON.parse(await fs.readFile(paths.provenance, "utf8"))).toMatchObject({
+      state: "ready-for-gates",
+    });
+
+    release();
+    await owner;
+    await expect(disposition).resolves.toMatchObject({ state: "promotable" });
+  });
+
+  it("releases site authority while the repair provider is running", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId } = await createFailedRepairCandidate();
+    let providerEntered!: () => void;
+    const entered = new Promise<void>((resolve) => { providerEntered = resolve; });
+    let releaseProvider!: () => void;
+    const held = new Promise<void>((resolve) => { releaseProvider = resolve; });
+    const repair = repairFailedCandidate(runId, async (request) => {
+      providerEntered();
+      await held;
+      return { files: [request.files[0]] };
+    });
+    await entered;
+
+    let authorityEntered = false;
+    await withSiteAuthorityLock(runId, async () => {
+      authorityEntered = true;
+    });
+    expect(authorityEntered).toBe(true);
+
+    releaseProvider();
+    await expect(repair).resolves.toBeUndefined();
+  });
+
   it("runs the complete suite against one candidate root and writes only its bound receipt", async () => {
     expectTypeOf(runCandidateGates).parameters.toEqualTypeOf<[string]>();
     const runId = testRunId();

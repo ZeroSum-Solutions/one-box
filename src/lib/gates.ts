@@ -45,7 +45,11 @@ import {
   type DesignTokens,
   type GateReport,
 } from "./contracts";
-import { inspectCandidate, validateCandidateInventory } from "./candidate";
+import {
+  inspectCandidate,
+  validateCandidateInputArtifactHashes,
+  validateCandidateInventory,
+} from "./candidate";
 import { candidatePaths } from "./runstate";
 import { findUnresolvedSheetRefs } from "./cssVars";
 import { gateContrast } from "./contrastGate";
@@ -285,6 +289,10 @@ async function createCandidateGateTarget(runId: string): Promise<GateTarget> {
     throw new Error("candidate must be ready-for-gates");
   }
   await validateCandidateInventory(paths.site, inspection.manifest);
+  await validateCandidateInputArtifactHashes(
+    parsedRunId.data,
+    inspection.provenance.inputArtifactHashes,
+  );
   return Object.freeze({
     runRoot,
     siteRoot: paths.site,

@@ -215,6 +215,46 @@ never writes live `site/`, the canonical live gate report, or approved evidence.
 Atomic promotion is the separate OBX-014 operation described above; OBX-015
 retains startup/resume recovery for interrupted or leftover retired directories.
 
+OBX-015 makes `recoverCandidateState(runId)` the first resume operation before
+the pipeline reads candidate state. Recovery holds the same site authority as
+all writers and recognizes only the closed transaction names emitted by the
+builder, repair, receipt/provenance writers, and promotion code. A valid
+canonical candidate wins over its orphan build, repair, backup, and retired
+siblings. If the canonical root is absent, exactly one complete hash-valid
+candidate transaction root may be restored; multiple valid generations or no
+valid generation are blocked and preserved. `preparing` and invalid resumable
+canonical state are abandoned with a bounded reason in
+`candidate-recovery.json`; `ready-for-gates` resumes only at the gate boundary,
+`failed` remains diagnostic/repairable, and a clean `promotable` candidate is
+parked rather than promoted. OBX-024 remains the only owner of ordinary
+promotion sequencing.
+
+Promotion recovery groups `.site-promotion-stage-*` and
+`.site-promotion-retired-*` by their exact transaction token and never chooses
+by mtime. A missing live root may be restored only from one bounded regular-file
+retired tree containing `index.html`; links, files, malformed trees, and
+multiple generations block without being installed or deleted. An exact new
+live bundle with still-promotable candidate provenance rolls back to its paired
+retired site. An exact promoted live bundle first reconciles one pending
+visual-QA version for its build hash idempotently, then removes the paired
+retired site. A later edited or otherwise noncanonical live site causes recovery
+to block and preserve both generations. Startup recovery never initiates a new
+promotion and never trusts the run-root compatibility gate report as authority.
+
+The lock order is fixed: acquire the per-run site authority first, then any
+`run.json` transaction; code must never acquire those in reverse order and must
+not reacquire site authority from an under-authority helper. Production build,
+candidate gate disposition, repair prepare/commit, diagnostic cleanup,
+promotion, element edits, token changes, asset placement, and motion changes all
+use that authority. Generated-site GET also acquires it after a read-only
+existence and no-symlink check, so a reader cannot observe tentative site bytes
+with a report from another generation and an unknown read cannot create a run
+root. Repair provider work is deliberately outside the lock: the failed
+candidate is snapshotted and the allowance claimed under authority, and its
+exact bytes/state are revalidated after authority is reacquired before commit.
+The filesystem lock reclaims dead process owners and bounds claim retries;
+separate-process contention tests cover serialization and abrupt-owner exit.
+
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events
 and repeated narrative cards, attach to in-flight emissions, and flush queued

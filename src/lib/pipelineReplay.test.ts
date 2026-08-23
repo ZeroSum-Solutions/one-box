@@ -413,16 +413,26 @@ describe("pipeline replay", () => {
     for (const stage of Object.values(run.stages)) stage.status = "done";
     const emit = vi.fn();
     const executePipeline = vi.fn().mockResolvedValue(undefined);
+    const order: string[] = [];
+    const recoverCandidateState = vi.fn(async () => {
+      order.push("recover");
+      return { action: "retain-promotable", state: "promotable" } as const;
+    });
+    const inspectCandidate = vi.fn(async () => {
+      order.push("inspect");
+      return {
+        status: "present",
+        provenance: { state: "promotable" },
+      };
+    });
 
     await runPipeline("promotable-run", emit, {
       readEvents: vi.fn().mockResolvedValue([]),
       loadRun: vi.fn().mockResolvedValue(run),
       loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
       appendEvent: vi.fn().mockResolvedValue(undefined),
-      inspectCandidate: vi.fn().mockResolvedValue({
-        status: "present",
-        provenance: { state: "promotable" },
-      }),
+      recoverCandidateState,
+      inspectCandidate,
       executePipeline,
     } as never);
 
@@ -431,6 +441,7 @@ describe("pipeline replay", () => {
     );
     expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
     expect(executePipeline).not.toHaveBeenCalled();
+    expect(order).toEqual(["recover", "inspect"]);
   });
 
   it("parks an over-cap promotable run without appending a new terminal error", async () => {

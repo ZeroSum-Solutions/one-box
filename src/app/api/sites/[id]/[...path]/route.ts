@@ -10,6 +10,7 @@ import { sitePaths } from "../../../../../lib/runstate";
 import { ARTIFACTS, SiteManifestSchema } from "../../../../../lib/contracts";
 import { LIVE_BUNDLE_METADATA_DIR } from "../../../../../lib/liveBundle";
 import { inspectPromotedLiveBundle } from "../../../../../lib/candidate";
+import { withSiteAuthorityLock } from "../../../../../lib/siteAuthority";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -76,7 +77,25 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string; path: string[] }> },
 ) {
-  const { id, path: rawParts } = await ctx.params;
+  const params = await ctx.params;
+  if (!/^[a-z0-9_-]{4,40}$/i.test(params.id))
+    return new Response("bad id", { status: 400 });
+  const runRoot = sitePaths(params.id).root;
+  try {
+    const stat = await fs.lstat(runRoot);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      return new Response("not found", { status: 404 });
+    }
+  } catch {
+    return new Response("not found", { status: 404 });
+  }
+  return withSiteAuthorityLock(params.id, () => getUnderSiteAuthority(req, params));
+}
+
+async function getUnderSiteAuthority(
+  req: Request,
+  { id, path: rawParts }: { id: string; path: string[] },
+) {
   if (!/^[a-z0-9_-]{4,40}$/i.test(id))
     return new Response("bad id", { status: 400 });
   const parts = rawParts.map(safePathSegment);

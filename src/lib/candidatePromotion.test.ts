@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   CANDIDATE_GATE_EXPECTATIONS,
@@ -16,12 +18,14 @@ import {
   candidatePaths,
   createRun,
   loadRun,
+  preparePromotedVisualQaUnderSiteAuthority,
   saveArtifact,
   saveEvidenceArtifactVersion,
   sitePaths,
   transitionEvidenceArtifactApproval,
   workflowArtifactAliasPath,
 } from "./runstate";
+import { withSiteAuthorityLock } from "./siteAuthority";
 import {
   buildCssArchitecture,
   buildTailwindPlan,
@@ -62,7 +66,26 @@ type PromoteCandidate = (
 }>;
 
 const promoteCandidate = candidateModule.promoteCandidate as unknown as PromoteCandidate;
+const recoverCandidateState = candidateModule.recoverCandidateState;
 const runIds: string[] = [];
+const execFileAsync = promisify(execFile);
+
+const PROMOTION_FAULT_STEPS = [
+  "after-revalidation",
+  "before-staging-sync",
+  "after-staging",
+  "before-retired-directory-sync",
+  "after-live-retired",
+  "before-live-directory-sync",
+  "after-live-replaced",
+  "before-provenance-sync",
+  "after-provenance-renamed",
+  "after-provenance-committed",
+  "before-visual-approval-invalidation",
+  "after-visual-approval-invalidation",
+  "before-retired-cleanup",
+  "before-rollback",
+] as const satisfies readonly PromotionFaultStep[];
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -263,6 +286,9 @@ async function fixture(
     primaryAction: "quote",
     projectTarget: "website",
   });
+  const intakeSha256 = sha256(
+    await fs.readFile(path.join(roots.root, "intake.json")),
+  );
 
   await fs.mkdir(roots.site, { recursive: true });
   await fs.writeFile(path.join(roots.site, "index.html"), "old-live");
@@ -322,7 +348,7 @@ async function fixture(
       { state: "ready-for-gates", at: "2026-08-22T12:00:01.000Z" },
       { state: "promotable", at: "2026-08-22T12:00:02.000Z" },
     ],
-    inputArtifactHashes: [{ path: "intake.json", sha256: "a".repeat(64) }],
+    inputArtifactHashes: [{ path: "intake.json", sha256: intakeSha256 }],
     layoutAuthority: "template-v1",
     compilerVersion: "fixture-v1",
     candidateManifestSha256,
@@ -372,6 +398,173 @@ afterEach(async () => {
 });
 
 describe("candidate promotion", () => {
+  it.each(PROMOTION_FAULT_STEPS)(
+    "recovers idempotently after a fresh process exits at %s",
+    async (faultStep) => {
+      const prepared = await fixture();
+      const childFixture = path.join(
+        process.cwd(),
+        "src/lib/candidatePromotion.crash.fixture.test.ts",
+      );
+      const vitest = path.join(process.cwd(), "node_modules/vitest/vitest.mjs");
+
+      let crash: unknown;
+      try {
+        await execFileAsync(
+          process.execPath,
+          [vitest, "run", childFixture, "--maxWorkers=1"],
+          {
+            cwd: process.cwd(),
+            env: {
+              ...process.env,
+              ONEBOX_PROMOTION_CRASH_RUN_ID: prepared.runId,
+              ONEBOX_PROMOTION_CRASH_STEP: faultStep,
+            },
+          },
+        );
+      } catch (error) {
+        crash = error;
+      }
+      expect(crash).toMatchObject({ code: 1 });
+      expect((crash as { stderr: string }).stderr).toMatch(/worker exited unexpectedly/i);
+      const crashMarker = path.join(prepared.roots.root, ".promotion-crash-marker");
+      expect(await fs.readFile(crashMarker, "utf8")).toBe(`${faultStep}:86`);
+      await fs.rm(crashMarker);
+
+      const first = await recoverCandidateState(prepared.runId);
+      const liveText = await fs.readFile(
+        path.join(prepared.roots.site, "index.html"),
+        "utf8",
+      );
+      expect(["old-live", "new-live"]).toContain(liveText);
+      const siteEntries = (await fs.readdir(prepared.roots.site)).sort();
+      if (liveText === "old-live") {
+        expect(siteEntries).toEqual(["index.html", "manifest.json"]);
+        expect(JSON.parse(await fs.readFile(prepared.candidate.provenance, "utf8")))
+          .toMatchObject({ state: "promotable" });
+      } else {
+        expect(siteEntries).toEqual([".one-box", "index.html", "manifest.json"]);
+        await expect(candidateModule.inspectPromotedLiveBundle(prepared.runId))
+          .resolves.toMatchObject({
+            status: "present",
+            manifest: { buildSha256: prepared.manifest.buildSha256 },
+            receipt: { buildSha256: prepared.manifest.buildSha256 },
+          });
+        expect(JSON.parse(await fs.readFile(prepared.candidate.provenance, "utf8")))
+          .toMatchObject({
+            state: "promoted",
+            promotedBuildSha256: prepared.manifest.buildSha256,
+          });
+      }
+      expect((await fs.readdir(prepared.roots.root)).filter((entry) =>
+        /^\.site-promotion-(?:stage|retired)-/.test(entry)
+      )).toEqual([]);
+
+      const beforeSecond = {
+        live: await fs.readFile(path.join(prepared.roots.site, "index.html")),
+        provenance: await fs.readFile(prepared.candidate.provenance),
+        visualQaCount: (await loadRun(prepared.runId)).evidenceWorkflow.artifacts.filter(
+          (artifact) => artifact.artifactType === "visual-qa",
+        ).length,
+      };
+      const second = await recoverCandidateState(prepared.runId);
+      expect(second).toMatchObject({ action: first.action, state: first.state });
+      expect(await fs.readFile(path.join(prepared.roots.site, "index.html")))
+        .toEqual(beforeSecond.live);
+      expect(await fs.readFile(prepared.candidate.provenance))
+        .toEqual(beforeSecond.provenance);
+      expect((await loadRun(prepared.runId)).evidenceWorkflow.artifacts.filter(
+        (artifact) => artifact.artifactType === "visual-qa",
+      )).toHaveLength(beforeSecond.visualQaCount);
+    },
+    30_000,
+  );
+
+  it("reconciles an already prepared promoted visual review idempotently", async () => {
+    const prepared = await fixture();
+    await promoteCandidate(prepared.runId);
+    const before = await loadRun(prepared.runId);
+    const beforeVersions = before.evidenceWorkflow.artifacts.filter(
+      (artifact) => artifact.artifactType === "visual-qa",
+    );
+
+    await withSiteAuthorityLock(prepared.runId, () =>
+      preparePromotedVisualQaUnderSiteAuthority(
+        prepared.runId,
+        prepared.manifest.buildSha256,
+      ),
+    );
+
+    const after = await loadRun(prepared.runId);
+    expect(after.evidenceWorkflow.artifacts.filter(
+      (artifact) => artifact.artifactType === "visual-qa",
+    )).toEqual(beforeVersions);
+  });
+
+  it("cleans a committed promotion leftover only after idempotent QA reconciliation", async () => {
+    const prepared = await fixture();
+    const priorApproval = await snapshotApproval(prepared.runId);
+    await promoteCandidate(prepared.runId);
+    await fs.writeFile(path.join(prepared.roots.root, "run.json"), priorApproval.run);
+    await fs.writeFile(
+      path.join(prepared.roots.root, workflowArtifactAliasPath("visual-qa")),
+      priorApproval.alias,
+    );
+    const retired = path.join(
+      prepared.roots.root,
+      ".site-promotion-retired-123-deadbeefcafe",
+    );
+    await fs.mkdir(retired);
+    await fs.writeFile(path.join(retired, "index.html"), "retired-old-live");
+    const before = await loadRun(prepared.runId);
+    const beforeVisualCount = before.evidenceWorkflow.artifacts.filter(
+      (artifact) => artifact.artifactType === "visual-qa",
+    ).length;
+
+    await expect(recoverCandidateState(prepared.runId)).resolves.toMatchObject({
+      action: "completed",
+      state: "promoted",
+    });
+
+    await expect(fs.stat(retired)).rejects.toMatchObject({ code: "ENOENT" });
+    const after = await loadRun(prepared.runId);
+    const afterVisual = after.evidenceWorkflow.artifacts.filter(
+      (artifact) => artifact.artifactType === "visual-qa",
+    );
+    expect(afterVisual).toHaveLength(beforeVisualCount + 1);
+    expect(afterVisual.at(-1)).toMatchObject({
+      artifact: { buildSha256: prepared.manifest.buildSha256 },
+    });
+
+    await recoverCandidateState(prepared.runId);
+    expect((await loadRun(prepared.runId)).evidenceWorkflow.artifacts.filter(
+      (artifact) => artifact.artifactType === "visual-qa",
+    )).toHaveLength(afterVisual.length);
+  });
+
+  it("preserves retired recovery data when promoted QA reconciliation cannot commit", async () => {
+    const prepared = await fixture();
+    await promoteCandidate(prepared.runId);
+    const run = await loadRun(prepared.runId);
+    run.evidenceWorkflow.artifacts = run.evidenceWorkflow.artifacts.filter(
+      (artifact) => !["css-architecture", "visual-qa"].includes(artifact.artifactType),
+    );
+    await saveArtifact(prepared.runId, "run.json", run);
+    const retired = path.join(
+      prepared.roots.root,
+      ".site-promotion-retired-123-deadbeefcafe",
+    );
+    await fs.mkdir(retired);
+    await fs.writeFile(path.join(retired, "index.html"), "retired-old-live");
+
+    await expect(recoverCandidateState(prepared.runId)).resolves.toMatchObject({
+      action: "blocked",
+      reason: expect.any(String),
+    });
+    expect(await fs.readFile(path.join(retired, "index.html"), "utf8"))
+      .toBe("retired-old-live");
+  });
+
   it("fails closed when promoted live metadata disappears", async () => {
     const prepared = await promoteThenDeleteLiveMetadata();
 
@@ -525,6 +718,46 @@ describe("candidate promotion", () => {
         entry.startsWith(".site-promotion-retired-"),
       ),
     ).toEqual([]);
+  });
+
+  it("does not interleave a guarded site mutation with promotion", async () => {
+    const prepared = await fixture();
+    let releasePromotion!: () => void;
+    const held = new Promise<void>((resolve) => { releasePromotion = resolve; });
+    let promotionReached!: () => void;
+    const reached = new Promise<void>((resolve) => { promotionReached = resolve; });
+    const promotion = promoteCandidate(prepared.runId, {
+      injectFault: async (step) => {
+        if (step !== "after-live-replaced") return;
+        promotionReached();
+        await held;
+      },
+    });
+    await reached;
+
+    const liveIndex = path.join(prepared.roots.site, "index.html");
+    let mutationSettled = false;
+    const mutation = runGuardedMutation({
+      runId: prepared.runId,
+      snapshotPaths: [liveIndex, path.join(prepared.roots.root, "gates.json")],
+      mutate: async () => {
+        const exactPromotedBytes = await fs.readFile(liveIndex);
+        await fs.writeFile(liveIndex, exactPromotedBytes);
+      },
+      gateRunner: async () => [],
+    }).finally(() => { mutationSettled = true; });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mutationSettled).toBe(false);
+    expect(await fs.readFile(liveIndex, "utf8")).toBe("new-live");
+    releasePromotion();
+    await promotion;
+    await mutation;
+    expect(await candidateModule.inspectPromotedLiveBundle(prepared.runId))
+      .toMatchObject({
+        status: "present",
+        manifest: { buildSha256: prepared.manifest.buildSha256 },
+      });
   });
 
   it("replaces the approved visual-QA alias with its invalidation transition", async () => {

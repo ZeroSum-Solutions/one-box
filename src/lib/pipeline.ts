@@ -86,7 +86,11 @@ import {
   gateAndRepairBuiltCandidate,
   type CandidateGateDisposition,
 } from "./builder";
-import { inspectCandidate, type CandidateInspection } from "./candidate";
+import {
+  inspectCandidate,
+  recoverCandidateState,
+  type CandidateInspection,
+} from "./candidate";
 import { assertWebsiteProductionRun } from "./productionTarget";
 import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
@@ -544,6 +548,7 @@ interface RunPipelineDependencies {
   loadRun: typeof loadRun;
   loadArtifact: typeof loadArtifact;
   appendEvent: typeof appendEvent;
+  recoverCandidateState?: typeof recoverCandidateState;
   inspectCandidate?: typeof inspectCandidate;
   executePipeline: typeof executePipeline;
 }
@@ -553,6 +558,7 @@ const defaultRunPipelineDependencies: RunPipelineDependencies = {
   loadRun,
   loadArtifact,
   appendEvent,
+  recoverCandidateState,
   inspectCandidate,
   executePipeline,
 };
@@ -610,6 +616,7 @@ export async function runPipeline(
 
   // Nothing left to execute: replaying the log IS the response. Re-running the
   // controller here would only re-emit "resumed from checkpoint" noise.
+  await dependencies.recoverCandidateState?.(runId);
   const run = await dependencies.loadRun(runId);
   const candidate = await (
     dependencies.inspectCandidate ?? inspectCandidate

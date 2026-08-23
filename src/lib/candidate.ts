@@ -351,6 +351,35 @@ async function readRegularFile(
   }
 }
 
+/** Validate every durable run input captured by candidate provenance. Gate
+ * execution and crash recovery share this check so neither can resume a stale
+ * candidate against a newer set of run artifacts. */
+export async function validateCandidateInputArtifactHashes(
+  runId: string,
+  inputs: CandidateProvenanceV1["inputArtifactHashes"],
+): Promise<void> {
+  const runRoot = sitePaths(runId).root;
+  for (const input of inputs) {
+    let bytes: Buffer;
+    try {
+      bytes = await readRegularFile(
+        path.join(runRoot, ...input.path.split("/")),
+        `candidate input ${input.path}`,
+      );
+    } catch (error) {
+      if (isEnoent(error)) {
+        throw new Error(`bound gate input is missing: ${input.path}`);
+      }
+      throw new Error(`candidate gate input is unavailable: ${input.path}`);
+    }
+    if (sha256(bytes) !== input.sha256) {
+      throw new Error(
+        `candidate gate input SHA-256 does not match provenance: ${input.path}`,
+      );
+    }
+  }
+}
+
 type CandidateProvenanceSnapshot = {
   provenance: CandidateProvenanceV1;
   bytesSha256: string;
@@ -430,12 +459,20 @@ export type CandidateInspection =
       diagnosticBytes: number;
     };
 
-/** Read-only candidate inspection for later recovery code. It validates the
- * current closed layout and bindings but never resumes, abandons, or writes. */
-export async function inspectCandidate(
+function pathsForCandidateRoot(root: string): Readonly<CandidatePaths> {
+  return Object.freeze({
+    root,
+    site: path.join(root, "site"),
+    manifest: path.join(root, "manifest.json"),
+    provenance: path.join(root, "provenance.json"),
+    gates: path.join(root, "gates.json"),
+  });
+}
+
+async function inspectCandidateAtRoot(
   runId: string,
+  paths: Readonly<CandidatePaths>,
 ): Promise<CandidateInspection> {
-  const paths = candidatePaths(runId);
   const rootStat = await lstatMaybe(paths.root);
   if (!rootStat) return { status: "absent", paths };
   assertDirectory(rootStat, "candidate root");
@@ -483,6 +520,345 @@ export async function inspectCandidate(
   };
 }
 
+/** Read-only candidate inspection for later recovery code. It validates the
+ * current closed layout and bindings but never resumes, abandons, or writes. */
+export async function inspectCandidate(
+  runId: string,
+): Promise<CandidateInspection> {
+  return inspectCandidateAtRoot(runId, candidatePaths(runId));
+}
+
+export type CandidateRecoveryAction =
+  | "absent"
+  | "resume-gates"
+  | "retain-failed"
+  | "retain-promotable"
+  | "completed"
+  | "retain-abandoned"
+  | "abandoned"
+  | "blocked";
+
+export interface CandidateRecoveryResult {
+  action: CandidateRecoveryAction;
+  state?: CandidateState;
+  reason?: string;
+}
+
+const RECOVERY_REASON_MAX = 240;
+
+function boundedRecoveryReason(reason: string): string {
+  return reason.replace(/\s+/g, " ").trim().slice(0, RECOVERY_REASON_MAX);
+}
+
+async function recordRecovery(
+  runId: string,
+  result: CandidateRecoveryResult,
+): Promise<CandidateRecoveryResult> {
+  const record = {
+    schemaVersion: 1,
+    ...result,
+    at: new Date().toISOString(),
+  };
+  await durableAtomicWrite(
+    path.join(sitePaths(runId).root, "candidate-recovery.json"),
+    `${JSON.stringify(record, null, 2)}\n`,
+  );
+  return result;
+}
+
+async function candidateLeftovers(runId: string): Promise<{
+  building: string[];
+  repairing: string[];
+  repairBackups: string[];
+  retiredCandidates: string[];
+  temporaryFiles: string[];
+  promotionStages: string[];
+  promotionRetired: string[];
+}> {
+  const roots = sitePaths(runId);
+  const entries = await fs.readdir(roots.root).catch((error) => {
+    if (isEnoent(error)) return [];
+    throw error;
+  });
+  const select = (pattern: RegExp) => entries
+    .filter((entry) => pattern.test(entry))
+    .sort()
+    .map((entry) => path.join(roots.root, entry));
+  return {
+    building: select(/^candidate\.building-[A-Za-z0-9_-]+$/),
+    repairing: select(/^candidate\.repairing-[A-Za-z0-9_-]+$/),
+    repairBackups: select(/^candidate\.repair-backup-[A-Za-z0-9_-]+$/),
+    retiredCandidates: select(/^candidate\.retired-[A-Za-z0-9_-]+$/),
+    temporaryFiles: select(/^(?:\.candidate-provenance\.[0-9]+\.[0-9]+\.tmp|\.candidate-receipt-restore\.[0-9]+\.[0-9]+\.tmp|\.candidate-gates\.tmp-[0-9]+-[0-9]+)$/),
+    promotionStages: select(/^\.site-promotion-stage-[0-9]+-[a-f0-9]{12}$/),
+    promotionRetired: select(/^\.site-promotion-retired-[0-9]+-[a-f0-9]{12}$/),
+  };
+}
+
+async function restorePromotionFootprint(
+  runId: string,
+  leftovers: Awaited<ReturnType<typeof candidateLeftovers>>,
+  candidate: CandidateInspection,
+): Promise<void> {
+  const roots = sitePaths(runId);
+  const tokens = new Set([
+    ...leftovers.promotionStages.map((entry) => path.basename(entry).slice(".site-promotion-stage-".length)),
+    ...leftovers.promotionRetired.map((entry) => path.basename(entry).slice(".site-promotion-retired-".length)),
+  ]);
+  if (tokens.size > 1) {
+    throw new Error("ambiguous promotion recovery: multiple transaction generations");
+  }
+  if (tokens.size === 0) return;
+
+  const live = await lstatMaybe(roots.site);
+  if (!live && leftovers.promotionRetired.length === 1) {
+    await createCandidateManifest(leftovers.promotionRetired[0]);
+    await fs.rename(leftovers.promotionRetired[0], roots.site);
+    await syncDirectory(roots.root);
+    leftovers.promotionRetired = [];
+    await Promise.all(leftovers.promotionStages.map((entry) =>
+      fs.rm(entry, { recursive: true, force: true }),
+    ));
+    return;
+  }
+  if (!live) {
+    throw new Error("ambiguous promotion recovery: staging exists without a restorable live site");
+  }
+
+  if (leftovers.promotionRetired.length > 0) {
+    let promotedLive: Extract<PromotedLiveBundleInspection, { status: "present" }>;
+    try {
+      promotedLive = await inspectPromotedBundleAtSite(runId, roots.site);
+    } catch {
+      throw new Error(
+        "retired promotion generation preserved because current live is not a coherent promoted bundle",
+      );
+    }
+    if (candidate.status !== "present") {
+      throw new Error(
+        "retired promotion generation preserved because candidate authority does not match current live",
+      );
+    }
+    if (
+      candidate.provenance.state === "promotable" &&
+      candidate.provenance.buildSha256 === promotedLive.manifest.buildSha256 &&
+      leftovers.promotionRetired.length === 1 &&
+      leftovers.promotionStages.length === 0
+    ) {
+      const demoted = path.join(
+        roots.root,
+        `.site-promotion-stage-${[...tokens][0]}`,
+      );
+      await fs.rename(roots.site, demoted);
+      try {
+        await fs.rename(leftovers.promotionRetired[0], roots.site);
+        await syncDirectory(roots.root);
+      } catch (error) {
+        await fs.rename(demoted, roots.site).catch(() => {});
+        throw error;
+      }
+      await fs.rm(demoted, { recursive: true, force: true });
+      leftovers.promotionRetired = [];
+      return;
+    }
+    if (
+      candidate.provenance.state !== "promoted" ||
+      candidate.provenance.promotedBuildSha256 !== promotedLive.manifest.buildSha256
+    ) {
+      throw new Error(
+        "retired promotion generation preserved because candidate authority does not match current live",
+      );
+    }
+  }
+  await Promise.all(leftovers.promotionStages.map((entry) =>
+    fs.rm(entry, { recursive: true, force: true }),
+  ));
+  await syncDirectory(roots.root);
+}
+
+async function recoverCanonicalCandidate(
+  runId: string,
+  leftovers: Awaited<ReturnType<typeof candidateLeftovers>>,
+): Promise<CandidateInspection> {
+  const canonical = candidatePaths(runId);
+  const resumable = [
+    ...leftovers.repairing,
+    ...leftovers.building,
+    ...leftovers.repairBackups,
+    ...leftovers.retiredCandidates,
+  ];
+  if (await lstatMaybe(canonical.root)) {
+    const inspection = await inspectCandidateAtRoot(runId, canonical);
+    await Promise.all(resumable.map((root) =>
+      fs.rm(root, { recursive: true, force: true }),
+    ));
+    if (resumable.length > 0) await syncDirectory(sitePaths(runId).root);
+    return inspection;
+  }
+
+  const valid: Array<{ root: string; inspection: CandidateInspection }> = [];
+  for (const root of resumable) {
+    try {
+      const inspection = await inspectCandidateAtRoot(runId, pathsForCandidateRoot(root));
+      if (inspection.status === "present") valid.push({ root, inspection });
+    } catch {
+      // Invalid unserved leftovers are never promoted or selected.
+    }
+  }
+  if (valid.length === 1) {
+    await fs.rename(valid[0].root, canonical.root);
+    await syncDirectory(sitePaths(runId).root);
+  } else if (valid.length > 1) {
+    throw new Error("ambiguous candidate recovery: multiple valid leftovers");
+  } else if (resumable.length > 0) {
+    throw new Error("candidate recovery blocked: no valid transaction leftover");
+  }
+  await Promise.all(resumable.filter((root) => root !== valid[0]?.root).map((root) =>
+    fs.rm(root, { recursive: true, force: true }),
+  ));
+  if (resumable.length > valid.length) await syncDirectory(sitePaths(runId).root);
+  return inspectCandidateAtRoot(runId, canonical);
+}
+
+async function abandonInvalidCanonicalCandidate(
+  runId: string,
+  reason: string,
+): Promise<CandidateRecoveryResult | undefined> {
+  const paths = candidatePaths(runId);
+  try {
+    const { provenance } = await readProvenanceSnapshot(paths, runId);
+    if (!["preparing", "ready-for-gates", "failed", "promotable"].includes(provenance.state)) {
+      return undefined;
+    }
+    const abandoned = transitionCandidateProvenance(
+      provenance,
+      "abandoned",
+      nextPromotionTimestamp(provenance),
+    );
+    await durableAtomicWrite(paths.provenance, JSON.stringify(abandoned, null, 2));
+    return recordRecovery(runId, {
+      action: "abandoned",
+      state: "abandoned",
+      reason: boundedRecoveryReason(reason),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+/** Deterministic startup/resume recovery. It never runs gates or initiates a
+ * new promotion; it only restores exact interrupted filesystem transactions
+ * and reports the next already-authorized lifecycle action. */
+export function recoverCandidateState(runId: string): Promise<CandidateRecoveryResult> {
+  return withSiteAuthorityLock(runId, async () => {
+    const leftovers = await candidateLeftovers(runId);
+    let inspection: CandidateInspection;
+    try {
+      inspection = await recoverCanonicalCandidate(runId, leftovers);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "candidate validation failed";
+      const abandoned = await abandonInvalidCanonicalCandidate(runId, reason);
+      if (abandoned) return abandoned;
+      return recordRecovery(runId, {
+        action: "blocked",
+        reason: boundedRecoveryReason(reason),
+      });
+    }
+    try {
+      await restorePromotionFootprint(runId, leftovers, inspection);
+      await Promise.all(leftovers.temporaryFiles.map((entry) =>
+        fs.rm(entry, { force: true }),
+      ));
+      if (inspection.status === "absent") {
+        return recordRecovery(runId, { action: "absent" });
+      }
+      if (inspection.provenance.state === "preparing") {
+        const reason = boundedRecoveryReason(
+          "Interrupted preparing candidate cannot be resumed because no complete manifest binding was committed.",
+        );
+        const abandoned = transitionCandidateProvenance(
+          inspection.provenance,
+          "abandoned",
+          nextPromotionTimestamp(inspection.provenance),
+        );
+        await durableAtomicWrite(
+          inspection.paths.provenance,
+          JSON.stringify(abandoned, null, 2),
+        );
+        inspection = await inspectCandidateAtRoot(runId, inspection.paths);
+        return recordRecovery(runId, {
+          action: "abandoned",
+          state: inspection.status === "present" ? inspection.provenance.state : "abandoned",
+          reason,
+        });
+      }
+      if (["ready-for-gates", "failed", "promotable"].includes(
+        inspection.provenance.state,
+      )) {
+        try {
+          await validateCandidateInputArtifactHashes(
+            runId,
+            inspection.provenance.inputArtifactHashes,
+          );
+        } catch (error) {
+          const reason = boundedRecoveryReason(
+            error instanceof Error ? error.message : "candidate input validation failed",
+          );
+          const abandoned = transitionCandidateProvenance(
+            inspection.provenance,
+            "abandoned",
+            nextPromotionTimestamp(inspection.provenance),
+          );
+          await durableAtomicWrite(
+            inspection.paths.provenance,
+            JSON.stringify(abandoned, null, 2),
+          );
+          return recordRecovery(runId, {
+            action: "abandoned",
+            state: "abandoned",
+            reason,
+          });
+        }
+      }
+      if (inspection.provenance.state === "promoted") {
+        const live = await inspectPromotedLiveBundle(runId);
+        if (
+          live.status !== "present" ||
+          live.manifest.buildSha256 !== inspection.provenance.promotedBuildSha256
+        ) {
+          throw new Error("promoted candidate does not match the canonical live bundle");
+        }
+        await preparePromotedVisualQaUnderSiteAuthority(
+          runId,
+          live.manifest.buildSha256,
+        );
+        await Promise.all(leftovers.promotionRetired.map((entry) =>
+          fs.rm(entry, { recursive: true, force: false }),
+        ));
+        if (leftovers.promotionRetired.length > 0) {
+          await syncDirectory(sitePaths(runId).root);
+        }
+      }
+      const action: Record<Exclude<CandidateState, "preparing">, CandidateRecoveryAction> = {
+        "ready-for-gates": "resume-gates",
+        failed: "retain-failed",
+        promotable: "retain-promotable",
+        promoted: "completed",
+        abandoned: "retain-abandoned",
+      };
+      return recordRecovery(runId, {
+        action: action[inspection.provenance.state],
+        state: inspection.provenance.state,
+      });
+    } catch (error) {
+      const reason = boundedRecoveryReason(
+        error instanceof Error ? error.message : "candidate recovery failed",
+      );
+      return recordRecovery(runId, { action: "blocked", reason });
+    }
+  });
+}
+
 export type CandidateCleanupResult = {
   removed: boolean;
   reason: "absent" | "active" | "within-retention" | "expired" | "oversized";
@@ -490,9 +866,18 @@ export type CandidateCleanupResult = {
 
 /** Remove only failed/abandoned diagnostics outside their byte/time bounds.
  * Provenance is the lifecycle authority; mtimes are intentionally ignored. */
-export async function cleanupCandidateDiagnostics(
+export function cleanupCandidateDiagnostics(
   runId: string,
   now = new Date(),
+): Promise<CandidateCleanupResult> {
+  return withSiteAuthorityLock(runId, () =>
+    cleanupCandidateDiagnosticsUnderAuthority(runId, now),
+  );
+}
+
+async function cleanupCandidateDiagnosticsUnderAuthority(
+  runId: string,
+  now: Date,
 ): Promise<CandidateCleanupResult> {
   if (!Number.isFinite(now.getTime())) throw new Error("invalid cleanup time");
   const paths = candidatePaths(runId);
@@ -602,7 +987,17 @@ export async function inspectPromotedLiveBundle(
     }
     return { status: "absent" };
   }
-  assertDirectory(metadataStat, "live bundle metadata");
+  return inspectPromotedBundleAtSite(runId, liveSite, metadataStat);
+}
+
+async function inspectPromotedBundleAtSite(
+  runId: string,
+  liveSite: string,
+  metadataStat?: BigIntStats,
+): Promise<Extract<PromotedLiveBundleInspection, { status: "present" }>> {
+  const metadata = path.join(liveSite, LIVE_BUNDLE_METADATA_DIR);
+  const observedMetadata = metadataStat ?? await fs.lstat(metadata, { bigint: true });
+  assertDirectory(observedMetadata, "live bundle metadata");
   const entries = (await fs.readdir(metadata)).sort();
   const expectedEntries = [
     LIVE_BUNDLE_GATES_FILE,

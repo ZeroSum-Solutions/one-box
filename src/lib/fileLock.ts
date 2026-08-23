@@ -97,12 +97,30 @@ export async function withFileLock<T>(
   const token = randomBytes(16).toString("hex");
   const claimPath = path.join(coordinationDirectory, `claim-${token}.json`);
   const ownerPath = path.join(coordinationDirectory, "owner.lock");
-  await fs.mkdir(coordinationDirectory, { recursive: true, mode: 0o700 });
-  await fs.writeFile(
-    claimPath,
-    JSON.stringify({ pid: process.pid, token, createdAt: startedAt }),
-    { encoding: "utf8", mode: 0o600, flag: "wx" }
-  );
+  while (true) {
+    await fs.mkdir(coordinationDirectory, { recursive: true, mode: 0o700 });
+    try {
+      await fs.writeFile(
+        claimPath,
+        JSON.stringify({ pid: process.pid, token, createdAt: startedAt }),
+        { encoding: "utf8", mode: 0o600, flag: "wx" }
+      );
+      break;
+    } catch (error) {
+      // A completed owner may remove the now-empty coordination directory
+      // after this waiter created it but before its claim file is opened.
+      // Recreate and retry the same collision-resistant claim; no authority
+      // existed yet, so this cannot duplicate an acquired operation.
+      if (isCode(error, "ENOENT")) {
+        if (Date.now() - startedAt >= maxWaitMs) {
+          throw new Error(`Timed out waiting for local file lock: ${coordinationDirectory}`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, pollMs));
+        continue;
+      }
+      throw error;
+    }
+  }
 
   let acquired = false;
   try {

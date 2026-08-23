@@ -111,6 +111,19 @@ require a named human review bound to the promoted build hash. OBX-024 still own
 calling this operation from the resumable pipeline, and OBX-015 owns startup
 crash recovery.
 
+OBX-015 now closes that recovery boundary. Resume first runs deterministic
+candidate and promotion-footprint recovery under the shared site authority.
+Only exact hash-bound candidate state or one exact transaction generation is
+resumed; clean promotable state remains parked, while invalid/ambiguous state is
+abandoned or blocked with a bounded durable reason. Promotion recovery restores
+the prior site or completes only an already-committed promoted bundle, reconciles
+visual QA idempotently before retired cleanup, and preserves last-known-good
+bytes whenever live authority is ambiguous. Build, gate disposition, repair
+commit, cleanup, promotion, editing, tokens, assets, motion, and generated-site
+reads now serialize through one documented site-authority-first lock order.
+Fresh-process exits at every promotion fault step, repeated recovery, reader
+contention, and cross-process lock contention are covered by regression tests.
+
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and
 the workspace concatenated them into `/api/sites/<id>//Users/…`. Fixed at the

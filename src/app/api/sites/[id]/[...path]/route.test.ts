@@ -12,6 +12,7 @@ import {
   candidateManifestSha256,
   createCandidateManifest,
 } from "../../../../../lib/candidate";
+import { withSiteAuthorityLock } from "../../../../../lib/siteAuthority";
 
 const runId = `route-test-${process.pid}`;
 const runRoot = path.join(process.cwd(), "sites", runId);
@@ -63,6 +64,52 @@ function request(parts: string[]) {
 }
 
 describe("public site artifact boundary", () => {
+  it("does not create a run root for a valid but unknown id", async () => {
+    const unknownId = `unknown-route-${process.pid}`;
+    const unknownRoot = path.join(process.cwd(), "sites", unknownId);
+    await fs.rm(unknownRoot, { recursive: true, force: true });
+
+    const response = await GET(
+      new Request(`http://local/api/sites/${unknownId}/index.html`),
+      { params: Promise.resolve({ id: unknownId, path: ["index.html"] }) },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(fs.stat(unknownRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("waits for site authority before reading generated-site bytes", async () => {
+    await fs.writeFile(path.join(runRoot, "site", "index.html"), "coherent-live");
+    await fs.writeFile(
+      path.join(runRoot, "site", "manifest.json"),
+      JSON.stringify({
+        entry: "index.html",
+        files: ["index.html"],
+        assets: [],
+        builtAt: "2026-08-23T00:00:00.000Z",
+        complete: true,
+      }),
+    );
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const acquired = new Promise<void>((resolve) => { entered = resolve; });
+    const owner = withSiteAuthorityLock(runId, async () => {
+      entered();
+      await held;
+    });
+    await acquired;
+
+    let settled = false;
+    const response = request(["index.html"]).finally(() => { settled = true; });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(settled).toBe(false);
+    release();
+    await owner;
+    expect(await (await response).text()).toBe("coherent-live");
+  });
+
   it("serves research only from the research root", async () => {
     const response = await request(["research", "public.md"]);
     expect(response.status).toBe(200);
