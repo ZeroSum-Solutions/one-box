@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -9,6 +10,7 @@ import { buildSite } from "./builder";
 import { buildAndPublishSiteFixture } from "../../test-support/buildSiteFixture";
 import { candidatePaths, createRun, saveArtifact, sitePaths } from "./runstate";
 import { withSiteAuthorityLock } from "./siteMutation";
+import { candidateBuildSha256 } from "./liveBundle";
 import {
   assertCanonicalTokenInventory,
   buildCssArchitecture,
@@ -35,6 +37,26 @@ afterEach(async () => {
       fs.rm(directory, { recursive: true, force: true })
     )
   );
+});
+
+it("hashes promoted files with the candidate manifest's deterministic ordering", async () => {
+  const site = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-evidence-hash-"));
+  temporaryDirectories.push(site);
+  await fs.writeFile(path.join(site, "ScrollTrigger.min.js"), "vendor");
+  await fs.writeFile(path.join(site, "index.html"), "site");
+
+  const records = await Promise.all(
+    ["ScrollTrigger.min.js", "index.html"].map(async (filePath) => {
+      const bytes = await fs.readFile(path.join(site, filePath));
+      return {
+        path: filePath,
+        sizeBytes: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      };
+    }),
+  );
+
+  expect(await computeSiteBuildSha256(site)).toBe(candidateBuildSha256(records));
 });
 import {
   DesignTokensSchema,

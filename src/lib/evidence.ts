@@ -791,7 +791,7 @@ export async function computeSiteBuildSha256(
   const files: Array<{ path: string; sizeBytes: number; sha256: string }> = [];
   async function visit(directory: string): Promise<void> {
     const entries = (await fs.readdir(directory, { withFileTypes: true })).sort(
-      (left, right) => left.name.localeCompare(right.name)
+      (left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0
     );
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
@@ -820,7 +820,7 @@ export async function computeSiteBuildSha256(
     }
   }
   await visit(siteDirectory);
-  files.sort((left, right) => left.path.localeCompare(right.path));
+  files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
   return candidateBuildSha256(files);
 }
 

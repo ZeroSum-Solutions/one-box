@@ -162,11 +162,20 @@ export function evaluateColorRoleCompliance(
   return observations.flatMap((observation) => {
     const colorHex = normalizeHexColor(observation.colorHex);
     if (!colorHex) return [];
-    return tokenColors
-      .filter(
-        (token) =>
-          token.value === colorHex && token.forbiddenContexts.includes(observation.context)
+    const matchingTokens = tokenColors.filter((token) => token.value === colorHex);
+    // Computed styles preserve only the rendered color, not which same-valued
+    // CSS variable produced it. When one matching token allows this context,
+    // attributing the pixel to a different matching token would be a false
+    // violation. Block only when every possible source forbids the role.
+    if (
+      matchingTokens.some(
+        (token) => !token.forbiddenContexts.includes(observation.context)
       )
+    ) {
+      return [];
+    }
+    return matchingTokens
+      .filter((token) => token.forbiddenContexts.includes(observation.context))
       .map((token) => ({
         selector: observation.selector,
         context: observation.context,
