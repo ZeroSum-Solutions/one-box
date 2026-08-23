@@ -33,6 +33,12 @@ export const COMPILER_WEBP_BYTES = new Uint8Array([
 const bytesSha256 = (bytes: Uint8Array) =>
   createHash("sha256").update(bytes).digest("hex");
 
+function sizedWebp(byteLength: number): Uint8Array<ArrayBuffer> {
+  const bytes = new Uint8Array(new ArrayBuffer(byteLength));
+  bytes.set(COMPILER_WEBP_BYTES.slice(0, Math.min(byteLength, COMPILER_WEBP_BYTES.length)));
+  return bytes;
+}
+
 export function compilerPageIr(
   purpose: PagePurposeV1 = "brochure-local-service",
 ): PageIRV1 {
@@ -170,4 +176,59 @@ export function compilerRequest(
       bytes: new Uint8Array(COMPILER_WEBP_BYTES),
     }],
   };
+}
+
+export function compilerRequestWithTwoAssets(
+  totalBytes: number,
+): PageIrCompilerRequestV1 {
+  const request = compilerRequest();
+  const firstBytes = sizedWebp(Math.floor(totalBytes / 2));
+  const secondBytes = sizedWebp(totalBytes - firstBytes.byteLength);
+  const firstSha = bytesSha256(firstBytes);
+  const secondSha = bytesSha256(secondBytes);
+  const hero = request.pageIr.layoutProgram.nodes.find((node) => node.id === "hero");
+  if (!hero || hero.kind !== "section") throw new Error("fixture hero section missing");
+  hero.childIds.push("secondary-media");
+  request.pageIr.layoutProgram.nodes.push({
+    id: "secondary-media",
+    kind: "slot",
+    slotType: "media",
+  });
+  request.pageIr.assets = [
+    { ...request.pageIr.assets[0], sha256: firstSha, sizeBytes: firstBytes.byteLength },
+    {
+      id: "secondary-image",
+      kind: "image",
+      sha256: secondSha,
+      mediaType: "image/webp",
+      width: 1_200,
+      height: 800,
+      sizeBytes: secondBytes.byteLength,
+    },
+  ];
+  request.pageIr.slotBindings.push({
+    nodeId: "secondary-media",
+    kind: "media",
+    assetId: "secondary-image",
+    decorative: true,
+  });
+  request.pageIr.nodeTokenBindings.push({
+    nodeId: "hero",
+    tokens: { spacing: "space-layout" },
+  });
+  request.assets = [
+    {
+      assetId: "hero-image",
+      mediaType: "image/webp",
+      sha256: firstSha,
+      bytes: firstBytes,
+    },
+    {
+      assetId: "secondary-image",
+      mediaType: "image/webp",
+      sha256: secondSha,
+      bytes: secondBytes,
+    },
+  ];
+  return request;
 }

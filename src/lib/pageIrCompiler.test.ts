@@ -1,7 +1,13 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
-import { CandidateManifestV1Schema, type PagePurposeV1 } from "./contracts";
+import {
+  CandidateManifestV1Schema,
+  MAX_CANDIDATE_BYTES,
+  PageIrCompilerRequestV1Schema,
+  type PagePurposeV1,
+} from "./contracts";
 import {
   PAGE_IR_COMPILER_VERSION,
   PageIrCompilerError,
@@ -13,6 +19,7 @@ import {
   COMPILER_PURPOSE_SECTIONS,
   compilerPageIr,
   compilerRequest,
+  compilerRequestWithTwoAssets,
 } from "./test-fixtures/pageIrCompilerFixtures";
 
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
@@ -21,6 +28,70 @@ const file = (result: ReturnType<typeof compilePageIRV1>, path: string) =>
   result.files.find((candidate) => candidate.path === path)!;
 const fileMap = (result: ReturnType<typeof compilePageIRV1>) =>
   Object.fromEntries(result.files.map((candidate) => [candidate.path, Buffer.from(candidate.bytes).toString("hex")]));
+
+function auditPureImportGraph(entries: string[]) {
+  const pending = entries.map((entry) => new URL(entry, import.meta.url));
+  const visited = new Set<string>();
+  const violations: string[] = [];
+  const deniedModules = /^(?:node:)?(?:fs(?:\/promises)?|path|http|https|net|tls|dns|child_process)$|(?:provider|openrouter|pipeline|builder|candidate|runstate|gates|evidence)/i;
+  while (pending.length > 0) {
+    const url = pending.pop()!;
+    if (visited.has(url.href)) continue;
+    visited.add(url.href);
+    const source = readFileSync(url, "utf8");
+    const sourceFile = ts.createSourceFile(url.pathname, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const inspectModule = (specifier: string) => {
+      if (deniedModules.test(specifier)) violations.push(`${url.pathname}: denied module ${specifier}`);
+      if (specifier.startsWith(".")) {
+        pending.push(new URL(specifier.endsWith(".ts") ? specifier : `${specifier}.ts`, url));
+      }
+    };
+    const visit = (node: ts.Node) => {
+      if (
+        (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier)
+      ) {
+        inspectModule(node.moduleSpecifier.text);
+      }
+      if (ts.isCallExpression(node)) {
+        if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+          violations.push(`${url.pathname}: dynamic import`);
+        }
+        if (ts.isIdentifier(node.expression) && ["require", "fetch"].includes(node.expression.text)) {
+          violations.push(`${url.pathname}: ${node.expression.text} call`);
+        }
+        if (
+          ts.isPropertyAccessExpression(node.expression) &&
+          ["require", "fetch"].includes(node.expression.name.text)
+        ) {
+          violations.push(`${url.pathname}: ${node.expression.name.text} call`);
+        }
+      }
+      if (
+        ts.isPropertyAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "process" &&
+        node.name.text === "env"
+      ) {
+        violations.push(`${url.pathname}: process.env read`);
+      }
+      if (
+        ts.isElementAccessExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === "process" &&
+        node.argumentExpression &&
+        ts.isStringLiteral(node.argumentExpression) &&
+        node.argumentExpression.text === "env"
+      ) {
+        violations.push(`${url.pathname}: process.env read`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+  return { visited, violations };
+}
 
 function expectCompilerError(input: unknown, message: string) {
   try {
@@ -69,7 +140,14 @@ describe("compilePageIRV1", () => {
     expect(result.manifest.files.map((candidate) => candidate.path)).toEqual(result.files.map((candidate) => candidate.path));
     expect(result.manifestBytes).toEqual(new TextEncoder().encode(JSON.stringify(result.manifest, null, 2)));
     expect(CandidateManifestV1Schema.parse(result.manifest)).toEqual(result.manifest);
-    expect(result.manifest.buildSha256).toBe(candidateBuildSha256(result.manifest.files));
+    const independentlyHashedRecords = result.files.map((candidate) => ({
+      path: candidate.path,
+      sizeBytes: candidate.bytes.byteLength,
+      sha256: sha256(candidate.bytes),
+    }));
+    expect(result.manifest.files).toEqual(independentlyHashedRecords);
+    expect(result.manifest.totalBytes).toBe(independentlyHashedRecords.reduce((total, candidate) => total + candidate.sizeBytes, 0));
+    expect(result.manifest.buildSha256).toBe(candidateBuildSha256(independentlyHashedRecords));
     expect(result.pageIrSha256).toBe(pageIrSha256(compilerPageIr()));
     expect(JSON.stringify(result)).not.toMatch(/timestamp|createdAt|generatedAt|random/i);
   });
@@ -89,13 +167,27 @@ describe("compilePageIRV1", () => {
     },
   );
 
-  it("renders by graph child order instead of registry order", () => {
-    const ordered = compilerRequest("portfolio-showcase");
-    const shuffled = compilerRequest("portfolio-showcase");
+  it.each(Object.entries(COMPILER_PURPOSE_SECTIONS) as Array<[PagePurposeV1, readonly string[]]>)(
+    "renders purpose-specific %s sections, title, and skip target",
+    (purpose, sectionIds) => {
+      const html = decode(file(compilePageIRV1(compilerRequest(purpose)), "index.html").bytes);
+      for (const sectionId of sectionIds) expect(html).toContain(`id="${sectionId}"`);
+      expect(html).toContain(`<title>${purpose} &amp; &lt;proof&gt; "site"</title>`);
+      expect(html).toContain(`<a class="skip-link" href="#${sectionIds[0]}">Skip to content</a>`);
+    },
+  );
+
+  it("renders by graph order after every registry and both two-asset lists are shuffled", () => {
+    const ordered = compilerRequestWithTwoAssets(32);
+    const shuffled = compilerRequestWithTwoAssets(32);
     shuffled.pageIr.layoutProgram.nodes.reverse();
     shuffled.pageIr.content.reverse();
     shuffled.pageIr.actions.reverse();
     shuffled.pageIr.tokens.reverse();
+    shuffled.pageIr.assets.reverse();
+    shuffled.pageIr.slotBindings.reverse();
+    shuffled.pageIr.nodeTokenBindings.reverse();
+    shuffled.assets.reverse();
     const first = compilePageIRV1(ordered);
     const second = compilePageIRV1(shuffled);
     expect(fileMap(second)).toEqual(fileMap(first));
@@ -104,12 +196,14 @@ describe("compilePageIRV1", () => {
     const html = decode(file(second, "index.html").bytes);
     expect(html.indexOf('id="header"')).toBeLessThan(html.indexOf('id="main"'));
     expect(html.indexOf('id="main"')).toBeLessThan(html.indexOf('id="footer"'));
-    const sections = COMPILER_PURPOSE_SECTIONS["portfolio-showcase"];
+    const sections = COMPILER_PURPOSE_SECTIONS["brochure-local-service"];
     expect(html.indexOf(`id="${sections[0]}"`)).toBeLessThan(html.indexOf(`id="${sections[1]}"`));
   });
 
   it("emits fixed responsive flow and reduced-motion CSS for every breakpoint", () => {
-    const css = decode(file(compilePageIRV1(compilerRequest()), "site.css").bytes);
+    const result = compilePageIRV1(compilerRequest());
+    const css = decode(file(result, "site.css").bytes);
+    const html = decode(file(result, "index.html").bytes);
     for (const prefix of ["s", "m", "l"]) {
       for (const flow of ["stack", "row", "grid", "overlay"]) {
         expect(css).toContain(`.flow-${prefix}-${flow}`);
@@ -119,6 +213,17 @@ describe("compilePageIRV1", () => {
     expect(css).toContain("@media(min-width:48rem)");
     expect(css).toContain("@media(min-width:64rem)");
     expect(css).toContain("@media(prefers-reduced-motion:reduce)");
+    const concreteClasses = {
+      document: "flow-s-stack flow-m-row flow-l-grid cols-l-4",
+      header: "flow-s-row flow-m-grid cols-m-3 flow-l-overlay",
+      navigation: "flow-s-overlay flow-m-stack flow-l-row",
+      main: "flow-s-grid cols-s-2 flow-m-overlay flow-l-stack",
+      hero: "flow-s-stack flow-m-row flow-l-overlay",
+      services: "flow-s-grid cols-s-2 flow-m-overlay flow-l-row",
+    } as const;
+    for (const [nodeId, classes] of Object.entries(concreteClasses)) {
+      expect(html).toMatch(new RegExp(`id="${nodeId}"[^>]*class="[^"]*${classes}`));
+    }
   });
 
   it("emits one stable unique edit ID for every Page IR node", () => {
@@ -179,12 +284,66 @@ describe("compilePageIRV1", () => {
     }
   });
 
+  it("keeps hostile accepted text inert in every free-text channel", () => {
+    const input = compilerRequest();
+    const hostile = `</title><script>alert("x")</script>&\"' javascript:data:`;
+    for (const entry of input.pageIr.content) {
+      if (entry.kind === "list") entry.items = [hostile];
+      else entry.text = hostile;
+    }
+    input.pageIr.referenceContract.preserveTraits = [hostile];
+    input.pageIr.referenceContract.rejects = [hostile];
+    const media = input.pageIr.slotBindings.find((binding) => binding.kind === "media");
+    if (!media || media.kind !== "media") throw new Error("fixture media binding missing");
+    media.altText = hostile;
+    const external = input.pageIr.actions.find((action) => action.kind === "external");
+    if (!external || external.kind !== "external") throw new Error("fixture external action missing");
+    external.href = "https://example.com/proof?q=%3Cscript%3E&safe=yes";
+
+    const result = compilePageIRV1(input);
+    const html = decode(file(result, "index.html").bytes);
+    const css = `${decode(file(result, "site.css").bytes)}\n${decode(file(result, "tokens.css").bytes)}`;
+    expect(html).not.toContain("<script");
+    expect(html.match(/<title>/g)).toHaveLength(1);
+    expect(html).toContain("&lt;/title&gt;&lt;script&gt;alert(\"x\")&lt;/script&gt;&amp;\"' javascript:data:");
+    expect(html).toContain("alt=\"&lt;/title&gt;&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;&quot;&#39; javascript:data:\"");
+    expect(html).not.toMatch(/(?:href|src)="(?:javascript:|data:)/i);
+    expect(css).not.toMatch(/alert|javascript|data:|title/i);
+  });
+
+  it("rejects executable fields, unsafe action variants, data URLs, and hostile IDs at the closed schema", () => {
+    const mutations: Array<(input: ReturnType<typeof compilerRequest>) => void> = [
+      (input) => { (input.pageIr.content[0] as unknown as Record<string, unknown>).html = "<script>alert(1)</script>"; },
+      (input) => { (input.pageIr.layoutProgram.nodes[0] as unknown as Record<string, unknown>).onClick = "alert(1)"; },
+      (input) => { (input.pageIr.assets[0] as unknown as Record<string, unknown>).dataUrl = "data:image/png;base64,AAAA"; },
+      (input) => { input.pageIr.layoutProgram.nodes.find((node) => node.id === "hero")!.id = "constructor"; },
+      (input) => {
+        const action = input.pageIr.actions.find((candidate) => candidate.kind === "external")!;
+        (action as unknown as Record<string, unknown>).href = "javascript:alert(1)";
+      },
+      (input) => {
+        const action = input.pageIr.actions.find((candidate) => candidate.kind === "external")!;
+        (action as unknown as Record<string, unknown>).href = "data:text/html,<script>alert(1)</script>";
+      },
+      (input) => { (input.pageIr.actions[0] as unknown as Record<string, unknown>).kind = "submit"; },
+    ];
+    for (const mutate of mutations) {
+      const input = compilerRequest();
+      mutate(input);
+      expectCompilerError(input, "Invalid Page IR compiler request");
+    }
+  });
+
   it("renders semantic markup, title, language, skip navigation, and all actions without JavaScript", () => {
     const html = decode(file(compilePageIRV1(compilerRequest()), "index.html").bytes);
     for (const tag of ["<body", "<header", "<nav", "<main", "<footer", "<section", "<h1", "<p", "<ul", "<img", "<a"]) {
       expect(html).toContain(tag);
     }
     expect(html).toContain('<html lang="en-US">');
+    expect(html).toContain('<body id="document" data-edit-id="document"');
+    expect(html).toContain('<nav id="navigation" data-edit-id="navigation"');
+    expect(html).toContain('<main id="main" data-edit-id="main"');
+    expect(html).toContain('<h1 data-edit-id="page-h1">');
     expect(html).toContain('<a class="skip-link" href="#hero">Skip to content</a>');
     expect(html).toContain('href="#hero"');
     expect(html).toContain('href="tel:+15550100400"');
@@ -193,12 +352,37 @@ describe("compilePageIRV1", () => {
     expect(html).not.toMatch(/<form|<button|<script|onclick|innerHTML/i);
   });
 
+  it("renders decorative media with an empty alt attribute", () => {
+    const input = compilerRequest();
+    const binding = input.pageIr.slotBindings.find((candidate) => candidate.kind === "media");
+    if (!binding || binding.kind !== "media") throw new Error("fixture media binding missing");
+    binding.decorative = true;
+    delete binding.altText;
+    const html = decode(file(compilePageIRV1(input), "index.html").bytes);
+    expect(html).toContain('data-edit-id="hero-media" src="assets/hero-image.webp" alt=""');
+  });
+
   it.each(IMAGE_CASES)("uses deterministic %s magic and .%s extension", (mediaType, extension, bytes) => {
     const request = compilerRequest();
     replaceImage(request, mediaType, bytes);
     const result = compilePageIRV1(request);
-    expect(result.files.map((candidate) => candidate.path)).toContain(`assets/hero-image.${extension}`);
+    expect(result.files.map((candidate) => candidate.path)).toEqual([
+      `assets/hero-image.${extension}`,
+      "index.html",
+      "site.css",
+      "tokens.css",
+    ]);
     expect(file(result, `assets/hero-image.${extension}`).bytes).toEqual(bytes);
+    expect(result.manifest.files).toEqual(result.files.map((candidate) => ({
+      path: candidate.path,
+      sizeBytes: candidate.bytes.byteLength,
+      sha256: sha256(candidate.bytes),
+    })));
+    expect(result.manifest.files[0]).toEqual({
+      path: `assets/hero-image.${extension}`,
+      sizeBytes: bytes.byteLength,
+      sha256: sha256(bytes),
+    });
   });
 
   it("rejects missing, extra, and duplicate asset bindings", () => {
@@ -222,13 +406,41 @@ describe("compilePageIRV1", () => {
     expectCompilerError(badMagic, "Compiler asset image magic does not match its media type");
   });
 
-  it("rejects aggregate asset bytes above 100 MiB at the closed request", () => {
-    const input = compilerRequest();
-    input.assets = [
-      { assetId: "hero-image", mediaType: "image/webp", sha256: "a".repeat(64), bytes: new Uint8Array(51 * 1_024 * 1_024) },
-      { assetId: "extra-image", mediaType: "image/webp", sha256: "b".repeat(64), bytes: new Uint8Array(51 * 1_024 * 1_024) },
-    ];
-    expectCompilerError(input, "Invalid Page IR compiler request");
+  it("distinguishes the 100 MiB asset ceiling from candidate-manifest overhead", () => {
+    const input = compilerRequestWithTwoAssets(100 * 1_024 * 1_024);
+    expect(input.assets.reduce((total, asset) => total + asset.bytes.byteLength, 0)).toBe(100 * 1_024 * 1_024);
+    expect(PageIrCompilerRequestV1Schema.safeParse(input).success).toBe(true);
+    expectCompilerError(input, "Compiled Page IR candidate exceeds the closed manifest contract");
+
+    const oneOver = compilerRequestWithTwoAssets(100 * 1_024 * 1_024);
+    const prior = oneOver.assets[1].bytes;
+    const expanded = new Uint8Array(prior.byteLength + 1);
+    expanded.set(prior);
+    oneOver.assets[1].bytes = expanded;
+    oneOver.assets[1].sha256 = sha256(expanded);
+    const parsed = PageIrCompilerRequestV1Schema.safeParse(oneOver);
+    expect(parsed.success).toBe(false);
+    if (parsed.success) throw new Error("one-over compiler request unexpectedly parsed");
+    expect(parsed.error.issues.map((issue) => issue.message)).toContain(
+      "compiler assets exceed the 100 MiB aggregate maximum",
+    );
+  });
+
+  it("accepts two assets whose bytes plus deterministic static overhead equal 100 MiB", () => {
+    const probeAssetBytes = 32;
+    const probe = compilePageIRV1(compilerRequestWithTwoAssets(probeAssetBytes));
+    const staticOverhead = probe.manifest.totalBytes - probeAssetBytes;
+    const result = compilePageIRV1(
+      compilerRequestWithTwoAssets(MAX_CANDIDATE_BYTES - staticOverhead),
+    );
+    expect(result.manifest.totalBytes).toBe(MAX_CANDIDATE_BYTES);
+    expect(result.files.map((candidate) => candidate.path)).toEqual([
+      "assets/hero-image.webp",
+      "assets/secondary-image.webp",
+      "index.html",
+      "site.css",
+      "tokens.css",
+    ]);
   });
 
   it("reparses Page IR through the closed contract", () => {
@@ -281,13 +493,15 @@ describe("compilePageIRV1", () => {
     }
   });
 
-  it("keeps the compiler and hash modules on the pure import boundary", () => {
-    const compilerSource = readFileSync(new URL("./pageIrCompiler.ts", import.meta.url), "utf8");
-    const hashSource = readFileSync(new URL("./pageIrHash.ts", import.meta.url), "utf8");
-    const prohibited = /from ["'](?:node:)?(?:fs|path|http|https|net|tls)["']|from ["']\.\/(?:evidence|pipeline|builder|candidate|openrouter|runstate|gates)["']/;
-    expect(compilerSource).not.toMatch(prohibited);
-    expect(hashSource).not.toMatch(prohibited);
-    expect(compilerSource).not.toMatch(/process\.env|fetch\(|writeFile|publish|provider/i);
-    expect(hashSource).not.toMatch(/process\.env|fetch\(|writeFile|publish|provider/i);
+  it("keeps the recursive compiler/hash import graph pure through liveBundle", () => {
+    const audit = auditPureImportGraph(["./pageIrCompiler.ts", "./pageIrHash.ts"]);
+    const visitedFiles = [...audit.visited].map((href) => new URL(href).pathname.split("/").at(-1));
+    expect(visitedFiles).toEqual(expect.arrayContaining([
+      "pageIrCompiler.ts",
+      "pageIrHash.ts",
+      "liveBundle.ts",
+      "contracts.ts",
+    ]));
+    expect(audit.violations).toEqual([]);
   });
 });
