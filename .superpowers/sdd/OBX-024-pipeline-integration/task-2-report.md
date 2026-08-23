@@ -9,6 +9,7 @@ Code and test commits:
 - `c24dfc3` — `feat: add authority-aware PageIR candidate gates`
 - `fb96ff2` — `fix: ignore CSS token declaration lookalikes`
 - `acee3a1` — `test: define normalized token equivalence`
+- `d962b71` — `test: cover single PageIR call target`
 
 ## Outcome
 
@@ -136,18 +137,42 @@ This rejects the reviewer's byte-identity remedy while retaining its underlying
 non-widening concern through exact-variable, declaration-position, normalized-value,
 and first-family checks.
 
+## Grok 4.6 Task 2 test-proof audit
+
+The audit's one-telephone expected-set finding was accepted as a coverage gap.
+Production already enforced the correct behavior, so the new proof was GREEN on
+its first run and no production change or manufactured RED was needed:
+
+```text
+npm test -- src/lib/gates.candidate.test.ts -t 'single normalized PageIR call target'
+Test Files  1 passed (1)
+Tests       1 passed | 62 skipped (63)
+```
+
+The test uses the default persisted PageIR call action and selects the `assets`
+report by its exact gate name. It asserts the gate's own `pass`, `blocking`, and
+exact `details` fields for all three states:
+
+- exactly `tel:+15550100400` passes with no details;
+- no rendered telephone link fails with the missing expected-target detail; and
+- the expected target plus `tel:+14155550123` fails with the unexpected-target
+  detail.
+
+A setup exception, missing receipt, missing `assets` report, or failure reported by
+another gate cannot satisfy these assertions.
+
 ## Verification
 
 - Focused gate unit tests:
-  `npm test -- src/lib/gates.candidate.test.ts` — PASS, 1 file, 62 tests.
+  `npm test -- src/lib/gates.candidate.test.ts` — PASS, 1 file, 63 tests.
 - Candidate real-browser integration:
   `npm test -- src/lib/gates.candidate.integration.test.ts` — PASS, 1 file,
   2 tests.
 - Combined focused suite:
   `npm test -- src/lib/gates.candidate.test.ts src/lib/gates.candidate.integration.test.ts`
-  — PASS, 2 files, 64 tests.
+  — PASS, 2 files, 65 tests.
 - Full suite: `npm test` — PASS on the fresh final rerun, 80 files passed,
-  4 skipped; 964 tests passed, 4 skipped. The first attempt saw the unrelated
+  4 skipped; 965 tests passed, 4 skipped. The first attempt saw the unrelated
   cross-process timing test
   `imageLibrary > enforces the credit cap across processes with different request ids`
   fail once; that exact test passed immediately in isolation before the clean full
