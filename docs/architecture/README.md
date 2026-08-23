@@ -158,6 +158,33 @@ that the durable gate disposition is `promotable`; absent, `failed`, or
 in place behind this boundary for OBX-014 to reconnect after promotion.
 OBX-015 owns cross-process locking and crash recovery.
 
+`repairFailedCandidate(runId, provider)` accepts only a durable authorized run
+with one closed, inventory-valid `failed` candidate and a strict full-suite
+receipt bound to that candidate's manifest and build hashes. It validates and
+reads the complete candidate before claiming the single durable repair
+allowance, exposes only `index.html` and `tokens.css` to the provider, and
+rejects duplicate or non-allow-listed output. Provider input and aggregate output
+are byte-bounded. Deterministic validation also preserves the HTML element and
+`data-edit-id` structure, scripts, styles, remote-request attributes, CSS
+selectors, and custom-property inventory; an identical result is not a repair
+and releases the allowance.
+
+The repaired files are assembled with all unchanged candidate bytes in a sibling
+staging bundle; a new manifest and `failed -> preparing -> ready-for-gates`
+provenance replace the obsolete gate binding. The whole candidate bundle is
+swapped as one unit with exact rollback on an incomplete commit, after the
+retired source bundle is revalidated. Read, validation, provider, or write
+failure before that swap releases the allowance and leaves the failed candidate
+intact; a completed swap consumes it. Every completed repair then returns through
+`gateBuiltCandidate(runId)`, which runs the same complete gate suite against the
+same closed candidate root and leaves any remaining failure in `failed` state.
+Gate or disposition-publication failure after the swap also fails the candidate
+closed and cannot reopen the provider allowance. Same-process reconnects park a
+completed-but-failed repair instead of rebuilding it. Repair never writes live
+`site/`, the canonical live gate report, or approved evidence. Promotion, crash
+recovery, and cross-process site-authority locking remain owned by OBX-014 and
+OBX-015.
+
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events
 and repeated narrative cards, attach to in-flight emissions, and flush queued

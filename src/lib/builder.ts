@@ -17,6 +17,8 @@ import { mkdir, open, readFile, writeFile, copyFile, rename, rm, stat, lstat } f
 import path from "node:path";
 import { promisify } from "node:util";
 import { compile } from "tailwindcss";
+import * as cheerio from "cheerio";
+import { z } from "zod";
 import { collectDefinedCssVars, findUnresolvedCssVarRefs } from "./cssVars";
 import { assertWebsiteProductionTarget } from "./productionTarget";
 
@@ -39,6 +41,7 @@ import {
   type CopyDoc,
   type Intake,
   type CandidateProvenanceV1,
+  type CandidateGateReceiptV1,
   type SiteManifest,
 } from "./contracts";
 import {
@@ -46,8 +49,15 @@ import {
   createCandidateManifest,
   inspectCandidate,
   transitionCandidateProvenance,
+  validateCandidateInventory,
 } from "./candidate";
-import { candidatePaths, sitePaths } from "./runstate";
+import {
+  candidatePaths,
+  claimBuildGateRepair,
+  loadRun,
+  releaseBuildGateRepair,
+  sitePaths,
+} from "./runstate";
 import { runCandidateGates, type CandidateGateRunResult } from "./gates";
 
 const TEMPLATE_DIR = path.join(process.cwd(), "templates", "local-service");
@@ -149,6 +159,473 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
 export type CandidateGateDisposition = CandidateGateRunResult & {
   state: "failed" | "promotable";
 };
+
+const CANDIDATE_REPAIR_PATHS = ["index.html", "tokens.css"] as const;
+export const CANDIDATE_REPAIR_TEXT_MAX_BYTES = 1024 * 1024;
+const CANDIDATE_REPAIR_REQUEST_MAX_BYTES =
+  CANDIDATE_REPAIR_TEXT_MAX_BYTES - 4096;
+
+export const CandidateRepairPlanSchema = z
+  .object({
+    files: z
+      .array(
+        z
+          .object({
+            path: z.enum(CANDIDATE_REPAIR_PATHS),
+            content: z.string().max(CANDIDATE_REPAIR_TEXT_MAX_BYTES),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(CANDIDATE_REPAIR_PATHS.length),
+  })
+  .strict()
+  .superRefine((plan, context) => {
+    const seen = new Set<string>();
+    for (const [index, file] of plan.files.entries()) {
+      if (seen.has(file.path)) {
+        context.addIssue({
+          code: "custom",
+          path: ["files", index, "path"],
+          message: `duplicate candidate repair path: ${file.path}`,
+        });
+      }
+      seen.add(file.path);
+    }
+    const totalBytes = plan.files.reduce(
+      (total, file) => total + Buffer.byteLength(file.content, "utf8"),
+      0,
+    );
+    if (totalBytes > CANDIDATE_REPAIR_TEXT_MAX_BYTES) {
+      context.addIssue({
+        code: "custom",
+        path: ["files"],
+        message: "candidate repair output exceeds the aggregate repair byte limit",
+      });
+    }
+  });
+export type CandidateRepairPlan = z.infer<typeof CandidateRepairPlanSchema>;
+
+export type CandidateRepairRequest = Readonly<{
+  failures: Readonly<CandidateGateReceiptV1["reports"]>;
+  files: ReadonlyArray<{
+    path: (typeof CANDIDATE_REPAIR_PATHS)[number];
+    content: string;
+  }>;
+}>;
+
+export type CandidateRepairProvider = (
+  request: CandidateRepairRequest,
+) => Promise<unknown>;
+
+type FailedCandidateSnapshot = {
+  paths: ReturnType<typeof candidatePaths>;
+  provenance: CandidateProvenanceV1;
+  manifest: NonNullable<
+    Extract<Awaited<ReturnType<typeof inspectCandidate>>, { status: "present" }>["manifest"]
+  >;
+  receipt: CandidateGateReceiptV1;
+  provenanceBytes: Buffer;
+  manifestBytes: Buffer;
+  receiptBytes: Buffer;
+  siteFiles: Map<string, Buffer>;
+};
+
+async function readFailedCandidateSnapshot(
+  runId: string,
+): Promise<FailedCandidateSnapshot> {
+  const paths = candidatePaths(runId);
+  await assertBuildAuthorized(sitePaths(runId).root, runId);
+  const inspection = await inspectCandidate(runId);
+  if (
+    inspection.status !== "present" ||
+    !inspection.manifest ||
+    inspection.provenance.state !== "failed"
+  ) {
+    throw new Error("candidate repair requires one validated failed candidate");
+  }
+  if (inspection.provenance.history.at(-2)?.state !== "ready-for-gates") {
+    throw new Error("candidate repair requires a failed full-suite disposition");
+  }
+
+  const provenanceBytes = await readStableBuildInput(
+    paths.provenance,
+    "candidate repair provenance",
+  );
+  const manifestBytes = await readStableBuildInput(
+    paths.manifest,
+    "candidate repair manifest",
+  );
+  const receiptBytes = await readStableBuildInput(
+    paths.gates,
+    "candidate repair gate receipt",
+  );
+  const receipt = CandidateGateReceiptV1Schema.parse(
+    JSON.parse(receiptBytes.toString("utf8")),
+  );
+  if (
+    receipt.runId !== runId ||
+    receipt.candidateManifestSha256 !==
+      inspection.provenance.candidateManifestSha256 ||
+    receipt.buildSha256 !== inspection.provenance.buildSha256
+  ) {
+    throw new Error("candidate repair receipt does not match the compiled candidate");
+  }
+  const failures = receipt.reports.filter(
+    (report) => report.blocking && !report.pass,
+  );
+  if (failures.length === 0) {
+    throw new Error("candidate repair requires a blocking gate failure");
+  }
+
+  const siteFiles = new Map<string, Buffer>();
+  for (const file of inspection.manifest.files) {
+    const absolute = path.join(paths.site, ...file.path.split("/"));
+    const bytes = await readStableBuildInput(
+      absolute,
+      `candidate repair source ${file.path}`,
+    );
+    if (bytes.byteLength !== file.sizeBytes || sha256(bytes) !== file.sha256) {
+      throw new Error(`candidate repair source changed: ${file.path}`);
+    }
+    siteFiles.set(file.path, bytes);
+  }
+  for (const required of CANDIDATE_REPAIR_PATHS) {
+    if (!siteFiles.has(required)) {
+      throw new Error(`candidate repair artifact is missing: ${required}`);
+    }
+  }
+  const requestBytes =
+    CANDIDATE_REPAIR_PATHS.reduce(
+      (total, repairPath) => total + siteFiles.get(repairPath)!.byteLength,
+      0,
+    ) + Buffer.byteLength(JSON.stringify(failures), "utf8");
+  if (requestBytes > CANDIDATE_REPAIR_REQUEST_MAX_BYTES) {
+    throw new Error("candidate repair input bytes exceed the repair limit");
+  }
+
+  return {
+    paths,
+    provenance: inspection.provenance,
+    manifest: inspection.manifest,
+    receipt,
+    provenanceBytes,
+    manifestBytes,
+    receiptBytes,
+    siteFiles,
+  };
+}
+
+function createCandidateRepairRequest(
+  snapshot: FailedCandidateSnapshot,
+): CandidateRepairRequest {
+  const request: CandidateRepairRequest = Object.freeze({
+    failures: Object.freeze(
+      snapshot.receipt.reports.filter(
+        (report) => report.blocking && !report.pass,
+      ),
+    ),
+    files: Object.freeze(
+      CANDIDATE_REPAIR_PATHS.map((repairPath) =>
+        Object.freeze({
+          path: repairPath,
+          content: snapshot.siteFiles.get(repairPath)!.toString("utf8"),
+        }),
+      ),
+    ),
+  });
+  if (
+    Buffer.byteLength(JSON.stringify(request), "utf8") >
+    CANDIDATE_REPAIR_REQUEST_MAX_BYTES
+  ) {
+    throw new Error("candidate repair provider request bytes exceed the repair limit");
+  }
+  return request;
+}
+
+function snapshotsMatch(
+  current: FailedCandidateSnapshot,
+  expected: FailedCandidateSnapshot,
+): boolean {
+  if (
+    !current.provenanceBytes.equals(expected.provenanceBytes) ||
+    !current.manifestBytes.equals(expected.manifestBytes) ||
+    !current.receiptBytes.equals(expected.receiptBytes) ||
+    current.siteFiles.size !== expected.siteFiles.size
+  ) {
+    return false;
+  }
+  for (const [relativePath, bytes] of expected.siteFiles) {
+    if (!current.siteFiles.get(relativePath)?.equals(bytes)) return false;
+  }
+  return true;
+}
+
+function nextCandidateTimestamp(provenance: CandidateProvenanceV1): string {
+  const last = Date.parse(provenance.history.at(-1)!.at);
+  return new Date(Math.max(Date.now(), last)).toISOString();
+}
+
+function htmlElementShape(html: string): string {
+  const $ = cheerio.load(html);
+  return $("*")
+    .toArray()
+    .map((element) => {
+      const ancestors = $(element)
+        .parents()
+        .toArray()
+        .reverse()
+        .map((ancestor) => $(ancestor).prop("tagName"))
+        .join("/");
+      return `${ancestors}/${$(element).prop("tagName")}`;
+    })
+    .join("\0");
+}
+
+function htmlElementAddress(
+  $: ReturnType<typeof cheerio.load>,
+  element: Parameters<ReturnType<typeof cheerio.load>>[0],
+): string {
+  return [...$(element).parents().toArray().reverse(), ...$(element).toArray()]
+    .map((node) => `${$(node).prop("tagName")}:${$(node).prevAll().length}`)
+    .join("/");
+}
+
+function htmlAttributeInventory(
+  html: string,
+  predicate: (name: string, value: string) => boolean,
+): string[] {
+  const $ = cheerio.load(html);
+  const inventory: string[] = [];
+  $("*").each((_, element) => {
+    for (const [name, value] of Object.entries($(element).attr() ?? {}).sort()) {
+      if (predicate(name.toLowerCase(), value)) {
+        inventory.push(`${htmlElementAddress($, element)}\0${name.toLowerCase()}\0${value}`);
+      }
+    }
+  });
+  return inventory;
+}
+
+function htmlElementInventory(html: string, selector: string): string[] {
+  const $ = cheerio.load(html);
+  return $(selector)
+    .toArray()
+    .map((element) => $.html(element));
+}
+
+function assertHtmlRepairIsClosed(original: string, proposed: string): void {
+  if (htmlElementShape(proposed) !== htmlElementShape(original)) {
+    throw new Error("candidate repair HTML structure changed");
+  }
+
+  const editIds = (html: string) => {
+    const $ = cheerio.load(html);
+    return $("[data-edit-id]")
+      .toArray()
+      .map(
+        (element) =>
+          `${htmlElementAddress($, element)}\0${$(element).attr("data-edit-id")}`,
+      );
+  };
+  if (JSON.stringify(editIds(proposed)) !== JSON.stringify(editIds(original))) {
+    throw new Error("candidate repair changed required data-edit-id structure");
+  }
+
+  for (const selector of ["script", "style", "meta[http-equiv=refresh]"]) {
+    if (
+      JSON.stringify(htmlElementInventory(proposed, selector)) !==
+      JSON.stringify(htmlElementInventory(original, selector))
+    ) {
+      throw new Error(`candidate repair changed protected ${selector} content`);
+    }
+  }
+
+  const dangerousAttribute = (name: string, value: string) => {
+    if (name.startsWith("on") || name === "srcdoc" || name === "style") return true;
+    if (
+      [
+        "href",
+        "src",
+        "srcset",
+        "action",
+        "formaction",
+        "poster",
+        "data",
+        "ping",
+        "background",
+        "manifest",
+        "cite",
+        "xlink:href",
+        "archive",
+        "codebase",
+      ].includes(name) && /(?:https?:|\/\/|javascript:|data:)/i.test(value)
+    ) {
+      return true;
+    }
+    return name === "style" && /(?:url\s*\(|expression\s*\(|javascript:)/i.test(value);
+  };
+  if (
+    JSON.stringify(htmlAttributeInventory(proposed, dangerousAttribute)) !==
+    JSON.stringify(htmlAttributeInventory(original, dangerousAttribute))
+  ) {
+    throw new Error("candidate repair introduced a script or remote request attribute");
+  }
+}
+
+function closedCssShape(css: string): string {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  if (
+    /(?:@|\\|url\s*\(|image-set\s*\(|expression\s*\(|javascript:|<\/style)/i
+      .test(withoutComments)
+  ) {
+    throw new Error("candidate repair CSS contains a remote or executable expansion");
+  }
+  const rules: Array<{ selector: string; properties: string[] }> = [];
+  const rule = /([^{}]+)\{([^{}]*)\}/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = rule.exec(withoutComments)) !== null) {
+    if (withoutComments.slice(cursor, match.index).trim()) {
+      throw new Error("candidate repair CSS structure is not closed");
+    }
+    const selector = match[1].trim().replace(/\s+/g, " ");
+    if (!selector || selector.startsWith("@")) {
+      throw new Error("candidate repair CSS selector is invalid");
+    }
+    const properties = match[2]
+      .split(";")
+      .map((declaration) => declaration.trim())
+      .filter(Boolean)
+      .map((declaration) => {
+        const separator = declaration.indexOf(":");
+        const property = declaration.slice(0, separator).trim();
+        if (separator <= 0 || !/^--[a-z0-9-]+$/i.test(property)) {
+          throw new Error("candidate repair CSS declaration structure changed");
+        }
+        return property;
+      });
+    rules.push({ selector, properties });
+    cursor = rule.lastIndex;
+  }
+  if (rules.length === 0 || withoutComments.slice(cursor).trim()) {
+    throw new Error("candidate repair CSS structure is not closed");
+  }
+  return JSON.stringify(rules);
+}
+
+function validateCandidateRepairPlan(
+  snapshot: FailedCandidateSnapshot,
+  plan: CandidateRepairPlan,
+): boolean {
+  let changed = false;
+  for (const file of plan.files) {
+    const original = snapshot.siteFiles.get(file.path)!.toString("utf8");
+    if (file.path === "index.html") {
+      assertHtmlRepairIsClosed(original, file.content);
+    } else if (closedCssShape(file.content) !== closedCssShape(original)) {
+      throw new Error("candidate repair CSS structure changed");
+    }
+    changed ||= file.content !== original;
+  }
+  return changed;
+}
+
+async function stageCandidateRepairBundle(
+  snapshot: FailedCandidateSnapshot,
+  plan: CandidateRepairPlan,
+  stagingRoot: string,
+): Promise<void> {
+  const stagingSite = path.join(stagingRoot, SITE_DIR);
+  const replacements = new Map<string, Buffer>(
+    plan.files.map((file) => [file.path, Buffer.from(file.content, "utf8")]),
+  );
+  await fs.mkdir(stagingSite, { recursive: true });
+  for (const file of snapshot.manifest.files) {
+    const target = path.join(stagingSite, ...file.path.split("/"));
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, replacements.get(file.path) ?? snapshot.siteFiles.get(file.path)!, {
+      flag: "wx",
+    });
+  }
+
+  const manifest = await createCandidateManifest(stagingSite);
+  const preparingAt = nextCandidateTimestamp(snapshot.provenance);
+  const preparing = CandidateProvenanceV1Schema.parse({
+    ...snapshot.provenance,
+    state: "preparing",
+    history: [
+      ...snapshot.provenance.history,
+      { state: "preparing", at: preparingAt },
+    ],
+    candidateManifestSha256: candidateManifestSha256(manifest),
+    buildSha256: manifest.buildSha256,
+    gateReportSha256: undefined,
+  });
+  const ready = transitionCandidateProvenance(
+    preparing,
+    "ready-for-gates",
+    nextCandidateTimestamp(preparing),
+    {
+      candidateManifestSha256: candidateManifestSha256(manifest),
+      buildSha256: manifest.buildSha256,
+    },
+  );
+  await fs.writeFile(
+    path.join(stagingRoot, "manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    { flag: "wx" },
+  );
+  await fs.writeFile(
+    path.join(stagingRoot, "provenance.json"),
+    JSON.stringify(ready, null, 2),
+    { flag: "wx" },
+  );
+}
+
+async function commitCandidateRepairBundle(
+  stagingRoot: string,
+  targetRoot: string,
+  snapshot: FailedCandidateSnapshot,
+): Promise<void> {
+  const backupRoot = `${targetRoot}.repair-backup-${process.pid}-${Date.now()}`;
+  await fs.rename(targetRoot, backupRoot);
+  try {
+    const entries = (await fs.readdir(backupRoot)).sort();
+    if (JSON.stringify(entries) !== JSON.stringify(["gates.json", "manifest.json", "provenance.json", "site"])) {
+      throw new Error("candidate repair source root changed before commit");
+    }
+    const backupSite = path.join(backupRoot, SITE_DIR);
+    await validateCandidateInventory(backupSite, snapshot.manifest);
+    for (const [relativePath, expected] of [
+      ["manifest.json", snapshot.manifestBytes],
+      ["provenance.json", snapshot.provenanceBytes],
+      ["gates.json", snapshot.receiptBytes],
+    ] as const) {
+      const observed = await readStableBuildInput(
+        path.join(backupRoot, relativePath),
+        `candidate repair retired ${relativePath}`,
+      );
+      if (!observed.equals(expected)) {
+        throw new Error(`candidate repair source changed before commit: ${relativePath}`);
+      }
+    }
+    await fs.rename(stagingRoot, targetRoot);
+  } catch (error) {
+    try {
+      await fs.rename(backupRoot, targetRoot);
+    } catch (restoreError) {
+      throw new AggregateError(
+        [error, restoreError],
+        "candidate repair commit and restoration both failed",
+      );
+    }
+    throw error;
+  }
+  await fs.rm(backupRoot, { recursive: true, force: true }).catch((error) => {
+    console.warn("[builder] candidate repair backup cleanup failed", error);
+  });
+}
 
 async function atomicWriteCandidateProvenance(
   filePath: string,
@@ -289,6 +766,100 @@ export async function gateBuiltCandidate(
     );
     throw error;
   }
+}
+
+export async function repairFailedCandidate(
+  runId: string,
+  provider: CandidateRepairProvider,
+): Promise<CandidateGateDisposition | undefined> {
+  const run = await loadRun(runId);
+  if ((run.stages.built.gateRepairAttempts ?? 0) > 0) return undefined;
+  const snapshot = await readFailedCandidateSnapshot(runId);
+  const request = createCandidateRepairRequest(snapshot);
+  const claimed = await claimBuildGateRepair(runId);
+  if (!claimed) return undefined;
+
+  const stagingRoot = `${snapshot.paths.root}.repairing-${process.pid}-${Date.now()}`;
+  let repairCompleted = false;
+  try {
+    const plan = CandidateRepairPlanSchema.parse(await provider(request));
+    if (!validateCandidateRepairPlan(snapshot, plan)) {
+      await releaseBuildGateRepair(runId);
+      return undefined;
+    }
+    await fs.rm(stagingRoot, { recursive: true, force: true });
+    await stageCandidateRepairBundle(snapshot, plan, stagingRoot);
+
+    const current = await readFailedCandidateSnapshot(runId);
+    if (!snapshotsMatch(current, snapshot)) {
+      throw new Error("candidate changed during repair");
+    }
+    await commitCandidateRepairBundle(stagingRoot, snapshot.paths.root, snapshot);
+    repairCompleted = true;
+  } catch (error) {
+    if (!repairCompleted) {
+      try {
+        await releaseBuildGateRepair(runId);
+      } catch (releaseError) {
+        throw new AggregateError(
+          [error, releaseError],
+          "candidate repair failed and its allowance could not be released",
+        );
+      }
+    }
+    throw error;
+  } finally {
+    await fs.rm(stagingRoot, { recursive: true, force: true }).catch(() => {});
+  }
+
+  try {
+    return await gateBuiltCandidate(runId);
+  } catch (error) {
+    try {
+      const provenanceBytes = await readStableBuildInput(
+        snapshot.paths.provenance,
+        "repaired candidate provenance",
+      );
+      const provenance = CandidateProvenanceV1Schema.parse(
+        JSON.parse(provenanceBytes.toString("utf8")),
+      );
+      if (provenance.state === "ready-for-gates") {
+        await fs.rm(snapshot.paths.gates, { force: true });
+        await atomicWriteCandidateProvenance(
+          snapshot.paths.provenance,
+          transitionCandidateProvenance(
+            provenance,
+            "failed",
+            nextCandidateTimestamp(provenance),
+          ),
+        );
+      }
+    } catch (failClosedError) {
+      throw new AggregateError(
+        [error, failClosedError],
+        "repaired candidate failed and its failed disposition could not be persisted",
+      );
+    }
+    throw error;
+  }
+}
+
+export async function gateAndRepairBuiltCandidate(
+  runId: string,
+  provider: CandidateRepairProvider,
+): Promise<{
+  disposition: CandidateGateDisposition;
+  repairCompleted: boolean;
+}> {
+  const initial = await gateBuiltCandidate(runId);
+  if (initial.state === "promotable") {
+    return { disposition: initial, repairCompleted: false };
+  }
+  const repaired = await repairFailedCandidate(runId, provider);
+  return {
+    disposition: repaired ?? initial,
+    repairCompleted: repaired !== undefined,
+  };
 }
 
 async function compileSiteToDirectory(

