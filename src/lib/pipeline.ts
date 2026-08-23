@@ -645,7 +645,7 @@ export async function runPipeline(
   }
 
   if (candidateAwaitingPromotion || completedRepairStillFailed) {
-    replayHistory(false);
+    replayHistory(completedRepairStillFailed);
     emit({ type: "cost", usd: run.costUsd });
     return;
   }

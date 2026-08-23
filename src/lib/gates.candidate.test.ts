@@ -13,6 +13,7 @@ import * as builderModule from "./builder";
 import {
   CandidateProvenanceV1Schema,
   type CandidateProvenanceV1,
+  type PipelineEvent,
 } from "./contracts";
 import { runCandidateGates } from "./gates";
 import { runPipeline } from "./pipeline";
@@ -1348,6 +1349,76 @@ describe("failed candidate repair", () => {
       await snapshotTree(first.candidate.paths.root),
       candidateBeforeReconnect,
     );
+  });
+
+  it("replays only the current build error when reconnecting to a consumed failed repair", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId, candidate } = await createFailedRepairCandidate();
+    const provider = vi.fn(async (request: RepairRequest) => ({
+      files: request.files
+        .filter((file) => file.path === "tokens.css")
+        .map((file) => ({ ...file, content: `${file.content}\n/* completed */\n` })),
+    }));
+    expect((await repairFailedCandidate(runId, provider))?.state).toBe("failed");
+    const providerCallsBeforeReconnect = provider.mock.calls.length;
+    const gateCallsBeforeReconnect = gateHarness.state.contrastCalls.length;
+    const candidateBeforeReconnect = await snapshotTree(candidate.paths.root);
+    const staleError: PipelineEvent = {
+      type: "error",
+      message: "stale earlier scan failure",
+    };
+    const currentBuildError: PipelineEvent = {
+      type: "error",
+      message: "blocking candidate gates failed: contrast",
+    };
+    const emit = vi.fn();
+    const executePipeline = vi.fn(async () => {
+      throw new Error("reconnect must not rebuild or call the provider");
+    });
+
+    await runPipeline(runId, emit, {
+      readEvents: vi.fn().mockResolvedValue([
+        staleError,
+        {
+          type: "card",
+          stage: "built",
+          title: "Gates: 1 still blocking failure(s)",
+          body: "contrast failed",
+        },
+        currentBuildError,
+      ]),
+      loadRun,
+      loadArtifact: vi.fn().mockResolvedValue({
+        businessName: "Candidate Co",
+        category: "service",
+        location: "Portland, OR",
+        services: ["Service"],
+        phone: "555-0100",
+        primaryAction: "call",
+        projectTarget: "website",
+        certifications: [],
+        claims: [],
+        vibeWords: [],
+        research: {
+          enabled: false,
+          businessIntelligence: false,
+          referoDesignEvidence: false,
+          allowPaidFirecrawlFallback: false,
+        },
+        uploads: [],
+      }),
+      appendEvent: vi.fn(),
+      inspectCandidate: async () =>
+        (await import("./candidate")).inspectCandidate(runId),
+      executePipeline,
+    });
+
+    expect(executePipeline).not.toHaveBeenCalled();
+    expect(provider).toHaveBeenCalledTimes(providerCallsBeforeReconnect);
+    expect(gateHarness.state.contrastCalls).toHaveLength(gateCallsBeforeReconnect);
+    expect(emit).toHaveBeenCalledWith(currentBuildError);
+    expect(emit).not.toHaveBeenCalledWith(staleError);
+    expectTreeSnapshot(await snapshotTree(candidate.paths.root), candidateBeforeReconnect);
   });
 
   it("consumes the allowance when repaired-candidate gate execution fails", async () => {

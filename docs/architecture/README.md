@@ -180,10 +180,11 @@ intact; a completed swap consumes it. Every completed repair then returns throug
 same closed candidate root and leaves any remaining failure in `failed` state.
 Gate or disposition-publication failure after the swap also fails the candidate
 closed and cannot reopen the provider allowance. Same-process reconnects park a
-completed-but-failed repair instead of rebuilding it. Repair never writes live
-`site/`, the canonical live gate report, or approved evidence. Promotion, crash
-recovery, and cross-process site-authority locking remain owned by OBX-014 and
-OBX-015.
+completed-but-failed repair instead of rebuilding it, replaying only the current
+persisted terminal build error rather than an earlier stale terminal. Repair
+never writes live `site/`, the canonical live gate report, or approved evidence.
+Promotion, crash recovery, and cross-process site-authority locking remain owned
+by OBX-014 and OBX-015.
 
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events
