@@ -39,20 +39,24 @@ import {
   GateReportSchema,
   IntakeSchema,
   CandidateGateReceiptV1Schema,
+  PersistedPageIrV1Schema,
   RunIdSchema,
+  V2DesignContractMetadataSchema,
   type CandidateGateReceiptV1,
   type CandidateProvenanceV1,
   type DesignTokens,
   type GateReport,
+  type PageIRV1,
 } from "./contracts";
 import {
   inspectCandidate,
   validateCandidateInputArtifactHashes,
   validateCandidateInventory,
 } from "./candidate";
-import { candidatePaths } from "./runstate";
+import { candidatePaths, workflowArtifactVersionPath } from "./runstate";
 import { findUnresolvedSheetRefs } from "./cssVars";
 import { gateContrast } from "./contrastGate";
+import { pageIrSha256 } from "./pageIrHash";
 
 export interface RunGatesOptions {
   afterEdit?: boolean;
@@ -67,6 +71,9 @@ export interface CandidateGateRunResult {
 }
 
 type CandidateGateBinding = Readonly<{
+  layoutAuthority: CandidateProvenanceV1["layoutAuthority"];
+  compilerVersion: string;
+  pageIrSha256?: string;
   candidateManifestSha256: string;
   buildSha256: string;
   inputArtifactHashes: ReadonlyArray<
@@ -85,7 +92,18 @@ type GateTarget = Readonly<{
 type GateInputSnapshot = Readonly<{
   relativePath: string;
   sha256?: string;
+  provenanceRequired?: boolean;
+  lineageExpectedSha256?: string;
 }>;
+
+type TelephoneOracle =
+  | Readonly<{ authority: "template-v1"; phone?: string }>
+  | Readonly<{
+      authority: "page-ir-v1";
+      expectedTargets: readonly string[];
+    }>;
+
+type NoJsCheck = readonly [label: string, selector: string];
 
 const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
 const NONBLOCK = constants.O_NONBLOCK ?? 0;
@@ -160,7 +178,7 @@ export function evaluateColorRoleCompliance(
 
 export async function runGates(runId: string, opts: RunGatesOptions = {}): Promise<GateReport[]> {
   const target = createLiveGateTarget(runId, opts);
-  const { allowed, tokens, phone, unresolvedRefs } = await prepareGateInputs(target);
+  const { allowed, tokens, telephoneOracle, unresolvedRefs } = await prepareGateInputs(target);
 
   // afterEdit re-checks only the two invariants amendment B8 calls out by
   // name (token lint + axe) — the full suite still runs on a fresh build.
@@ -173,7 +191,7 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   const reports = await executeGateSuite(target, gateNames, {
     allowed,
     tokens,
-    phone,
+    telephoneOracle,
     unresolvedRefs,
   });
 
@@ -299,6 +317,11 @@ async function createCandidateGateTarget(runId: string): Promise<GateTarget> {
     reportPath: paths.gates,
     navigationUrl: pathToFileURL(path.join(paths.site, "index.html")).href,
     candidateBinding: Object.freeze({
+      layoutAuthority: inspection.provenance.layoutAuthority,
+      compilerVersion: inspection.provenance.compilerVersion,
+      ...(inspection.provenance.pageIrSha256
+        ? { pageIrSha256: inspection.provenance.pageIrSha256 }
+        : {}),
       candidateManifestSha256:
         inspection.provenance.candidateManifestSha256!,
       buildSha256: inspection.provenance.buildSha256!,
@@ -402,15 +425,218 @@ async function snapshotCandidateInput(
     throw new Error(`gate input SHA-256 does not match provenance: ${relativePath}`);
   }
   return {
-    snapshot: { relativePath, sha256: observedSha256 },
+    snapshot: { relativePath, sha256: observedSha256, provenanceRequired: required },
     bytes,
+  };
+}
+
+function canonicalizeGateProof(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeGateProof);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, child]) => [key, canonicalizeGateProof(child)]),
+    );
+  }
+  return value;
+}
+
+function pageIrBindingSetSha256(
+  runId: string,
+  sources: ReadonlyArray<{ kind: string; version: number; sha256: string }>,
+): string {
+  return sha256(
+    JSON.stringify(canonicalizeGateProof({ schemaVersion: 1, runId, sources })),
+  );
+}
+
+async function snapshotLineageInput(
+  target: GateTarget,
+  relativePath: string,
+  expectedSha256: string,
+  label: string,
+): Promise<{ snapshot: GateInputSnapshot; bytes: Buffer }> {
+  const bytes = await readStableRegularFile(
+    path.join(target.runRoot, ...relativePath.split("/")),
+    label,
+  );
+  const observedSha256 = sha256(bytes);
+  if (observedSha256 !== expectedSha256) {
+    throw new Error(`${label} SHA-256 does not match persisted PageIR lineage`);
+  }
+  return {
+    snapshot: {
+      relativePath,
+      sha256: observedSha256,
+      lineageExpectedSha256: expectedSha256,
+    },
+    bytes,
+  };
+}
+
+function pageIrNoJsChecks(pageIr: PageIRV1): readonly NoJsCheck[] {
+  const selector = (id: string) => `[data-edit-id="${id}"]`;
+  const checks: NoJsCheck[] = [
+    ["navigation landmark", selector(pageIr.accessibility.navigationNodeId)],
+    ["main landmark", selector(pageIr.accessibility.mainNodeId)],
+    ["skip target", selector(pageIr.accessibility.skipToNodeId)],
+  ];
+  for (const binding of pageIr.slotBindings) {
+    if (binding.kind === "action") {
+      checks.push([`action slot ${binding.nodeId}`, selector(binding.nodeId)]);
+    }
+  }
+  const visibleContentBindings = pageIr.slotBindings.filter(
+    (binding) => binding.kind === "heading" || binding.kind === "text",
+  );
+  const contentBinding =
+    visibleContentBindings.find(
+      (binding) =>
+        "contentId" in binding &&
+        binding.contentId === pageIr.accessibility.titleContentId,
+    ) ??
+    visibleContentBindings.find((binding) => binding.kind === "heading") ??
+    visibleContentBindings.find((binding) => binding.kind === "text");
+  if (!contentBinding) {
+    throw new Error(
+      "validated PageIR has no visible heading or text slot for the no-JavaScript gate",
+    );
+  }
+  checks.push([`content slot ${contentBinding.nodeId}`, selector(contentBinding.nodeId)]);
+  return Object.freeze(checks.map((check) => Object.freeze(check)));
+}
+
+function normalizedPageIrCallTarget(phone: string): string {
+  return `tel:${phone.replace(/[ ()-]/g, "")}`;
+}
+
+function withCssBoundDesignContractTokens(
+  allowed: AllowedTokens,
+  tokens: DesignTokens,
+  tokensCssText: string,
+): AllowedTokens {
+  const colorRgb = new Set(allowed.colorRgb);
+  const fontFirstFamilies = new Set(allowed.fontFirstFamilies);
+  const declarations = new Map<string, string>();
+  const declarationPattern = /(--[\w-]+)\s*:\s*([^;]+);/g;
+  let match: RegExpExecArray | null;
+  while ((match = declarationPattern.exec(tokensCssText))) {
+    declarations.set(match[1], match[2].trim());
+  }
+  for (const color of tokens.colors) {
+    const declared = declarations.get(color.cssVar);
+    const normalizedDeclared = declared ? colorToRgbString(declared) : undefined;
+    if (
+      normalizedDeclared &&
+      normalizedDeclared === colorToRgbString(color.value)
+    ) {
+      colorRgb.add(normalizedDeclared);
+    }
+  }
+  for (const font of tokens.fonts) {
+    const declared = declarations.get(font.cssVar);
+    const declaredFirstFamily = declared
+      ?.split(",")[0]
+      ?.trim()
+      .replace(/^["']|["']$/g, "")
+      .toLowerCase();
+    if (declaredFirstFamily === font.family.toLowerCase()) {
+      fontFirstFamilies.add(declaredFirstFamily);
+    }
+  }
+  return { colorRgb, fontFirstFamilies };
+}
+
+async function preparePageIrGateInputs(
+  target: GateTarget,
+  allowed: AllowedTokens,
+  tokensCssText: string,
+): Promise<{
+  allowed: AllowedTokens;
+  tokens: DesignTokens;
+  telephoneOracle: TelephoneOracle;
+  noJsChecks: readonly NoJsCheck[];
+  unresolvedRefs: string[];
+  candidateInputSnapshots: readonly GateInputSnapshot[];
+}> {
+  const pageIrInput = await snapshotCandidateInput(target, ARTIFACTS.pageIr, true);
+  const envelope = PersistedPageIrV1Schema.parse(
+    JSON.parse(pageIrInput.bytes!.toString("utf8")),
+  );
+  if (envelope.runId !== path.basename(target.runRoot)) {
+    throw new Error("persisted Page IR does not match the candidate run");
+  }
+  const canonicalPageIrSha256 = pageIrSha256(envelope.pageIr);
+  if (canonicalPageIrSha256 !== envelope.pageIrSha256) {
+    throw new Error("persisted Page IR canonical SHA-256 mismatch");
+  }
+  if (envelope.pageIrSha256 !== target.candidateBinding?.pageIrSha256) {
+    throw new Error("persisted Page IR does not match candidate provenance");
+  }
+  if (
+    pageIrBindingSetSha256(envelope.runId, envelope.lineage.sources) !==
+    envelope.bindingSetSha256
+  ) {
+    throw new Error("persisted Page IR binding-set SHA-256 mismatch");
+  }
+  const designContractLineage = envelope.lineage.sources.find(
+    (source) => source.kind === "design-contract",
+  );
+  if (!designContractLineage) {
+    throw new Error("persisted Page IR has no design-contract lineage binding");
+  }
+  const designContractPath = workflowArtifactVersionPath(
+    "design-contract",
+    designContractLineage.version,
+  );
+  const designContractInput = await snapshotLineageInput(
+    target,
+    designContractPath,
+    designContractLineage.sha256,
+    `PageIR design-contract v${designContractLineage.version}`,
+  );
+  const designContract = V2DesignContractMetadataSchema.parse(
+    JSON.parse(designContractInput.bytes.toString("utf8")),
+  );
+  if (!designContract.designTokens) {
+    throw new Error("PageIR design-contract requires design tokens");
+  }
+  return {
+    allowed: withCssBoundDesignContractTokens(
+      allowed,
+      designContract.designTokens,
+      tokensCssText,
+    ),
+    tokens: designContract.designTokens,
+    telephoneOracle: Object.freeze({
+      authority: "page-ir-v1",
+      expectedTargets: Object.freeze(
+        [
+          ...new Set(
+            envelope.pageIr.actions.flatMap((action) =>
+              action.kind === "call"
+                ? [normalizedPageIrCallTarget(action.phone)]
+                : [],
+            ),
+          ),
+        ].sort(),
+      ),
+    }),
+    noJsChecks: pageIrNoJsChecks(envelope.pageIr),
+    unresolvedRefs: await findUnresolvedSheetRefs(target.siteRoot, tokensCssText),
+    candidateInputSnapshots: Object.freeze([
+      pageIrInput.snapshot,
+      designContractInput.snapshot,
+    ]),
   };
 }
 
 async function prepareGateInputs(target: GateTarget): Promise<{
   allowed: AllowedTokens;
   tokens: DesignTokens;
-  phone?: string;
+  telephoneOracle: TelephoneOracle;
+  noJsChecks?: readonly NoJsCheck[];
   unresolvedRefs: string[];
   candidateInputSnapshots?: readonly GateInputSnapshot[];
 }> {
@@ -431,12 +657,19 @@ async function prepareGateInputs(target: GateTarget): Promise<{
     return {
       allowed,
       tokens,
-      phone: await readIntakePhone(target.runRoot),
+      telephoneOracle: {
+        authority: "template-v1",
+        phone: await readIntakePhone(target.runRoot),
+      },
       unresolvedRefs: await findUnresolvedSheetRefs(
         target.siteRoot,
         tokensCssText,
       ),
     };
+  }
+
+  if (target.candidateBinding.layoutAuthority === "page-ir-v1") {
+    return preparePageIrGateInputs(target, allowed, tokensCssText);
   }
 
   const tokenInput = await snapshotCandidateInput(
@@ -458,7 +691,7 @@ async function prepareGateInputs(target: GateTarget): Promise<{
   return {
     allowed,
     tokens,
-    phone,
+    telephoneOracle: { authority: "template-v1", phone },
     unresolvedRefs: await findUnresolvedSheetRefs(
       target.siteRoot,
       tokensCssText,
@@ -473,7 +706,8 @@ async function executeGateSuite(
   ctx: {
     allowed: AllowedTokens;
     tokens: DesignTokens;
-    phone?: string;
+    telephoneOracle: TelephoneOracle;
+    noJsChecks?: readonly NoJsCheck[];
     unresolvedRefs: string[];
   },
 ): Promise<GateReport[]> {
@@ -504,6 +738,12 @@ async function revalidateCandidateTarget(
     current.siteRoot !== target.siteRoot ||
     current.reportPath !== target.reportPath ||
     current.navigationUrl !== target.navigationUrl ||
+    current.candidateBinding?.layoutAuthority !==
+      target.candidateBinding?.layoutAuthority ||
+    current.candidateBinding?.compilerVersion !==
+      target.candidateBinding?.compilerVersion ||
+    current.candidateBinding?.pageIrSha256 !==
+      target.candidateBinding?.pageIrSha256 ||
     current.candidateBinding?.candidateManifestSha256 !==
       target.candidateBinding?.candidateManifestSha256 ||
     current.candidateBinding?.buildSha256 !==
@@ -514,11 +754,18 @@ async function revalidateCandidateTarget(
     throw new Error("candidate binding changed during gate evaluation");
   }
   for (const before of inputSnapshots) {
-    const after = await snapshotCandidateInput(
-      current,
-      before.relativePath,
-      before.relativePath === ARTIFACTS.tokens,
-    );
+    const after = before.lineageExpectedSha256
+      ? await snapshotLineageInput(
+          current,
+          before.relativePath,
+          before.lineageExpectedSha256,
+          `PageIR lineage input ${before.relativePath}`,
+        )
+      : await snapshotCandidateInput(
+          current,
+          before.relativePath,
+          before.provenanceRequired ?? false,
+        );
     if (after.snapshot.sha256 !== before.sha256) {
       throw new Error(
         `gate input changed during candidate evaluation: ${before.relativePath}`,
@@ -583,7 +830,8 @@ async function runOne(
   ctx: {
     allowed: AllowedTokens;
     tokens: DesignTokens;
-    phone?: string;
+    telephoneOracle: TelephoneOracle;
+    noJsChecks?: readonly NoJsCheck[];
     unresolvedRefs: string[];
     siteDir: string;
   }
@@ -600,9 +848,9 @@ async function runOne(
     case "console-errors":
       return withPage(browser, (page) => gateConsoleErrors(page, url));
     case "assets":
-      return withPage(browser, (page) => gateAssets(page, url, ctx.phone));
+      return withPage(browser, (page) => gateAssets(page, url, ctx.telephoneOracle));
     case "no-js":
-      return gateNoJs(browser, url);
+      return gateNoJs(browser, url, ctx.noJsChecks);
     case "mobile-layout":
       return gateMobileLayout(browser, url);
     case "perf-budget":
@@ -899,7 +1147,15 @@ async function gateConsoleErrors(page: Page, url: string): Promise<GateReport> {
 
 // ---------- (d) assets ----------
 
-async function gateAssets(page: Page, url: string, phone: string | undefined): Promise<GateReport> {
+function normalizeRenderedPageIrTelTarget(href: string): string {
+  return `tel:${href.slice("tel:".length).replace(/[ ()-]/g, "")}`;
+}
+
+async function gateAssets(
+  page: Page,
+  url: string,
+  telephoneOracle: TelephoneOracle,
+): Promise<GateReport> {
   const badResponses: string[] = [];
   page.on("response", (res) => {
     if (!res.ok() && res.status() !== 0) badResponses.push(`${res.status()} ${res.url()}`);
@@ -924,21 +1180,39 @@ async function gateAssets(page: Page, url: string, phone: string | undefined): P
   const telLinks = await page.$$eval("a[href^='tel:']", (els) =>
     els.map((el) => el.getAttribute("href") ?? "")
   );
-  if (phone) {
-    const expectedDigits = phone.replace(/[^\d]/g, "");
-    for (const href of telLinks) {
-      const hrefDigits = href.replace(/[^\d]/g, "");
-      if (hrefDigits !== expectedDigits) {
-        details.push(`tel: link "${href}" does not match intake phone "${phone}"`);
+  if (telephoneOracle.authority === "template-v1") {
+    const phone = telephoneOracle.phone;
+    if (phone) {
+      const expectedDigits = phone.replace(/[^\d]/g, "");
+      for (const href of telLinks) {
+        const hrefDigits = href.replace(/[^\d]/g, "");
+        if (hrefDigits !== expectedDigits) {
+          details.push(`tel: link "${href}" does not match intake phone "${phone}"`);
+        }
+      }
+    } else if (telLinks.length === 0) {
+      details.push("no intake.json phone available and no tel: links found — nothing to verify");
+    }
+  } else {
+    const expected = new Set(telephoneOracle.expectedTargets);
+    const observed = new Set(telLinks.map(normalizeRenderedPageIrTelTarget));
+    for (const href of observed) {
+      if (!expected.has(href)) details.push(`unexpected PageIR tel: target "${href}"`);
+    }
+    for (const href of expected) {
+      if (!observed.has(href)) {
+        details.push(`expected PageIR tel: target "${href}" was not rendered`);
       }
     }
-  } else if (telLinks.length === 0) {
-    details.push("no intake.json phone available and no tel: links found — nothing to verify");
   }
 
   return {
     gate: "assets",
-    pass: details.length === 0 || (details.length === 1 && details[0].startsWith("no intake.json")),
+    pass:
+      details.length === 0 ||
+      (telephoneOracle.authority === "template-v1" &&
+        details.length === 1 &&
+        details[0].startsWith("no intake.json")),
     blocking: true,
     details,
     ranAt: new Date().toISOString(),
@@ -947,17 +1221,22 @@ async function gateAssets(page: Page, url: string, phone: string | undefined): P
 
 // ---------- (e) no-js ----------
 
-async function gateNoJs(browser: import("playwright").Browser, url: string): Promise<GateReport> {
+const TEMPLATE_NO_JS_CHECKS: readonly NoJsCheck[] = [
+  ["hero headline", '[data-edit-id="hero.headline"]'],
+  ["nav", "nav"],
+  ["contact CTA", '[data-edit-id="contact.cta"]'],
+];
+
+async function gateNoJs(
+  browser: import("playwright").Browser,
+  url: string,
+  checks: readonly NoJsCheck[] = TEMPLATE_NO_JS_CHECKS,
+): Promise<GateReport> {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const details: string[] = [];
   try {
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "load" });
-    const checks: Array<[string, string]> = [
-      ["hero headline", '[data-edit-id="hero.headline"]'],
-      ["nav", "nav"],
-      ["contact CTA", '[data-edit-id="contact.cta"]'],
-    ];
     for (const [label, selector] of checks) {
       const visible = await page.locator(selector).first().isVisible().catch(() => false);
       if (!visible) details.push(`${label} (${selector}) not visible with JavaScript disabled`);

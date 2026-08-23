@@ -12,17 +12,27 @@ import { gateBuiltCandidate } from "./builder";
 import * as builderModule from "./builder";
 import {
   CandidateProvenanceV1Schema,
+  type PageIRV1,
   type CandidateProvenanceV1,
   type PipelineEvent,
 } from "./contracts";
 import { runCandidateGates } from "./gates";
+import { pageIrSha256 } from "./pageIrHash";
+import { compilePageIRV1 } from "./pageIrCompiler";
+import {
+  COMPILER_WEBP_BYTES,
+  compilerPageIr,
+  compilerRequest,
+} from "./test-fixtures/pageIrCompilerFixtures";
 import { runPipeline } from "./pipeline";
 import {
   candidatePaths,
   claimBuildGateRepair,
+  createRun,
   ensureRun,
   loadRun,
   sitePaths,
+  workflowArtifactVersionPath,
 } from "./runstate";
 import { withSiteAuthorityLock } from "./siteAuthority";
 
@@ -34,6 +44,15 @@ const gateHarness = vi.hoisted(() => {
     contrastPass: true,
     gotoError: undefined as Error | undefined,
     onNavigate: undefined as ((url: string) => Promise<void>) | undefined,
+    locatorSelectors: [] as string[],
+    telHrefs: [] as string[],
+    renderedElements: [] as Array<{
+      tag: string;
+      editId: string;
+      color: string;
+      backgroundColor: string;
+      fontFamily: string;
+    }>,
   };
   const page = {
     goto: vi.fn(async (url: string) => {
@@ -41,16 +60,23 @@ const gateHarness = vi.hoisted(() => {
       if (state.gotoError) throw state.gotoError;
       await state.onNavigate?.(url);
     }),
-    $$eval: vi.fn(async () => []),
+    $$eval: vi.fn(async (selector: string) => {
+      if (selector === "a[href^='tel:']") return [...state.telHrefs];
+      if (selector === "body *") return [...state.renderedElements];
+      return [];
+    }),
     evaluate: vi.fn(async (fn: unknown) =>
       String(fn).includes("performance.getEntriesByType") ? 1 : [],
     ),
     on: vi.fn(),
     waitForTimeout: vi.fn(async () => undefined),
-    locator: vi.fn(() => ({
-      count: vi.fn(async () => 1),
-      first: vi.fn(() => ({ isVisible: vi.fn(async () => true) })),
-    })),
+    locator: vi.fn((selector: string) => {
+      state.locatorSelectors.push(selector);
+      return {
+        count: vi.fn(async () => 1),
+        first: vi.fn(() => ({ isVisible: vi.fn(async () => true) })),
+      };
+    }),
     context: vi.fn(() => ({
       newCDPSession: vi.fn(async () => ({ send: vi.fn(async () => undefined) })),
     })),
@@ -87,6 +113,9 @@ const gateHarness = vi.hoisted(() => {
       state.contrastPass = true;
       state.gotoError = undefined;
       state.onNavigate = undefined;
+      state.locatorSelectors.length = 0;
+      state.telHrefs.length = 0;
+      state.renderedElements.length = 0;
       vi.clearAllMocks();
     },
   };
@@ -118,6 +147,27 @@ const gateNames = [
 
 function sha256(bytes: string | Buffer): string {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function canonicalizeProof(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeProof);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, child]) => [key, canonicalizeProof(child)]),
+    );
+  }
+  return value;
+}
+
+function bindingSetProofSha256(
+  runId: string,
+  sources: Array<{ kind: string; version: number; sha256: string }>,
+): string {
+  return sha256(
+    JSON.stringify(canonicalizeProof({ schemaVersion: 1, runId, sources })),
+  );
 }
 
 function testRunId(prefix = "candidate-gates"): string {
@@ -219,6 +269,169 @@ async function createReadyCandidate(runId: string) {
   );
   await writeJson(paths.provenance, ready);
   return { paths, manifest, ready };
+}
+
+const pageIrDesignTokens = {
+  colors: [
+    {
+      name: "Compiler canvas",
+      value: "#ffffff",
+      cssVar: "--compiler-canvas",
+      role: "page",
+      forbiddenContexts: [],
+    },
+    {
+      name: "Compiler ink",
+      value: "#172033",
+      cssVar: "--compiler-color",
+      role: "text",
+      forbiddenContexts: [],
+    },
+  ],
+  fonts: [
+    {
+      family: "ui-sans-serif",
+      cssVar: "--compiler-font",
+      weights: [400, 700],
+      role: "body",
+      substitutes: [],
+    },
+  ],
+  typeScale: [],
+  radii: {},
+  spacing: {},
+  borders: {},
+  shadows: {},
+  layers: {},
+  layout: { maxWidthPx: 1200, sectionGapPx: 64, cardPaddingPx: 24 },
+  motion: {
+    easing: "linear",
+    durationMs: { micro: 100, reveal: 200 },
+    revealClasses: [],
+  },
+  componentStates: [],
+  imageryBrief: {
+    subject: "none",
+    lighting: "none",
+    grade: "none",
+    framing: "none",
+    avoid: [],
+  },
+};
+
+async function createReadyPageIrCandidate(
+  runId: string,
+  pageIr: PageIRV1 = compilerPageIr(),
+) {
+  await createRun({
+    id: runId,
+    layoutAuthority: "page-ir-v1",
+    pageIrRolloutPermitted: true,
+  });
+  const runRoot = sitePaths(runId).root;
+  const paths = candidatePaths(runId);
+  const designContractVersion = 3;
+  const designContractPath = workflowArtifactVersionPath(
+    "design-contract",
+    designContractVersion,
+  );
+  const designContractBytes = await writeJson(
+    path.join(runRoot, ...designContractPath.split("/")),
+    {
+      title: "PageIR candidate design contract",
+      contractPath: "evidence/DESIGN.md",
+      sourceLedgerVersion: 1,
+      approvedEvidenceIds: [],
+      exportPaths: [],
+      contractSha256: "a".repeat(64),
+      exportSha256: "b".repeat(64),
+      designTokens: pageIrDesignTokens,
+    },
+  );
+  const lineageSources = [
+    { kind: "evidence", version: 1, sha256: "1".repeat(64) },
+    {
+      kind: "design-contract",
+      version: designContractVersion,
+      sha256: sha256(designContractBytes),
+    },
+    { kind: "token-inventory", version: 1, sha256: "2".repeat(64) },
+    { kind: "tailwind-plan", version: 1, sha256: "3".repeat(64) },
+    { kind: "css-architecture", version: 1, sha256: "4".repeat(64) },
+    { kind: "layout-decision", version: 1, sha256: "5".repeat(64) },
+    { kind: "content", version: 1, sha256: "6".repeat(64) },
+    { kind: "assets", version: 1, sha256: "7".repeat(64) },
+  ];
+  const envelope = {
+    schemaVersion: 1 as const,
+    runId,
+    revision: 1,
+    pageIr,
+    pageIrSha256: pageIrSha256(pageIr),
+    bindingSetSha256: bindingSetProofSha256(runId, lineageSources),
+    lineage: {
+      schemaVersion: 1 as const,
+      runId,
+      purpose: "brochure-local-service" as const,
+      sources: lineageSources,
+      referenceTrace: {
+        mode: "selected" as const,
+        sources: [{
+          alias: "style_alpha",
+          sourceKind: "refero-style" as const,
+          rawReferoId: "raw/style:alpha",
+          traits: ["Strong hero & proof"],
+        }],
+      },
+    },
+  };
+  const pageIrBytes = await writeJson(path.join(runRoot, "page-ir.json"), envelope);
+  const uploadPath = path.join(runRoot, "uploads", "hero.webp");
+  await fs.mkdir(path.dirname(uploadPath), { recursive: true });
+  await fs.writeFile(uploadPath, COMPILER_WEBP_BYTES);
+  const uploadBytes = Buffer.from(COMPILER_WEBP_BYTES);
+  const compilation = compilePageIRV1({ ...compilerRequest(), pageIr });
+  await fs.mkdir(paths.site, { recursive: true });
+  for (const file of compilation.files) {
+    const output = path.join(paths.site, ...file.path.split("/"));
+    await fs.mkdir(path.dirname(output), { recursive: true });
+    await fs.writeFile(output, file.bytes);
+  }
+  await fs.writeFile(paths.manifest, compilation.manifestBytes);
+  const preparing = CandidateProvenanceV1Schema.parse({
+    schemaVersion: 1,
+    candidateId: "candidate-v1",
+    runId,
+    createdAt: "2026-08-22T00:00:00.000Z",
+    state: "preparing",
+    history: [{ state: "preparing", at: "2026-08-22T00:00:00.000Z" }],
+    inputArtifactHashes: [
+      { path: "page-ir.json", sha256: sha256(pageIrBytes) },
+      { path: "uploads/hero.webp", sha256: sha256(uploadBytes) },
+    ],
+    layoutAuthority: "page-ir-v1",
+    compilerVersion: compilation.compilerVersion,
+    pageIrSha256: envelope.pageIrSha256,
+  });
+  const ready = transitionCandidateProvenance(
+    preparing,
+    "ready-for-gates",
+    "2026-08-22T00:00:01.000Z",
+    {
+      candidateManifestSha256: candidateManifestSha256(compilation.manifest),
+      buildSha256: compilation.manifest.buildSha256,
+    },
+  );
+  await writeJson(paths.provenance, ready);
+  return {
+    paths,
+    ready,
+    pageIr,
+    envelope,
+    pageIrPath: path.join(runRoot, "page-ir.json"),
+    designContractPath: path.join(runRoot, ...designContractPath.split("/")),
+    designContractBytes,
+  };
 }
 
 async function writeLiveSentinels(runId: string) {
@@ -488,6 +701,273 @@ describe("candidate gates", () => {
     expect(await fs.readFile(paths.provenance)).toEqual(provenanceBefore);
     expect(ready.state).toBe("ready-for-gates");
     await expectLiveSentinels(runId, sentinels);
+  });
+
+  it("runs every full gate for PageIR authority without template-owned inputs", async () => {
+    const runId = testRunId("page-ir-gates");
+    const candidate = await createReadyPageIrCandidate(runId);
+    const sentinels = await writeLiveSentinels(runId);
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+
+    const result = await runCandidateGates(runId);
+
+    expect(result.receipt.reports.map((report) => report.gate)).toEqual(gateNames);
+    expect(JSON.parse(await fs.readFile(candidate.paths.gates, "utf8"))).toEqual(result.receipt);
+    await expect(fs.stat(path.join(sitePaths(runId).root, "tokens.json")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(path.join(sitePaths(runId).root, "intake.json")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    expect(gateHarness.state.locatorSelectors).toEqual([
+      '[data-edit-id="navigation"]',
+      '[data-edit-id="main"]',
+      '[data-edit-id="hero"]',
+      '[data-edit-id="nav-scroll"]',
+      '[data-edit-id="nav-call"]',
+      '[data-edit-id="nav-email"]',
+      '[data-edit-id="nav-external"]',
+      '[data-edit-id="primary-action"]',
+      '[data-edit-id="page-h1"]',
+    ]);
+    expect(gateHarness.state.locatorSelectors).not.toContain('[data-edit-id="hero.headline"]');
+    expect(gateHarness.state.locatorSelectors).not.toContain('[data-edit-id="contact.cta"]');
+    await expectLiveSentinels(runId, sentinels);
+  });
+
+  it("rejects PageIR design token values not declared by candidate tokens.css", async () => {
+    const candidate = await createReadyPageIrCandidate(testRunId("pgi-token-drift"));
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    gateHarness.state.renderedElements.push({
+      tag: "main",
+      editId: "main",
+      color: "rgb(23, 32, 51)",
+      backgroundColor: "rgb(255, 255, 255)",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    });
+
+    const result = await runCandidateGates(candidate.ready.runId);
+
+    expect(result.receipt.reports.find((report) => report.gate === "token-drift"))
+      .toMatchObject({
+        pass: false,
+        details: [
+          '<main data-edit-id="main"> backgroundColor rgb(255, 255, 255) not in tokens.css',
+        ],
+      });
+  });
+
+  it("rejects invalid PageIR and design-contract authority before browser execution", async () => {
+    const missingPageIr = await createReadyPageIrCandidate(testRunId("pgi-missing"));
+    await fs.rm(missingPageIr.pageIrPath);
+    await expect(runCandidateGates(missingPageIr.ready.runId)).rejects.toThrow(
+      /page-ir\.json|Page IR/i,
+    );
+
+    const tamperedPageIr = await createReadyPageIrCandidate(testRunId("pgi-tamper"));
+    await fs.writeFile(tamperedPageIr.pageIrPath, "{}\n");
+    await expect(runCandidateGates(tamperedPageIr.ready.runId)).rejects.toThrow(
+      /page-ir\.json|Page IR/i,
+    );
+
+    const unboundPageIr = await createReadyPageIrCandidate(testRunId("pgi-unbound"));
+    await writeJson(unboundPageIr.paths.provenance, {
+      ...unboundPageIr.ready,
+      inputArtifactHashes: unboundPageIr.ready.inputArtifactHashes.filter(
+        (input) => input.path !== "page-ir.json",
+      ),
+    });
+    await expect(runCandidateGates(unboundPageIr.ready.runId)).rejects.toThrow(
+      /not bound by provenance.*page-ir\.json/i,
+    );
+
+    const mismatchedPageIrHash = await createReadyPageIrCandidate(testRunId("pgi-prov-hash"));
+    await writeJson(mismatchedPageIrHash.paths.provenance, {
+      ...mismatchedPageIrHash.ready,
+      pageIrSha256: "f".repeat(64),
+    });
+    await expect(runCandidateGates(mismatchedPageIrHash.ready.runId)).rejects.toThrow(
+      /Page IR.*provenance|provenance.*Page IR/i,
+    );
+
+    const missingDesign = await createReadyPageIrCandidate(testRunId("pgi-dc-missing"));
+    await fs.rm(missingDesign.designContractPath);
+    await expect(runCandidateGates(missingDesign.ready.runId)).rejects.toThrow(/design-contract/i);
+
+    const tamperedDesign = await createReadyPageIrCandidate(testRunId("pgi-dc-tamper"));
+    await fs.writeFile(tamperedDesign.designContractPath, "{}\n");
+    await expect(runCandidateGates(tamperedDesign.ready.runId)).rejects.toThrow(
+      /design-contract.*SHA-256|SHA-256.*design-contract/i,
+    );
+
+    const wrongVersion = await createReadyPageIrCandidate(testRunId("pgi-dc-version"));
+    const wrongEnvelope = structuredClone(wrongVersion.envelope);
+    const designLineage = wrongEnvelope.lineage.sources.find(
+      (source) => source.kind === "design-contract",
+    )!;
+    designLineage.version = 4;
+    wrongEnvelope.bindingSetSha256 = bindingSetProofSha256(
+      wrongEnvelope.runId,
+      wrongEnvelope.lineage.sources,
+    );
+    const wrongPageIrBytes = await writeJson(wrongVersion.pageIrPath, wrongEnvelope);
+    await writeJson(wrongVersion.paths.provenance, {
+      ...wrongVersion.ready,
+      inputArtifactHashes: wrongVersion.ready.inputArtifactHashes.map((input) =>
+        input.path === "page-ir.json" ? { ...input, sha256: sha256(wrongPageIrBytes) } : input,
+      ),
+    });
+    await expect(runCandidateGates(wrongVersion.ready.runId)).rejects.toThrow(/design-contract/i);
+
+    const absentTokens = await createReadyPageIrCandidate(testRunId("pgi-dc-tokens"));
+    const designWithoutTokens = JSON.parse(absentTokens.designContractBytes.toString("utf8"));
+    delete designWithoutTokens.designTokens;
+    const designWithoutTokensBytes = await writeJson(
+      absentTokens.designContractPath,
+      designWithoutTokens,
+    );
+    const absentTokensEnvelope = structuredClone(absentTokens.envelope);
+    absentTokensEnvelope.lineage.sources.find(
+      (source) => source.kind === "design-contract",
+    )!.sha256 = sha256(designWithoutTokensBytes);
+    absentTokensEnvelope.bindingSetSha256 = bindingSetProofSha256(
+      absentTokensEnvelope.runId,
+      absentTokensEnvelope.lineage.sources,
+    );
+    const absentTokensPageIrBytes = await writeJson(absentTokens.pageIrPath, absentTokensEnvelope);
+    await writeJson(absentTokens.paths.provenance, {
+      ...absentTokens.ready,
+      inputArtifactHashes: absentTokens.ready.inputArtifactHashes.map((input) =>
+        input.path === "page-ir.json"
+          ? { ...input, sha256: sha256(absentTokensPageIrBytes) }
+          : input,
+      ),
+    });
+    await expect(runCandidateGates(absentTokens.ready.runId)).rejects.toThrow(/design tokens/i);
+
+    expect(gateHarness.launch).not.toHaveBeenCalled();
+  });
+
+  it("rejects linked PageIR authority inputs before browser execution", async () => {
+    const linkedPageIr = await createReadyPageIrCandidate(testRunId("pgi-link"));
+    await fs.link(linkedPageIr.pageIrPath, `${linkedPageIr.pageIrPath}.alias`);
+    await expect(runCandidateGates(linkedPageIr.ready.runId)).rejects.toThrow(
+      /hardlink|non-linked|unavailable/i,
+    );
+
+    const linkedDesign = await createReadyPageIrCandidate(testRunId("pgi-dc-link"));
+    await fs.link(linkedDesign.designContractPath, `${linkedDesign.designContractPath}.alias`);
+    await expect(runCandidateGates(linkedDesign.ready.runId)).rejects.toThrow(
+      /hardlink|non-linked/i,
+    );
+
+    expect(gateHarness.launch).not.toHaveBeenCalled();
+  });
+
+  it.each(["page-ir", "design-contract"] as const)(
+    "invalidates receipt publication when %s bytes mutate during gates",
+    async (input) => {
+      const candidate = await createReadyPageIrCandidate(testRunId("pgi-mutate"));
+      const sentinels = await writeLiveSentinels(candidate.ready.runId);
+      let changed = false;
+      gateHarness.state.onNavigate = async () => {
+        if (changed) return;
+        changed = true;
+        const target = input === "page-ir" ? candidate.pageIrPath : candidate.designContractPath;
+        await fs.appendFile(target, "\n");
+      };
+
+      await expect(runCandidateGates(candidate.ready.runId)).rejects.toThrow(
+        input === "page-ir" ? /Page IR|page-ir\.json/i : /design-contract/i,
+      );
+      await expect(fs.stat(candidate.paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
+      await expectLiveSentinels(candidate.ready.runId, sentinels);
+    },
+  );
+
+  it("revalidates PageIR-derived inputs after receipt staging and before rename", async () => {
+    const candidate = await createReadyPageIrCandidate(testRunId("pgi-pre-rename"));
+    const realWriteFile = fs.writeFile.bind(fs);
+    let changed = false;
+    vi.spyOn(fs, "writeFile").mockImplementation(async (file, data, options) => {
+      const result = await realWriteFile(file, data, options);
+      if (!changed && String(file).includes(".candidate-gates.tmp-")) {
+        changed = true;
+        await realWriteFile(candidate.designContractPath, Buffer.from("{}\n"));
+      }
+      return result;
+    });
+
+    await expect(runCandidateGates(candidate.ready.runId)).rejects.toThrow(/design-contract/i);
+    await expect(fs.stat(candidate.paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("requires exactly the normalized set of PageIR call targets", async () => {
+    const pageIr = structuredClone(compilerPageIr());
+    const footer = pageIr.layoutProgram.nodes.find((node) => node.id === "footer")!;
+    if (footer.kind !== "landmark") throw new Error("footer fixture must be a landmark");
+    footer.childIds.push("footer-call");
+    pageIr.layoutProgram.nodes.push({ id: "footer-call", kind: "slot", slotType: "action" });
+    pageIr.content.push({ id: "secondary-call-label", kind: "text", text: "Call the studio" });
+    pageIr.actions.push({ id: "call-secondary", kind: "call", phone: "+1 (503) 555-0199" });
+    pageIr.slotBindings.push({
+      nodeId: "footer-call",
+      kind: "action",
+      labelContentId: "secondary-call-label",
+      actionId: "call-secondary",
+    });
+
+    const passing = await createReadyPageIrCandidate(testRunId("pgi-tel-pass"), pageIr);
+    gateHarness.state.telHrefs.push("tel:+15550100400", "tel:+15035550199");
+    const passingResult = await runCandidateGates(passing.ready.runId);
+    expect(passingResult.receipt.reports.find((report) => report.gate === "assets"))
+      .toMatchObject({ pass: true, details: [] });
+
+    gateHarness.reset();
+    const missing = await createReadyPageIrCandidate(testRunId("pgi-tel-missing"), pageIr);
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    const missingResult = await runCandidateGates(missing.ready.runId);
+    expect(missingResult.receipt.reports.find((report) => report.gate === "assets")?.details)
+      .toContain('expected PageIR tel: target "tel:+15035550199" was not rendered');
+
+    gateHarness.reset();
+    const unexpected = await createReadyPageIrCandidate(testRunId("pgi-tel-unexpected"), pageIr);
+    gateHarness.state.telHrefs.push(
+      "tel:+15550100400",
+      "tel:+15035550199",
+      "tel:+14155550123",
+    );
+    const unexpectedResult = await runCandidateGates(unexpected.ready.runId);
+    expect(unexpectedResult.receipt.reports.find((report) => report.gate === "assets")?.details)
+      .toContain('unexpected PageIR tel: target "tel:+14155550123"');
+  });
+
+  it("accepts zero PageIR call actions only when no tel target is rendered", async () => {
+    const noCalls = structuredClone(compilerPageIr());
+    noCalls.actions = noCalls.actions.filter((action) => action.kind !== "call");
+    noCalls.slotBindings = noCalls.slotBindings.filter(
+      (binding) => !["nav-call", "primary-action"].includes(binding.nodeId),
+    );
+    noCalls.layoutProgram.nodes = noCalls.layoutProgram.nodes.filter(
+      (node) => !["nav-call", "primary-action"].includes(node.id),
+    );
+    for (const node of noCalls.layoutProgram.nodes) {
+      if (node.kind !== "slot") {
+        node.childIds = node.childIds.filter(
+          (childId) => !["nav-call", "primary-action"].includes(childId),
+        );
+      }
+    }
+
+    const passing = await createReadyPageIrCandidate(testRunId("pgi-zero-pass"), noCalls);
+    const passingResult = await runCandidateGates(passing.ready.runId);
+    expect(passingResult.receipt.reports.find((report) => report.gate === "assets"))
+      .toMatchObject({ pass: true, details: [] });
+
+    gateHarness.reset();
+    const unexpected = await createReadyPageIrCandidate(testRunId("pgi-zero-unexpected"), noCalls);
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    const unexpectedResult = await runCandidateGates(unexpected.ready.runId);
+    expect(unexpectedResult.receipt.reports.find((report) => report.gate === "assets")?.details)
+      .toContain('unexpected PageIR tel: target "tel:+15550100400"');
   });
 
   it("records a complete candidate receipt when a blocking gate fails", async () => {

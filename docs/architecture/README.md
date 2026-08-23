@@ -341,10 +341,17 @@ Page IR v1 tokens carry only IDs and categories, not approved client values or
 foreground/background roles. The compiler therefore emits versioned safe
 category fallbacks; this proves mechanical static determinism only, not
 client-owned visual quality. Human `EVAL-WEB-001` and visual qualification remain
-`NOT_RUN` and require a future explicit contract/version decision. The current
-no-JavaScript gate also assumes frozen template edit IDs and a run-root
-`tokens.json`, so OBX-024 must not claim this compiler inventory is gate-compatible
-until that separate integration mismatch is resolved.
+`NOT_RUN` and require a future explicit contract/version decision. Candidate gates
+now dispatch from immutable layout authority: PageIR candidates bind the strict
+persisted envelope plus its exact versioned design contract, derive telephone and
+no-JavaScript oracles from validated IR, and revalidate both authority snapshots
+before receipt publication. Template candidates retain their existing run-root
+token/intake and fixed-selector behavior. Token drift remains fail-closed: a PageIR
+design value is allowed only when its exact custom property and normalized value are
+declared in candidate `tokens.css`. The current `page-ir-static@1` compiler still
+hard-codes the skip-link white background in `site.css` without declaring that value
+in `tokens.css`, so an exact compiled candidate correctly receives a blocking
+token-drift failure until OBX-022 makes the compiler output gate-compatible.
 
 ### Persisted layout authority and template fallback
 
