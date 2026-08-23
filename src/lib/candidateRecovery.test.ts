@@ -125,6 +125,14 @@ describe("candidate crash recovery", () => {
     await expect(recoverCandidateState(runId)).resolves.toMatchObject({ action, state });
     expect(await fs.readFile(path.join(sitePaths(runId).site, "index.html"), "utf8"))
       .toBe("last-known-good");
+    if (state === "promotable") {
+      expect((await fs.readdir(sitePaths(runId).root)).filter((entry) =>
+        /^\.site-promotion-(?:stage|retired)-/.test(entry)
+      )).toEqual([]);
+      expect(JSON.parse(await fs.readFile(paths.provenance, "utf8"))).toMatchObject({
+        state: "promotable",
+      });
+    }
   });
 
   it("abandons an interrupted preparing candidate and persists a bounded recovery reason", async () => {
@@ -232,6 +240,7 @@ describe("candidate crash recovery", () => {
     const staging = path.join(roots.root, ".site-promotion-stage-123-deadbeefcafe");
     await fs.mkdir(retired, { recursive: true });
     await fs.writeFile(path.join(retired, "index.html"), "last-known-good");
+    const retiredEntriesBefore = await fs.readdir(retired);
     await fs.mkdir(staging, { recursive: true });
     await fs.writeFile(path.join(staging, "index.html"), "uncommitted-new-site");
 
@@ -240,6 +249,7 @@ describe("candidate crash recovery", () => {
     expect(result.action).toBe("absent");
     expect(await fs.readFile(path.join(roots.site, "index.html"), "utf8"))
       .toBe("last-known-good");
+    expect(await fs.readdir(roots.site)).toEqual(retiredEntriesBefore);
     await expect(fs.stat(staging)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(fs.stat(retired)).rejects.toMatchObject({ code: "ENOENT" });
   });

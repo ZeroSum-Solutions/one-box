@@ -87,6 +87,14 @@ const PROMOTION_FAULT_STEPS = [
   "before-rollback",
 ] as const satisfies readonly PromotionFaultStep[];
 
+const PROMOTION_COMMITTED_BEFORE_CRASH = new Set<PromotionFaultStep>([
+  "after-provenance-renamed",
+  "after-provenance-committed",
+  "before-visual-approval-invalidation",
+  "after-visual-approval-invalidation",
+  "before-retired-cleanup",
+]);
+
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
@@ -436,13 +444,19 @@ describe("candidate promotion", () => {
         path.join(prepared.roots.site, "index.html"),
         "utf8",
       );
-      expect(["old-live", "new-live"]).toContain(liveText);
+      const expectedCommitted = PROMOTION_COMMITTED_BEFORE_CRASH.has(faultStep);
+      expect(liveText).toBe(expectedCommitted ? "new-live" : "old-live");
       const siteEntries = (await fs.readdir(prepared.roots.site)).sort();
-      if (liveText === "old-live") {
+      if (!expectedCommitted) {
+        expect(first).toMatchObject({
+          action: "retain-promotable",
+          state: "promotable",
+        });
         expect(siteEntries).toEqual(["index.html", "manifest.json"]);
         expect(JSON.parse(await fs.readFile(prepared.candidate.provenance, "utf8")))
           .toMatchObject({ state: "promotable" });
       } else {
+        expect(first).toMatchObject({ action: "completed", state: "promoted" });
         expect(siteEntries).toEqual([".one-box", "index.html", "manifest.json"]);
         await expect(candidateModule.inspectPromotedLiveBundle(prepared.runId))
           .resolves.toMatchObject({
@@ -456,6 +470,9 @@ describe("candidate promotion", () => {
             promotedBuildSha256: prepared.manifest.buildSha256,
           });
       }
+      expect((await loadRun(prepared.runId)).evidenceWorkflow.artifacts.filter(
+        (artifact) => artifact.artifactType === "visual-qa",
+      )).toHaveLength(expectedCommitted ? 2 : 1);
       expect((await fs.readdir(prepared.roots.root)).filter((entry) =>
         /^\.site-promotion-(?:stage|retired)-/.test(entry)
       )).toEqual([]);
@@ -737,10 +754,12 @@ describe("candidate promotion", () => {
 
     const liveIndex = path.join(prepared.roots.site, "index.html");
     let mutationSettled = false;
+    let mutationEntered = false;
     const mutation = runGuardedMutation({
       runId: prepared.runId,
       snapshotPaths: [liveIndex, path.join(prepared.roots.root, "gates.json")],
       mutate: async () => {
+        mutationEntered = true;
         const exactPromotedBytes = await fs.readFile(liveIndex);
         await fs.writeFile(liveIndex, exactPromotedBytes);
       },
@@ -749,10 +768,12 @@ describe("candidate promotion", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(mutationSettled).toBe(false);
+    expect(mutationEntered).toBe(false);
     expect(await fs.readFile(liveIndex, "utf8")).toBe("new-live");
     releasePromotion();
     await promotion;
     await mutation;
+    expect(mutationEntered).toBe(true);
     expect(await candidateModule.inspectPromotedLiveBundle(prepared.runId))
       .toMatchObject({
         status: "present",
