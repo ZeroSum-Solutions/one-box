@@ -10,10 +10,21 @@ import {
 import { buildTailwindPlan, buildTokenInventory } from "./evidence";
 import {
   PAGE_IR_DERIVATION_KINDS,
+  PageIrDerivationError,
   derivePageIRV1,
   pageIrSha256,
   projectPageTokensV1,
 } from "./pageIrDerivation";
+
+function expectDerivationError(input: unknown, message: string) {
+  try {
+    derivePageIRV1(input);
+    throw new Error("expected Page IR derivation to fail");
+  } catch (error) {
+    expect(error).toBeInstanceOf(PageIrDerivationError);
+    expect((error as Error).message).toBe(message);
+  }
+}
 
 const RUN_ID = "run-derivation";
 const VERSIONS = {
@@ -243,12 +254,53 @@ describe("derivePageIRV1", () => {
   });
 
   it("derives an exact validated Page IR and fixed-order timestamp-free lineage", () => {
-    const result = derivePageIRV1(request());
+    const input = request("campaign-landing");
+    const result = derivePageIRV1(input);
     expect(PageIRV1Schema.parse(result.pageIr)).toEqual(result.pageIr);
     expect(result.pageIrSha256).toBe(pageIrSha256(result.pageIr));
-    expect(result.lineage.sources.map((source) => source.kind)).toEqual(PAGE_IR_DERIVATION_KINDS);
-    expect(result.lineage).not.toHaveProperty("createdAt");
+    expect(result.lineage.runId).toBe(input.runId);
+    expect(result.lineage.purpose).toBe("campaign-landing");
+    expect(result.lineage.sources).toHaveLength(8);
+    for (const [index, kind] of PAGE_IR_DERIVATION_KINDS.entries()) {
+      const source = input.bindings.find((candidate) => candidate.kind === kind)!;
+      expect(result.lineage.sources[index]).toEqual({
+        kind,
+        version: source.version,
+        sha256: source.sha256,
+      });
+      expect(source.runId).toBe(result.lineage.runId);
+    }
+    expect(JSON.stringify(result.lineage)).not.toMatch(/createdAt|generatedAt|timestamp/i);
     expect(result.lineage.referenceTrace.sources[0]).toMatchObject({ alias: "style_alpha", rawReferoId: "raw/style:alpha", traits: ["Strong hero"] });
+  });
+
+  it("projects exact token IDs and categories stably across token-inventory key order", () => {
+    const original = request();
+    const reordered = request();
+    const tokenIndex = reordered.bindings.findIndex((source) => source.kind === "token-inventory");
+    const originalTokenSource = original.bindings[tokenIndex];
+    const tokenValue = reverseObjectKeys(decodeBinding(reordered, "token-inventory"));
+    reordered.bindings[tokenIndex] = binding("token-inventory", tokenValue) as never;
+
+    const expectedTokens = [
+      { id: "color-primary", category: "color" },
+      { id: "font-body", category: "typography" },
+      { id: "text-body", category: "typography" },
+      { id: "space-sm", category: "spacing" },
+      { id: "radius-sm", category: "radius" },
+      { id: "shadow-raised", category: "shadow" },
+      { id: "layout-section-gap", category: "spacing" },
+      { id: "layout-card-padding", category: "spacing" },
+      { id: "motion-ease", category: "motion" },
+      { id: "motion-duration-micro", category: "motion" },
+      { id: "motion-duration-reveal", category: "motion" },
+    ];
+    const first = derivePageIRV1(original);
+    const second = derivePageIRV1(reordered);
+    expect(first.pageIr.tokens).toEqual(expectedTokens);
+    expect(second.pageIr.tokens).toEqual(expectedTokens);
+    expect(reordered.bindings[tokenIndex].sha256).not.toBe(originalTokenSource.sha256);
+    expect(second.pageIrSha256).toBe(first.pageIrSha256);
   });
 
   it("hashes canonical object keys while preserving array order", () => {
@@ -274,21 +326,54 @@ describe("derivePageIRV1", () => {
     expect(input).toEqual(before);
   });
 
-  it.each(["draft", "in-review", "revision-requested", "superseded"])("rejects %s artifact approval", (approvalState) => {
+  it.each(PAGE_IR_DERIVATION_KINDS.flatMap((kind) =>
+    ["draft", "in-review", "revision-requested", "superseded"].map(
+      (approvalState) => [kind, approvalState] as const,
+    ),
+  ))("rejects non-approved %s binding state %s", (kind, approvalState) => {
     const input = request();
-    input.bindings[0].approvalState = approvalState as never;
-    expect(() => derivePageIRV1(input)).toThrow(/approved/i);
+    input.bindings.find((candidate) => candidate.kind === kind)!.approvalState = approvalState as never;
+    expectDerivationError(input, "Every Page IR artifact binding must be approved");
   });
 
-  it("rejects cross-run, version, hash, JSON, schema, and opaque request failures", () => {
-    const cases: Array<ReturnType<typeof request> & Record<string, unknown>> = [];
-    const crossRun = request(); crossRun.bindings[0].runId = "other-run"; cases.push(crossRun);
-    const badVersion = request(); badVersion.bindings[0].version = 0 as never; cases.push(badVersion);
-    const badHash = request(); badHash.bindings[0].sha256 = "0".repeat(64); cases.push(badHash);
-    const badJson = request(); badJson.bindings[0].bytes = new TextEncoder().encode("{ hostile-secret"); badJson.bindings[0].sha256 = sha256(badJson.bindings[0].bytes); cases.push(badJson);
-    const badSchema = request(); replaceArtifact(badSchema, "evidence", (artifact) => { artifact.projectTarget = "web-app"; }); cases.push(badSchema);
-    cases.push({ ...request(), pageIr: { invented: true } });
-    for (const input of cases) expect(() => derivePageIRV1(input)).toThrow();
+  it("rejects cross-run bindings with the run-ID error", () => {
+    const input = request(); input.bindings[0].runId = "other-run";
+    expectDerivationError(input, "Every Page IR artifact binding must use the requested run ID");
+  });
+
+  it("rejects non-positive versions and malformed SHA fields at the request schema", () => {
+    const badVersion = request(); badVersion.bindings[0].version = 0 as never;
+    expectDerivationError(badVersion, "Invalid Page IR derivation request");
+    const malformedSha = request(); malformedSha.bindings[0].sha256 = "not-a-sha";
+    expectDerivationError(malformedSha, "Invalid Page IR derivation request");
+  });
+
+  it("rejects an exact-byte SHA mismatch before parsing", () => {
+    const input = request(); input.bindings[0].sha256 = "0".repeat(64);
+    expectDerivationError(input, "Exact-byte SHA-256 mismatch for evidence artifact");
+  });
+
+  it("rejects malformed artifact JSON without echoing it", () => {
+    const input = request();
+    input.bindings[0].bytes = new TextEncoder().encode("{ hostile-secret");
+    input.bindings[0].sha256 = sha256(input.bindings[0].bytes);
+    expectDerivationError(input, "Invalid evidence artifact JSON");
+  });
+
+  it("separates source-schema rejection from the Website policy", () => {
+    const invalidSchema = request();
+    replaceArtifact(invalidSchema, "evidence", (artifact) => { artifact.projectTarget = "unknown-target"; });
+    expectDerivationError(invalidSchema, "Invalid evidence artifact schema");
+    const nonWebsite = request();
+    replaceArtifact(nonWebsite, "evidence", (artifact) => { artifact.projectTarget = "web-app"; });
+    expectDerivationError(nonWebsite, "Page IR evidence target must be website");
+  });
+
+  it("rejects an opaque assembled Page IR field at the closed request schema", () => {
+    expectDerivationError(
+      { ...request(), pageIr: { invented: true } },
+      "Invalid Page IR derivation request",
+    );
   });
 
   it("rejects missing, duplicate, and unknown artifact kinds", () => {
@@ -304,13 +389,13 @@ describe("derivePageIRV1", () => {
     ["content", "sourceLayoutDecisionVersion"], ["assets", "sourceLayoutDecisionVersion"],
   ] as const)("rejects a mismatched %s.%s version link", (kind, field) => {
     const input = request(); replaceArtifact(input, kind, (artifact) => { artifact[field] = 999; });
-    expect(() => derivePageIRV1(input)).toThrow(/version chain/i);
+    expectDerivationError(input, "Page IR artifact version chain is inconsistent");
   });
 
   it.each(["evidence", "designContract", "tokenInventory", "tailwindPlan", "cssArchitecture"] as const)("rejects a mismatched layout source version for %s", (field) => {
     const input = request();
     replaceArtifact(input, "layout-decision", (artifact) => { (artifact.sourceVersions as Record<string, unknown>)[field] = 999; });
-    expect(() => derivePageIRV1(input)).toThrow(/version chain/i);
+    expectDerivationError(input, "Page IR artifact version chain is inconsistent");
   });
 
   it("rejects design IDs and token/Tailwind attribution swaps", () => {
@@ -328,7 +413,7 @@ describe("derivePageIRV1", () => {
     expect(() => derivePageIRV1(tailwindSwap)).toThrow(/Tailwind/i);
   });
 
-  it("rejects invented or dangling layout, content, token, action, and asset components", () => {
+  it("rejects structurally valid but dangling layout, content, token, action, and asset components", () => {
     const mutations: Array<[keyof ReturnType<typeof artifactValues>, (artifact: Record<string, unknown>) => void]> = [
       ["layout-decision", (artifact) => { (artifact.slotBindings as Array<Record<string, unknown>>)[1].contentId = "invented-content"; }],
       ["layout-decision", (artifact) => { ((artifact.nodeTokenBindings as Array<Record<string, unknown>>)[0].tokens as Record<string, unknown>).color = "invented-token"; }],
@@ -336,29 +421,41 @@ describe("derivePageIRV1", () => {
       ["assets", (artifact) => { artifact.assets = []; }],
       ["layout-decision", (artifact) => {
         const nodes = (artifact.layoutProgram as { nodes: Array<Record<string, unknown>> }).nodes;
-        (nodes.find((node) => node.id === "main")!.childIds as string[]).push("invented-section");
+        const section = nodes.find((node) => node.id === "hero")!;
+        section.childIds = (section.childIds as string[]).map((id) => id === "hero-action" ? "renamed-action" : id);
+        nodes.find((node) => node.id === "hero-action")!.id = "renamed-action";
       }],
     ];
     for (const [kind, mutate] of mutations) {
       const input = request(); replaceArtifact(input, kind, mutate);
-      expect(() => derivePageIRV1(input)).toThrow(/artifact|Page IR/i);
+      expectDerivationError(input, "Derived Page IR failed closed validation");
     }
   });
 
-  it("rejects reference alias, raw-ID, trait attribution, and duplicate trace failures", () => {
-    const mutations: Array<(decision: Record<string, unknown>) => void> = [
-      (decision) => { (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources[0].alias = "invented_alias"; },
-      (decision) => {
+  it("rejects structurally valid reference alias, kind, raw-ID, and trait attribution failures", () => {
+    const mutations: Array<[(decision: Record<string, unknown>) => void, string]> = [
+      [(decision) => { (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources[0].alias = "invented_alias"; }, "Reference trace aliases and kinds must match selected references"],
+      [(decision) => { (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources[0].sourceKind = "refero-screen"; }, "Reference trace aliases and kinds must match selected references"],
+      [(decision) => { (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources[0].rawReferoId = "unknown/raw:id"; }, "Reference trace raw IDs must exist in approved evidence"],
+      [(decision) => {
         const sources = (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources;
         [sources[0].rawReferoId, sources[1].rawReferoId] = [sources[1].rawReferoId, sources[0].rawReferoId];
-      },
-      (decision) => { (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources[0].traits = ["Proof rhythm"]; },
-      (decision) => { const sources = (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources; sources.push({ ...sources[0] }); },
+      }, "Reference trace traits must be attributed to their approved evidence"],
+      [(decision) => { (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources[0].traits = ["Proof rhythm"]; }, "Reference trace traits must be attributed to their approved evidence"],
     ];
-    for (const mutate of mutations) {
+    for (const [mutate, message] of mutations) {
       const input = request(); replaceArtifact(input, "layout-decision", mutate);
-      expect(() => derivePageIRV1(input)).toThrow(/reference|layout-decision/i);
+      expectDerivationError(input, message);
     }
+  });
+
+  it("keeps schema-invalid duplicate reference traces separate from attribution failures", () => {
+    const input = request();
+    replaceArtifact(input, "layout-decision", (decision) => {
+      const sources = (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources;
+      sources.push({ ...sources[0] });
+    });
+    expectDerivationError(input, "Invalid layout-decision artifact schema");
   });
 
   it("accepts explicit-none only with an empty reference trace", () => {
