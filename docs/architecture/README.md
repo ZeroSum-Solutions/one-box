@@ -328,6 +328,19 @@ boundary does not repair compiled files or mutate the live site. Authoritative
 Page IR editing remains with OBX-031. Image is the only Phase 1 Page IR asset
 kind; video and arbitrary embeddable media are not part of v1.
 
+`src/lib/pageIrController.ts` owns the resumable Phase 1 PageIR build sequence.
+A dedicated per-run filesystem lock serializes the one orchestrator source call;
+its strict assetless result is bound to current approved upstream versions plus
+bounded intake/reference facts in `page-ir-source-generation.json` before the
+immutable Source Bundle is proposed. Draft and in-review bundles stop at the
+payload-hash-bound named-human checkpoint. Approval resumes immutable PageIR
+derivation, candidate materialization, the full candidate gate receipt,
+promotion, and exact-live validation from durable state rather than event-log
+claims. Failed PageIR candidates remain parked without repair. Promotion's
+pending visual-QA placeholder is lawfully revision-requested and superseded by
+one real three-width exact-build QA version under site authority; only the
+existing attested all-pass human approval can permit completion.
+
 `src/lib/pageIrCompiler.ts` owns the next pure boundary: numeric-v1 Page IR plus
 an exact in-memory set of hash- and metadata-bound image bytes becomes a sorted
 static inventory, deterministic candidate manifest, and fixed
@@ -357,11 +370,12 @@ drift, and `page-ir-static@1` candidates are stale for materialization.
 ### Persisted layout authority and template fallback
 
 Every run persists one immutable layout authority: `template-v1` for the
-current production path or rollout-gated `page-ir-v1`. The current pipeline and
-template builder reject Page IR authority before recovery, provider, staging,
-or candidate writes. Candidate and promoted-live reads require provenance
-authority to equal the persisted run, so recovery, repair, inspection, and
-promotion cannot blend the two layouts.
+established path or rollout-gated `page-ir-v1`. The pipeline dispatches the
+approved build boundary by that authority; the template builder still rejects
+PageIR authority, while the PageIR controller never enters template synthesis
+or compiled-file repair. Candidate and promoted-live reads require provenance
+authority to equal the persisted run, so recovery, inspection, and promotion
+cannot blend the two layouts.
 
 `createTemplateFallbackRun` is the server-side explicit recovery boundary for a
 failed Page IR run. Under the source lock it validates intake and claimed
