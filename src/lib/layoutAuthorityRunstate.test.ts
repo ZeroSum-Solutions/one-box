@@ -8,11 +8,13 @@ import {
   createTemplateFallbackRun,
   ensureRun,
   failStage,
+  LayoutAuthorityMismatchError,
   loadRun,
   saveArtifact,
   saveRun,
   sitePaths,
   startStage,
+  withRunTransaction,
 } from "./runstate";
 
 const runIds: string[] = [];
@@ -126,9 +128,17 @@ describe("persisted layout authority", () => {
 
 describe("template fallback transaction", () => {
   it.each([
-    ["missing", undefined],
-    ["invalid", { businessName: "Incomplete" }],
-  ] as const)("leaves a failed source unlinked when intake is %s", async (_case, rawIntake) => {
+    ["missing", undefined, "template fallback source intake is missing"],
+    [
+      "invalid",
+      { businessName: "Incomplete" },
+      "template fallback source intake is invalid",
+    ],
+  ] as const)("leaves a failed source unlinked when intake is %s", async (
+    _case,
+    rawIntake,
+    expectedMessage,
+  ) => {
     const sourceRunId = await makeRun({
       layoutAuthority: "page-ir-v1",
       pageIrRolloutPermitted: true,
@@ -144,7 +154,7 @@ describe("template fallback transaction", () => {
 
     await expect(
       createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
-    ).rejects.toThrow();
+    ).rejects.toThrow(expectedMessage);
     const source = await loadRun(sourceRunId);
     if (source.templateFallback) runIds.push(source.templateFallback.childRunId);
     expect(source.templateFallback).toBeUndefined();
@@ -153,6 +163,66 @@ describe("template fallback transaction", () => {
     await expect(
       fs.stat(path.join(sitePaths(sourceRunId).root, fallbackClaimFile)),
     ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a template-authority source without changing run state", async () => {
+    const sourceRunId = await makeRun();
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    const runPath = path.join(sitePaths(sourceRunId).root, RUN_FILE);
+    const before = await fs.readFile(runPath);
+
+    const error = await createTemplateFallbackRun(
+      sourceRunId,
+      "page-ir-compilation-failed",
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(LayoutAuthorityMismatchError);
+    expect(error).toMatchObject({
+      message: "template fallback source requires page-ir-v1 authority; persisted run uses template-v1",
+    });
+    expect(await fs.readFile(runPath)).toEqual(before);
+    expect((await loadRun(sourceRunId)).layoutAuthority).toBe("template-v1");
+    await expect(fs.stat(path.join(sitePaths(sourceRunId).root, fallbackClaimFile)))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a Page IR source with no failed stage before creating a claim", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    const runPath = path.join(sitePaths(sourceRunId).root, RUN_FILE);
+    const before = await fs.readFile(runPath);
+
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).rejects.toThrow("template fallback requires a currently failed stage");
+    expect(await fs.readFile(runPath)).toEqual(before);
+    expect((await loadRun(sourceRunId)).templateFallback).toBeUndefined();
+    await expect(fs.stat(path.join(sitePaths(sourceRunId).root, fallbackClaimFile)))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a failed-then-restarted Page IR source before creating a claim", async () => {
+    const sourceRunId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
+    await failStage(sourceRunId, "built", "compiler failed");
+    await startStage(sourceRunId, "built");
+    const runPath = path.join(sitePaths(sourceRunId).root, RUN_FILE);
+    const before = await fs.readFile(runPath);
+
+    await expect(
+      createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
+    ).rejects.toThrow("template fallback requires a currently failed stage");
+    expect(await fs.readFile(runPath)).toEqual(before);
+    expect((await loadRun(sourceRunId)).stages.built.status).toBe("running");
+    expect((await loadRun(sourceRunId)).templateFallback).toBeUndefined();
+    await expect(fs.stat(path.join(sitePaths(sourceRunId).root, fallbackClaimFile)))
+      .rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("claims one child, snapshots long failures, clones only intake, and freezes the source", async () => {
@@ -168,6 +238,8 @@ describe("template fallback transaction", () => {
     await saveArtifact(sourceRunId, ARTIFACTS.intake, intake);
     await saveArtifact(sourceRunId, ARTIFACTS.pageIr, { prohibited: true });
     await saveArtifact(sourceRunId, ARTIFACTS.visualQa, { prohibited: true });
+    await saveArtifact(sourceRunId, ARTIFACTS.gates, { prohibited: true });
+    await saveArtifact(sourceRunId, ARTIFACTS.evidenceLedger, { prohibited: true });
     await fs.mkdir(path.join(sitePaths(sourceRunId).root, "candidate"), { recursive: true });
     await fs.writeFile(
       path.join(sitePaths(sourceRunId).root, "candidate", "provenance.json"),
@@ -223,6 +295,10 @@ describe("template fallback transaction", () => {
       .rejects.toMatchObject({ code: "ENOENT" });
     await expect(fs.stat(path.join(sitePaths(childRunId).root, ARTIFACTS.visualQa)))
       .rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(path.join(sitePaths(childRunId).root, ARTIFACTS.gates)))
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(path.join(sitePaths(childRunId).root, "evidence")))
+      .rejects.toMatchObject({ code: "ENOENT" });
 
     await expect(
       createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
@@ -238,6 +314,9 @@ describe("template fallback transaction", () => {
     await expect(startStage(sourceRunId, "built")).rejects.toThrow(
       "terminal and immutable",
     );
+    await expect(withRunTransaction(sourceRunId, async ({ state }) => {
+      state.costUsd += 0.1;
+    })).rejects.toThrow("terminal and immutable");
     await expect(
       saveRun({ ...source, templateFallback: undefined }),
     ).rejects.toThrow("terminal and immutable");
@@ -446,6 +525,12 @@ describe("template fallback transaction", () => {
           )) as { childRunId: string };
           claimedChildRunId = claim.childRunId;
           await saveArtifact(claimedChildRunId, ARTIFACTS.pageIr, { prohibited: true });
+          await saveArtifact(claimedChildRunId, ARTIFACTS.gates, { prohibited: true });
+          await saveArtifact(
+            claimedChildRunId,
+            ARTIFACTS.evidenceLedger,
+            { prohibited: true },
+          );
           throw new Error("fault:prohibited-child-artifact");
         },
       },

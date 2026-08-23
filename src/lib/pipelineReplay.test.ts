@@ -72,6 +72,7 @@ describe("pipeline replay", () => {
     expect(recoverCandidateState).not.toHaveBeenCalled();
     expect(executePipeline).not.toHaveBeenCalled();
     expect(dependencies.readEvents).not.toHaveBeenCalled();
+    expect(dependencies.appendEvent).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -431,6 +431,43 @@ describe("candidate inspection and transitions", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("blocks Page IR provenance on a template run and preserves run, candidate, live, and report bytes", async () => {
+    const runId = testRunId("candidate-authority-inverse");
+    const { paths, ready } = await createReadyCandidate(runId);
+    await fs.mkdir(sitePaths(runId).site, { recursive: true });
+    const livePath = path.join(sitePaths(runId).site, "index.html");
+    await fs.writeFile(livePath, "last-known-good");
+    const pageIrReady = CandidateProvenanceV1Schema.parse({
+      ...ready,
+      layoutAuthority: "page-ir-v1",
+      pageIrSha256: "c".repeat(64),
+    });
+    await writeJson(paths.provenance, pageIrReady);
+    const runPath = path.join(sitePaths(runId).root, "run.json");
+    const before = {
+      run: await fs.readFile(runPath),
+      provenance: await fs.readFile(paths.provenance),
+      manifest: await fs.readFile(paths.manifest),
+      index: await fs.readFile(path.join(paths.site, "index.html")),
+      live: await fs.readFile(livePath),
+    };
+
+    await expect(inspectCandidate(runId)).rejects.toThrow(
+      "candidate provenance requires page-ir-v1 authority",
+    );
+    await expect(recoverCandidateState(runId)).resolves.toMatchObject({
+      action: "blocked",
+      reason: expect.stringContaining("candidate provenance requires page-ir-v1 authority"),
+    });
+    expect(await fs.readFile(runPath)).toEqual(before.run);
+    expect(await fs.readFile(paths.provenance)).toEqual(before.provenance);
+    expect(await fs.readFile(paths.manifest)).toEqual(before.manifest);
+    expect(await fs.readFile(path.join(paths.site, "index.html"))).toEqual(before.index);
+    expect(await fs.readFile(livePath)).toEqual(before.live);
+    await expect(fs.stat(path.join(sitePaths(runId).root, "candidate-recovery.json")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("binds promotable inspection to candidate-scoped gates", async () => {
     const runId = testRunId();
     const { paths, ready } = await createReadyCandidate(runId);
