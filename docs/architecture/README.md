@@ -264,11 +264,15 @@ current stage and approval state. For both legacy and evidence-gated runs, a
 promotable candidate suppresses stale live-completion replay or synthesis,
 replays only nonterminal history and current cost, and returns without resuming
 pipeline execution. Stage completion or stale approved visual QA cannot
-synthesize a live terminal. Historical live completion is replayed only when
-it is already recorded and no candidate exists. At an incomplete build stage,
-stale visual QA also cannot pause or bypass the candidate build path. OBX-014
-provides the callable closed promotion and release proof; OBX-024 owns the later
-exactly-once pipeline checkpoint and continuation that invokes it.
+synthesize a live terminal. A recorded template legacy completion is replayed
+only when no candidate exists. A recorded PageIR completion is replayed only
+when the current Source Bundle remains approved, the validated persisted PageIR
+matches the promoted candidate and live provenance, manifest and gate-receipt
+bindings remain exact, and the latest exact-build visual QA still has seven
+passing checks plus its named, attested human approval. At an incomplete build
+stage, stale visual QA also cannot pause or bypass the candidate build path.
+OBX-014 provides the callable closed promotion and release proof; OBX-024 owns
+the exactly-once PageIR checkpoints and continuation that invokes it.
 
 `src/lib/productionTarget.ts` owns the production target policy. Persisted
 contracts continue to parse `website`, `web-app`, and `ios-app` so historical
