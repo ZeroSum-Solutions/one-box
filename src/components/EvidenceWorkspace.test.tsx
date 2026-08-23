@@ -5,7 +5,11 @@ import {
   ArtifactPreview,
   EvidenceWorkspace,
   artifactUrl,
+  isPageIrSourceReviewActive,
+  pageIrSourceApprovalReady,
   syncHumanVisualReviewDraft,
+  syncPageIrSourceReviewDraft,
+  type PageIrSourceReviewView,
 } from "./EvidenceWorkspace";
 import type { RunState } from "../lib/contracts";
 
@@ -445,6 +449,213 @@ describe("EvidenceWorkspace legacy compatibility", () => {
     expect(html).not.toContain("Resume generation");
     expect(html).not.toContain("Approve &amp; continue");
     expect(html).not.toContain("Review note");
+  });
+});
+
+const pageIrBuildRun = {
+  id: "page-ir-run",
+  createdAt: "2026-08-23T12:00:00.000Z",
+  pipelineVersion: "evidence-gated-v2",
+  layoutAuthority: "page-ir-v1",
+  stages: {},
+  costUsd: 0,
+  costCapUsd: 3,
+  modelSlugs: {},
+  referenceMode: "none",
+  evidenceWorkflow: { currentStage: "build", artifacts: [] },
+} as unknown as RunState;
+
+function sourceReview(
+  state: PageIrSourceReviewView["state"],
+  payloadSha256 = "a".repeat(64),
+): PageIrSourceReviewView {
+  const reviewed = state === "approved";
+  return {
+    schemaVersion: 1,
+    bundleVersion: 1,
+    payloadSha256,
+    state,
+    latestTransition: {
+      at: "2026-08-23T12:00:00.000Z",
+      actorKind: state === "draft" ? "system" : "human",
+      actorName: state === "draft" ? "page-ir-source-bundle" : "Devin",
+      ...(state === "rejected" ? { note: "The source chain is wrong." } : {}),
+    },
+    upstreamBindings: [
+      "evidence",
+      "design-contract",
+      "token-inventory",
+      "tailwind-plan",
+      "css-architecture",
+    ].map((kind, index) => ({
+      kind: kind as PageIrSourceReviewView["upstreamBindings"][number]["kind"],
+      version: 1,
+      sha256: String(index + 1).repeat(64),
+    })),
+    sources: {
+      layoutDecision: {
+        version: 1,
+        sha256: "6".repeat(64),
+        value: { schemaVersion: 1, purpose: "brochure-local-service" } as PageIrSourceReviewView["sources"]["layoutDecision"]["value"],
+      },
+      content: {
+        version: 2,
+        sha256: "7".repeat(64),
+        value: { schemaVersion: 1, sourceLayoutDecisionVersion: 1, content: [], actions: [] },
+      },
+      assets: {
+        version: 3,
+        sha256: "8".repeat(64),
+        value: { schemaVersion: 1, sourceLayoutDecisionVersion: 1, assets: [] },
+      },
+    },
+    ...(reviewed
+      ? {
+          humanReview: {
+            reviewerName: "Devin",
+            reviewedAt: "2026-08-23T12:00:00.000Z",
+            payloadSha256,
+            criteria: {
+              layoutDecision: "pass",
+              content: "pass",
+              assets: "pass",
+              upstreamBindings: "pass",
+              sourceChain: "pass",
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+describe("EvidenceWorkspace PageIR Source Bundle review", () => {
+  it("keeps the existing resume-generation state when PageIR has no Source Bundle yet", () => {
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={pageIrBuildRun} />);
+    expect(html).toContain("Draft not generated");
+    expect(html).toContain('href="/?run=page-ir-run"');
+    expect(html).not.toContain("Named human Source Bundle review");
+  });
+
+  it("suppresses Source Bundle review while an earlier approved gate is being browsed", () => {
+    const review = sourceReview("in-review");
+    expect(isPageIrSourceReviewActive(pageIrBuildRun, review, false)).toBe(true);
+    expect(isPageIrSourceReviewActive(pageIrBuildRun, review, true)).toBe(false);
+  });
+
+  it("renders the separate review checkpoint inside Build without a seventh rail item", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("draft")} />
+    );
+
+    expect(html).toContain("PageIR Source Bundle");
+    expect(html.match(/gate-rail__item/g)).toHaveLength(6);
+    expect(html).toContain("Build");
+  });
+
+  it("renders a draft as read-only named review and hides generic approval and editing", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("draft")} />
+    );
+
+    expect(html).toContain("Begin named human review");
+    expect(html).toContain("Reviewer name");
+    expect(html).toContain("Layout decision");
+    expect(html).toContain("Content source");
+    expect(html).toContain("Assets source");
+    expect(html).toContain("Reject Source Bundle");
+    expect(html).not.toContain("Approve &amp; continue");
+    expect(html).not.toContain("Review note");
+    expect(html).not.toContain("Edit current artifact JSON");
+  });
+
+  it("locks the in-review reviewer and starts all five confirmations plus attestation unchecked", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("in-review")} />
+    );
+
+    expect(html).toContain("Reviewer: Devin");
+    for (const label of [
+      "Layout decision",
+      "Content",
+      "Assets",
+      "Upstream bindings",
+      "Source chain",
+    ]) expect(html).toContain(label);
+    expect(html).toContain("I attest that I am the named human reviewer");
+    expect(html).not.toContain('checked=""');
+    expect(html).toContain('disabled=""');
+  });
+
+  it("requires all five confirmations plus explicit attestation for approval", () => {
+    const draft = syncPageIrSourceReviewDraft(undefined, "a".repeat(64));
+    expect(pageIrSourceApprovalReady(draft)).toBe(false);
+    draft.confirmations = {
+      layoutDecision: true,
+      content: true,
+      assets: true,
+      upstreamBindings: true,
+      sourceChain: true,
+    };
+    expect(pageIrSourceApprovalReady(draft)).toBe(false);
+    draft.humanAttestation = true;
+    expect(pageIrSourceApprovalReady(draft)).toBe(true);
+  });
+
+  it("resets reviewer, confirmations, attestation, and rejection note when the payload hash changes", () => {
+    const dirty = syncPageIrSourceReviewDraft(undefined, "a".repeat(64));
+    dirty.reviewerName = "Devin";
+    dirty.confirmations.layoutDecision = true;
+    dirty.humanAttestation = true;
+    dirty.rejectionNote = "Reject it";
+
+    expect(syncPageIrSourceReviewDraft(dirty, "a".repeat(64))).toBe(dirty);
+    expect(syncPageIrSourceReviewDraft(dirty, "b".repeat(64))).toEqual({
+      payloadSha256: "b".repeat(64),
+      reviewerName: "",
+      confirmations: {
+        layoutDecision: false,
+        content: false,
+        assets: false,
+        upstreamBindings: false,
+        sourceChain: false,
+      },
+      humanAttestation: false,
+      rejectionNote: "",
+    });
+  });
+
+  it("shows approved named-human proof and resumes via the truthful main timeline", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("approved")} />
+    );
+
+    expect(html).toContain("Reviewed by Devin");
+    expect(html).toContain("2026-08-23");
+    expect(html).toContain("aaaaaaaaaaaa");
+    expect(html).toContain('href="/?run=page-ir-run"');
+    expect(html).not.toContain("Approve PageIR Source Bundle");
+  });
+
+  it("blocks rejected and superseded bundles without approve or resume actions", () => {
+    for (const state of ["rejected", "superseded"] as const) {
+      const html = renderToStaticMarkup(
+        <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview(state)} />
+      );
+      expect(html).toContain("Start a new run");
+      expect(html).not.toContain("Approve PageIR Source Bundle");
+      expect(html).not.toContain("Resume generation");
+      expect(html).not.toContain('href="/?run=page-ir-run"');
+    }
+  });
+
+  it("preserves template markup exactly when the additive projection is null", () => {
+    const templateRun = { ...pageIrBuildRun, layoutAuthority: "template-v1" } as RunState;
+    const before = renderToStaticMarkup(<EvidenceWorkspace initialRun={templateRun} />);
+    const after = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={templateRun} initialPageIrSourceReview={null} />
+    );
+    expect(after).toBe(before);
+    expect(after).not.toContain("PageIR Source Bundle");
   });
 });
 

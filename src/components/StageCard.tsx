@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { CardLink, CardMap, GateReport, ScanMarketSummary, ScanRosterItem, Stage } from "@/lib/contracts";
+import type { CardLink, CardMap, GateReport, ScanMarketSummary, ScanRosterItem, Stage } from "../lib/contracts";
 
 export type StageCardStatus = "running" | "done" | "failed";
 
@@ -243,6 +243,13 @@ function GateRowList({ gates }: { gates: GateReport[] }) {
           />
           <span className="gate-row__name">{report.gate}</span>
           {!report.blocking && <span className="gate-row__advisory">advisory</span>}
+          {!report.pass && report.details.length > 0 && (
+            <ul className="gate-row__details">
+              {report.details.map((detail, index) => (
+                <li key={`${report.gate}-${index}`}>{detail}</li>
+              ))}
+            </ul>
+          )}
         </li>
       ))}
     </ul>

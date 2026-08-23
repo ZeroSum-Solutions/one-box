@@ -4,6 +4,7 @@ import {
   EVIDENCE_WORKFLOW_STAGES,
   ARTIFACTS,
   HumanVisualReviewCriteriaSchema,
+  PageIrSourceBundleReviewCriteriaV1Schema,
   WorkflowArtifactDraftSchema,
   type HumanVisualReview,
   type WorkflowArtifactType,
@@ -37,8 +38,16 @@ import {
   type PersistedIntakeCompatibility,
   websiteOnlyProductionResponse,
 } from "../../../../lib/productionTarget";
+import {
+  loadPageIrSourceBundleForReview,
+  transitionPageIrSourceBundleReview,
+} from "../../../../lib/pageIrPipeline";
+import { inspectPromotedLiveBundle } from "../../../../lib/candidate";
+import { toPageIrSourceReviewView } from "../../../../components/pageIrSourceReview";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
+const PAYLOAD_SHA256 = z.string().regex(/^[a-f0-9]{64}$/);
+const REVIEWER_NAME = z.string().trim().min(1).max(120);
 
 const ActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("submit"), note: z.string().max(2_000).optional() }),
@@ -66,6 +75,24 @@ const ActionSchema = z.discriminatedUnion("action", [
       "visual QA versions are server-generated"
     ),
   }),
+  z.object({
+    action: z.literal("begin-page-ir-source-bundle-review"),
+    payloadSha256: PAYLOAD_SHA256,
+    reviewerName: REVIEWER_NAME,
+  }).strict(),
+  z.object({
+    action: z.literal("approve-page-ir-source-bundle"),
+    payloadSha256: PAYLOAD_SHA256,
+    reviewerName: REVIEWER_NAME,
+    humanAttestation: z.literal(true),
+    criteria: PageIrSourceBundleReviewCriteriaV1Schema,
+  }).strict(),
+  z.object({
+    action: z.literal("reject-page-ir-source-bundle"),
+    payloadSha256: PAYLOAD_SHA256,
+    reviewerName: REVIEWER_NAME,
+    note: z.string().trim().min(1).max(2_000),
+  }).strict(),
 ]);
 
 function humanReviewPassed(review: Pick<HumanVisualReview, "criteria">): boolean {
@@ -99,13 +126,56 @@ function latestCurrentArtifact(run: Awaited<ReturnType<typeof loadRun>>) {
     .sort((left, right) => right.version - left.version)[0];
 }
 
-function responsePayload(
+function isMissingPageIrSourceBundle(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+async function pageIrSourceReview(
+  run: Awaited<ReturnType<typeof loadRun>>,
+) {
+  if (run.layoutAuthority !== "page-ir-v1") return null;
+  try {
+    return toPageIrSourceReviewView(
+      await loadPageIrSourceBundleForReview(run.id),
+    );
+  } catch (error) {
+    if (isMissingPageIrSourceBundle(error)) return null;
+    throw error;
+  }
+}
+
+async function pageIrPreviewUrl(
+  run: Awaited<ReturnType<typeof loadRun>>,
+): Promise<string | null> {
+  if (run.layoutAuthority === "template-v1") {
+    return run.stages.built.status === "done" ? `/preview/${run.id}` : null;
+  }
+  try {
+    const live = await inspectPromotedLiveBundle(run.id);
+    return live.status === "present" ? `/preview/${run.id}` : null;
+  } catch {
+    return null;
+  }
+}
+
+async function responsePayload(
   run: Awaited<ReturnType<typeof loadRun>>,
   compatibility?: PersistedIntakeCompatibility,
 ) {
   const currentArtifact = latestCurrentArtifact(run);
+  const [sourceReview, previewUrl] = await Promise.all([
+    pageIrSourceReview(run),
+    pageIrPreviewUrl(run),
+  ]);
   return {
     runId: run.id,
+    layoutAuthority: run.layoutAuthority,
+    pageIrSourceReview: sourceReview,
     projectTarget: compatibility?.projectTarget,
     compatibility,
     pipelineVersion: run.pipelineVersion,
@@ -116,8 +186,7 @@ function responsePayload(
       : null,
     resumeUrl: "/api/run",
     resumeMethod: "POST",
-    previewUrl:
-      run.stages.built.status === "done" ? `/preview/${run.id}` : null,
+    previewUrl,
   };
 }
 
@@ -172,7 +241,7 @@ export async function GET(
       rawIntake === null || rawIntake === undefined
         ? undefined
         : classifyPersistedIntakeCompatibility(rawIntake);
-    return Response.json(responsePayload(run, compatibility));
+    return Response.json(await responsePayload(run, compatibility));
   } catch (error) {
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });
@@ -210,7 +279,41 @@ export async function POST(
     }
     const current = latestCurrentArtifact(before);
     const input = parsed.data;
-    if (input.action === "advance") {
+    if (
+      input.action === "begin-page-ir-source-bundle-review" ||
+      input.action === "approve-page-ir-source-bundle" ||
+      input.action === "reject-page-ir-source-bundle"
+    ) {
+      const nextState = input.action === "begin-page-ir-source-bundle-review"
+        ? "in-review"
+        : input.action === "approve-page-ir-source-bundle"
+          ? "approved"
+          : "rejected";
+      try {
+        await transitionPageIrSourceBundleReview(
+          id,
+          input.payloadSha256,
+          nextState,
+          {
+            actorKind: "human",
+            actorName: input.reviewerName,
+            ...(input.action === "approve-page-ir-source-bundle"
+              ? {
+                  humanAttestation: input.humanAttestation,
+                  criteria: input.criteria,
+                }
+              : {}),
+            ...(input.action === "reject-page-ir-source-bundle"
+              ? { note: input.note }
+              : {}),
+          },
+        );
+      } catch (error) {
+        throw new EvidenceWorkflowError(
+          error instanceof Error ? error.message : "PageIR Source Bundle review failed",
+        );
+      }
+    } else if (input.action === "advance") {
       await advanceEvidenceWorkflow(id, input.nextStage);
     } else if (input.action === "save-version") {
       await withRunTransaction(id, async (transaction) => {
@@ -419,7 +522,7 @@ export async function POST(
         );
       }
     }
-    return Response.json(responsePayload(await loadRun(id)));
+    return Response.json(await responsePayload(await loadRun(id)));
   } catch (error) {
     const targetResponse = websiteOnlyProductionResponse(error);
     if (targetResponse) return targetResponse;

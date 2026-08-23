@@ -30,6 +30,11 @@ import {
   UsageMap,
   VariableHierarchy,
 } from "./evidence/ArtifactViewers";
+import type {
+  PageIrSourceReviewCriterion,
+  PageIrSourceReviewView,
+} from "./pageIrSourceReview";
+export type { PageIrSourceReviewView } from "./pageIrSourceReview";
 
 const GATE_LABELS: Record<EvidenceWorkflowStage, string> = {
   evidence: "Evidence",
@@ -97,6 +102,61 @@ const HUMAN_REVIEW_CRITERIA: Array<{
   { key: "businessSpecificity", label: "Business specificity (not a generic template)", description: "The result looks and reads as specific to this business." },
   { key: "designAndReferenceAlignment", label: "DESIGN.md and reference alignment", description: "The rendered result aligns with the approved design contract and selected references." },
 ];
+
+const PAGE_IR_SOURCE_REVIEW_CRITERIA = [
+  ["layoutDecision", "Layout decision"],
+  ["content", "Content"],
+  ["assets", "Assets"],
+  ["upstreamBindings", "Upstream bindings"],
+  ["sourceChain", "Source chain"],
+] as const;
+
+export interface PageIrSourceReviewDraft {
+  payloadSha256: string | null;
+  reviewerName: string;
+  confirmations: Record<PageIrSourceReviewCriterion, boolean>;
+  humanAttestation: boolean;
+  rejectionNote: string;
+}
+
+export function syncPageIrSourceReviewDraft(
+  current: PageIrSourceReviewDraft | undefined,
+  payloadSha256: string | null,
+): PageIrSourceReviewDraft {
+  if (current?.payloadSha256 === payloadSha256) return current;
+  return {
+    payloadSha256,
+    reviewerName: "",
+    confirmations: {
+      layoutDecision: false,
+      content: false,
+      assets: false,
+      upstreamBindings: false,
+      sourceChain: false,
+    },
+    humanAttestation: false,
+    rejectionNote: "",
+  };
+}
+
+export function pageIrSourceApprovalReady(
+  draft: PageIrSourceReviewDraft,
+): boolean {
+  return draft.humanAttestation && Object.values(draft.confirmations).every(Boolean);
+}
+
+export function isPageIrSourceReviewActive(
+  run: RunState,
+  review: PageIrSourceReviewView | null,
+  browsing: boolean,
+): boolean {
+  return (
+    !browsing &&
+    run.layoutAuthority === "page-ir-v1" &&
+    run.evidenceWorkflow.currentStage === "build" &&
+    review !== null
+  );
+}
 
 function emptyHumanReviewCriteria(): Record<HumanReviewCriterionKey, HumanReviewDraftCriterion> {
   return Object.fromEntries(
@@ -755,15 +815,202 @@ export function ArtifactPreview({
   }
 }
 
+function PageIrSourceSnapshot({ review }: { review: PageIrSourceReviewView }) {
+  const sources = [
+    ["Layout decision", review.sources.layoutDecision],
+    ["Content source", review.sources.content],
+    ["Assets source", review.sources.assets],
+  ] as const;
+  return (
+    <div className="evidence-readable">
+      <p className="mono-meta">
+        Bundle v{review.bundleVersion} · payload {review.payloadSha256}
+      </p>
+      <section>
+        <p className="eyebrow">{"{ upstream bindings }"}</p>
+        <ul className="finding-list">
+          {review.upstreamBindings.map((binding) => (
+            <li key={binding.kind}>
+              <strong>{binding.kind} v{binding.version}</strong>
+              <code>{binding.sha256}</code>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {sources.map(([title, source]) => (
+        <section key={title}>
+          <p className="eyebrow">{`{ ${title} }`}</p>
+          <p className="mono-meta">v{source.version} · {source.sha256}</p>
+          <pre>{JSON.stringify(source.value, null, 2)}</pre>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function PageIrSourceReviewPanel({
+  runId,
+  review,
+  draft,
+  busy,
+  setDraft,
+  submit,
+}: {
+  runId: string;
+  review: PageIrSourceReviewView;
+  draft: PageIrSourceReviewDraft;
+  busy: boolean;
+  setDraft: (next: PageIrSourceReviewDraft) => void;
+  submit: (body: Record<string, unknown>) => void;
+}) {
+  const reviewerName = review.state === "draft"
+    ? draft.reviewerName
+    : review.latestTransition.actorName;
+  const canReject = reviewerName.trim().length > 0 && draft.rejectionNote.trim().length > 0;
+  const sourceCriteria = Object.fromEntries(
+    PAGE_IR_SOURCE_REVIEW_CRITERIA.map(([key]) => [key, "pass"]),
+  );
+
+  if (review.state === "approved" && review.humanReview) {
+    return (
+      <div className="evidence-readable">
+        <PageIrSourceSnapshot review={review} />
+        <section aria-label={`PageIR Source Bundle review by ${review.humanReview.reviewerName}`}>
+          <p className="eyebrow">{"{ named human source review }"}</p>
+          <h3>Reviewed by {review.humanReview.reviewerName}</h3>
+          <p className="mono-meta">
+            {review.humanReview.reviewedAt.slice(0, 10)} · payload {review.humanReview.payloadSha256.slice(0, 12)}
+          </p>
+          <ul className="finding-list">
+            {PAGE_IR_SOURCE_REVIEW_CRITERIA.map(([key, label]) => (
+              <li key={key}><strong>{label}</strong><span>{review.humanReview!.criteria[key]}</span></li>
+            ))}
+          </ul>
+          <Link className="btn-primary" href={`/?run=${runId}`}>
+            Resume generation
+          </Link>
+        </section>
+      </div>
+    );
+  }
+
+  if (review.state === "rejected" || review.state === "superseded") {
+    return (
+      <div className="evidence-readable">
+        <PageIrSourceSnapshot review={review} />
+        <div className="state-card" role="status">
+          <span className="state-card__label">blocked</span>
+          <p className="state-card__title">Source Bundle {review.state}</p>
+          <p className="state-card__body">
+            {review.latestTransition.note ?? "This immutable Source Bundle cannot continue."} Start a new run.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="evidence-readable">
+      <PageIrSourceSnapshot review={review} />
+      <section aria-labelledby="page-ir-source-review-title">
+        <h3 id="page-ir-source-review-title">Named human Source Bundle review</h3>
+        {review.state === "draft" ? (
+          <>
+            <label className="evidence-note">
+              Reviewer name
+              <input
+                value={draft.reviewerName}
+                onChange={(event) => setDraft({ ...draft, reviewerName: event.target.value })}
+                autoComplete="name"
+              />
+            </label>
+            <button
+              className="btn-primary"
+              disabled={busy || !draft.reviewerName.trim()}
+              onClick={() => submit({
+                action: "begin-page-ir-source-bundle-review",
+                payloadSha256: review.payloadSha256,
+                reviewerName: draft.reviewerName.trim(),
+              })}
+            >
+              Begin named human review
+            </button>
+          </>
+        ) : (
+          <>
+            <p>Reviewer: {reviewerName}</p>
+            {PAGE_IR_SOURCE_REVIEW_CRITERIA.map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={draft.confirmations[key]}
+                  onChange={(event) => setDraft({
+                    ...draft,
+                    confirmations: {
+                      ...draft.confirmations,
+                      [key]: event.target.checked,
+                    },
+                  })}
+                /> {label}
+              </label>
+            ))}
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.humanAttestation}
+                onChange={(event) => setDraft({ ...draft, humanAttestation: event.target.checked })}
+              /> I attest that I am the named human reviewer
+            </label>
+            <button
+              className="btn-primary"
+              disabled={busy || !pageIrSourceApprovalReady(draft)}
+              onClick={() => submit({
+                action: "approve-page-ir-source-bundle",
+                payloadSha256: review.payloadSha256,
+                reviewerName,
+                humanAttestation: true,
+                criteria: sourceCriteria,
+              })}
+            >
+              Approve PageIR Source Bundle
+            </button>
+          </>
+        )}
+        <label className="evidence-note">
+          Rejection note
+          <textarea
+            value={draft.rejectionNote}
+            onChange={(event) => setDraft({ ...draft, rejectionNote: event.target.value })}
+          />
+        </label>
+        <button
+          className="btn-coral"
+          disabled={busy || !canReject}
+          onClick={() => submit({
+            action: "reject-page-ir-source-bundle",
+            payloadSha256: review.payloadSha256,
+            reviewerName: reviewerName.trim(),
+            note: draft.rejectionNote.trim(),
+          })}
+        >
+          Reject Source Bundle
+        </button>
+      </section>
+    </div>
+  );
+}
+
 export function EvidenceWorkspace({
   initialRun,
   compatibility,
+  initialPageIrSourceReview = null,
   requiredReferenceContext = initialRun.referenceMode === "none"
     ? "explicit-no-reference"
     : "design-and-references",
 }: {
   initialRun: RunState;
   compatibility?: PersistedIntakeCompatibility;
+  initialPageIrSourceReview?: PageIrSourceReviewView | null;
   requiredReferenceContext?: RequiredReferenceContext;
 }) {
   const legacyReadOnly = compatibility?.readOnly === true;
@@ -771,6 +1018,15 @@ export function EvidenceWorkspace({
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pageIrSourceReview, setPageIrSourceReview] = useState(initialPageIrSourceReview);
+  const sourceReviewIdentity = pageIrSourceReview?.payloadSha256 ?? null;
+  const [storedPageIrSourceDraft, setStoredPageIrSourceDraft] = useState<PageIrSourceReviewDraft>(
+    () => syncPageIrSourceReviewDraft(undefined, sourceReviewIdentity),
+  );
+  const pageIrSourceDraft = syncPageIrSourceReviewDraft(
+    storedPageIrSourceDraft,
+    sourceReviewIdentity,
+  );
   const current = useMemo(() => latestCurrentArtifact(run), [run]);
   const approval = current ? workflowArtifactApprovalState(current) : null;
   const humanReviewIdentity = current?.artifactType === "visual-qa"
@@ -804,6 +1060,13 @@ export function EvidenceWorkspace({
     setRun(initialRun);
     setDraftText(refreshed ? JSON.stringify(refreshed.artifact, null, 2) : "");
   }
+  const [serverPageIrSourceReview, setServerPageIrSourceReview] = useState(
+    initialPageIrSourceReview,
+  );
+  if (serverPageIrSourceReview !== initialPageIrSourceReview) {
+    setServerPageIrSourceReview(initialPageIrSourceReview);
+    setPageIrSourceReview(initialPageIrSourceReview);
+  }
 
   const currentIndex = EVIDENCE_WORKFLOW_STAGES.indexOf(
     run.evidenceWorkflow.currentStage
@@ -821,8 +1084,14 @@ export function EvidenceWorkspace({
   const shown = useMemo(() => latestArtifactForStage(run, shownStage), [run, shownStage]);
   const shownApproval = shown ? workflowArtifactApprovalState(shown) : null;
   const palette = useMemo(() => buildPaletteLookup(run), [run]);
+  const sourceReviewActive = isPageIrSourceReviewActive(
+    run,
+    pageIrSourceReview,
+    browsing,
+  );
   const canApproveAndContinue = Boolean(
     !legacyReadOnly &&
+      !sourceReviewActive &&
       current &&
       current.artifactType !== "visual-qa" &&
       (approval === "draft" || approval === "in-review" || (approval === "approved" && nextStage))
@@ -832,6 +1101,7 @@ export function EvidenceWorkspace({
   // gate can be entered and never left (BLOCKER: draft has no exit control).
   const canSubmitVisualQaDraft = Boolean(
     !legacyReadOnly &&
+      !sourceReviewActive &&
       current &&
       current.artifactType === "visual-qa" &&
       approval === "draft"
@@ -841,6 +1111,7 @@ export function EvidenceWorkspace({
   // header actionless while the save control waits at the panel's bottom.
   const canSaveRevisionFromHeader = Boolean(
     !legacyReadOnly &&
+      !sourceReviewActive &&
       current &&
       current.artifactType !== "visual-qa" &&
       approval === "revision-requested"
@@ -864,12 +1135,19 @@ export function EvidenceWorkspace({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const result = (await response.json()) as { error?: string; workflow?: RunState["evidenceWorkflow"] };
+      const result = (await response.json()) as {
+        error?: string;
+        workflow?: RunState["evidenceWorkflow"];
+        pageIrSourceReview?: PageIrSourceReviewView | null;
+      };
       if (!response.ok || !result.workflow) throw new Error(result.error ?? "Evidence action failed");
       const updated = { ...run, evidenceWorkflow: result.workflow };
       setRun(updated);
       const updatedCurrent = latestCurrentArtifact(updated);
       setDraftText(updatedCurrent ? JSON.stringify(updatedCurrent.artifact, null, 2) : "");
+      if (result.pageIrSourceReview !== undefined) {
+        setPageIrSourceReview(result.pageIrSourceReview);
+      }
       setNote("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Evidence action failed");
@@ -1074,8 +1352,14 @@ export function EvidenceWorkspace({
         <section className="artifact-panel card-surface" aria-live="polite">
           <div className="artifact-panel__head">
             <div>
-              <h2>{shown ? ARTIFACT_TITLES[shown.artifactType] : "Draft not generated"}</h2>
-              {shown && (
+              <h2>
+                {sourceReviewActive
+                  ? "PageIR Source Bundle"
+                  : shown
+                    ? ARTIFACT_TITLES[shown.artifactType]
+                    : "Draft not generated"}
+              </h2>
+              {!sourceReviewActive && shown && (
                 <p className="artifact-panel__prov mono-meta">
                   {shownStage} · v{shown.version} · {shownApproval}
                 </p>
@@ -1131,7 +1415,16 @@ export function EvidenceWorkspace({
             <p className="artifact-panel__recap mono-meta">Prior approvals: {priorApprovalsRecap(run)}</p>
           )}
 
-          {shown ? (
+          {sourceReviewActive && pageIrSourceReview ? (
+            <PageIrSourceReviewPanel
+              runId={run.id}
+              review={pageIrSourceReview}
+              draft={pageIrSourceDraft}
+              busy={busy}
+              setDraft={setStoredPageIrSourceDraft}
+              submit={(body) => void action(body)}
+            />
+          ) : shown ? (
             <>
               <ArtifactPreview artifact={shown} runId={run.id} palette={palette} />
               {!browsing && approval === "revision-requested" && current?.artifactType !== "visual-qa" && (
@@ -1160,11 +1453,11 @@ export function EvidenceWorkspace({
 
           {/* Every action that reads the note is gated on an artifact, so a
               stage with no draft must not show the field at all. */}
-          {!legacyReadOnly && current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
+          {!legacyReadOnly && !sourceReviewActive && current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
             Review note
             <textarea value={note} onChange={(event) => setNote(event.target.value)} />
           </label>}
-          {!legacyReadOnly && approval === "in-review" && current?.artifactType === "visual-qa" && (
+          {!legacyReadOnly && !sourceReviewActive && approval === "in-review" && current?.artifactType === "visual-qa" && (
             <section className="evidence-readable" aria-labelledby="human-visual-review-title">
               <h3 id="human-visual-review-title">Human visual review</h3>
               <p>Only a person can submit this decision. Gemini and other model audits stay advisory and cannot fill this review.</p>
@@ -1201,25 +1494,25 @@ export function EvidenceWorkspace({
           {error && <p className="chat-error" role="alert">{error}</p>}
 
           <div className="evidence-actions">
-            {current?.artifactType === "visual-qa" && approval !== "approved" && (
+            {!sourceReviewActive && current?.artifactType === "visual-qa" && approval !== "approved" && (
               <Link className="btn-ghost" href={`/preview/${run.id}`}>
                 Open build preview
               </Link>
             )}
-            {!legacyReadOnly && !current && (
+            {!legacyReadOnly && !sourceReviewActive && !current && (
               <Link className="btn-ghost" href={`/?run=${run.id}`}>
                 Resume generation
               </Link>
             )}
-            {!legacyReadOnly && approval === "in-review" && current?.artifactType === "visual-qa" && (
+            {!legacyReadOnly && !sourceReviewActive && approval === "in-review" && current?.artifactType === "visual-qa" && (
               <button className="btn-primary" disabled={busy || !humanReviewReady} onClick={submitHumanReview}>Submit human visual review</button>
             )}
-            {!legacyReadOnly && approval === "revision-requested" && current?.artifactType === "visual-qa" && (
+            {!legacyReadOnly && !sourceReviewActive && approval === "revision-requested" && current?.artifactType === "visual-qa" && (
               <button className="btn-ghost" disabled={busy} onClick={() => void action({ action: "regenerate-visual-qa" })}>
                 Regenerate visual QA from current build
               </button>
             )}
-            {approval === "approved" && !nextStage && (
+            {!sourceReviewActive && approval === "approved" && !nextStage && (
               <Link className="btn-primary" href={`/preview/${run.id}`}>Open approved build</Link>
             )}
           </div>

@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { CostChip } from "@/components/CostChip";
-import { MarketFeature, collectMarketIntel } from "@/components/MarketFeature";
-import { STAGE_DOT, STAGE_LABEL, StageCard, type StageCardStatus } from "@/components/StageCard";
-import { pipelineStatusLabel } from "@/components/resumeRun";
-import { isResumeNoise, type PipelineEvent, type Stage } from "@/lib/contracts";
+import { CostChip } from "./CostChip";
+import { MarketFeature, collectMarketIntel } from "./MarketFeature";
+import { STAGE_DOT, STAGE_LABEL, StageCard, type StageCardStatus } from "./StageCard";
+import { pipelineStatusLabel } from "./resumeRun";
+import { isResumeNoise, type PipelineEvent, type Stage } from "../lib/contracts";
 
 export interface TimelineItem {
   key: string;
@@ -91,6 +91,7 @@ export function timelineNode(item: TimelineItem, runId: string, dropMap = false)
           map={dropMap ? undefined : event.map}
           roster={event.roster}
           market={event.market}
+          gates={event.gates}
         />
       );
     case "error":
@@ -110,6 +111,20 @@ export function timelineNode(item: TimelineItem, runId: string, dropMap = false)
           title="Pick a look for your site"
           body={event.note}
           links={[{ kind: "artifact", label: "Pick a look for your site", href: event.workspaceUrl }]}
+        />
+      );
+    case "page-ir-source-paused":
+      return (
+        <StageCard
+          key={key}
+          stage="built"
+          title="PageIR Source Bundle review"
+          body={`${event.note}\n\nState: ${event.reviewState}\nPayload: ${event.payloadSha256.slice(0, 12)}\nPaused: ${event.at ?? "timestamp unavailable"}`}
+          links={[{
+            kind: "artifact",
+            label: "Review Source Bundle",
+            href: event.workspaceUrl,
+          }]}
         />
       );
     default:
@@ -142,7 +157,11 @@ function groupTimelineByStage(timeline: TimelineItem[]): StageGroup[] {
 
   for (const item of timeline) {
     const { event } = item;
-    if (event.type === "stage" || event.type === "card") lastStage = event.stage;
+    if (
+      event.type === "stage" ||
+      event.type === "card" ||
+      event.type === "page-ir-source-paused"
+    ) lastStage = event.stage;
 
     let group = byStage.get(lastStage);
     if (!group) {
@@ -203,7 +222,12 @@ function stageGroupDetail(group: StageGroup): string | undefined {
 }
 
 function eventTimestamp(event: PipelineEvent): string | undefined {
-  if (event.type === "stage" || event.type === "paused" || event.type === "reference-paused") {
+  if (
+    event.type === "stage" ||
+    event.type === "paused" ||
+    event.type === "reference-paused" ||
+    event.type === "page-ir-source-paused"
+  ) {
     return event.at;
   }
   return undefined;

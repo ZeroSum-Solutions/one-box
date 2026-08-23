@@ -19,6 +19,7 @@ import {
   saveArtifact,
   saveEvidenceArtifactVersion,
   loadRun,
+  candidatePaths,
   sitePaths,
   transitionEvidenceArtifactApproval,
 } from "../../../../lib/runstate";
@@ -29,6 +30,7 @@ import {
   CandidateProvenanceV1Schema,
   DesignTokensSchema,
   type HumanVisualReviewCriteria,
+  type LayoutAuthority,
   IntakeSchema,
   ReferenceLockSchema,
 } from "../../../../lib/contracts";
@@ -43,6 +45,11 @@ import {
   computeSiteBuildSha256,
 } from "../../../../lib/evidence";
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
+import { compilerPageIr } from "../../../../lib/test-fixtures/pageIrCompilerFixtures";
+import {
+  loadPageIrSourceBundleForReview,
+  proposePageIrSourceBundle,
+} from "../../../../lib/pageIrPipeline";
 
 const runIds: string[] = [];
 
@@ -80,8 +87,11 @@ function humanReview(overrides: { failedCriterion?: "businessSpecificity" } = {}
   };
 }
 
-async function fixtureRun() {
-  const runId = await createRun();
+async function fixtureRun(layoutAuthority: LayoutAuthority = "template-v1") {
+  const runId = await createRun({
+    layoutAuthority,
+    pageIrRolloutPermitted: layoutAuthority === "page-ir-v1",
+  });
   runIds.push(runId);
   await saveEvidenceArtifactVersion(runId, {
     artifactType: "ledger",
@@ -125,8 +135,8 @@ async function fixtureRun() {
   return runId;
 }
 
-async function fixtureVisualQaRun() {
-  const runId = await fixtureRun();
+async function fixtureVisualQaRun(layoutAuthority: LayoutAuthority = "template-v1") {
+  const runId = await fixtureRun(layoutAuthority);
   await transitionEvidenceArtifactApproval(runId, "ledger", 1, "in-review");
   await transitionEvidenceArtifactApproval(runId, "ledger", 1, "approved");
   await advanceEvidenceWorkflow(runId, "contract");
@@ -176,6 +186,7 @@ async function fixtureVisualQaRun() {
 
 async function markLiveBundlePromoted(runId: string) {
   const roots = sitePaths(runId);
+  const run = await loadRun(runId);
   const manifest = await createCandidateManifest(roots.site);
   const candidateManifestHash = candidateManifestSha256(manifest);
   const receipt = CandidateGateReceiptV1Schema.parse({
@@ -205,8 +216,11 @@ async function markLiveBundlePromoted(runId: string) {
       { state: "promoted", at: "2026-08-22T12:00:03.000Z" },
     ],
     inputArtifactHashes: [{ path: "intake.json", sha256: "a".repeat(64) }],
-    layoutAuthority: "template-v1",
+    layoutAuthority: run.layoutAuthority,
     compilerVersion: "fixture-v1",
+    ...(run.layoutAuthority === "page-ir-v1"
+      ? { pageIrSha256: "c".repeat(64) }
+      : {}),
     candidateManifestSha256: candidateManifestHash,
     buildSha256: manifest.buildSha256,
     gateReportSha256: sha256(receiptBytes),
@@ -226,6 +240,122 @@ async function markLiveBundlePromoted(runId: string) {
     fs.writeFile(path.join(metadata, "gates.json"), receiptBytes),
   ]);
   return provenance;
+}
+
+function pageIrSourceProposal(runId: string) {
+  const pageIr = compilerPageIr();
+  return {
+    schemaVersion: 1 as const,
+    runId,
+    bundleVersion: 1,
+    sources: [
+      {
+        kind: "layout-decision" as const,
+        version: 1,
+        bytes: Buffer.from(JSON.stringify({
+          schemaVersion: 1,
+          purpose: "brochure-local-service",
+          sourceVersions: {
+            evidence: 1,
+            designContract: 1,
+            tokenInventory: 1,
+            tailwindPlan: 1,
+            cssArchitecture: 1,
+          },
+          referenceContract: pageIr.referenceContract,
+          referenceTrace: {
+            mode: "selected",
+            sources: [{
+              alias: "style_alpha",
+              sourceKind: "refero-style",
+              rawReferoId: "raw/style:alpha",
+              traits: ["Strong hero & proof"],
+            }],
+          },
+          layoutProgram: pageIr.layoutProgram,
+          slotBindings: pageIr.slotBindings,
+          nodeTokenBindings: pageIr.nodeTokenBindings,
+          accessibility: pageIr.accessibility,
+        })),
+      },
+      {
+        kind: "content" as const,
+        version: 2,
+        bytes: Buffer.from(JSON.stringify({
+          schemaVersion: 1,
+          sourceLayoutDecisionVersion: 1,
+          content: pageIr.content,
+          actions: pageIr.actions,
+        })),
+      },
+      {
+        kind: "assets" as const,
+        version: 3,
+        bytes: Buffer.from(JSON.stringify({
+          schemaVersion: 1,
+          sourceLayoutDecisionVersion: 1,
+          assets: pageIr.assets,
+        })),
+      },
+    ],
+  };
+}
+
+async function fixturePageIrSourceBundle() {
+  const { runId } = await fixtureVisualQaRun("page-ir-v1");
+  const bundle = await proposePageIrSourceBundle(pageIrSourceProposal(runId));
+  return { runId, bundle };
+}
+
+const sourceReviewCriteria = {
+  layoutDecision: "pass" as const,
+  content: "pass" as const,
+  assets: "pass" as const,
+  upstreamBindings: "pass" as const,
+  sourceChain: "pass" as const,
+};
+
+async function markPageIrCandidateState(
+  runId: string,
+  state: "ready-for-gates" | "promotable" | "failed",
+) {
+  const history = state === "ready-for-gates"
+    ? [
+        { state: "preparing" as const, at: "2026-08-23T12:00:00.000Z" },
+        { state, at: "2026-08-23T12:00:01.000Z" },
+      ]
+    : state === "promotable"
+      ? [
+          { state: "preparing" as const, at: "2026-08-23T12:00:00.000Z" },
+          { state: "ready-for-gates" as const, at: "2026-08-23T12:00:01.000Z" },
+          { state, at: "2026-08-23T12:00:02.000Z" },
+        ]
+      : [
+          { state: "preparing" as const, at: "2026-08-23T12:00:00.000Z" },
+          { state, at: "2026-08-23T12:00:01.000Z" },
+        ];
+  const provenance = CandidateProvenanceV1Schema.parse({
+    schemaVersion: 1,
+    candidateId: `${runId}-candidate`,
+    runId,
+    createdAt: history[0].at,
+    state,
+    history,
+    inputArtifactHashes: [{ path: "page-ir.json", sha256: "c".repeat(64) }],
+    layoutAuthority: "page-ir-v1",
+    compilerVersion: "page-ir-static@2",
+    pageIrSha256: "c".repeat(64),
+    ...(state === "ready-for-gates" || state === "promotable"
+      ? {
+          candidateManifestSha256: "d".repeat(64),
+          buildSha256: "e".repeat(64),
+        }
+      : {}),
+    ...(state === "promotable" ? { gateReportSha256: "f".repeat(64) } : {}),
+  });
+  const paths = candidatePaths(runId);
+  await fs.mkdir(paths.root, { recursive: true });
+  await fs.writeFile(paths.provenance, JSON.stringify(provenance, null, 2));
 }
 
 async function approveVisualQa(runId: string, buildSha256: string) {
@@ -805,4 +935,244 @@ describe("evidence workspace routes", () => {
     expect(artifactApprovalState(qaVersions[1])).toBe("revision-requested");
     expect((await fs.readdir(path.join(sitePaths(runId).root, "evidence"))).some((entry) => entry.startsWith(".qa-stage-"))).toBe(false);
   }, 60_000);
+});
+
+describe("PageIR Source Bundle evidence API", () => {
+  it("keeps the template response additive and Source-Bundle-free", async () => {
+    const runId = await fixtureRun();
+
+    const response = await GET(request(runId), context(runId));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      runId,
+      layoutAuthority: "template-v1",
+      pageIrSourceReview: null,
+      previewUrl: null,
+    });
+  });
+
+  it("projects the exact immutable hash, bindings, and three validated source values", async () => {
+    const { runId, bundle } = await fixturePageIrSourceBundle();
+    const validated = await loadPageIrSourceBundleForReview(runId);
+
+    const response = await GET(request(runId), context(runId));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      layoutAuthority: "page-ir-v1",
+      pageIrSourceReview: {
+        schemaVersion: 1,
+        bundleVersion: 1,
+        payloadSha256: bundle.payloadSha256,
+        state: "draft",
+        upstreamBindings: bundle.upstreamBindings,
+        sources: {
+          layoutDecision: {
+            version: 1,
+            sha256: bundle.sourceArtifacts[0].sha256,
+            value: validated.sources.layoutDecision,
+          },
+          content: {
+            version: 2,
+            sha256: bundle.sourceArtifacts[1].sha256,
+            value: validated.sources.content,
+          },
+          assets: {
+            version: 3,
+            sha256: bundle.sourceArtifacts[2].sha256,
+            value: validated.sources.assets,
+          },
+        },
+      },
+    });
+    expect(JSON.stringify(payload.pageIrSourceReview)).not.toMatch(/page-ir-sources|\.json"/);
+  });
+
+  it("strictly rejects invalid begin-review identity, binding, authority, and state", async () => {
+    const { runId, bundle } = await fixturePageIrSourceBundle();
+    const invalidBodies = [
+      {
+        action: "begin-page-ir-source-bundle-review",
+        payloadSha256: bundle.payloadSha256,
+        reviewerName: " ",
+      },
+      {
+        action: "begin-page-ir-source-bundle-review",
+        payloadSha256: bundle.payloadSha256,
+        reviewerName: "Devin",
+        actorKind: "model",
+      },
+    ];
+    for (const body of invalidBodies) {
+      expect((await POST(request(runId, body), context(runId))).status).toBe(400);
+    }
+    expect((await POST(request(runId, {
+      action: "begin-page-ir-source-bundle-review",
+      payloadSha256: "f".repeat(64),
+      reviewerName: "Devin",
+    }), context(runId))).status).toBe(409);
+
+    const templateRun = await fixtureVisualQaRun();
+    expect((await POST(request(templateRun.runId, {
+      action: "begin-page-ir-source-bundle-review",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+    }), context(templateRun.runId))).status).toBe(409);
+
+    expect((await POST(request(runId, {
+      action: "begin-page-ir-source-bundle-review",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+    }), context(runId))).status).toBe(200);
+    expect((await POST(request(runId, {
+      action: "begin-page-ir-source-bundle-review",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+    }), context(runId))).status).toBe(409);
+  });
+
+  it("requires a literal attestation, exact all-pass criteria, displayed hash, and in-review state", async () => {
+    const { runId, bundle } = await fixturePageIrSourceBundle();
+    const approve = (overrides: Record<string, unknown> = {}) => ({
+      action: "approve-page-ir-source-bundle",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+      humanAttestation: true,
+      criteria: sourceReviewCriteria,
+      ...overrides,
+    });
+
+    for (const body of [
+      approve({ humanAttestation: undefined }),
+      approve({ humanAttestation: false }),
+      approve({ criteria: { ...sourceReviewCriteria, sourceChain: undefined } }),
+      approve({ criteria: { ...sourceReviewCriteria, extra: "pass" } }),
+      approve({ actorKind: "system" }),
+    ]) {
+      expect((await POST(request(runId, body), context(runId))).status).toBe(400);
+    }
+    expect((await POST(request(runId, approve()), context(runId))).status).toBe(409);
+
+    await POST(request(runId, {
+      action: "begin-page-ir-source-bundle-review",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+    }), context(runId));
+    expect((await POST(request(runId, approve({ payloadSha256: "f".repeat(64) })), context(runId))).status).toBe(409);
+  });
+
+  it("never routes generic approval into Source Bundle history", async () => {
+    const { runId } = await fixturePageIrSourceBundle();
+    const before = await loadPageIrSourceBundleForReview(runId);
+
+    await POST(request(runId, { action: "approve" }), context(runId));
+
+    const after = await loadPageIrSourceBundleForReview(runId);
+    expect(after.bundle.reviewTransitions).toEqual(before.bundle.reviewTransitions);
+  });
+
+  it("records exactly one named-human approval bound to the displayed hash", async () => {
+    const { runId, bundle } = await fixturePageIrSourceBundle();
+    await POST(request(runId, {
+      action: "begin-page-ir-source-bundle-review",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+    }), context(runId));
+
+    const response = await POST(request(runId, {
+      action: "approve-page-ir-source-bundle",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+      humanAttestation: true,
+      criteria: sourceReviewCriteria,
+    }), context(runId));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.pageIrSourceReview).toMatchObject({
+      state: "approved",
+      humanReview: {
+        reviewerName: "Devin",
+        payloadSha256: bundle.payloadSha256,
+        criteria: sourceReviewCriteria,
+      },
+    });
+    const persisted = await loadPageIrSourceBundleForReview(runId);
+    expect(persisted.bundle.reviewTransitions.filter((item) => item.humanReview)).toHaveLength(1);
+    expect(persisted.bundle.reviewTransitions.at(-1)).toMatchObject({
+      actorKind: "human",
+      actorName: "Devin",
+      humanReview: {
+        humanAttestation: true,
+        payloadSha256: bundle.payloadSha256,
+      },
+    });
+  });
+
+  it("requires a named reviewer and note for terminal rejection", async () => {
+    const { runId, bundle } = await fixturePageIrSourceBundle();
+    for (const body of [
+      {
+        action: "reject-page-ir-source-bundle",
+        payloadSha256: bundle.payloadSha256,
+        reviewerName: "",
+        note: "Wrong sources",
+      },
+      {
+        action: "reject-page-ir-source-bundle",
+        payloadSha256: bundle.payloadSha256,
+        reviewerName: "Devin",
+        note: " ",
+      },
+    ]) {
+      expect((await POST(request(runId, body), context(runId))).status).toBe(400);
+    }
+    const response = await POST(request(runId, {
+      action: "reject-page-ir-source-bundle",
+      payloadSha256: bundle.payloadSha256,
+      reviewerName: "Devin",
+      note: "The content source is incorrect.",
+    }), context(runId));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      pageIrSourceReview: {
+        state: "rejected",
+        latestTransition: {
+          actorKind: "human",
+          actorName: "Devin",
+          note: "The content source is incorrect.",
+        },
+      },
+    });
+  });
+
+  it("never advertises ready, promotable, or failed PageIR candidates as previewable", async () => {
+    for (const state of ["ready-for-gates", "promotable", "failed"] as const) {
+      const { runId } = await fixturePageIrSourceBundle();
+      await markPageIrCandidateState(runId, state);
+      const response = await GET(request(runId), context(runId));
+      await expect(response.json()).resolves.toMatchObject({ previewUrl: null });
+    }
+  });
+
+  it("advertises only canonical promoted PageIR live and fails closed on corrupt metadata", async () => {
+    const { runId } = await fixturePageIrSourceBundle();
+    await markLiveBundlePromoted(runId);
+
+    const promoted = await GET(request(runId), context(runId));
+    await expect(promoted.json()).resolves.toMatchObject({
+      previewUrl: `/preview/${runId}`,
+      currentApprovalState: "draft",
+    });
+
+    await fs.writeFile(
+      path.join(sitePaths(runId).site, ".one-box", "provenance.json"),
+      "{}",
+    );
+    const corrupt = await GET(request(runId), context(runId));
+    expect(corrupt.status).toBe(200);
+    await expect(corrupt.json()).resolves.toMatchObject({ previewUrl: null });
+  });
 });

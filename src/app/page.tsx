@@ -224,7 +224,11 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
         terminal = "complete";
         settled = true;
       }
-      if (ev.type === "paused" || ev.type === "reference-paused") {
+      if (
+        ev.type === "paused" ||
+        ev.type === "reference-paused" ||
+        ev.type === "page-ir-source-paused"
+      ) {
         evidenceUrl = ev.workspaceUrl;
         terminal = "paused";
         settled = true;
