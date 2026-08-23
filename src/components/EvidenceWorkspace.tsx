@@ -150,11 +150,15 @@ export function isPageIrSourceReviewActive(
   review: PageIrSourceReviewView | null,
   browsing: boolean,
 ): boolean {
+  const current = latestCurrentArtifact(run);
+  const approvedReviewHasYieldedToVisualQa =
+    review?.state === "approved" && current?.artifactType === "visual-qa";
   return (
     !browsing &&
     run.layoutAuthority === "page-ir-v1" &&
     run.evidenceWorkflow.currentStage === "build" &&
-    review !== null
+    review !== null &&
+    !approvedReviewHasYieldedToVisualQa
   );
 }
 
@@ -1089,6 +1093,12 @@ export function EvidenceWorkspace({
     pageIrSourceReview,
     browsing,
   );
+  const approvedSourceProofAlongsideVisualQa = Boolean(
+    !browsing &&
+      pageIrSourceReview?.state === "approved" &&
+      pageIrSourceReview.humanReview &&
+      current?.artifactType === "visual-qa",
+  );
   const canApproveAndContinue = Boolean(
     !legacyReadOnly &&
       !sourceReviewActive &&
@@ -1413,6 +1423,18 @@ export function EvidenceWorkspace({
 
           {!browsing && run.evidenceWorkflow.currentStage === "build" && (
             <p className="artifact-panel__recap mono-meta">Prior approvals: {priorApprovalsRecap(run)}</p>
+          )}
+
+          {approvedSourceProofAlongsideVisualQa && pageIrSourceReview?.humanReview && (
+            <details className="state-card">
+              <summary>
+                Source Bundle approved by {pageIrSourceReview.humanReview.reviewerName}
+              </summary>
+              <p className="mono-meta">
+                {pageIrSourceReview.humanReview.reviewedAt.slice(0, 10)} · payload{" "}
+                {pageIrSourceReview.humanReview.payloadSha256.slice(0, 12)}
+              </p>
+            </details>
           )}
 
           {sourceReviewActive && pageIrSourceReview ? (

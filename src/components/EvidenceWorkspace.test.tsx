@@ -636,6 +636,41 @@ describe("EvidenceWorkspace PageIR Source Bundle review", () => {
     expect(html).not.toContain("Approve PageIR Source Bundle");
   });
 
+  it("yields an approved Source Bundle panel to the current human visual-QA review", () => {
+    const visualQa = {
+      version: 1,
+      createdAt: "2026-08-23T12:01:00.000Z",
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-23T12:01:00.000Z" },
+        { state: "in-review", at: "2026-08-23T12:02:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "f".repeat(64),
+        checks: [{ area: "desktop", status: "pass" }],
+      },
+    };
+    const run = {
+      ...pageIrBuildRun,
+      evidenceWorkflow: { currentStage: "build", artifacts: [visualQa] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace
+        initialRun={run}
+        initialPageIrSourceReview={sourceReview("approved")}
+      />
+    );
+
+    expect(html).toContain("Human visual review");
+    expect(html).toContain("Brief fidelity");
+    expect(html).toContain("Source Bundle approved by Devin");
+    expect(html).not.toContain("Begin named human review");
+    expect(html).not.toContain("Approve PageIR Source Bundle");
+    expect(html).not.toContain("Reject Source Bundle");
+  });
+
   it("blocks rejected and superseded bundles without approve or resume actions", () => {
     for (const state of ["rejected", "superseded"] as const) {
       const html = renderToStaticMarkup(
