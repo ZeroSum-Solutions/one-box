@@ -4,6 +4,7 @@
 
 - Implementation commit: `6725450372cc16ebc5c361bed7d7b9081cf20467`
 - Review-fix commit: `1afedd58b512d00929222b2b5d9c028420a248f0`
+- Test-proof commits: `02cf409` and `78db51b`
 - Subject: `feat: add durable PageIR candidate boundary`
 - Base: `7a68c157809a127f64e1c3571fcb6fa5eb96b285`
 
@@ -68,7 +69,7 @@ Each cycle used `npm test -- src/lib/pageIrPipeline.test.ts` unless a narrower c
 - No rollout activation, provider call, agent framework, PageIR editing, promotion, live write, or gate execution.
 - No automated compiled-file repair. That work remains prohibited until OBX-031.
 - No candidate, gate, or live metadata was copied into `run.json`.
-- No model reviewer was invoked.
+- Grok 4.6 was the sole model reviewer; no non-Grok reviewer was invoked.
 
 ## Residual risks and unresolved acceptance
 
@@ -104,3 +105,36 @@ Each cycle used `npm test -- src/lib/pageIrPipeline.test.ts` unless a narrower c
 
 - The compare-and-create guarantee depends on all repository writers respecting the per-run filesystem lock. No other PageIR writer exists in this revision. An unrelated external process with direct run-directory write access is outside the local single-user service's coordination contract.
 - A real process death between candidate retirement and publication leaves the valid retired generation for the existing startup recovery path. Materialization itself does not duplicate that recovery controller.
+
+## Grok 4.6 test-proof audit adjudication
+
+| Finding | Result | Verified evidence |
+| --- | --- | --- |
+| 1. Approved source-bundle loader had no successful reload proof | FIXED | `keeps approval append-only and rejects model or partial review authority` now reloads through `loadApprovedPageIrSourceBundle` after approval. It proves exact bundle equality, exact source bytes, payload and upstream hashes, persisted draft -> in-review -> approved transitions, named-human identity, attestation, payload binding, and every all-pass criterion. |
+| 2. Persisted PageIR loader had no successful path | FIXED | `derives once under concurrency and binds the exact approved source chain` now reloads the clean checkpoint through `loadPersistedPageIr` and proves full envelope equality with both the returned derivation and on-disk JSON. |
+| 3. PageIR hashes were checked only for shape | FIXED | The derivation test independently recomputes `pageIrSha256` with the production PageIR hash function and recomputes `bindingSetSha256` from the canonical sorted-key binding envelope. The tamper test flips one stored PageIR-hash bit and proves the loader rejects the exact SHA-256 mismatch. |
+| 4. Compare/create lacked a valid conflicting-envelope and no-rewrite proof | FIXED | `reuses an identical checkpoint without rewriting and rejects a self-consistent binding conflict` proves an identical checkpoint preserves exact bytes and nanosecond mtime. It then installs a schema-valid envelope with an internally recomputed but different binding-set hash and proves conflict rejection without rewriting those bytes. No production defect was exposed. |
+| 5. Template authority rejection could have been a missing-PageIR error | FIXED | The authority test now proves both initial derivation and materialization reject with their exact `page-ir-v1` authority errors on a `template-v1` run, before `page-ir.json` or `candidate/` exists. The frozen authority contract therefore makes a template-owned persisted PageIR fixture invalid rather than missing. |
+| 6. Oversize proof reused an existing bundle and matched a generic error | FIXED | `rejects an oversized source before creating the source root` uses a fresh CSS-approved run, asserts the exact source-size error, and proves `page-ir-sources/` was never created. |
+| 7. Task 1 needed another cross-process derive fixture | REJECTED | `runstate.test.ts` directly proves `withRunTransaction` holds the shared filesystem lock for the entire transaction and launches separate Vitest processes to prove no lost updates. `fileLock.test.ts` separately proves lock claimant serialization. The Task 1 test already proves two concurrent derive callers converge on one equal envelope; another process harness would duplicate the established lower-layer contract rather than cover Task 1 behavior. |
+| 8. Concurrent candidate materialization equivalence was loose | FIXED | The concurrency test now requires the exact status set `created` plus `reused`, equal manifests and provenance, equal build and manifest hashes, and exactly one candidate tree with no building or retired twin. |
+| 9. Stale replacement checked only the returned status | FIXED | The stale-candidate test now inspects the replacement, proves current compiler, authority, ready state, PageIR, manifest, and build bindings, validates inventory, independently rehashes every materialized file, and proves PageIR, bundle, and live bytes did not change. |
+| 10. Human review was proved only in memory | FIXED | The finding 1 reload proof reads the approved bundle from disk and verifies the persisted named human, attestation, immutable payload hash, all five criteria, and all three review states. |
+| 11. Fixed upstream order and source-version coherence were not exercised | FIXED | The closed-schema test now rejects reordered, missing, and duplicate upstream bindings plus a source artifact whose `sourceVersions` disagree with its fixed source chain. Existing reordered source-artifact and stale-chain cases remain. |
+| 12. Failed-candidate parking did not prove full no-mutation identity | FIXED | The parking test snapshots and byte-compares provenance, manifest, every candidate site file, live site, PageIR, bundle, and all three source artifacts around the `parked-failed` call. |
+
+### Test-proof execution evidence
+
+- RED: none. These findings asked for missing proof around already-correct behavior. All added proof passed on its first focused execution, so no artificial failure was manufactured and no production file was changed.
+- First focused execution: `npm test -- src/lib/pageIrPipeline.test.ts` passed 1 file and all 20 tests in 9.25 seconds.
+- Focused lint/type verification: `npx eslint src/lib/pageIrPipeline.test.ts`, `npm run typecheck`, and a repeated focused suite all passed; the repeated suite passed all 20 tests in 10.34 seconds.
+- Template-authority follow-up: `npm test -- src/lib/pageIrPipeline.test.ts -t "rejects template authority"` passed 1 selected test with 19 skipped in 1.12 seconds; Prettier and focused ESLint checks passed.
+- Full suite: `npm test` passed 80 files with 4 skipped; 952 tests passed with 4 skipped in 52.62 seconds.
+- `npm run typecheck`: PASS.
+- `npm run lint`: PASS with 0 errors and the same 6 pre-existing warnings outside the owned files.
+- `git diff --check`: PASS.
+
+### Test-proof residual risk
+
+- Cross-process PageIR correctness still depends on every repository writer using `withRunTransaction`; repository search found no second PageIR writer. A non-cooperating external process with direct filesystem access remains outside the coordination contract.
+- This audit increased executable proof only. Production behavior, controller/API/UI wiring, promotion, and the explicit named-human checkpoint remain unchanged.
