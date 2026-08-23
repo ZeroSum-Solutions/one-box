@@ -31,7 +31,9 @@ import { AxeBuilder } from "@axe-core/playwright";
 import {
   SITES_DIR,
   SITE_DIR,
+  CANDIDATE_DIR,
   ARTIFACTS,
+  CANDIDATE_GATE_EXPECTATIONS,
   DesignTokensSchema,
   FORBIDDEN_CONTEXTS,
   GateReportSchema,
@@ -176,17 +178,9 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   return reports;
 }
 
-const FULL_GATE_NAMES = [
-  "token-drift",
-  "color-role-compliance",
-  "axe",
-  "contrast",
-  "console-errors",
-  "assets",
-  "no-js",
-  "mobile-layout",
-  "perf-budget",
-] as const;
+const FULL_GATE_NAMES = CANDIDATE_GATE_EXPECTATIONS.map(
+  ({ gate }) => gate,
+);
 
 function createLiveGateTarget(
   runId: string,
@@ -244,17 +238,46 @@ async function assertCandidateDirectories(target: {
   );
 }
 
+function assertClosedCandidatePaths(
+  runRoot: string,
+  paths: ReturnType<typeof candidatePaths>,
+): void {
+  const expectedRoot = path.join(runRoot, CANDIDATE_DIR);
+  const expectedSite = path.join(expectedRoot, SITE_DIR);
+  const expectedManifest = path.join(expectedRoot, "manifest.json");
+  const expectedProvenance = path.join(expectedRoot, "provenance.json");
+  const expectedReport = path.join(expectedRoot, "gates.json");
+  if (
+    paths.root !== expectedRoot ||
+    paths.site !== expectedSite ||
+    paths.manifest !== expectedManifest ||
+    paths.provenance !== expectedProvenance ||
+    paths.gates !== expectedReport
+  ) {
+    throw new Error("candidate paths do not match the closed run layout");
+  }
+  if (
+    path.dirname(paths.root) !== runRoot ||
+    path.dirname(paths.site) !== paths.root ||
+    path.dirname(paths.gates) !== paths.root
+  ) {
+    throw new Error("candidate paths escape their validated parent");
+  }
+}
+
 async function createCandidateGateTarget(runId: string): Promise<GateTarget> {
-  // candidatePaths validates before any filesystem or browser operation and
-  // yields the only candidate layout accepted by this public entry point.
-  const paths = candidatePaths(runId);
-  const runRoot = path.dirname(paths.root);
+  // Validate before deriving or touching any filesystem path.
+  const parsedRunId = RunIdSchema.safeParse(runId);
+  if (!parsedRunId.success) throw new Error("bad runId");
+  const runRoot = path.resolve(process.cwd(), SITES_DIR, parsedRunId.data);
+  const paths = candidatePaths(parsedRunId.data);
+  assertClosedCandidatePaths(runRoot, paths);
   await assertCandidateDirectories({
     runRoot,
     candidateRoot: paths.root,
     siteRoot: paths.site,
   });
-  const inspection = await inspectCandidate(runId);
+  const inspection = await inspectCandidate(parsedRunId.data);
   if (inspection.status !== "present" || !inspection.manifest) {
     throw new Error("candidate is absent or has no validated manifest");
   }
@@ -331,6 +354,26 @@ async function snapshotCandidateInput(
   required: boolean,
 ): Promise<{ snapshot: GateInputSnapshot; bytes?: Buffer }> {
   const absolutePath = path.join(target.runRoot, relativePath);
+  const expected = boundInputHash(target.candidateBinding!, relativePath);
+  if (!expected) {
+    if (required) {
+      throw new Error(`gate input is not bound by provenance: ${relativePath}`);
+    }
+    try {
+      await fs.lstat(absolutePath);
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: unknown }).code === "ENOENT"
+      ) {
+        return { snapshot: { relativePath } };
+      }
+      throw error;
+    }
+    throw new Error(`gate input is not bound by provenance: ${relativePath}`);
+  }
   let bytes: Buffer | undefined;
   try {
     bytes = await readStableRegularFile(absolutePath, relativePath);
@@ -342,15 +385,12 @@ async function snapshotCandidateInput(
       "code" in error &&
       (error as { code?: unknown }).code === "ENOENT"
     ) {
-      const expected = boundInputHash(target.candidateBinding!, relativePath);
-      if (expected) throw new Error(`bound gate input is missing: ${relativePath}`);
-      return { snapshot: { relativePath } };
+      throw new Error(`bound gate input is missing: ${relativePath}`);
     }
     throw error;
   }
   const observedSha256 = sha256(bytes);
-  const expected = boundInputHash(target.candidateBinding!, relativePath);
-  if (expected && expected !== observedSha256) {
+  if (expected !== observedSha256) {
     throw new Error(`gate input SHA-256 does not match provenance: ${relativePath}`);
   }
   return {
@@ -366,10 +406,13 @@ async function prepareGateInputs(target: GateTarget): Promise<{
   unresolvedRefs: string[];
   candidateInputSnapshots?: readonly GateInputSnapshot[];
 }> {
-  const tokensCssText = await fs.readFile(
-    path.join(target.siteRoot, "tokens.css"),
-    "utf8",
-  );
+  const tokensCssPath = path.join(target.siteRoot, "tokens.css");
+  const tokensCssText = target.candidateBinding
+    ? (await readStableRegularFile(
+        tokensCssPath,
+        "candidate tokens.css",
+      )).toString("utf8")
+    : await fs.readFile(tokensCssPath, "utf8");
   const allowed = parseAllowedTokens(tokensCssText);
   if (!target.candidateBinding) {
     const tokens = DesignTokensSchema.parse(
@@ -479,10 +522,15 @@ async function revalidateCandidateTarget(
 async function atomicWriteCandidateReceipt(
   target: GateTarget,
   bytes: Buffer,
+  beforeRename: () => Promise<void>,
 ): Promise<void> {
-  const temporary = `${target.reportPath}.tmp-${process.pid}-${Date.now()}`;
+  const temporary = path.join(
+    target.runRoot,
+    `.candidate-gates.tmp-${process.pid}-${Date.now()}`,
+  );
   try {
     await fs.writeFile(temporary, bytes, { flag: "wx" });
+    await beforeRename();
     await fs.rename(temporary, target.reportPath);
   } finally {
     await fs.rm(temporary, { force: true });
@@ -510,7 +558,13 @@ export async function runCandidateGates(
   });
   const receiptBytes = Buffer.from(JSON.stringify(receipt, null, 2));
   const gateReportSha256 = sha256(receiptBytes);
-  await atomicWriteCandidateReceipt(target, receiptBytes);
+  await atomicWriteCandidateReceipt(target, receiptBytes, () =>
+    revalidateCandidateTarget(
+      runId,
+      target,
+      prepared.candidateInputSnapshots!,
+    ),
+  );
   return { receipt, gateReportSha256 };
 }
 

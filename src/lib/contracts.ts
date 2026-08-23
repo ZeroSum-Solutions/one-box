@@ -1579,17 +1579,19 @@ export const GateReportSchema = z.object({
 });
 export type GateReport = z.infer<typeof GateReportSchema>;
 
-const CANDIDATE_GATE_ORDER = [
-  "token-drift",
-  "color-role-compliance",
-  "axe",
-  "contrast",
-  "console-errors",
-  "assets",
-  "no-js",
-  "mobile-layout",
-  "perf-budget",
+export const CANDIDATE_GATE_EXPECTATIONS = [
+  { gate: "token-drift", blocking: true },
+  { gate: "color-role-compliance", blocking: true },
+  { gate: "axe", blocking: true },
+  { gate: "contrast", blocking: true },
+  { gate: "console-errors", blocking: true },
+  { gate: "assets", blocking: true },
+  { gate: "no-js", blocking: true },
+  { gate: "mobile-layout", blocking: true },
+  { gate: "perf-budget", blocking: false },
 ] as const;
+
+const CandidateGateReportSchema = GateReportSchema.strict();
 
 export const CandidateGateReceiptV1Schema = z
   .object({
@@ -1597,16 +1599,25 @@ export const CandidateGateReceiptV1Schema = z
     runId: RunIdSchema,
     candidateManifestSha256: Sha256Schema,
     buildSha256: Sha256Schema,
-    reports: z.array(GateReportSchema).length(CANDIDATE_GATE_ORDER.length),
+    reports: z
+      .array(CandidateGateReportSchema)
+      .length(CANDIDATE_GATE_EXPECTATIONS.length),
   })
   .strict()
   .superRefine((receipt, context) => {
-    for (const [index, gate] of CANDIDATE_GATE_ORDER.entries()) {
-      if (receipt.reports[index]?.gate !== gate) {
+    for (const [index, expected] of CANDIDATE_GATE_EXPECTATIONS.entries()) {
+      if (receipt.reports[index]?.gate !== expected.gate) {
         context.addIssue({
           code: "custom",
           path: ["reports", index, "gate"],
-          message: `candidate gate ${index + 1} must be ${gate}`,
+          message: `candidate gate ${index + 1} must be ${expected.gate}`,
+        });
+      }
+      if (receipt.reports[index]?.blocking !== expected.blocking) {
+        context.addIssue({
+          code: "custom",
+          path: ["reports", index, "blocking"],
+          message: `candidate gate ${expected.gate} blocking must be ${expected.blocking}`,
         });
       }
     }

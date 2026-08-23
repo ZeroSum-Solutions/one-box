@@ -131,6 +131,8 @@ describe("candidate gates real browser", () => {
       await fs.writeFile(path.join(sitePaths(runId).root, "gates.json"), liveGateBytes);
 
       const result = await runCandidateGates(runId);
+      const receiptBytes = await fs.readFile(paths.gates);
+      const manifestHash = candidateManifestSha256(manifest);
 
       expect(result.receipt.reports.map((report) => report.gate)).toEqual([
         "token-drift",
@@ -146,13 +148,22 @@ describe("candidate gates real browser", () => {
       expect(
         result.receipt.reports.filter((report) => report.blocking && !report.pass),
       ).toEqual([]);
+      expect(result.receipt).toMatchObject({
+        schemaVersion: 1,
+        runId,
+        candidateManifestSha256: manifestHash,
+        buildSha256: manifest.buildSha256,
+      });
+      expect(receiptBytes).toEqual(
+        Buffer.from(JSON.stringify(result.receipt, null, 2)),
+      );
       expect(await fs.readFile(path.join(sitePaths(runId).site, "index.html"))).toEqual(
         liveBytes,
       );
       expect(await fs.readFile(path.join(sitePaths(runId).root, "gates.json"))).toEqual(
         liveGateBytes,
       );
-      expect(result.gateReportSha256).toBe(sha256(await fs.readFile(paths.gates)));
+      expect(result.gateReportSha256).toBe(sha256(receiptBytes));
     },
   );
 });

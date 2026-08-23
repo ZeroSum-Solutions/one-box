@@ -19,6 +19,7 @@ const gateHarness = vi.hoisted(() => {
   const state = {
     navigationUrls: [] as string[],
     contrastCalls: [] as Array<{ url: string; siteDir: string }>,
+    unresolvedCalls: [] as Array<{ siteDir: string; tokensCssText: string }>,
     contrastPass: true,
     gotoError: undefined as Error | undefined,
     onNavigate: undefined as ((url: string) => Promise<void>) | undefined,
@@ -64,9 +65,14 @@ const gateHarness = vi.hoisted(() => {
         ranAt: "2026-08-22T00:00:00.000Z",
       };
     }),
+    unresolved: vi.fn(async (siteDir: string, tokensCssText: string) => {
+      state.unresolvedCalls.push({ siteDir, tokensCssText });
+      return [];
+    }),
     reset() {
       state.navigationUrls.length = 0;
       state.contrastCalls.length = 0;
+      state.unresolvedCalls.length = 0;
       state.contrastPass = true;
       state.gotoError = undefined;
       state.onNavigate = undefined;
@@ -82,6 +88,9 @@ vi.mock("@axe-core/playwright", () => ({
   },
 }));
 vi.mock("./contrastGate", () => ({ gateContrast: gateHarness.contrast }));
+vi.mock("./cssVars", () => ({
+  findUnresolvedSheetRefs: gateHarness.unresolved,
+}));
 
 const runIds: string[] = [];
 const gateNames = [
@@ -243,6 +252,17 @@ describe("candidate gates", () => {
     const receiptBytes = await fs.readFile(paths.gates);
 
     expect(result.receipt.reports.map((report) => report.gate)).toEqual(gateNames);
+    expect(result.receipt.reports.map((report) => report.blocking)).toEqual([
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+    ]);
     expect(result.receipt).toMatchObject({
       schemaVersion: 1,
       runId,
@@ -251,6 +271,7 @@ describe("candidate gates", () => {
     });
     expect(JSON.parse(receiptBytes.toString("utf8"))).toEqual(result.receipt);
     expect(result.gateReportSha256).toBe(sha256(receiptBytes));
+    expect(gateHarness.state.navigationUrls.length).toBeGreaterThan(0);
     expect(gateHarness.state.navigationUrls.every(
       (url) => url === pathToFileURL(path.join(paths.site, "index.html")).href,
     )).toBe(true);
@@ -258,6 +279,13 @@ describe("candidate gates", () => {
       {
         url: pathToFileURL(path.join(paths.site, "index.html")).href,
         siteDir: paths.site,
+      },
+    ]);
+    expect(gateHarness.state.unresolvedCalls).toEqual([
+      {
+        siteDir: paths.site,
+        tokensCssText:
+          ":root { --color-bg: #ffffff; --color-text: #111111; --font-body: Arial, sans-serif; }\n",
       },
     ]);
     expect(await fs.readFile(paths.provenance)).toEqual(provenanceBefore);
@@ -286,7 +314,53 @@ describe("candidate gates", () => {
     ["../escape", "bad runId"],
     ["abc", "bad runId"],
   ])("rejects unsafe run id %j before browser or writes", async (runId, message) => {
+    const escapedRoot = path.resolve(process.cwd(), "sites", runId);
+    await expect(fs.stat(escapedRoot)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(runCandidateGates(runId)).rejects.toThrow(message);
+    expect(gateHarness.launch).not.toHaveBeenCalled();
+    await expect(fs.stat(escapedRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("requires provenance bindings for every consumed run-root input", async () => {
+    const tokenRunId = testRunId("candidate-unbound-token");
+    const tokenCandidate = await createReadyCandidate(tokenRunId);
+    await writeJson(tokenCandidate.paths.provenance, {
+      ...tokenCandidate.ready,
+      inputArtifactHashes: tokenCandidate.ready.inputArtifactHashes.filter(
+        (input) => input.path !== "tokens.json",
+      ),
+    });
+    await expect(runCandidateGates(tokenRunId)).rejects.toThrow(
+      /not bound by provenance.*tokens\.json/,
+    );
+    await expect(fs.stat(tokenCandidate.paths.gates)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+
+    const intakeRunId = testRunId("candidate-unbound-intake");
+    const intakeCandidate = await createReadyCandidate(intakeRunId);
+    await writeJson(intakeCandidate.paths.provenance, {
+      ...intakeCandidate.ready,
+      inputArtifactHashes: intakeCandidate.ready.inputArtifactHashes.filter(
+        (input) => input.path !== "intake.json",
+      ),
+    });
+    await expect(runCandidateGates(intakeRunId)).rejects.toThrow(
+      /not bound by provenance.*intake\.json/,
+    );
+    await expect(fs.stat(intakeCandidate.paths.gates)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+
+    const missingRunId = testRunId("candidate-bound-intake-missing");
+    const missingCandidate = await createReadyCandidate(missingRunId);
+    await fs.rm(path.join(sitePaths(missingRunId).root, "intake.json"));
+    await expect(runCandidateGates(missingRunId)).rejects.toThrow(
+      /bound gate input is missing.*intake\.json/,
+    );
+    await expect(fs.stat(missingCandidate.paths.gates)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
     expect(gateHarness.launch).not.toHaveBeenCalled();
   });
 
@@ -341,6 +415,41 @@ describe("candidate gates", () => {
     await expectLiveSentinels(duringRunId, duringSentinels);
   });
 
+  it("rejects provenance manifest/build binding flips before and during gates", async () => {
+    for (const [label, binding, expectedError] of [
+      ["manifest", { candidateManifestSha256: "e".repeat(64) }, /manifest SHA-256/],
+      ["build", { buildSha256: "f".repeat(64) }, /build SHA-256/],
+    ] as const) {
+      const preRunId = testRunId(`candidate-${label}-binding-pre`);
+      const pre = await createReadyCandidate(preRunId);
+      await writeJson(pre.paths.provenance, { ...pre.ready, ...binding });
+      await expect(runCandidateGates(preRunId)).rejects.toThrow(expectedError);
+      await expect(fs.stat(pre.paths.gates)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    }
+    expect(gateHarness.launch).not.toHaveBeenCalled();
+
+    const duringRunId = testRunId("candidate-binding-during");
+    const during = await createReadyCandidate(duringRunId);
+    let flipped = false;
+    gateHarness.state.onNavigate = async () => {
+      if (flipped) return;
+      flipped = true;
+      await writeJson(during.paths.provenance, {
+        ...during.ready,
+        candidateManifestSha256: "e".repeat(64),
+        buildSha256: "f".repeat(64),
+      });
+    };
+    await expect(runCandidateGates(duringRunId)).rejects.toThrow(
+      /manifest SHA-256|binding changed/,
+    );
+    await expect(fs.stat(during.paths.gates)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("fails closed when a provenance-bound gate input changes before or during evaluation", async () => {
     const beforeRunId = testRunId("candidate-input-before");
     const before = await createReadyCandidate(beforeRunId);
@@ -364,6 +473,78 @@ describe("candidate gates", () => {
       /gate input.*(?:provenance|changed)|provenance.*gate input/,
     );
     await expect(fs.stat(during.paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a candidate tokens.css symlink swap before launching gates", async () => {
+    const runId = testRunId("candidate-token-css-swap");
+    const { paths } = await createReadyCandidate(runId);
+    const tokenCssPath = path.join(paths.site, "tokens.css");
+    const outsideRoot = await fs.mkdtemp(path.join(process.cwd(), ".tmp-obx-011-"));
+    const outsideTokens = path.join(outsideRoot, "tokens.css");
+    await fs.writeFile(outsideTokens, await fs.readFile(tokenCssPath));
+
+    const realOpen = fs.open.bind(fs);
+    let tokenCssOpens = 0;
+    vi.spyOn(fs, "open").mockImplementation(async (...args) => {
+      const handle = await realOpen(...args);
+      if (String(args[0]) === tokenCssPath && ++tokenCssOpens === 2) {
+        const realClose = handle.close.bind(handle);
+        vi.spyOn(handle, "close").mockImplementationOnce(async () => {
+          await realClose();
+          await fs.rename(tokenCssPath, `${tokenCssPath}.original`);
+          await fs.symlink(outsideTokens, tokenCssPath);
+        });
+      }
+      return handle;
+    });
+
+    try {
+      await expect(runCandidateGates(runId)).rejects.toThrow(/symlink/);
+      expect(gateHarness.launch).not.toHaveBeenCalled();
+      await expect(fs.stat(paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await fs.rm(outsideRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("revalidates candidate bindings after staging receipt bytes and before rename", async () => {
+    const runId = testRunId("candidate-pre-rename-tamper");
+    const candidate = await createReadyCandidate(runId);
+    const realWriteFile = fs.writeFile.bind(fs);
+    let tampered = false;
+    vi.spyOn(fs, "writeFile").mockImplementation(async (file, data, options) => {
+      const result = await realWriteFile(file, data, options);
+      if (!tampered && String(file).includes(".tmp-")) {
+        tampered = true;
+        await realWriteFile(
+          candidate.paths.provenance,
+          Buffer.from(
+            JSON.stringify(
+              {
+                ...candidate.ready,
+                candidateManifestSha256: "e".repeat(64),
+                buildSha256: "f".repeat(64),
+              },
+              null,
+              2,
+            ),
+          ),
+        );
+      }
+      return result;
+    });
+
+    await expect(runCandidateGates(runId)).rejects.toThrow(
+      /manifest SHA-256|binding changed/,
+    );
+    await expect(fs.stat(candidate.paths.gates)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(
+      (await fs.readdir(sitePaths(runId).root)).some((entry) =>
+        entry.includes(".tmp-"),
+      ),
+    ).toBe(false);
   });
 
   it("preserves a prior candidate report on browser and atomic write failure", async () => {

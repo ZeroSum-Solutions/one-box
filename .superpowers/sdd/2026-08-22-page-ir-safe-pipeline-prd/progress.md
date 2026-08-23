@@ -64,3 +64,11 @@
   PASS with no findings. The legacy smoke command remains baseline-blocked on
   Node 26 strip-only handling of `productionTarget.ts`; untouched base `c916d2c`
   reproduces the same pre-gate error.
+- OBX-011 Fix Round 1: verified. Candidate receipts now reject nested unknown
+  fields and blocking-policy downgrade; all consumed run-root inputs require
+  provenance bindings; candidate CSS uses stable no-follow reads; every fixed
+  target path is asserted; and candidate/input bindings are revalidated after
+  temporary receipt creation immediately before rename. Focused verification:
+  134 passed, including the real Playwright path. Full suite: 600 passed,
+  2 skipped. Typecheck and lint pass; security review: PASS with no findings.
+  OBX-015 retains ownership of the final cross-process lock window.

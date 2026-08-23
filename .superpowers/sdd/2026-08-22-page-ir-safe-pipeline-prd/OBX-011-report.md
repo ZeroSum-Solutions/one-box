@@ -14,8 +14,8 @@ and candidate-site directory; a `ready-for-gates` provenance binding; and a
 valid manifest/inventory/build. Browser navigation uses the candidate
 `index.html` file URL, while token, stylesheet, unresolved-reference, and
 contrast inputs use that same candidate site root. Run-root `tokens.json` and
-optional `intake.json` are read as stable regular files, checked against any
-recorded provenance hash, and checked again after all gates.
+any present optional `intake.json` require provenance bindings, are read as
+stable regular files, and are checked again after all gates.
 
 Every candidate run executes the ordered nine-gate suite. After the browser
 closes, the candidate manifest, inventory, build, provenance input bindings,
@@ -138,3 +138,91 @@ the complete `EVAL-CAND-001`/`EVAL-CAND-002` outcome.
 - The Node 26 smoke-loader incompatibility is a baseline repository issue. Unit,
   type, lint, focused gate, and direct real-browser candidate evidence cover
   this ticket without claiming that baseline smoke command passed.
+
+## Fix Round 1 — harden receipt and last-write validation
+
+Grok 4.6 sustained six bounded findings in the original delivery: nested report
+objects were not strict, blocking flags were not receipt invariants, consumed
+run-root inputs could be unbound, the candidate `tokens.css` gate read followed
+the ordinary read path, candidate path checks did not assert every fixed path,
+and receipt publication did not revalidate after staging its temporary bytes.
+This round closes those seams without adding a caller path API, lifecycle
+decision, site mutation, compiler, repair, promotion, or cross-process lock.
+OBX-015 still owns the final last-instant concurrency window.
+
+### Fix Round 1 RED/GREEN evidence
+
+Contract RED command:
+
+```text
+npm test -- src/lib/contracts.test.ts
+```
+
+RED exit `1`: 29 tests passed and the intended receipt test failed because a
+nested unknown report key was accepted. The same test also pins the exact
+blocking tuple so no blocking gate can be downgraded in a receipt.
+
+Runtime RED command:
+
+```text
+npm test -- src/lib/gates.candidate.test.ts
+```
+
+RED exit `1`: 9 tests passed and the 3 intended tests failed. Unbound consumed
+inputs produced a receipt, a deterministic post-inventory `tokens.css` symlink
+swap reached browser launch, and a provenance binding flip after temporary
+receipt creation was still renamed into place.
+
+GREEN evidence:
+
+- Contract plus fast candidate suite: exit `0`; 42 tests passed.
+- Contract, mocked candidate, and actual Playwright candidate path: exit `0`;
+  43 tests passed. The real path had zero blocking failures.
+- Ten-file candidate/live caller regression: exit `0`; 134 tests passed.
+- Full `npm test`: exit `0`; 66 files passed and 2 skipped; 600 tests passed
+  and 2 skipped.
+- `npm run typecheck`: exit `0`; route types generated and `tsc --noEmit`
+  completed.
+- `npm run lint`: exit `0`; 0 errors and 6 pre-existing warnings.
+- `git diff --check`: exit `0`.
+
+### Fix Round 1 acceptance mapping
+
+- Candidate receipts use a candidate-only strict nested gate-report schema.
+  One closed tuple pins exact order and policy: the first eight gates are
+  blocking and `perf-budget` is advisory.
+- Required `tokens.json` must be provenance-bound before reading. A present
+  optional `intake.json` must also be bound; a bound but missing intake fails
+  closed. Both remain stable regular-file reads and are compared again after
+  evaluation and immediately before publication.
+- Candidate `tokens.css` uses the same nonblocking/no-follow stable reader. A
+  deterministic symlink swap after inventory is rejected before browser launch
+  and creates no report.
+- The validated run root is derived only after run-ID validation. Candidate
+  root, site, manifest, provenance, and report paths must exactly equal the
+  fixed layout, with candidate and site confirmed as real non-symlink
+  directories below their exact parent.
+- After gates, receipt bytes are staged in a same-filesystem private run temp.
+  Candidate manifest/build/provenance plus gate inputs are revalidated again
+  immediately before atomic rename. Tamper removes the temp and emits no new
+  receipt; rename failure still preserves a previous receipt.
+- Tests prove file-URL navigation, exact gate/blocking order, candidate-site
+  roots for contrast and unresolved-reference disk seams, unsafe run-ID
+  no-create behavior, pre/in-run provenance binding flips, and exact real
+  receipt bytes and SHA-256.
+
+### Fix Round 1 files, assumptions, and risks
+
+- Receipt closure: `src/lib/contracts.ts` and `src/lib/contracts.test.ts`.
+- Closed target, stable inputs, and staged revalidation:
+  `src/lib/gates.ts` and `src/lib/gates.candidate.test.ts`.
+- Real Playwright byte/hash binding:
+  `src/lib/gates.candidate.integration.test.ts`.
+- Canonical evidence: `docs/architecture/README.md`, the OBX-011 ticket, this
+  report, the SDD progress ledger, and the
+  `OBX-011-fix-round-1-security` directory.
+- Assumption: the private temporary receipt is created under the validated run
+  root so rename into `candidate/gates.json` remains same-filesystem atomic; it
+  is always removed on rejection or rename failure.
+- Risk: no competing lock was introduced. OBX-015 owns swap-and-restore across
+  the full browser run and the final cross-process rename window.

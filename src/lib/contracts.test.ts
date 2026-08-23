@@ -386,6 +386,22 @@ describe("candidate contracts", () => {
         reports: [...receipt.reports].reverse(),
       }).success,
     ).toBe(false);
+    expect(
+      CandidateGateReceiptV1Schema.safeParse({
+        ...receipt,
+        reports: receipt.reports.map((report, index) =>
+          index === 0 ? { ...report, unexpected: "accepted" } : report,
+        ),
+      }).success,
+    ).toBe(false);
+    expect(
+      CandidateGateReceiptV1Schema.safeParse({
+        ...receipt,
+        reports: receipt.reports.map((report, index) =>
+          index === 0 ? { ...report, blocking: false } : report,
+        ),
+      }).success,
+    ).toBe(false);
   });
 });
 
