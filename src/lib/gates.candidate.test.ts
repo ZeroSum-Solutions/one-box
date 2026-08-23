@@ -855,6 +855,37 @@ describe("candidate gates", () => {
           '<main data-edit-id="main"> fontFamily ui-sans-serif, system-ui, sans-serif not in tokens.css',
         ],
       });
+
+    gateHarness.reset();
+    const named = await createReadyPageIrCandidate(
+      testRunId("pgi-token-named"),
+      compilerPageIr(),
+      {
+        tokensCss: [
+          ":root {",
+          "  --compiler-canvas: white;",
+          "  --compiler-color: #172033;",
+          "  --compiler-font: ui-sans-serif, system-ui;",
+          "}",
+        ].join("\n"),
+      },
+    );
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    gateHarness.state.renderedElements.push({
+      tag: "main",
+      editId: "main",
+      color: "rgb(23, 32, 51)",
+      backgroundColor: "rgb(255, 255, 255)",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    });
+    const namedResult = await runCandidateGates(named.ready.runId);
+    expect(namedResult.receipt.reports.find((report) => report.gate === "token-drift"))
+      .toMatchObject({
+        pass: false,
+        details: [
+          '<main data-edit-id="main"> backgroundColor rgb(255, 255, 255) not in tokens.css',
+        ],
+      });
   });
 
   it("rejects invalid PageIR and design-contract authority before browser execution", async () => {
