@@ -126,6 +126,62 @@ function latestCurrentArtifact(run: Awaited<ReturnType<typeof loadRun>>) {
     .sort((left, right) => right.version - left.version)[0];
 }
 
+type CurrentVisualQaArtifact = Extract<
+  NonNullable<ReturnType<typeof latestCurrentArtifact>>,
+  { artifactType: "visual-qa" }
+>;
+
+async function assertPageIrVisualQaReviewAuthority(
+  runId: string,
+  run: Awaited<ReturnType<typeof loadRun>>,
+  visualQa: CurrentVisualQaArtifact,
+): Promise<void> {
+  if (run.layoutAuthority !== "page-ir-v1") return;
+
+  let sourceReview;
+  try {
+    sourceReview = await loadPageIrSourceBundleForReview(runId);
+  } catch {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires a current approved Source Bundle",
+    );
+  }
+  if (sourceReview.reviewState !== "approved") {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires a current approved Source Bundle",
+    );
+  }
+  if (visualQa.artifact.checks.some((check) => check.status === "pending")) {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires real visual QA with no pending checks",
+    );
+  }
+
+  let live;
+  try {
+    live = await inspectPromotedLiveBundle(runId);
+  } catch {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires valid canonical promoted live metadata",
+    );
+  }
+  if (live.status !== "present") {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires canonical promoted live",
+    );
+  }
+  const visualQaBuildSha256 = visualQa.artifact.buildSha256;
+  if (
+    live.manifest.buildSha256 !== visualQaBuildSha256 ||
+    live.provenance.promotedBuildSha256 !== visualQaBuildSha256 ||
+    live.receipt.buildSha256 !== visualQaBuildSha256
+  ) {
+    throw new EvidenceWorkflowError(
+      "PageIR promoted live build does not match the current visual QA artifact",
+    );
+  }
+}
+
 function isMissingPageIrSourceBundle(error: unknown): boolean {
   return (
     typeof error === "object" &&
@@ -414,6 +470,11 @@ export async function POST(
           ) {
             throw new EvidenceWorkflowError("visual QA must be in review before human review");
           }
+          await assertPageIrVisualQaReviewAuthority(
+            id,
+            transaction.state,
+            transactionCurrent,
+          );
           const referenceContext = input.criteria.designAndReferenceAlignment.referenceContext;
           if (referenceContext !== expectedReferenceContext) {
             throw new EvidenceWorkflowError(
@@ -491,7 +552,38 @@ export async function POST(
           "visual QA rejection requires a structured named human visual review"
         );
       }
-      if (nextState === "approved" && current.artifactType === "design-contract") {
+      if (
+        input.action === "submit" &&
+        before.layoutAuthority === "page-ir-v1" &&
+        current.artifactType === "visual-qa"
+      ) {
+        await withSiteAuthorityLock(id, () =>
+          withRunTransaction(id, async (transaction) => {
+            const transactionCurrent = latestCurrentArtifact(transaction.state);
+            if (
+              !transactionCurrent ||
+              transactionCurrent.artifactType !== "visual-qa" ||
+              transactionCurrent.version !== current.version ||
+              artifactApprovalState(transactionCurrent) !== "draft"
+            ) {
+              throw new EvidenceWorkflowError(
+                "visual QA revision changed before submission",
+              );
+            }
+            await assertPageIrVisualQaReviewAuthority(
+              id,
+              transaction.state,
+              transactionCurrent,
+            );
+            await transaction.transitionEvidenceArtifactApproval(
+              "visual-qa",
+              transactionCurrent.version,
+              "in-review",
+              { actor: "workspace-user", note: input.note },
+            );
+          })
+        );
+      } else if (nextState === "approved" && current.artifactType === "design-contract") {
         await withRunTransaction(id, async (transaction) => {
           const transactionCurrent = latestCurrentArtifact(transaction.state);
           if (!transactionCurrent || transactionCurrent.artifactType !== "design-contract" || transactionCurrent.version !== current.version) {

@@ -49,6 +49,7 @@ import { compilerPageIr } from "../../../../lib/test-fixtures/pageIrCompilerFixt
 import {
   loadPageIrSourceBundleForReview,
   proposePageIrSourceBundle,
+  transitionPageIrSourceBundleReview,
 } from "../../../../lib/pageIrPipeline";
 
 const runIds: string[] = [];
@@ -135,7 +136,10 @@ async function fixtureRun(layoutAuthority: LayoutAuthority = "template-v1") {
   return runId;
 }
 
-async function fixtureVisualQaRun(layoutAuthority: LayoutAuthority = "template-v1") {
+async function fixtureVisualQaRun(
+  layoutAuthority: LayoutAuthority = "template-v1",
+  checkStatus: "pending" | "pass" = "pass",
+) {
   const runId = await fixtureRun(layoutAuthority);
   await transitionEvidenceArtifactApproval(runId, "ledger", 1, "in-review");
   await transitionEvidenceArtifactApproval(runId, "ledger", 1, "approved");
@@ -176,7 +180,7 @@ async function fixtureVisualQaRun(layoutAuthority: LayoutAuthority = "template-v
       buildSha256,
       checks: (["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const).map((area) => ({
         area,
-        status: "pass",
+        status: checkStatus,
         ...(["desktop", "tablet", "mobile"].includes(area) ? { evidencePath: `evidence/qa/v1/${area}.png` } : {}),
       })),
     },
@@ -301,8 +305,10 @@ function pageIrSourceProposal(runId: string) {
   };
 }
 
-async function fixturePageIrSourceBundle() {
-  const { runId } = await fixtureVisualQaRun("page-ir-v1");
+async function fixturePageIrSourceBundle(
+  checkStatus: "pending" | "pass" = "pass",
+) {
+  const { runId } = await fixtureVisualQaRun("page-ir-v1", checkStatus);
   const bundle = await proposePageIrSourceBundle(pageIrSourceProposal(runId));
   return { runId, bundle };
 }
@@ -314,6 +320,29 @@ const sourceReviewCriteria = {
   upstreamBindings: "pass" as const,
   sourceChain: "pass" as const,
 };
+
+async function approvePageIrSourceReview(
+  runId: string,
+  payloadSha256: string,
+) {
+  await transitionPageIrSourceBundleReview(
+    runId,
+    payloadSha256,
+    "in-review",
+    { actorKind: "human", actorName: "Devin" },
+  );
+  await transitionPageIrSourceBundleReview(
+    runId,
+    payloadSha256,
+    "approved",
+    {
+      actorKind: "human",
+      actorName: "Devin",
+      humanAttestation: true,
+      criteria: sourceReviewCriteria,
+    },
+  );
+}
 
 async function markPageIrCandidateState(
   runId: string,
@@ -1174,5 +1203,228 @@ describe("PageIR Source Bundle evidence API", () => {
     const corrupt = await GET(request(runId), context(runId));
     expect(corrupt.status).toBe(200);
     await expect(corrupt.json()).resolves.toMatchObject({ previewUrl: null });
+  });
+
+  it("rejects direct submission of the pending PageIR visual-QA placeholder without changing history", async () => {
+    const { runId, bundle } = await fixturePageIrSourceBundle("pending");
+    await approvePageIrSourceReview(runId, bundle.payloadSha256);
+    await markLiveBundlePromoted(runId);
+    const before = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+
+    const response = await POST(
+      request(runId, { action: "submit" }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/pending|real visual QA/i),
+    });
+    const after = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+    expect(after.approvalTransitions).toEqual(before.approvalTransitions);
+    expect(artifactApprovalState(after)).toBe("draft");
+  });
+
+  it("rejects PageIR visual-QA submission without current source approval or exact canonical live", async () => {
+    const scenarios = [
+      {
+        name: "unapproved source",
+        prepare: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await markLiveBundlePromoted(fixture.runId);
+          return fixture;
+        },
+        error: /approved Source Bundle/i,
+      },
+      {
+        name: "absent promoted live",
+        prepare: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await approvePageIrSourceReview(fixture.runId, fixture.bundle.payloadSha256);
+          return fixture;
+        },
+        error: /canonical promoted live/i,
+      },
+      {
+        name: "corrupt promoted live",
+        prepare: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await approvePageIrSourceReview(fixture.runId, fixture.bundle.payloadSha256);
+          await markLiveBundlePromoted(fixture.runId);
+          await fs.writeFile(
+            path.join(sitePaths(fixture.runId).site, ".one-box", "provenance.json"),
+            "{}",
+          );
+          return fixture;
+        },
+        error: /canonical promoted live/i,
+      },
+      {
+        name: "mismatched promoted live",
+        prepare: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await approvePageIrSourceReview(fixture.runId, fixture.bundle.payloadSha256);
+          await fs.writeFile(
+            path.join(sitePaths(fixture.runId).site, "index.html"),
+            "different promoted build",
+          );
+          await markLiveBundlePromoted(fixture.runId);
+          return fixture;
+        },
+        error: /promoted live.*visual QA|visual QA.*promoted live/i,
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const { runId } = await scenario.prepare();
+      const before = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+
+      const response = await POST(
+        request(runId, { action: "submit" }),
+        context(runId),
+      );
+
+      expect(response.status, scenario.name).toBe(409);
+      expect(await response.json(), scenario.name).toMatchObject({
+        error: expect.stringMatching(scenario.error),
+      });
+      const after = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+      expect(after.approvalTransitions, scenario.name).toEqual(
+        before.approvalTransitions,
+      );
+    }
+  });
+
+  it("enforces PageIR source, real-QA, and promoted-live authority inside human review", async () => {
+    const fixtures = [
+      {
+        name: "unapproved source",
+        create: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await markLiveBundlePromoted(fixture.runId);
+          return fixture;
+        },
+        error: /approved Source Bundle/i,
+      },
+      {
+        name: "pending QA",
+        create: async () => {
+          const fixture = await fixturePageIrSourceBundle("pending");
+          await approvePageIrSourceReview(fixture.runId, fixture.bundle.payloadSha256);
+          await markLiveBundlePromoted(fixture.runId);
+          return fixture;
+        },
+        error: /pending|real visual QA/i,
+      },
+      {
+        name: "absent promoted live",
+        create: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await approvePageIrSourceReview(fixture.runId, fixture.bundle.payloadSha256);
+          return fixture;
+        },
+        error: /canonical promoted live/i,
+      },
+      {
+        name: "corrupt promoted live",
+        create: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await approvePageIrSourceReview(fixture.runId, fixture.bundle.payloadSha256);
+          await markLiveBundlePromoted(fixture.runId);
+          await fs.writeFile(
+            path.join(sitePaths(fixture.runId).site, ".one-box", "provenance.json"),
+            "{}",
+          );
+          return fixture;
+        },
+        error: /canonical promoted live/i,
+      },
+      {
+        name: "mismatched promoted live",
+        create: async () => {
+          const fixture = await fixturePageIrSourceBundle();
+          await approvePageIrSourceReview(fixture.runId, fixture.bundle.payloadSha256);
+          await fs.writeFile(
+            path.join(sitePaths(fixture.runId).site, "index.html"),
+            "different promoted build",
+          );
+          await markLiveBundlePromoted(fixture.runId);
+          return fixture;
+        },
+        error: /promoted live.*visual QA|visual QA.*promoted live/i,
+      },
+    ];
+
+    for (const fixtureCase of fixtures) {
+      const { runId } = await fixtureCase.create();
+      await transitionEvidenceArtifactApproval(runId, "visual-qa", 1, "in-review");
+      const before = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+
+      const response = await POST(
+        request(runId, humanReview()),
+        context(runId),
+      );
+
+      expect(response.status, fixtureCase.name).toBe(409);
+      expect(await response.json(), fixtureCase.name).toMatchObject({
+        error: expect.stringMatching(fixtureCase.error),
+      });
+      const after = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+      expect(after.approvalTransitions, fixtureCase.name).toEqual(
+        before.approvalTransitions,
+      );
+      expect(artifactApprovalState(after), fixtureCase.name).toBe("in-review");
+    }
+  });
+
+  it("accepts exact real PageIR visual QA only after source approval and canonical promotion", async () => {
+    const { runId, bundle } = await fixturePageIrSourceBundle();
+    await approvePageIrSourceReview(runId, bundle.payloadSha256);
+    await markLiveBundlePromoted(runId);
+
+    const submitted = await POST(
+      request(runId, { action: "submit" }),
+      context(runId),
+    );
+    expect(submitted.status).toBe(200);
+    await expect(submitted.json()).resolves.toMatchObject({
+      currentApprovalState: "in-review",
+    });
+
+    const approved = await POST(
+      request(runId, humanReview()),
+      context(runId),
+    );
+    expect(approved.status).toBe(200);
+    await expect(approved.json()).resolves.toMatchObject({
+      currentApprovalState: "approved",
+    });
+    const current = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+    expect(current.approvalTransitions.at(-1)).toMatchObject({
+      state: "approved",
+      humanVisualReview: {
+        reviewerName: "Devin",
+        humanAttestation: true,
+        buildSha256: current.artifactType === "visual-qa"
+          ? current.artifact.buildSha256
+          : undefined,
+      },
+    });
+  });
+
+  it("preserves template visual-QA submission without Source Bundle or promotion", async () => {
+    const { runId } = await fixtureVisualQaRun("template-v1", "pending");
+
+    const response = await POST(
+      request(runId, { action: "submit" }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      layoutAuthority: "template-v1",
+      pageIrSourceReview: null,
+      currentApprovalState: "in-review",
+    });
   });
 });
