@@ -317,11 +317,16 @@ approved token inventory, validates the assembled Page IR, and returns a
 canonical Page IR SHA-256 plus fixed-order, timestamp-free lineage. Raw Refero
 IDs remain only in lineage behind safe Page IR aliases.
 
-Derivation itself does not compile, persist, promote, or edit `page-ir.json`.
-Compilation is the separate pure boundary below; runtime persistence/promotion
-and authoritative editing remain with OBX-024 and OBX-031. Image is the only
-Phase 1 Page IR asset kind; video and arbitrary embeddable media are not part of
-v1.
+The pure derivation module does not compile, persist, promote, or edit
+`page-ir.json`. `src/lib/pageIrPipeline.ts` owns the runtime boundary after CSS
+approval. It stores exact layout, content, and asset source bytes under the
+closed numeric-v1 source root, requires a named human to attest every source
+criterion, derives one immutable revision-1 Page IR from the exact eight
+approved bindings, and installs compiler output only in the unserved candidate
+root. A matching failed Page IR candidate stays parked for diagnosis; this
+boundary does not repair compiled files or mutate the live site. Authoritative
+Page IR editing remains with OBX-031. Image is the only Phase 1 Page IR asset
+kind; video and arbitrary embeddable media are not part of v1.
 
 `src/lib/pageIrCompiler.ts` owns the next pure boundary: numeric-v1 Page IR plus
 an exact in-memory set of hash- and metadata-bound image bytes becomes a sorted

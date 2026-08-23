@@ -137,6 +137,33 @@ export function candidatePaths(runId: string): Readonly<CandidatePaths> {
   });
 }
 
+export interface PageIrPaths {
+  /** sites/<id>/page-ir.json — the authoritative initial Page IR checkpoint. */
+  pageIr: string;
+  /** Closed numeric-v1 source bundle root; no latest alias is permitted. */
+  sourceRoot: string;
+  sourceBundle: string;
+  layoutDecision: string;
+  content: string;
+  assets: string;
+}
+
+/** Derive only the fixed Page IR checkpoint and numeric-v1 source paths. */
+export function pageIrPaths(runId: string): Readonly<PageIrPaths> {
+  const parsed = RunIdSchema.safeParse(runId);
+  if (!parsed.success) throw new Error("bad runId");
+  const root = sitePaths(parsed.data).root;
+  const sourceRoot = path.join(root, "page-ir-sources", "v1");
+  return Object.freeze({
+    pageIr: path.join(root, ARTIFACTS.pageIr),
+    sourceRoot,
+    sourceBundle: path.join(sourceRoot, "bundle.json"),
+    layoutDecision: path.join(sourceRoot, "layout-decision.json"),
+    content: path.join(sourceRoot, "content.json"),
+    assets: path.join(sourceRoot, "assets.json"),
+  });
+}
+
 /** Resolve any ARTIFACTS.* relative path (or a hand-built one) under the run root. */
 export function artifactPath(runId: string, artifactRelPath: string): string {
   return path.join(sitePaths(runId).root, artifactRelPath);

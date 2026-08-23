@@ -2492,6 +2492,302 @@ export const PageIrLineageV1Schema = z
   });
 export type PageIrLineageV1 = z.infer<typeof PageIrLineageV1Schema>;
 
+export const PAGE_IR_SOURCE_BUNDLE_UPSTREAM_KINDS = [
+  "evidence",
+  "design-contract",
+  "token-inventory",
+  "tailwind-plan",
+  "css-architecture",
+] as const;
+export const PAGE_IR_SOURCE_BUNDLE_ARTIFACT_KINDS = [
+  "layout-decision",
+  "content",
+  "assets",
+] as const;
+
+const PageIrSourceBundleUpstreamBindingV1Schema = z
+  .object({
+    kind: z.enum(PAGE_IR_SOURCE_BUNDLE_UPSTREAM_KINDS),
+    version: z.number().int().positive().max(1_000_000),
+    sha256: Sha256Schema,
+  })
+  .strict();
+
+const PageIrSourceBundleArtifactV1Schema = z.discriminatedUnion("kind", [
+  z
+    .object({
+      kind: z.literal("layout-decision"),
+      version: z.number().int().positive().max(1_000_000),
+      sha256: Sha256Schema,
+      sourceVersions: z
+        .object({
+          evidence: z.number().int().positive().max(1_000_000),
+          designContract: z.number().int().positive().max(1_000_000),
+          tokenInventory: z.number().int().positive().max(1_000_000),
+          tailwindPlan: z.number().int().positive().max(1_000_000),
+          cssArchitecture: z.number().int().positive().max(1_000_000),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("content"),
+      version: z.number().int().positive().max(1_000_000),
+      sha256: Sha256Schema,
+      sourceLayoutDecisionVersion: z.number().int().positive().max(1_000_000),
+    })
+    .strict(),
+  z
+    .object({
+      kind: z.literal("assets"),
+      version: z.number().int().positive().max(1_000_000),
+      sha256: Sha256Schema,
+      sourceLayoutDecisionVersion: z.number().int().positive().max(1_000_000),
+    })
+    .strict(),
+]);
+
+export const PageIrSourceBundleReviewCriteriaV1Schema = z
+  .object({
+    layoutDecision: z.literal("pass"),
+    content: z.literal("pass"),
+    assets: z.literal("pass"),
+    upstreamBindings: z.literal("pass"),
+    sourceChain: z.literal("pass"),
+  })
+  .strict();
+
+export const PageIrSourceBundleHumanReviewV1Schema = z
+  .object({
+    reviewerName: z.string().trim().min(1).max(120),
+    reviewerKind: z.literal("human"),
+    humanAttestation: z.literal(true),
+    reviewedAt: z.string().datetime({ offset: true }),
+    payloadSha256: Sha256Schema,
+    criteria: PageIrSourceBundleReviewCriteriaV1Schema,
+  })
+  .strict();
+export type PageIrSourceBundleHumanReviewV1 = z.infer<
+  typeof PageIrSourceBundleHumanReviewV1Schema
+>;
+
+export const PageIrSourceBundleReviewStateV1Schema = z.enum([
+  "draft",
+  "in-review",
+  "approved",
+  "rejected",
+  "superseded",
+]);
+export type PageIrSourceBundleReviewStateV1 = z.infer<
+  typeof PageIrSourceBundleReviewStateV1Schema
+>;
+
+export const PAGE_IR_SOURCE_BUNDLE_REVIEW_TRANSITIONS = Object.freeze({
+  draft: Object.freeze(["in-review", "rejected"] as const),
+  "in-review": Object.freeze(["approved", "rejected"] as const),
+  approved: Object.freeze(["superseded"] as const),
+  rejected: Object.freeze(["superseded"] as const),
+  superseded: Object.freeze([] as const),
+}) satisfies Readonly<
+  Record<
+    PageIrSourceBundleReviewStateV1,
+    readonly PageIrSourceBundleReviewStateV1[]
+  >
+>;
+
+export const PageIrSourceBundleReviewTransitionV1Schema = z
+  .object({
+    state: PageIrSourceBundleReviewStateV1Schema,
+    at: z.string().datetime({ offset: true }),
+    actorKind: z.enum(["human", "system", "model"]),
+    actorName: z.string().trim().min(1).max(120),
+    note: z.string().trim().min(1).max(2_000).optional(),
+    humanReview: PageIrSourceBundleHumanReviewV1Schema.optional(),
+  })
+  .strict();
+export type PageIrSourceBundleReviewTransitionV1 = z.infer<
+  typeof PageIrSourceBundleReviewTransitionV1Schema
+>;
+
+export const PageIrSourceBundleV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: RunIdSchema,
+    bundleVersion: z.number().int().positive().max(1_000_000),
+    payloadSha256: Sha256Schema,
+    upstreamBindings: z
+      .array(PageIrSourceBundleUpstreamBindingV1Schema)
+      .length(PAGE_IR_SOURCE_BUNDLE_UPSTREAM_KINDS.length),
+    sourceArtifacts: z
+      .array(PageIrSourceBundleArtifactV1Schema)
+      .length(PAGE_IR_SOURCE_BUNDLE_ARTIFACT_KINDS.length),
+    reviewTransitions: z
+      .array(PageIrSourceBundleReviewTransitionV1Schema)
+      .min(1)
+      .max(8),
+  })
+  .strict()
+  .superRefine((bundle, context) => {
+    for (const [
+      index,
+      kind,
+    ] of PAGE_IR_SOURCE_BUNDLE_UPSTREAM_KINDS.entries()) {
+      if (bundle.upstreamBindings[index]?.kind !== kind) {
+        context.addIssue({
+          code: "custom",
+          path: ["upstreamBindings", index, "kind"],
+          message: "source bundle upstream bindings must use the fixed order",
+        });
+      }
+    }
+    for (const [
+      index,
+      kind,
+    ] of PAGE_IR_SOURCE_BUNDLE_ARTIFACT_KINDS.entries()) {
+      if (bundle.sourceArtifacts[index]?.kind !== kind) {
+        context.addIssue({
+          code: "custom",
+          path: ["sourceArtifacts", index, "kind"],
+          message: "source bundle artifacts must use the fixed order",
+        });
+      }
+    }
+
+    const layout = bundle.sourceArtifacts[0];
+    const content = bundle.sourceArtifacts[1];
+    const assets = bundle.sourceArtifacts[2];
+    if (layout?.kind === "layout-decision") {
+      const upstreamVersions = Object.fromEntries(
+        bundle.upstreamBindings.map((binding) => [
+          binding.kind,
+          binding.version,
+        ]),
+      );
+      const expected = {
+        evidence: upstreamVersions.evidence,
+        designContract: upstreamVersions["design-contract"],
+        tokenInventory: upstreamVersions["token-inventory"],
+        tailwindPlan: upstreamVersions["tailwind-plan"],
+        cssArchitecture: upstreamVersions["css-architecture"],
+      };
+      if (JSON.stringify(layout.sourceVersions) !== JSON.stringify(expected)) {
+        context.addIssue({
+          code: "custom",
+          path: ["sourceArtifacts", 0, "sourceVersions"],
+          message: "layout decision must bind the exact upstream versions",
+        });
+      }
+      if (
+        content?.kind !== "content" ||
+        content.sourceLayoutDecisionVersion !== layout.version
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["sourceArtifacts", 1, "sourceLayoutDecisionVersion"],
+          message: "content and assets must bind the layout-decision version",
+        });
+      }
+      if (
+        assets?.kind !== "assets" ||
+        assets.sourceLayoutDecisionVersion !== layout.version
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["sourceArtifacts", 2, "sourceLayoutDecisionVersion"],
+          message: "content and assets must bind the layout-decision version",
+        });
+      }
+    }
+
+    const first = bundle.reviewTransitions[0];
+    if (first?.state !== "draft") {
+      context.addIssue({
+        code: "custom",
+        path: ["reviewTransitions", 0, "state"],
+        message: "source bundle review must begin in draft",
+      });
+    }
+    for (const [index, transition] of bundle.reviewTransitions.entries()) {
+      if (index > 0) {
+        const previous = bundle.reviewTransitions[index - 1];
+        const allowed = PAGE_IR_SOURCE_BUNDLE_REVIEW_TRANSITIONS[
+          previous.state
+        ] as readonly PageIrSourceBundleReviewStateV1[];
+        if (!allowed.includes(transition.state)) {
+          context.addIssue({
+            code: "custom",
+            path: ["reviewTransitions", index, "state"],
+            message: `invalid source bundle review transition: ${previous.state} -> ${transition.state}`,
+          });
+        }
+        if (Date.parse(transition.at) < Date.parse(previous.at)) {
+          context.addIssue({
+            code: "custom",
+            path: ["reviewTransitions", index, "at"],
+            message: "source bundle review timestamps must be monotonic",
+          });
+        }
+      }
+      if (transition.state === "approved") {
+        const review = transition.humanReview;
+        if (
+          transition.actorKind !== "human" ||
+          !review ||
+          transition.actorName !== review.reviewerName ||
+          transition.at !== review.reviewedAt ||
+          review.payloadSha256 !== bundle.payloadSha256
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["reviewTransitions", index, "humanReview"],
+            message:
+              "source bundle approval requires one named attested human review bound to the immutable payload",
+          });
+        }
+      } else if (transition.humanReview) {
+        context.addIssue({
+          code: "custom",
+          path: ["reviewTransitions", index, "humanReview"],
+          message: "only source bundle approval may carry a human review",
+        });
+      }
+      if (
+        transition.state === "in-review" &&
+        transition.actorKind !== "human"
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["reviewTransitions", index, "actorKind"],
+          message: "source bundle review must be claimed by a named human",
+        });
+      }
+    }
+  });
+export type PageIrSourceBundleV1 = z.infer<typeof PageIrSourceBundleV1Schema>;
+
+export const PersistedPageIrV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: RunIdSchema,
+    revision: z.number().int().positive().max(1_000_000),
+    pageIr: PageIRV1Schema,
+    pageIrSha256: Sha256Schema,
+    bindingSetSha256: Sha256Schema,
+    lineage: PageIrLineageV1Schema,
+  })
+  .strict()
+  .superRefine((envelope, context) => {
+    if (envelope.lineage.runId !== envelope.runId) {
+      context.addIssue({
+        code: "custom",
+        path: ["lineage", "runId"],
+        message: "persisted Page IR lineage must match the envelope run",
+      });
+    }
+  });
+export type PersistedPageIrV1 = z.infer<typeof PersistedPageIrV1Schema>;
+
 function isSafeCandidateRelativePath(value: string): boolean {
   if (
     value.length === 0 ||
