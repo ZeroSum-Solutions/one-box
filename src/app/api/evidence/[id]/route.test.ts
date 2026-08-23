@@ -47,7 +47,9 @@ import {
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
 import { compilerPageIr } from "../../../../lib/test-fixtures/pageIrCompilerFixtures";
 import {
+  deriveAndPersistInitialPageIr,
   loadPageIrSourceBundleForReview,
+  loadPersistedPageIr,
   proposePageIrSourceBundle,
   transitionPageIrSourceBundleReview,
 } from "../../../../lib/pageIrPipeline";
@@ -56,6 +58,10 @@ const runIds: string[] = [];
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
+}
+
+function differentSha256(value: string): string {
+  return `${value[0] === "0" ? "1" : "0"}${value.slice(1)}`;
 }
 
 const passingGateReports = [{
@@ -127,7 +133,13 @@ async function fixtureRun(layoutAuthority: LayoutAuthority = "template-v1") {
       referoDesignEvidence: {
         kind: "refero-design-evidence",
         sources: [],
-        references: [],
+        references: [{
+          referoId: "raw/style:alpha",
+          name: "Style alpha",
+          sourceUrl: "https://refero.design/style",
+          learningRationale: "Strong hierarchy",
+          reusablePatterns: ["Strong hero & proof"],
+        }],
         claims: [],
       },
       clientEvidence: { sources: [], claims: [], artifactRelationships: [], unsupportedUploadIds: [] },
@@ -152,11 +164,11 @@ async function fixtureVisualQaRun(
     layout: { maxWidthPx: 1000, sectionGapPx: 64, cardPaddingPx: 20 }, motion: { easing: "linear", durationMs: { micro: 100, reveal: 300 }, revealClasses: [] }, componentStates: [{ component: "button", states: { default: "solid" } }],
     imageryBrief: { subject: "work", lighting: "natural", grade: "neutral", framing: "wide", avoid: [] },
   });
-  const contract = await saveEvidenceArtifactVersion(runId, { artifactType: "design-contract", artifact: { title: "contract", contractPath: "DESIGN.md", sourceLedgerVersion: 1, approvedEvidenceIds: [], exportPaths: [], contractSha256: "a".repeat(64), exportSha256: "b".repeat(64), designTokens } });
+  const contract = await saveEvidenceArtifactVersion(runId, { artifactType: "design-contract", artifact: { title: "contract", contractPath: "DESIGN.md", sourceLedgerVersion: 1, approvedEvidenceIds: ["claim-1"], exportPaths: [], contractSha256: "a".repeat(64), exportSha256: "b".repeat(64), designTokens } });
   await transitionEvidenceArtifactApproval(runId, "design-contract", contract.version, "in-review");
   await transitionEvidenceArtifactApproval(runId, "design-contract", contract.version, "approved");
   await advanceEvidenceWorkflow(runId, "tokens");
-  const inventoryArtifact = buildTokenInventory(designTokens, contract.version, []);
+  const inventoryArtifact = buildTokenInventory(designTokens, contract.version, ["claim-1"]);
   const inventory = await saveEvidenceArtifactVersion(runId, { artifactType: "token-inventory", artifact: inventoryArtifact });
   await transitionEvidenceArtifactApproval(runId, "token-inventory", inventory.version, "in-review");
   await transitionEvidenceArtifactApproval(runId, "token-inventory", inventory.version, "approved");
@@ -191,6 +203,9 @@ async function fixtureVisualQaRun(
 async function markLiveBundlePromoted(runId: string) {
   const roots = sitePaths(runId);
   const run = await loadRun(runId);
+  const persistedPageIr = run.layoutAuthority === "page-ir-v1"
+    ? await loadPersistedPageIr(runId).catch(() => undefined)
+    : undefined;
   const manifest = await createCandidateManifest(roots.site);
   const candidateManifestHash = candidateManifestSha256(manifest);
   const receipt = CandidateGateReceiptV1Schema.parse({
@@ -223,7 +238,7 @@ async function markLiveBundlePromoted(runId: string) {
     layoutAuthority: run.layoutAuthority,
     compilerVersion: "fixture-v1",
     ...(run.layoutAuthority === "page-ir-v1"
-      ? { pageIrSha256: "c".repeat(64) }
+      ? { pageIrSha256: persistedPageIr?.pageIrSha256 ?? "c".repeat(64) }
       : {}),
     candidateManifestSha256: candidateManifestHash,
     buildSha256: manifest.buildSha256,
@@ -278,7 +293,10 @@ function pageIrSourceProposal(runId: string) {
           },
           layoutProgram: pageIr.layoutProgram,
           slotBindings: pageIr.slotBindings,
-          nodeTokenBindings: pageIr.nodeTokenBindings,
+          nodeTokenBindings: [{
+            nodeId: "document",
+            tokens: { color: "color-primary" },
+          }],
           accessibility: pageIr.accessibility,
         })),
       },
@@ -342,6 +360,7 @@ async function approvePageIrSourceReview(
       criteria: sourceReviewCriteria,
     },
   );
+  await deriveAndPersistInitialPageIr(runId);
 }
 
 async function markPageIrCandidateState(
@@ -1219,6 +1238,47 @@ describe("PageIR Source Bundle evidence API", () => {
     expect(response.status).toBe(409);
     await expect(response.json()).resolves.toMatchObject({
       error: expect.stringMatching(/pending|real visual QA/i),
+    });
+    const after = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+    expect(after.approvalTransitions).toEqual(before.approvalTransitions);
+    expect(artifactApprovalState(after)).toBe("draft");
+  });
+
+  it.each([
+    {
+      name: "missing persisted PageIR",
+      mutate: async (runId: string) => {
+        await fs.rm(path.join(sitePaths(runId).root, ARTIFACTS.pageIr));
+      },
+    },
+    {
+      name: "promoted provenance bound to a different PageIR",
+      mutate: async (runId: string) => {
+        const provenancePath = path.join(
+          sitePaths(runId).site,
+          ".one-box",
+          "provenance.json",
+        );
+        const provenance = JSON.parse(await fs.readFile(provenancePath, "utf8"));
+        provenance.pageIrSha256 = differentSha256(provenance.pageIrSha256);
+        await fs.writeFile(provenancePath, JSON.stringify(provenance, null, 2));
+      },
+    },
+  ])("rejects $name before PageIR visual-QA review without changing history", async ({ mutate }) => {
+    const { runId, bundle } = await fixturePageIrSourceBundle();
+    await approvePageIrSourceReview(runId, bundle.payloadSha256);
+    await markLiveBundlePromoted(runId);
+    await mutate(runId);
+    const before = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
+
+    const response = await POST(
+      request(runId, { action: "submit" }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/PageIR|canonical promoted live/i),
     });
     const after = (await loadRun(runId)).evidenceWorkflow.artifacts.at(-1)!;
     expect(after.approvalTransitions).toEqual(before.approvalTransitions);

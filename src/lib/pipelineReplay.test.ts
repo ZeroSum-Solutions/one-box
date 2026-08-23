@@ -1,5 +1,26 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { Intake, PipelineEvent, RunState } from "./contracts";
+import {
+  appendEvent,
+  createRun,
+  loadRun,
+  readEvents,
+  saveArtifact,
+  sitePaths,
+} from "./runstate";
+
+const modelMocks = vi.hoisted(() => ({
+  generateJson: vi.fn(async () => {
+    throw new Error("credential-free replay test attempted a model call");
+  }),
+}));
+
+vi.mock("./openrouter", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./openrouter")>();
+  return { ...actual, generateJson: modelMocks.generateJson };
+});
 import {
   assertBuiltCandidateParked,
   assertPromotableBuildDisposition,
@@ -33,6 +54,24 @@ function pendingRun(id: string): RunState {
   };
 }
 
+function visualQaChecks(status: "pending" | "pass") {
+  return ([
+    "desktop",
+    "tablet",
+    "mobile",
+    "hover",
+    "focus",
+    "color-scheme",
+    "reduced-motion",
+  ] as const).map((area) => ({
+    area,
+    status,
+    ...(["desktop", "tablet", "mobile"].includes(area)
+      ? { evidencePath: `evidence/qa/v1/${area}.png` }
+      : {}),
+  }));
+}
+
 const disabledResearchIntake = {
   businessName: "Acme",
   category: "service",
@@ -51,6 +90,102 @@ const disabledResearchIntake = {
   },
   uploads: [],
 } satisfies Intake;
+
+function pageIrCompletionHarness() {
+  const run = pendingRun("page-ir-complete-run");
+  run.layoutAuthority = "page-ir-v1";
+  run.evidenceWorkflow.currentStage = "build";
+  run.stages.built.status = "done";
+  const buildSha256 = "a".repeat(64);
+  const pageIrSha256 = "e".repeat(64);
+  run.evidenceWorkflow.artifacts = [
+    {
+      artifactType: "visual-qa",
+      version: 1,
+      createdAt: "2026-08-23T12:00:00.000Z",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-23T12:00:00.000Z" },
+        { state: "in-review", at: "2026-08-23T12:01:00.000Z" },
+        {
+          state: "approved",
+          at: "2026-08-23T12:02:00.000Z",
+          humanVisualReview: {
+            reviewerName: "Devin",
+            reviewerKind: "human",
+            humanAttestation: true,
+            reviewedAt: "2026-08-23T12:02:00.000Z",
+            buildSha256,
+            criteria: {
+              briefFidelity: { status: "pass" },
+              visualHierarchy: { status: "pass" },
+              spacingAndComposition: { status: "pass" },
+              businessSpecificity: { status: "pass" },
+              designAndReferenceAlignment: {
+                status: "pass",
+                referenceContext: "explicit-no-reference",
+              },
+            },
+          },
+        },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256,
+        checks: visualQaChecks("pass"),
+      },
+    },
+  ];
+  const complete: PipelineEvent = {
+    type: "complete",
+    runId: run.id,
+    previewUrl: `/preview/${run.id}`,
+  };
+  const exactCandidate = {
+    status: "present",
+    provenance: {
+      state: "promoted",
+      pageIrSha256,
+      candidateManifestSha256: "c".repeat(64),
+      gateReportSha256: "d".repeat(64),
+      buildSha256,
+      promotedBuildSha256: buildSha256,
+    },
+  };
+  const exactLive = {
+    status: "present",
+    manifest: { buildSha256 },
+    provenance: structuredClone(exactCandidate.provenance),
+    receipt: {
+      candidateManifestSha256: "c".repeat(64),
+      buildSha256,
+    },
+  };
+  const executePipeline = vi.fn().mockResolvedValue(undefined);
+  const dependencies = {
+    readEvents: vi.fn().mockResolvedValue([complete]),
+    loadRun: vi.fn().mockResolvedValue(run),
+    loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+    appendEvent: vi.fn().mockResolvedValue(undefined),
+    recoverCandidateState: vi.fn().mockResolvedValue({ action: "promoted" }),
+    inspectCandidate: vi.fn().mockResolvedValue(exactCandidate),
+    inspectPromotedLiveBundle: vi.fn().mockResolvedValue(exactLive),
+    loadPageIrSourceBundleForReview: vi.fn().mockResolvedValue({
+      reviewState: "approved",
+      bundle: { payloadSha256: "b".repeat(64) },
+      sources: {},
+    }),
+    loadPersistedPageIr: vi.fn().mockResolvedValue({ pageIrSha256 }),
+    executePipeline,
+  };
+  return {
+    run,
+    complete,
+    exactCandidate,
+    exactLive,
+    executePipeline,
+    dependencies,
+  };
+}
 
 describe("pipeline replay", () => {
   it("dispatches only PageIR evidence builds to the PageIR controller", async () => {
@@ -98,6 +233,44 @@ describe("pipeline replay", () => {
     expect(executePipeline).toHaveBeenCalledOnce();
     expect(dependencies.readEvents).toHaveBeenCalledOnce();
     expect(dependencies.appendEvent).not.toHaveBeenCalled();
+  });
+
+  it("reconnects a PageIR approval pause from real disk without model cost or durable writes", async () => {
+    const runId = `replay-disk-${process.pid}-${Date.now().toString(36)}`;
+    const roots = sitePaths(runId);
+    try {
+      await createRun({
+        id: runId,
+        layoutAuthority: "page-ir-v1",
+        pageIrRolloutPermitted: true,
+      });
+      await saveArtifact(runId, "intake.json", disabledResearchIntake);
+      const pause: PipelineEvent = {
+        type: "paused",
+        runId,
+        workflowStage: "evidence",
+        workspaceUrl: `/evidence/${runId}`,
+        note: "ledger is ready for review",
+      };
+      await appendEvent(runId, pause);
+      const runBytesBefore = await fs.readFile(path.join(roots.root, "run.json"));
+      const eventsBefore = await readEvents(runId);
+      modelMocks.generateJson.mockClear();
+      const emit = vi.fn();
+
+      await runPipeline(runId, emit);
+
+      expect(emit).toHaveBeenCalledWith(pause);
+      expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
+      expect(modelMocks.generateJson).not.toHaveBeenCalled();
+      expect((await loadRun(runId)).costUsd).toBe(0);
+      expect(await fs.readFile(path.join(roots.root, "run.json"))).toEqual(
+        runBytesBefore,
+      );
+      expect(await readEvents(runId)).toEqual(eventsBefore);
+    } finally {
+      await fs.rm(roots.root, { recursive: true, force: true });
+    }
   });
 
   it.each([
@@ -383,124 +556,135 @@ describe("pipeline replay", () => {
   );
 
   it("replays PageIR completion from an exact promoted candidate and live bundle", async () => {
-    const run = pendingRun("page-ir-complete-run");
-    run.layoutAuthority = "page-ir-v1";
-    run.evidenceWorkflow.currentStage = "build";
-    run.stages.built.status = "done";
-    const buildSha256 = "a".repeat(64);
-    run.evidenceWorkflow.artifacts = [
-      {
-        artifactType: "visual-qa",
-        version: 1,
-        createdAt: "2026-08-23T12:00:00.000Z",
-        approvalTransitions: [
-          { state: "draft", at: "2026-08-23T12:00:00.000Z" },
-          { state: "in-review", at: "2026-08-23T12:01:00.000Z" },
-          {
-            state: "approved",
-            at: "2026-08-23T12:02:00.000Z",
-            humanVisualReview: {
-              reviewerName: "Devin",
-              reviewerKind: "human",
-              humanAttestation: true,
-              reviewedAt: "2026-08-23T12:02:00.000Z",
-              buildSha256,
-              criteria: {
-                briefFidelity: { status: "pass" },
-                visualHierarchy: { status: "pass" },
-                spacingAndComposition: { status: "pass" },
-                businessSpecificity: { status: "pass" },
-                designAndReferenceAlignment: {
-                  status: "pass",
-                  referenceContext: "explicit-no-reference",
-                },
-              },
-            },
-          },
-        ],
-        artifact: {
-          sourceCssArchitectureVersion: 1,
-          buildSha256,
-          checks: [],
-        },
-      },
-    ];
-    const complete: PipelineEvent = {
-      type: "complete",
-      runId: run.id,
-      previewUrl: `/preview/${run.id}`,
-    };
-    const executePipeline = vi.fn().mockResolvedValue(undefined);
-    const emit = vi.fn();
-    const inspectPromotedLiveBundle = vi.fn().mockResolvedValue({
-      status: "present",
-      manifest: { buildSha256 },
-      provenance: {
-        state: "promoted",
-        pageIrSha256: "e".repeat(64),
-        candidateManifestSha256: "c".repeat(64),
-        gateReportSha256: "d".repeat(64),
-        buildSha256,
-        promotedBuildSha256: buildSha256,
-      },
-      receipt: {
-        candidateManifestSha256: "c".repeat(64),
-        buildSha256,
-      },
-    });
-    const commonDependencies = {
-      readEvents: vi.fn().mockResolvedValue([complete]),
-      loadRun: vi.fn().mockResolvedValue(run),
-      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
-      appendEvent: vi.fn().mockResolvedValue(undefined),
-      recoverCandidateState: vi.fn().mockResolvedValue({ action: "promoted" }),
-      inspectCandidate: vi.fn().mockResolvedValue({
-        status: "present",
-        provenance: {
-          state: "promoted",
-          pageIrSha256: "e".repeat(64),
-          candidateManifestSha256: "c".repeat(64),
-          gateReportSha256: "d".repeat(64),
-          buildSha256,
-          promotedBuildSha256: buildSha256,
-        },
-      }),
-      inspectPromotedLiveBundle,
-      loadPageIrSourceBundleForReview: vi.fn().mockResolvedValue({
-        reviewState: "approved",
-        bundle: { payloadSha256: "b".repeat(64) },
-        sources: {},
-      }),
+    const {
+      run,
+      complete,
+      exactLive,
       executePipeline,
-    };
+      dependencies,
+    } = pageIrCompletionHarness();
+    const emit = vi.fn();
 
-    await runPipeline(run.id, emit, commonDependencies as never);
+    await runPipeline(run.id, emit, dependencies as never);
 
     expect(emit).toHaveBeenCalledWith(complete);
     expect(executePipeline).not.toHaveBeenCalled();
 
-    inspectPromotedLiveBundle.mockResolvedValueOnce({
-      ...(await inspectPromotedLiveBundle.mock.results[0].value),
-      status: "present",
-      manifest: { buildSha256 },
-      provenance: {
-        state: "promoted",
-        pageIrSha256: "e".repeat(64),
-        candidateManifestSha256: "c".repeat(64),
-        gateReportSha256: "f".repeat(64),
-        buildSha256,
-        promotedBuildSha256: buildSha256,
+    for (const mismatch of [
+      "gateReportSha256",
+      "pageIrSha256",
+      "promotedBuildSha256",
+      "receiptBuildSha256",
+    ] as const) {
+      const mismatchLive = structuredClone(exactLive);
+      if (mismatch === "gateReportSha256") {
+        mismatchLive.provenance.gateReportSha256 = "f".repeat(64);
+      } else if (mismatch === "pageIrSha256") {
+        mismatchLive.provenance.pageIrSha256 = "f".repeat(64);
+      } else if (mismatch === "promotedBuildSha256") {
+        mismatchLive.provenance.promotedBuildSha256 = "f".repeat(64);
+      } else {
+        mismatchLive.receipt.buildSha256 = "f".repeat(64);
+      }
+      dependencies.inspectPromotedLiveBundle.mockResolvedValueOnce(mismatchLive);
+      executePipeline.mockClear();
+      const mismatchEmit = vi.fn();
+
+      await runPipeline(run.id, mismatchEmit, dependencies as never);
+
+      expect(executePipeline, mismatch).toHaveBeenCalledOnce();
+      expect(mismatchEmit, mismatch).not.toHaveBeenCalledWith(complete);
+    }
+  });
+
+  it.each([
+    {
+      name: "the current Source Bundle is missing",
+      mutate: (harness: ReturnType<typeof pageIrCompletionHarness>) => {
+        harness.dependencies.loadPageIrSourceBundleForReview.mockRejectedValue({
+          code: "ENOENT",
+        });
       },
-      receipt: {
-        candidateManifestSha256: "c".repeat(64),
-        buildSha256,
+    },
+    {
+      name: "the current Source Bundle is not approved",
+      mutate: (harness: ReturnType<typeof pageIrCompletionHarness>) => {
+        harness.dependencies.loadPageIrSourceBundleForReview.mockResolvedValue({
+          reviewState: "draft",
+          bundle: { payloadSha256: "b".repeat(64) },
+          sources: {},
+        });
       },
-    });
-    executePipeline.mockClear();
-    const mismatchEmit = vi.fn();
-    await runPipeline(run.id, mismatchEmit, commonDependencies as never);
-    expect(executePipeline).toHaveBeenCalledOnce();
-    expect(mismatchEmit).not.toHaveBeenCalledWith(complete);
+    },
+    {
+      name: "a PageIR candidate is absent even on a legacy-shaped run",
+      mutate: (harness: ReturnType<typeof pageIrCompletionHarness>) => {
+        harness.run.pipelineVersion = "legacy-v1";
+        for (const stage of Object.values(harness.run.stages)) {
+          stage.status = "done";
+        }
+        harness.dependencies.inspectCandidate.mockResolvedValue({
+          status: "absent",
+        });
+      },
+    },
+    {
+      name: "a legacy-shaped PageIR run lacks current visual approval",
+      mutate: (harness: ReturnType<typeof pageIrCompletionHarness>) => {
+        harness.run.pipelineVersion = "legacy-v1";
+        for (const stage of Object.values(harness.run.stages)) {
+          stage.status = "done";
+        }
+        const visualQa = harness.run.evidenceWorkflow.artifacts[0];
+        if (!visualQa || visualQa.artifactType !== "visual-qa") {
+          throw new Error("visual QA fixture missing");
+        }
+        visualQa.approvalTransitions = [
+          { state: "draft", at: "2026-08-23T12:00:00.000Z" },
+        ];
+      },
+    },
+    {
+      name: "persisted PageIR differs from candidate and live provenance",
+      mutate: (harness: ReturnType<typeof pageIrCompletionHarness>) => {
+        harness.dependencies.loadPersistedPageIr.mockResolvedValue({
+          pageIrSha256: "f".repeat(64),
+        });
+      },
+    },
+    {
+      name: "visual approval has no named-human attestation",
+      mutate: (harness: ReturnType<typeof pageIrCompletionHarness>) => {
+        const visualQa = harness.run.evidenceWorkflow.artifacts[0];
+        if (!visualQa || visualQa.artifactType !== "visual-qa") {
+          throw new Error("visual QA fixture missing");
+        }
+        delete visualQa.approvalTransitions.at(-1)!.humanVisualReview;
+      },
+    },
+    {
+      name: "approved visual QA still contains pending checks",
+      mutate: (harness: ReturnType<typeof pageIrCompletionHarness>) => {
+        const visualQa = harness.run.evidenceWorkflow.artifacts[0];
+        if (!visualQa || visualQa.artifactType !== "visual-qa") {
+          throw new Error("visual QA fixture missing");
+        }
+        visualQa.artifact.checks = visualQaChecks("pending");
+      },
+    },
+  ])("does not replay recorded PageIR completion when $name", async ({ mutate }) => {
+    const harness = pageIrCompletionHarness();
+    mutate(harness);
+    const emit = vi.fn();
+
+    await runPipeline(
+      harness.run.id,
+      emit,
+      harness.dependencies as never,
+    );
+
+    expect(harness.executePipeline).toHaveBeenCalledOnce();
+    expect(emit).not.toHaveBeenCalledWith(harness.complete);
   });
 
   it("stops a reconnect at the already-recorded current approval boundary", () => {
@@ -527,6 +711,34 @@ describe("pipeline replay", () => {
         currentStage: "tokens",
         referencePending: false,
       })
+    ).toBe(false);
+  });
+
+  it("does not treat an older build pause as current after a PageIR source pause", () => {
+    const buildPause: PipelineEvent = {
+      type: "paused",
+      runId: "run-test",
+      workflowStage: "build",
+      workspaceUrl: "/evidence/run-test",
+      note: "build approval ready",
+    };
+    const sourcePause: PipelineEvent = {
+      type: "page-ir-source-paused",
+      runId: "run-test",
+      stage: "built",
+      reviewState: "draft",
+      payloadSha256: "a".repeat(64),
+      workspaceUrl: "/evidence/run-test",
+      note: "source review ready",
+    };
+
+    expect(
+      replayedPauseIsCurrent([buildPause, sourcePause], {
+        id: "run-test",
+        pipelineVersion: "evidence-gated-v2",
+        currentStage: "build",
+        referencePending: false,
+      }),
     ).toBe(false);
   });
 

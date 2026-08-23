@@ -40,9 +40,13 @@ import {
 } from "../../../../lib/productionTarget";
 import {
   loadPageIrSourceBundleForReview,
+  loadPersistedPageIr,
   transitionPageIrSourceBundleReview,
 } from "../../../../lib/pageIrPipeline";
-import { inspectPromotedLiveBundle } from "../../../../lib/candidate";
+import {
+  candidateManifestSha256,
+  inspectPromotedLiveBundle,
+} from "../../../../lib/candidate";
 import { toPageIrSourceReviewView } from "../../../../components/pageIrSourceReview";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
@@ -157,6 +161,15 @@ async function assertPageIrVisualQaReviewAuthority(
     );
   }
 
+  let persistedPageIr;
+  try {
+    persistedPageIr = await loadPersistedPageIr(runId);
+  } catch {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires valid current persisted PageIR",
+    );
+  }
+
   let live;
   try {
     live = await inspectPromotedLiveBundle(runId);
@@ -171,13 +184,32 @@ async function assertPageIrVisualQaReviewAuthority(
     );
   }
   const visualQaBuildSha256 = visualQa.artifact.buildSha256;
+  const liveCandidateManifestSha256 = candidateManifestSha256(live.manifest);
   if (
     live.manifest.buildSha256 !== visualQaBuildSha256 ||
+    live.provenance.buildSha256 !== visualQaBuildSha256 ||
     live.provenance.promotedBuildSha256 !== visualQaBuildSha256 ||
     live.receipt.buildSha256 !== visualQaBuildSha256
   ) {
     throw new EvidenceWorkflowError(
       "PageIR promoted live build does not match the current visual QA artifact",
+    );
+  }
+  if (
+    !live.provenance.pageIrSha256 ||
+    live.provenance.pageIrSha256 !== persistedPageIr.pageIrSha256
+  ) {
+    throw new EvidenceWorkflowError(
+      "PageIR promoted live provenance does not match the current persisted PageIR",
+    );
+  }
+  if (
+    !live.provenance.candidateManifestSha256 ||
+    live.provenance.candidateManifestSha256 !== liveCandidateManifestSha256 ||
+    live.receipt.candidateManifestSha256 !== liveCandidateManifestSha256
+  ) {
+    throw new EvidenceWorkflowError(
+      "PageIR promoted live candidate manifest bindings do not match",
     );
   }
 }

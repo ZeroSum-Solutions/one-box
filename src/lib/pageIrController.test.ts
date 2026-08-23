@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PipelineEvent } from "./contracts";
-import * as controllerModule from "./pageIrController";
+import { executePageIrBuildController } from "./pageIrController";
 
 const HASH = "a".repeat(64);
 const OTHER_HASH = "b".repeat(64);
@@ -96,7 +96,7 @@ describe("PageIR build controller", () => {
       const events: PipelineEvent[] = [];
 
       await expect(
-        controllerModule.executePageIrBuildController(
+        executePageIrBuildController(
           "run-page-ir",
           (event) => events.push(event),
           dependencies,
@@ -127,7 +127,7 @@ describe("PageIR build controller", () => {
       });
 
       await expect(
-        controllerModule.executePageIrBuildController(
+        executePageIrBuildController(
           "run-page-ir",
           vi.fn(),
           dependencies,
@@ -139,30 +139,23 @@ describe("PageIR build controller", () => {
   );
 
   it.each([
-    ["ready-for-gates", 1, 1, 1],
-    ["failed", 0, 0, 0],
-    ["promotable", 0, 1, 1],
-    ["promoted", 0, 0, 1],
+    ["ready-for-gates", "visual-review", 1, 1, 1],
+    ["failed", "parked-failed", 0, 0, 0],
+    ["promotable", "visual-review", 0, 1, 1],
+    ["promoted", "visual-review", 0, 0, 1],
   ] as const)(
     "resumes a %s candidate at only the next durable operation",
-    async (state, gateCalls, promotionCalls, qaCalls) => {
-      const execute = (
-        controllerModule as unknown as {
-          executePageIrBuildController?: (
-            runId: string,
-            emit: (event: PipelineEvent) => void,
-            dependencies: ReturnType<typeof dependenciesFor>,
-          ) => Promise<unknown>;
-        }
-      ).executePageIrBuildController;
+    async (state, status, gateCalls, promotionCalls, qaCalls) => {
       const dependencies = dependenciesFor(state);
       const events: PipelineEvent[] = [];
 
-      const result = execute
-        ? await execute("run-page-ir", (event) => events.push(event), dependencies)
-        : undefined;
+      const result = await executePageIrBuildController(
+        "run-page-ir",
+        (event) => events.push(event),
+        dependencies,
+      );
 
-      expect(result).toBeDefined();
+      expect(result).toEqual({ status });
       expect(dependencies.gateBuiltCandidate).toHaveBeenCalledTimes(gateCalls);
       expect(dependencies.promoteCandidate).toHaveBeenCalledTimes(
         promotionCalls,
@@ -203,7 +196,7 @@ describe("PageIR build controller", () => {
     const events: PipelineEvent[] = [];
 
     await expect(
-      controllerModule.executePageIrBuildController(
+      executePageIrBuildController(
         "run-page-ir",
         (event) => events.push(event),
         dependencies,
@@ -224,7 +217,7 @@ describe("PageIR build controller", () => {
       .mockResolvedValueOnce(candidate("ready-for-gates"));
     const events: PipelineEvent[] = [];
 
-    await controllerModule.executePageIrBuildController(
+    await executePageIrBuildController(
       "run-page-ir",
       (event) => events.push(event),
       dependencies,
@@ -283,7 +276,7 @@ describe("PageIR build controller", () => {
     const events: PipelineEvent[] = [];
 
     await expect(
-      controllerModule.executePageIrBuildController(
+      executePageIrBuildController(
         "run-page-ir",
         (event) => events.push(event),
         dependencies,

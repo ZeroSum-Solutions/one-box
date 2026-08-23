@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as contracts from "./contracts";
 import {
   EVIDENCE_WORKFLOW_STAGES,
@@ -17,8 +17,10 @@ import {
 } from "./candidate";
 import { pageIrSha256 } from "./pageIrHash";
 import {
+  addCost,
   advanceEvidenceWorkflow,
   createRun,
+  loadRun,
   saveArtifact,
   saveEvidenceArtifactVersion,
   sitePaths,
@@ -31,12 +33,16 @@ import {
 import {
   deriveAndPersistInitialPageIr,
   loadApprovedPageIrSourceBundle,
+  loadPageIrSourceBundleForReview,
   loadPersistedPageIr,
   materializePageIrCandidate,
   proposePageIrSourceBundle,
   transitionPageIrSourceBundleReview,
 } from "./pageIrPipeline";
-import * as pageIrPipeline from "./pageIrPipeline";
+import {
+  ensurePageIrSourceBundle,
+  executePageIrBuildController,
+} from "./pageIrController";
 
 const HASH = "a".repeat(64);
 const OTHER_HASH = "b".repeat(64);
@@ -653,18 +659,6 @@ describe("Page IR source bundle persistence", () => {
   it("generates and proposes one durable assetless source checkpoint across reconnects", async () => {
     const runId = await createApprovedPageIrRun();
     await savePageIrGenerationContext(runId);
-    const controller = await import("./pageIrController").catch(() => ({}));
-    const ensure = (
-      controller as {
-        ensurePageIrSourceBundle?: (
-          runId: string,
-          dependencies: {
-            generateJson: (...args: unknown[]) => Promise<unknown>;
-            proposePageIrSourceBundle: typeof proposePageIrSourceBundle;
-          },
-        ) => Promise<unknown>;
-      }
-    ).ensurePageIrSourceBundle;
     const generated = assetlessGeneratedSources(runId);
     const prompts: string[] = [];
     let generationCalls = 0;
@@ -673,6 +667,7 @@ describe("Page IR source bundle persistence", () => {
       generateJson: async (...args: unknown[]) => {
         generationCalls += 1;
         prompts.push(String(args[3]));
+        await addCost(runId, 0.25);
         return generated;
       },
       proposePageIrSourceBundle: async (
@@ -691,18 +686,16 @@ describe("Page IR source bundle persistence", () => {
       },
     };
 
-    const results = ensure
-      ? await Promise.all([
-          ensure(runId, dependencies),
-          ensure(runId, dependencies),
-        ])
-      : undefined;
+    const results = await Promise.all([
+      ensurePageIrSourceBundle(runId, dependencies),
+      ensurePageIrSourceBundle(runId, dependencies),
+    ]);
 
     expect(results).toHaveLength(2);
     expect(generationCalls).toBe(1);
     expect(proposalCalls).toBe(1);
-    expect(results?.[1]).toEqual(results?.[0]);
-    expect(results?.[0]).toMatchObject({
+    expect(results[1]).toEqual(results[0]);
+    expect(results[0]).toMatchObject({
       reviewState: "draft",
       sources: { assets: { assets: [] } },
     });
@@ -725,19 +718,23 @@ describe("Page IR source bundle persistence", () => {
     });
     expect(checkpoint.inputSha256).toMatch(/^[a-f0-9]{64}$/);
     expect(checkpoint.sourceSha256).toMatch(/^[a-f0-9]{64}$/);
+    await expect(loadPageIrSourceBundleForReview(runId)).resolves.toEqual(
+      results[0],
+    );
+    expect((await loadRun(runId)).costUsd).toBe(0.25);
 
     await transitionPageIrSourceBundleReview(
       runId,
-      (results?.[0] as { bundle: { payloadSha256: string } }).bundle
-        .payloadSha256,
+      results[0].bundle.payloadSha256,
       "in-review",
       { actorKind: "human", actorName: "Devin" },
     );
-    await expect(ensure?.(runId, dependencies)).resolves.toMatchObject({
-      reviewState: "in-review",
-    });
+    await expect(
+      ensurePageIrSourceBundle(runId, dependencies),
+    ).resolves.toMatchObject({ reviewState: "in-review" });
     expect(generationCalls).toBe(1);
     expect(proposalCalls).toBe(1);
+    expect((await loadRun(runId)).costUsd).toBe(0.25);
   });
 
   it("persists the exact three immutable source files only after CSS approval", async () => {
@@ -898,13 +895,8 @@ describe("Page IR source bundle persistence", () => {
     const runId = await createApprovedPageIrRun();
     const proposal = sourceProposal(runId);
     const proposed = await proposePageIrSourceBundle(proposal);
-    const loadForReview = (
-      pageIrPipeline as unknown as {
-        loadPageIrSourceBundleForReview?: (runId: string) => Promise<unknown>;
-      }
-    ).loadPageIrSourceBundleForReview;
 
-    const draft = loadForReview ? await loadForReview(runId) : undefined;
+    const draft = await loadPageIrSourceBundleForReview(runId);
     expect(draft).toEqual({
       bundle: proposed,
       reviewState: "draft",
@@ -921,7 +913,9 @@ describe("Page IR source bundle persistence", () => {
       "in-review",
       { actorKind: "human", actorName: "Devin" },
     );
-    await expect(loadForReview?.(runId)).resolves.toMatchObject({
+    await expect(
+      loadPageIrSourceBundleForReview(runId),
+    ).resolves.toMatchObject({
       bundle: JSON.parse(JSON.stringify(inReview)),
       reviewState: "in-review",
     });
@@ -1342,6 +1336,61 @@ describe("Page IR candidate materialization", () => {
         path.join(runRoot, "page-ir-sources", "v1", "assets.json"),
       ),
     ).toEqual(before.assets);
+  });
+
+  it("parks a durable failed candidate through the real controller state boundary", async () => {
+    const runId = await createApprovedPageIrRun();
+    await preparePersistedPageIr(runId);
+    const request = await candidateRequest(runId);
+    await materializePageIrCandidate(request);
+    const runRoot = sitePaths(runId).root;
+    const provenancePath = path.join(runRoot, "candidate", "provenance.json");
+    const provenance = JSON.parse(await fs.readFile(provenancePath, "utf8"));
+    provenance.state = "failed";
+    provenance.history.push({
+      state: "failed",
+      at: new Date(
+        Date.parse(provenance.history.at(-1).at) + 1,
+      ).toISOString(),
+    });
+    await fs.writeFile(provenancePath, JSON.stringify(provenance, null, 2));
+    const before = {
+      provenance: await fs.readFile(provenancePath),
+      manifest: await fs.readFile(
+        path.join(runRoot, "candidate", "manifest.json"),
+      ),
+      index: await fs.readFile(
+        path.join(runRoot, "candidate", "site", "index.html"),
+      ),
+    };
+    const emit = vi.fn();
+
+    await expect(
+      executePageIrBuildController(runId, emit, {
+        ensurePageIrSourceBundle: () =>
+          loadPageIrSourceBundleForReview(runId),
+      }),
+    ).resolves.toEqual({ status: "parked-failed" });
+
+    expect((await loadRun(runId)).stages.built).toMatchObject({
+      status: "failed",
+      gateRepairAttempts: 0,
+    });
+    expect(await fs.readFile(provenancePath)).toEqual(before.provenance);
+    expect(
+      await fs.readFile(path.join(runRoot, "candidate", "manifest.json")),
+    ).toEqual(before.manifest);
+    expect(
+      await fs.readFile(
+        path.join(runRoot, "candidate", "site", "index.html"),
+      ),
+    ).toEqual(before.index);
+    await expect(fs.stat(sitePaths(runId).site)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(emit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: "error" }),
+    );
   });
 
   it.each(["failed", "promotable", "promoted"] as const)(

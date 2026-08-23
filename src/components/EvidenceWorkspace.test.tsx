@@ -9,6 +9,7 @@ import {
   EvidenceWorkspace,
   artifactUrl,
   isPageIrSourceReviewActive,
+  mergeEvidenceWorkspaceResponse,
   pageIrSourceApprovalReady,
   syncHumanVisualReviewDraft,
   syncPageIrSourceReviewDraft,
@@ -532,11 +533,66 @@ function sourceReview(
 }
 
 describe("EvidenceWorkspace PageIR Source Bundle review", () => {
-  it("keeps the existing resume-generation state when PageIR has no Source Bundle yet", () => {
-    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={pageIrBuildRun} />);
-    expect(html).toContain("Draft not generated");
-    expect(html).toContain('href="/?run=page-ir-run"');
+  it("keeps PageIR build in source review while the Source Bundle projection is missing", () => {
+    const placeholder = WorkflowArtifactVersionSchema.parse({
+      version: 1,
+      createdAt: "2026-08-23T12:01:00.000Z",
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-23T12:01:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "f".repeat(64),
+        checks: (
+          ["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const
+        ).map((area) => ({
+          area,
+          status: "pending" as const,
+          ...(["desktop", "tablet", "mobile"].includes(area)
+            ? { evidencePath: `evidence/qa/pending-${area}.png` }
+            : {}),
+        })),
+      },
+    });
+    const run = {
+      ...pageIrBuildRun,
+      evidenceWorkflow: { currentStage: "build", artifacts: [placeholder] },
+    } as unknown as RunState;
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+
+    expect(isPageIrSourceReviewActive(run, null, false)).toBe(true);
+    expect(html).toContain("PageIR Source Bundle");
+    expect(html).not.toContain('href="/?run=page-ir-run"');
+    expect(html).not.toContain("Submit for review");
+    expect(html).not.toContain("Open build preview");
     expect(html).not.toContain("Named human Source Bundle review");
+  });
+
+  it("merges workflow and PageIR source review from evidence response snapshots", () => {
+    const currentReview = sourceReview("draft");
+    const approvedReview = sourceReview("approved");
+    const workflow = { currentStage: "build", artifacts: [] } as RunState["evidenceWorkflow"];
+    const refreshed = mergeEvidenceWorkspaceResponse(pageIrBuildRun, currentReview, {
+      workflow,
+      pageIrSourceReview: approvedReview,
+    });
+    expect(refreshed).toEqual({
+      run: { ...pageIrBuildRun, evidenceWorkflow: workflow },
+      pageIrSourceReview: approvedReview,
+    });
+    expect(mergeEvidenceWorkspaceResponse(pageIrBuildRun, currentReview, { workflow })).toEqual({
+      run: { ...pageIrBuildRun, evidenceWorkflow: workflow },
+      pageIrSourceReview: currentReview,
+    });
+    expect(mergeEvidenceWorkspaceResponse(pageIrBuildRun, approvedReview, {
+      workflow,
+      pageIrSourceReview: null,
+    })).toEqual({
+      run: { ...pageIrBuildRun, evidenceWorkflow: workflow },
+      pageIrSourceReview: null,
+    });
+    expect(mergeEvidenceWorkspaceResponse(pageIrBuildRun, currentReview, {})).toBeNull();
   });
 
   it("suppresses Source Bundle review while an earlier approved gate is being browsed", () => {

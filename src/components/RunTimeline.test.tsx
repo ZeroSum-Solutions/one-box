@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { PipelineEvent } from "../lib/contracts";
+import {
+  CANDIDATE_GATE_EXPECTATIONS,
+  type PipelineEvent,
+} from "../lib/contracts";
 
 vi.mock("./MarketFeature", () => ({
   collectMarketIntel: () => null,
@@ -57,11 +60,11 @@ describe("RunTimeline PageIR truth", () => {
   });
 
   it("renders all ordered candidate reports with status, advisory truth, and failure details", () => {
-    const reports = Array.from({ length: 9 }, (_, index) => ({
-      gate: `gate-${index + 1}`,
-      pass: index !== 2,
-      blocking: index !== 6,
-      details: index === 2 ? ["missing required asset", "telephone target drift"] : [],
+    const reports = CANDIDATE_GATE_EXPECTATIONS.map(({ gate, blocking }, index) => ({
+      gate,
+      pass: gate !== "axe",
+      blocking,
+      details: gate === "axe" ? ["missing required asset", "telephone target drift"] : [],
       ranAt: `2026-08-23T12:00:0${index}.000Z`,
     }));
     const event: PipelineEvent = {
@@ -75,10 +78,22 @@ describe("RunTimeline PageIR truth", () => {
       <>{timelineNode({ key: "candidate", event }, "run-review")}</>
     );
 
-    for (const report of reports) expect(html).toContain(report.gate);
-    expect(html).toContain("gate-dot--pass");
-    expect(html).toContain("gate-dot--fail");
-    expect(html).toContain("advisory");
+    const renderedGateOrder = [...html.matchAll(
+      /<span class="gate-row__name">([^<]+)<\/span>/g,
+    )].map((match) => match[1]);
+    expect(renderedGateOrder).toEqual(
+      CANDIDATE_GATE_EXPECTATIONS.map(({ gate }) => gate),
+    );
+    const renderedAdvisoryGates = [...html.matchAll(
+      /<span class="gate-row__name">([^<]+)<\/span><span class="gate-row__advisory">advisory<\/span>/g,
+    )].map((match) => match[1]);
+    expect(renderedAdvisoryGates).toEqual(
+      CANDIDATE_GATE_EXPECTATIONS
+        .filter(({ blocking }) => !blocking)
+        .map(({ gate }) => gate),
+    );
+    expect(html.match(/gate-dot--pass/g)).toHaveLength(8);
+    expect(html.match(/gate-dot--fail/g)).toHaveLength(1);
     expect(html).toContain("missing required asset");
     expect(html).toContain("telephone target drift");
   });

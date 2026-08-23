@@ -166,9 +166,26 @@ export function isPageIrSourceReviewActive(
     !browsing &&
     run.layoutAuthority === "page-ir-v1" &&
     run.evidenceWorkflow.currentStage === "build" &&
-    review !== null &&
     !approvedReviewHasYieldedToVisualQa
   );
+}
+
+export function mergeEvidenceWorkspaceResponse(
+  run: RunState,
+  currentReview: PageIrSourceReviewView | null,
+  response: {
+    workflow?: RunState["evidenceWorkflow"];
+    pageIrSourceReview?: PageIrSourceReviewView | null;
+  },
+): { run: RunState; pageIrSourceReview: PageIrSourceReviewView | null } | null {
+  if (!response.workflow) return null;
+  return {
+    run: { ...run, evidenceWorkflow: response.workflow },
+    pageIrSourceReview:
+      response.pageIrSourceReview === undefined
+        ? currentReview
+        : response.pageIrSourceReview,
+  };
 }
 
 function emptyHumanReviewCriteria(): Record<HumanReviewCriterionKey, HumanReviewDraftCriterion> {
@@ -1159,14 +1176,12 @@ export function EvidenceWorkspace({
         workflow?: RunState["evidenceWorkflow"];
         pageIrSourceReview?: PageIrSourceReviewView | null;
       };
-      if (!response.ok || !result.workflow) throw new Error(result.error ?? "Evidence action failed");
-      const updated = { ...run, evidenceWorkflow: result.workflow };
-      setRun(updated);
-      const updatedCurrent = latestCurrentArtifact(updated);
+      const updated = mergeEvidenceWorkspaceResponse(run, pageIrSourceReview, result);
+      if (!response.ok || !updated) throw new Error(result.error ?? "Evidence action failed");
+      setRun(updated.run);
+      const updatedCurrent = latestCurrentArtifact(updated.run);
       setDraftText(updatedCurrent ? JSON.stringify(updatedCurrent.artifact, null, 2) : "");
-      if (result.pageIrSourceReview !== undefined) {
-        setPageIrSourceReview(result.pageIrSourceReview);
-      }
+      setPageIrSourceReview(updated.pageIrSourceReview);
       setNote("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Evidence action failed");
@@ -1184,15 +1199,29 @@ export function EvidenceWorkspace({
     setError(null);
     try {
       let workflow = run.evidenceWorkflow;
+      let responseRun = run;
+      let responseReview = pageIrSourceReview;
       const step = async (body: Record<string, unknown>) => {
         const response = await fetch(`/api/evidence/${run.id}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        const result = (await response.json()) as { error?: string; workflow?: RunState["evidenceWorkflow"] };
-        if (!response.ok || !result.workflow) throw new Error(result.error ?? "Evidence action failed");
-        workflow = result.workflow;
+        const result = (await response.json()) as {
+          error?: string;
+          workflow?: RunState["evidenceWorkflow"];
+          pageIrSourceReview?: PageIrSourceReviewView | null;
+        };
+        const updated = mergeEvidenceWorkspaceResponse(
+          responseRun,
+          responseReview,
+          result,
+        );
+        if (!response.ok || !updated) throw new Error(result.error ?? "Evidence action failed");
+        responseRun = updated.run;
+        responseReview = updated.pageIrSourceReview;
+        workflow = updated.run.evidenceWorkflow;
+        setPageIrSourceReview(updated.pageIrSourceReview);
       };
 
       if (approval === "draft") await step({ action: "submit", note });
@@ -1202,7 +1231,7 @@ export function EvidenceWorkspace({
       const next = EVIDENCE_WORKFLOW_STAGES[stageIndex + 1];
       if (next) await step({ action: "advance", nextStage: next });
 
-      setRun({ ...run, evidenceWorkflow: workflow });
+      setRun(responseRun);
       setNote("");
 
       // Materialize the newly-advanced gate's draft without leaving the
@@ -1218,11 +1247,19 @@ export function EvidenceWorkspace({
         await consumePipelineRunStream(resumeResponse, () => {});
       }
       const refreshed = await fetch(`/api/evidence/${run.id}`, { cache: "no-store" });
-      const refreshedResult = (await refreshed.json()) as { workflow?: RunState["evidenceWorkflow"] };
-      if (refreshed.ok && refreshedResult.workflow) {
-        const updatedRun = { ...run, evidenceWorkflow: refreshedResult.workflow };
-        setRun(updatedRun);
-        const updatedCurrent = latestCurrentArtifact(updatedRun);
+      const refreshedResult = (await refreshed.json()) as {
+        workflow?: RunState["evidenceWorkflow"];
+        pageIrSourceReview?: PageIrSourceReviewView | null;
+      };
+      const refreshedState = mergeEvidenceWorkspaceResponse(
+        responseRun,
+        responseReview,
+        refreshedResult,
+      );
+      if (refreshed.ok && refreshedState) {
+        setRun(refreshedState.run);
+        setPageIrSourceReview(refreshedState.pageIrSourceReview);
+        const updatedCurrent = latestCurrentArtifact(refreshedState.run);
         setDraftText(updatedCurrent ? JSON.stringify(updatedCurrent.artifact, null, 2) : "");
       }
     } catch (cause) {
