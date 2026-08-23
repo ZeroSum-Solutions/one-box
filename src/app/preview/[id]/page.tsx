@@ -13,9 +13,9 @@ import {
 } from "react";
 import Link from "next/link";
 import { Workbench, type WorkbenchTool } from "@/components/preview/Workbench";
-import type { PersistedIntakeCompatibility } from "@/lib/productionTarget";
 import {
   DEFAULT_WORKBENCH_STATE,
+  INITIAL_PREVIEW_COMPATIBILITY_STATE,
   applyCompactDefault,
   breakpointForWidth,
   clampPanelWidth,
@@ -29,11 +29,13 @@ import {
   previewWidthForBreakpoint,
   persistWorkbenchState,
   readEditorStateMessage,
+  resolvePreviewCompatibility,
   restoreWorkbenchState,
   workbenchSizeForWidth,
   type EditorInteractionState,
   type PersistedWorkbenchState,
   type PreviewBreakpoint,
+  type PreviewCompatibilityState,
   type PreviewMode,
   type PreviewSelection,
   type WorkbenchSize,
@@ -110,9 +112,8 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     null,
   );
   const [isResizing, setIsResizing] = useState(false);
-  const [compatibility, setCompatibility] =
-    useState<PersistedIntakeCompatibility | null>(null);
-  const [compatibilityLoaded, setCompatibilityLoaded] = useState(false);
+  const [compatibilityState, setCompatibilityState] =
+    useState<PreviewCompatibilityState>(INITIAL_PREVIEW_COMPATIBILITY_STATE);
 
   useLayoutEffect(() => {
     activeRunIdRef.current = id;
@@ -153,8 +154,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
       setWidthMenuOpen(false);
       setWidthAnnouncement(null);
       setIsResizing(false);
-      setCompatibility(null);
-      setCompatibilityLoaded(false);
+      setCompatibilityState(INITIAL_PREVIEW_COMPATIBILITY_STATE);
       setWorkbench(
         applyCompactDefault(
           restoreWorkbenchState(localStorage, id),
@@ -174,8 +174,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   }, [id, restoredRunId, workbench]);
 
   const restored = isWorkbenchStateRestoredForRun(restoredRunId, id);
-  const legacyReadOnly = compatibility?.readOnly === true;
-  const interactive = restored && compatibilityLoaded && !legacyReadOnly;
+  const interactive = restored && compatibilityState.editingAvailable;
 
   useEffect(() => {
     let cancelled = false;
@@ -184,17 +183,20 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         const response = await fetch(`/api/evidence/${encodeURIComponent(id)}`, {
           cache: "no-store",
         });
-        const payload = (await response.json().catch(() => null)) as
-          | { compatibility?: PersistedIntakeCompatibility }
-          | null;
-        if (cancelled || !response.ok) return;
-        setCompatibility(payload?.compatibility ?? null);
-        setCompatibilityLoaded(true);
-        if (payload?.compatibility?.readOnly) {
+        const payload: unknown = await response.json().catch(() => null);
+        if (cancelled) return;
+        const nextCompatibility = resolvePreviewCompatibility(
+          response.ok,
+          payload,
+        );
+        setCompatibilityState(nextCompatibility);
+        if (!nextCompatibility.editingAvailable) {
           setWorkbench((current) => ({ ...current, mode: "view" }));
         }
       } catch {
-        // Editing remains unavailable when compatibility cannot be confirmed.
+        if (cancelled) return;
+        setCompatibilityState(resolvePreviewCompatibility(false, null));
+        setWorkbench((current) => ({ ...current, mode: "view" }));
       }
     })();
     return () => {
@@ -730,14 +732,20 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         </div>
       </header>
 
-      {legacyReadOnly && compatibility && (
+      {compatibilityState.notice && (
         <div className="preview-alert" role="status">
-          <strong className="preview-alert__title">{compatibility.label}</strong>
-          <span className="preview-alert__detail">{compatibility.message}</span>
+          <strong className="preview-alert__title">
+            {compatibilityState.status === "legacy"
+              ? compatibilityState.compatibility.label
+              : "Compatibility check failed"}
+          </strong>
+          <span className="preview-alert__detail">
+            {compatibilityState.notice}
+          </span>
         </div>
       )}
 
-      {!legacyReadOnly && blockedGates.length > 0 && (
+      {compatibilityState.status === "active" && blockedGates.length > 0 && (
         <div className="preview-alert" role="status">
           <strong className="preview-alert__title">
             This build did not pass its gates, so it cannot accept edits.

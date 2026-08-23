@@ -74,6 +74,10 @@ Full verification:
   completed.
 - `npm run lint`: exit `0`; 0 errors and 6 pre-existing warnings.
 - `git diff --check`: exit `0`.
+- Range-based `gitleaks`: exit `0`; 1 commit and approximately 11.07 KB
+  scanned, with no leaks found.
+- Fix Round 1 security report validation: exit `0`; verdict `PASS` with no
+  findings.
 - Range-based `gitleaks`: exit `0`; 1 commit and 24.70 KB scanned, with no
   leaks found.
 - Security report validation: exit `0`; verdict `PASS` with no findings.
@@ -120,3 +124,70 @@ Full verification:
 - The full suite covers the compatibility metadata, read invariance, evidence
   label, and mutation guards. This ticket does not add a browser screenshot of
   the preview notice.
+
+## Fix Round 1 — fail closed on unknown preview compatibility
+
+Grok 4.6 identified a preview-only fail-open in the original delivery. The
+client treated a completed HTTP request as a confirmed target policy: an HTTP
+200 response with absent or malformed compatibility data set the old
+`compatibilityLoaded` flag while leaving compatibility null, which enabled the
+workbench. Non-OK and failed requests stayed noninteractive but showed no
+reason.
+
+The preview now resolves untrusted evidence JSON into explicit loading, active,
+legacy, or error states. Runtime validation accepts only the complete Website
+or legacy compatibility shapes. Editing is available only in the confirmed
+Website state. Legacy remains view-only with the stable Phase 1 notice; missing
+or malformed 200 payloads, non-OK responses, and fetch failures remain
+view-only with an actionable compatibility-check notice. The iframe depends on
+preview restoration rather than compatibility success, so the load-only view
+remains available on error.
+
+### Fix Round 1 RED/GREEN evidence
+
+Command:
+
+```text
+npm test -- src/components/preview/previewState.test.ts
+```
+
+RED exit `1`: 1 file ran; 4 intended tests failed and 21 existing tests passed.
+Each failure reported that the expected compatibility resolver was undefined.
+The four cases were valid Website, valid legacy, missing/malformed HTTP 200,
+and non-OK/fetch failure.
+
+GREEN exit `0`: 1 file passed; all 25 tests passed. The cases prove that only a
+valid Website response is interactive, legacy is view-only with its notice,
+and unknown or failed checks are view-only with the compatibility error notice.
+
+### Fix Round 1 verification and acceptance
+
+- `npm test`: exit `0`; 63 files passed, 2 skipped; 539 tests passed, 2 skipped.
+- `npm run typecheck`: exit `0`; route types generated and `tsc --noEmit`
+  completed.
+- `npm run lint`: exit `0`; 0 errors and 6 pre-existing warnings.
+- `git diff --check`: exit `0`.
+- Valid Website compatibility enables the edit mode and workbench only after
+  preview state restoration.
+- Valid legacy compatibility keeps the workbench unmounted, forces view mode,
+  and renders the legacy/experimental notice.
+- Missing or malformed compatibility on HTTP 200, non-OK responses, and fetch
+  failures keep edit mode disabled and render an actionable failure notice.
+- The view-mode iframe remains rendered when compatibility resolution fails.
+- The architecture contract now enumerates guarded active operations and
+  states that preview/evidence read and export surfaces perform no run/intake
+  rewrite, ledger or alias reconciliation, or generated-site write.
+
+### Fix Round 1 files, assumptions, and risks
+
+- Runtime policy and focused tests:
+  `src/components/preview/previewState.ts` and `previewState.test.ts`.
+- Preview state and notice rendering: `src/app/preview/[id]/page.tsx`.
+- Contract precision: `docs/architecture/README.md`.
+- Assumption: the evidence endpoint continues to return the exact stable
+  compatibility contract produced by `src/lib/productionTarget.ts`; any
+  unrecognized future shape intentionally fails closed until the preview
+  validator is updated.
+- Risk: a compatibility service outage removes editing for that request, but
+  preserves preview access and gives the user a retry/new-Website action. This
+  is the intended safe degradation.

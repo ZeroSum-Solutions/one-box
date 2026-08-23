@@ -41,3 +41,7 @@
   and evidence export remain available with legacy/read-only metadata, and legacy asset
   GET uses a pure catalog read. Focused verification: 24 passed. Full suite: 535 passed,
   2 skipped.
+- OBX-002 Fix Round 1: verified. Preview editing now requires a runtime-validated
+  Website compatibility response; unknown, malformed, non-OK, and failed checks remain
+  view-only with an actionable notice. Focused verification: 25 passed. Full suite:
+  539 passed, 2 skipped.

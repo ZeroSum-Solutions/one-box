@@ -95,11 +95,17 @@ schema. The shared guard runs before intake reservation, pipeline replay or
 execution, builder staging writes, and active reference, evidence, edit,
 element, token, motion, and asset mutations. Its read-only compatibility
 classifier preserves an explicit historical target and applies the existing
-Website default only when `projectTarget` is absent. Legacy non-Website preview
-and evidence views show one legacy/read-only notice; evidence GET and export
-include target and compatibility metadata. Asset GET uses a pure catalog read
-for those records, so viewing one cannot reconcile the image ledger, approval
-aliases, run state, or site bytes.
+Website default only when `projectTarget` is absent. The guard covers every
+active start, resume, continue, retry, rebuild, repair, edit, asset generation,
+and asset placement operation; any future authority-migration operation must
+pass the same guard before provider calls, reservations, transactions, or
+filesystem writes. Legacy non-Website preview and evidence views show one
+legacy/read-only notice; evidence GET and export include target and
+compatibility metadata. Preview GET, evidence GET, and evidence export are
+load-only compatibility surfaces: they must not rewrite intake or run state,
+reconcile asset ledgers or approval/evidence aliases, or write generated site
+bytes. Asset GET uses a pure catalog read for legacy records for the same
+reason.
 
 Refero authentication follows the MCP server's browser OAuth flow. The Next.js
 process persists its own refreshable OAuth client state under the ignored

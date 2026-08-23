@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0",
+  "ref": "56774c68c71a31a01b87b6f6ea04125202608754",
+  "base": {
+    "status": "AVAILABLE",
+    "value": "cfe3a68f03f63c1d57b21e077e67cc4e945fa9ff",
+    "unavailable_reason": null,
+    "evidence": [
+      { "class": "COMMAND", "citation": "proof/diff.txt:1" }
+    ]
+  },
+  "scope": {
+    "changed_paths": [
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-002-report.md",
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md",
+      "docs/architecture/README.md",
+      "src/app/preview/[id]/page.tsx",
+      "src/components/preview/previewState.test.ts",
+      "src/components/preview/previewState.ts"
+    ],
+    "captured_diff_paths": [
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-002-report.md",
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md",
+      "docs/architecture/README.md",
+      "src/app/preview/[id]/page.tsx",
+      "src/components/preview/previewState.test.ts",
+      "src/components/preview/previewState.ts"
+    ],
+    "path_classification": [
+      {
+        "path": ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-002-report.md",
+        "surfaces": [],
+        "evidence": [{ "class": "STATIC", "citation": "proof/diff-review.md:1" }]
+      },
+      {
+        "path": ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md",
+        "surfaces": [],
+        "evidence": [{ "class": "STATIC", "citation": "proof/diff-review.md:1" }]
+      },
+      {
+        "path": "docs/architecture/README.md",
+        "surfaces": [],
+        "evidence": [{ "class": "STATIC", "citation": "docs/architecture/README.md:91" }]
+      },
+      {
+        "path": "src/app/preview/[id]/page.tsx",
+        "surfaces": ["authorization", "untrusted-input"],
+        "evidence": [{ "class": "STATIC", "citation": "src/app/preview/[id]/page.tsx:176" }]
+      },
+      {
+        "path": "src/components/preview/previewState.test.ts",
+        "surfaces": ["authorization", "untrusted-input"],
+        "evidence": [{ "class": "STATIC", "citation": "src/components/preview/previewState.test.ts:22" }]
+      },
+      {
+        "path": "src/components/preview/previewState.ts",
+        "surfaces": ["authorization", "untrusted-input"],
+        "evidence": [{ "class": "STATIC", "citation": "src/components/preview/previewState.ts:168" }]
+      }
+    ],
+    "sensitive_surfaces": ["authorization", "untrusted-input"],
+    "diff_command_id": "CMD-001",
+    "evidence": [{ "class": "COMMAND", "citation": "proof/diff.txt:1" }]
+  },
+  "commands": [
+    {
+      "id": "CMD-001",
+      "purpose": "diff",
+      "command": "git diff --name-only cfe3a68f03f63c1d57b21e077e67cc4e945fa9ff...56774c68c71a31a01b87b6f6ea04125202608754",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "cfe3a68f03f63c1d57b21e077e67cc4e945fa9ff...56774c68c71a31a01b87b6f6ea04125202608754",
+      "evidence": [{ "class": "COMMAND", "citation": "proof/diff.txt:1" }],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-002",
+      "purpose": "secrets-scan",
+      "command": "gitleaks detect --source . --no-banner --redact --log-opts cfe3a68f03f63c1d57b21e077e67cc4e945fa9ff..56774c68c71a31a01b87b6f6ea04125202608754",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "cfe3a68f03f63c1d57b21e077e67cc4e945fa9ff..56774c68c71a31a01b87b6f6ea04125202608754",
+      "evidence": [{ "class": "COMMAND", "citation": "proof/gitleaks.txt:1" }],
+      "unavailable_reason": null
+    }
+  ],
+  "exports": {
+    "state": "NONE",
+    "items": [],
+    "evidence": [{ "class": "STATIC", "citation": "proof/diff-review.md:19" }],
+    "unavailable_reason": null
+  },
+  "secrets_scan": {
+    "result": "PASS",
+    "command_id": "CMD-002",
+    "scope": "RANGE",
+    "comparison": "cfe3a68f03f63c1d57b21e077e67cc4e945fa9ff..56774c68c71a31a01b87b6f6ea04125202608754",
+    "evidence": [{ "class": "COMMAND", "citation": "proof/gitleaks.txt:1" }],
+    "unavailable_reason": null
+  },
+  "export_policy": {
+    "result": "PASS",
+    "evidence": [{ "class": "STATIC", "citation": "proof/diff-review.md:19" }],
+    "unavailable_reason": null
+  },
+  "coverage": [
+    { "surface": "prompt-injection", "state": "NOT-APPLICABLE", "evidence": [{ "class": "STATIC", "citation": "proof/diff-review.md:3" }], "unavailable_reason": null },
+    { "surface": "secrets", "state": "REVIEWED", "evidence": [{ "class": "COMMAND", "citation": "proof/gitleaks.txt:1" }], "unavailable_reason": null },
+    { "surface": "authentication", "state": "NOT-APPLICABLE", "evidence": [{ "class": "STATIC", "citation": "proof/diff-review.md:7" }], "unavailable_reason": null },
+    { "surface": "authorization", "state": "REVIEWED", "evidence": [{ "class": "STATIC", "citation": "src/app/preview/[id]/page.tsx:176" }], "unavailable_reason": null },
+    { "surface": "untrusted-input", "state": "REVIEWED", "evidence": [{ "class": "STATIC", "citation": "src/components/preview/previewState.ts:168" }], "unavailable_reason": null },
+    { "surface": "export", "state": "NOT-APPLICABLE", "evidence": [{ "class": "STATIC", "citation": "proof/diff-review.md:19" }], "unavailable_reason": null }
+  ],
+  "findings": [],
+  "verdict": "PASS"
+}
