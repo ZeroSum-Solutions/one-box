@@ -295,6 +295,25 @@ process persists its own refreshable OAuth client state under the ignored
 require a static project bearer token. `src/lib/referoAuth.ts` owns OAuth state,
 callback validation, refresh persistence, and the local connect flow.
 
+### Page IR v1 contract boundary
+
+`src/lib/contracts.ts` is the only authority for the numeric-v1
+`ReferenceContractV1`, `LayoutProgramV1`, and `PageIRV1` schemas. Phase 1 is
+Website-only. The layout contract is a bounded normalized graph whose node ID is
+also its stable editor identity; it admits only document, landmark, section,
+group, and semantic slot nodes. Page IR carries inert content, typed token and
+asset references, constrained call, email, scroll, and public-HTTPS actions,
+and page-level accessibility references. Recursive strict schemas plus bounded
+cross-reference validation reject unknown or executable field shapes, arbitrary
+paths, unsafe action targets, malformed graph structure, and dangling registry
+references before a compiler can consume the artifact.
+
+This boundary defines and validates `page-ir.json`; it does not yet derive,
+compile, persist, promote, or edit that artifact. Those runtime responsibilities
+remain with OBX-021, OBX-022, OBX-024, and OBX-031 respectively. Image is the only
+Phase 1 Page IR asset kind; video and arbitrary embeddable media are not part of
+v1.
+
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the
 supporting runtime files. The builder and contracts define what can be emitted;

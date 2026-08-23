@@ -14,6 +14,840 @@ export type ProductionProjectTarget = z.infer<
   typeof ProductionProjectTargetSchema
 >;
 
+// ---------- Closed Page IR v1 contracts ----------
+
+export const PAGE_IR_BOUNDS = {
+  maxReferenceSources: 3,
+  maxNodes: 256,
+  maxChildren: 32,
+  maxDepth: 12,
+  maxContent: 256,
+  maxTextLength: 4_000,
+  maxTotalTextLength: 128 * 1_024,
+  maxTokens: 128,
+  maxAssets: 64,
+  maxActions: 64,
+  maxAssetBytes: 100 * 1_024 * 1_024,
+  maxUrlLength: 2_048,
+  maxCustomIssues: 32,
+} as const;
+
+const FORBIDDEN_IR_IDS = new Set(["__proto__", "prototype", "constructor"]);
+const IrIdSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
+  .refine((value) => !FORBIDDEN_IR_IDS.has(value), {
+    message: "reserved identifiers are not allowed",
+  });
+
+const BoundedLabelSchema = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((value) => value === value.trim(), {
+    message: "labels cannot contain surrounding whitespace",
+  });
+
+const ReferenceSourceV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.enum(["refero-style", "refero-screen"]),
+    role: z.enum(["primary", "supporting"]),
+  })
+  .strict();
+
+const ReferenceSelectionV1Schema = z.discriminatedUnion("mode", [
+  z
+    .object({
+      mode: z.literal("selected"),
+      sources: z
+        .array(ReferenceSourceV1Schema)
+        .min(1)
+        .max(PAGE_IR_BOUNDS.maxReferenceSources),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("explicit-none"),
+      reason: BoundedLabelSchema,
+    })
+    .strict(),
+]);
+
+export const ReferenceContractV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    selection: ReferenceSelectionV1Schema,
+    preserveTraits: z.array(BoundedLabelSchema).min(1).max(8),
+    rhythm: z.enum(["compact", "steady", "alternating", "cinematic"]),
+    density: z.enum(["airy", "comfortable", "dense"]),
+    surfaceArc: z
+      .array(z.enum(["base", "muted", "raised", "contrast", "accent"]))
+      .min(1)
+      .max(8),
+    mediaTreatment: z.enum(["full-bleed", "contained", "framed", "minimal"]),
+    componentAnatomy: z
+      .array(
+        z.enum([
+          "eyebrow",
+          "headline",
+          "supporting-copy",
+          "primary-action",
+          "secondary-action",
+          "media",
+          "proof",
+          "metadata",
+        ])
+      )
+      .min(1)
+      .max(8),
+    rejects: z.array(BoundedLabelSchema).max(12),
+    motion: z
+      .object({
+        intent: z.enum(["none", "subtle", "expressive"]),
+        reducedMotion: z.literal("static"),
+      })
+      .strict(),
+  })
+  .strict()
+  .superRefine((contract, context) => {
+    if (contract.selection.mode === "selected") {
+      const ids = contract.selection.sources.map((source) => source.id);
+      if (new Set(ids).size !== ids.length) {
+        context.addIssue({
+          code: "custom",
+          path: ["selection", "sources"],
+          message: "reference source IDs must be unique",
+        });
+      }
+      const primaryCount = contract.selection.sources.filter(
+        (source) => source.role === "primary"
+      ).length;
+      if (primaryCount !== 1) {
+        context.addIssue({
+          code: "custom",
+          path: ["selection", "sources"],
+          message: "selected references require exactly one primary source",
+        });
+      }
+    }
+    const semanticArrays: Array<[string, readonly string[]]> = [
+      ["preserveTraits", contract.preserveTraits],
+      ["surfaceArc", contract.surfaceArc],
+      ["componentAnatomy", contract.componentAnatomy],
+      ["rejects", contract.rejects],
+    ];
+    for (const [field, values] of semanticArrays) {
+      if (new Set(values).size !== values.length) {
+        context.addIssue({
+          code: "custom",
+          path: [field],
+          message: "reference semantic arrays cannot contain duplicates",
+        });
+      }
+    }
+  });
+export type ReferenceContractV1 = z.infer<typeof ReferenceContractV1Schema>;
+
+const ResponsiveFlowV1Schema = z
+  .object({
+    flow: z.enum(["stack", "row", "grid", "overlay"]),
+    columns: z.number().int().min(1).max(12).optional(),
+  })
+  .strict()
+  .superRefine((intent, context) => {
+    if (intent.flow === "grid" && intent.columns === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "grid flow requires a column count",
+      });
+    }
+    if (intent.flow !== "grid" && intent.columns !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["columns"],
+        message: "only grid flow may declare columns",
+      });
+    }
+  });
+
+const ResponsiveIntentV1Schema = z
+  .object({
+    small: ResponsiveFlowV1Schema,
+    medium: ResponsiveFlowV1Schema,
+    large: ResponsiveFlowV1Schema,
+  })
+  .strict();
+
+const CompositeNodeFields = {
+  id: IrIdSchema,
+  childIds: z.array(IrIdSchema).max(PAGE_IR_BOUNDS.maxChildren),
+  responsive: ResponsiveIntentV1Schema,
+};
+
+const DocumentNodeV1Schema = z
+  .object({
+    ...CompositeNodeFields,
+    kind: z.literal("document"),
+  })
+  .strict();
+const LandmarkNodeV1Schema = z
+  .object({
+    ...CompositeNodeFields,
+    kind: z.literal("landmark"),
+    landmark: z.enum(["header", "navigation", "main", "footer"]),
+  })
+  .strict();
+const SectionNodeV1Schema = z
+  .object({
+    ...CompositeNodeFields,
+    kind: z.literal("section"),
+  })
+  .strict();
+const GroupNodeV1Schema = z
+  .object({
+    ...CompositeNodeFields,
+    kind: z.literal("group"),
+  })
+  .strict();
+
+const HeadingSlotNodeV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("slot"),
+    slotType: z.literal("heading"),
+    level: z.number().int().min(1).max(6),
+  })
+  .strict();
+const TextSlotNodeV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("slot"),
+    slotType: z.literal("text"),
+  })
+  .strict();
+const MediaSlotNodeV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("slot"),
+    slotType: z.literal("media"),
+  })
+  .strict();
+const ActionSlotNodeV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("slot"),
+    slotType: z.literal("action"),
+  })
+  .strict();
+const ListSlotNodeV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("slot"),
+    slotType: z.literal("list"),
+    ordered: z.boolean(),
+  })
+  .strict();
+
+const SlotNodeV1Schema = z.discriminatedUnion("slotType", [
+  HeadingSlotNodeV1Schema,
+  TextSlotNodeV1Schema,
+  MediaSlotNodeV1Schema,
+  ActionSlotNodeV1Schema,
+  ListSlotNodeV1Schema,
+]);
+
+const LayoutNodeV1Schema = z.union([
+  DocumentNodeV1Schema,
+  LandmarkNodeV1Schema,
+  SectionNodeV1Schema,
+  GroupNodeV1Schema,
+  SlotNodeV1Schema,
+]);
+type LayoutNodeV1 = z.infer<typeof LayoutNodeV1Schema>;
+
+function createBoundedIssue(
+  context: z.RefinementCtx,
+  limit = PAGE_IR_BOUNDS.maxCustomIssues
+) {
+  let count = 0;
+  let omissionRecorded = false;
+  return (path: PropertyKey[], message: string) => {
+    if (count < limit) {
+      context.addIssue({ code: "custom", path, message });
+    } else if (!omissionRecorded) {
+      context.addIssue({
+        code: "custom",
+        path: ["validation"],
+        message: "additional validation issues omitted",
+      });
+      omissionRecorded = true;
+    }
+    count += 1;
+  };
+}
+
+function isCompositeNode(
+  node: LayoutNodeV1
+): node is Exclude<LayoutNodeV1, { kind: "slot" }> {
+  return node.kind !== "slot";
+}
+
+function validateLayoutProgramV1(
+  layout: { rootNodeId: string; nodes: LayoutNodeV1[] },
+  context: z.RefinementCtx
+) {
+  const issue = createBoundedIssue(context);
+  const nodesById = new Map<string, LayoutNodeV1>();
+  const nodeIndexes = new Map<string, number>();
+  for (const [index, node] of layout.nodes.entries()) {
+    if (nodesById.has(node.id)) {
+      issue(["nodes", index, "id"], "layout node IDs must be unique");
+      continue;
+    }
+    nodesById.set(node.id, node);
+    nodeIndexes.set(node.id, index);
+  }
+
+  const root = nodesById.get(layout.rootNodeId);
+  if (!root) {
+    issue(["rootNodeId"], "layout root must reference an existing node");
+  } else if (root.kind !== "document") {
+    issue(["rootNodeId"], "layout root must reference the document node");
+  }
+
+  const parentCounts = new Map<string, number>();
+  const childGraph = new Map<string, string[]>();
+  for (const [index, node] of layout.nodes.entries()) {
+    if (!isCompositeNode(node)) continue;
+    childGraph.set(node.id, node.childIds);
+    const localChildren = new Set<string>();
+    for (const [childIndex, childId] of node.childIds.entries()) {
+      if (localChildren.has(childId)) {
+        issue(
+          ["nodes", index, "childIds", childIndex],
+          "a composite node cannot repeat a child"
+        );
+      }
+      localChildren.add(childId);
+      if (!nodesById.has(childId)) {
+        issue(
+          ["nodes", index, "childIds", childIndex],
+          "child must reference an existing node"
+        );
+        continue;
+      }
+      parentCounts.set(childId, (parentCounts.get(childId) ?? 0) + 1);
+    }
+  }
+  for (const [nodeId, parentCount] of parentCounts) {
+    if (parentCount > 1) {
+      issue(
+        ["nodes", nodeIndexes.get(nodeId) ?? 0, "id"],
+        "a layout node cannot have multiple parents"
+      );
+    }
+  }
+
+  const allowedChild = (parent: LayoutNodeV1, child: LayoutNodeV1) => {
+    if (parent.kind === "document") {
+      return (
+        child.kind === "landmark" &&
+        child.landmark !== "navigation"
+      );
+    }
+    if (parent.kind === "group") return child.kind === "group" || child.kind === "slot";
+    if (parent.kind === "section") {
+      return child.kind === "group" || child.kind === "slot";
+    }
+    if (parent.kind !== "landmark") return false;
+    if (parent.landmark === "main") return child.kind === "section";
+    if (parent.landmark === "header") {
+      return (
+        (child.kind === "landmark" && child.landmark === "navigation") ||
+        child.kind === "group" ||
+        child.kind === "slot"
+      );
+    }
+    return child.kind === "group" || child.kind === "slot";
+  };
+
+  for (const [index, parent] of layout.nodes.entries()) {
+    if (!isCompositeNode(parent)) continue;
+    for (const [childIndex, childId] of parent.childIds.entries()) {
+      const child = nodesById.get(childId);
+      if (child && !allowedChild(parent, child)) {
+        issue(
+          ["nodes", index, "childIds", childIndex],
+          "node kind is not legal under this parent"
+        );
+      }
+    }
+  }
+
+  const colors = new Map<string, "visiting" | "visited">();
+  const reachable = new Set<string>();
+  const visit = (nodeId: string, depth: number) => {
+    if (depth > PAGE_IR_BOUNDS.maxDepth) {
+      issue(
+        ["nodes", nodeIndexes.get(nodeId) ?? 0, "id"],
+        "layout depth exceeds the supported maximum"
+      );
+      return;
+    }
+    if (colors.get(nodeId) === "visiting") {
+      issue(
+        ["nodes", nodeIndexes.get(nodeId) ?? 0, "id"],
+        "layout graph cannot contain a cycle"
+      );
+      return;
+    }
+    if (colors.get(nodeId) === "visited") return;
+    colors.set(nodeId, "visiting");
+    reachable.add(nodeId);
+    for (const childId of childGraph.get(nodeId) ?? []) {
+      if (nodesById.has(childId)) visit(childId, depth + 1);
+    }
+    colors.set(nodeId, "visited");
+  };
+  if (root) visit(root.id, 1);
+  for (const [index, node] of layout.nodes.entries()) {
+    if (!reachable.has(node.id)) {
+      issue(["nodes", index, "id"], "layout nodes must be reachable from the root");
+    }
+  }
+
+  const documents = layout.nodes.filter((node) => node.kind === "document");
+  if (documents.length !== 1) {
+    issue(["nodes"], "layout requires exactly one document node");
+  }
+  for (const landmark of ["header", "navigation", "main", "footer"] as const) {
+    const count = layout.nodes.filter(
+      (node) => node.kind === "landmark" && node.landmark === landmark
+    ).length;
+    if (count !== 1) {
+      issue(["nodes"], `layout requires exactly one ${landmark} landmark`);
+    }
+  }
+
+  const descendantsOf = (nodeId: string) => {
+    const descendants = new Set<string>();
+    const pending = [...(childGraph.get(nodeId) ?? [])];
+    while (pending.length > 0) {
+      const childId = pending.pop()!;
+      if (descendants.has(childId)) continue;
+      descendants.add(childId);
+      pending.push(...(childGraph.get(childId) ?? []));
+    }
+    return descendants;
+  };
+  const header = layout.nodes.find(
+    (node) => node.kind === "landmark" && node.landmark === "header"
+  );
+  const navigation = layout.nodes.find(
+    (node) => node.kind === "landmark" && node.landmark === "navigation"
+  );
+  if (header && navigation && !descendantsOf(header.id).has(navigation.id)) {
+    issue(["nodes", nodeIndexes.get(navigation.id) ?? 0], "navigation must descend from header");
+  }
+  const main = layout.nodes.find(
+    (node) => node.kind === "landmark" && node.landmark === "main"
+  );
+  if (main) {
+    const mainDescendants = descendantsOf(main.id);
+    for (const [index, node] of layout.nodes.entries()) {
+      if (node.kind === "section" && !mainDescendants.has(node.id)) {
+        issue(["nodes", index], "sections must descend from main");
+      }
+    }
+  }
+  const h1Count = layout.nodes.filter(
+    (node) => node.kind === "slot" && node.slotType === "heading" && node.level === 1
+  ).length;
+  if (h1Count !== 1) {
+    issue(["nodes"], "layout requires exactly one level-one heading slot");
+  }
+}
+
+export const LayoutProgramV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    rootNodeId: IrIdSchema,
+    nodes: z.array(LayoutNodeV1Schema).min(1).max(PAGE_IR_BOUNDS.maxNodes),
+  })
+  .strict()
+  .superRefine(validateLayoutProgramV1);
+export type LayoutProgramV1 = z.infer<typeof LayoutProgramV1Schema>;
+
+const HeadingContentV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("heading"),
+    text: z.string().max(PAGE_IR_BOUNDS.maxTextLength),
+  })
+  .strict();
+const TextContentV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("text"),
+    text: z.string().max(PAGE_IR_BOUNDS.maxTextLength),
+  })
+  .strict();
+const ListContentV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("list"),
+    items: z.array(z.string().max(PAGE_IR_BOUNDS.maxTextLength)).min(1).max(64),
+  })
+  .strict();
+const ContentEntryV1Schema = z.discriminatedUnion("kind", [
+  HeadingContentV1Schema,
+  TextContentV1Schema,
+  ListContentV1Schema,
+]);
+type ContentEntryV1 = z.infer<typeof ContentEntryV1Schema>;
+
+const PageTokenCategorySchema = z.enum([
+  "color",
+  "typography",
+  "spacing",
+  "radius",
+  "shadow",
+  "motion",
+]);
+type PageTokenCategory = z.infer<typeof PageTokenCategorySchema>;
+const PageTokenV1Schema = z
+  .object({
+    id: IrIdSchema,
+    category: PageTokenCategorySchema,
+  })
+  .strict();
+
+const AssetV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("image"),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+    mediaType: z.enum(["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"]),
+    width: z.number().int().positive().max(16_384),
+    height: z.number().int().positive().max(16_384),
+    sizeBytes: z.number().int().nonnegative().max(PAGE_IR_BOUNDS.maxAssetBytes),
+  })
+  .strict();
+
+function isSafeExternalHttpsUrl(value: string) {
+  if (value.length > PAGE_IR_BOUNDS.maxUrlLength) return false;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    if (
+      hostname.length === 0 ||
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".internal") ||
+      hostname.includes(":") ||
+      /^[0-9.]+$/.test(hostname)
+    ) {
+      return false;
+    }
+    const labels = hostname.split(".");
+    return (
+      labels.length >= 2 &&
+      labels.every(
+        (label) =>
+          label.length >= 1 &&
+          label.length <= 63 &&
+          /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)
+      )
+    );
+  } catch {
+    return false;
+  }
+}
+
+const ScrollActionV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("scroll-to"),
+    targetNodeId: IrIdSchema,
+  })
+  .strict();
+const CallActionV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("call"),
+    phone: z.string().trim().min(3).max(32).regex(/^\+?[0-9 ()-]+$/),
+  })
+  .strict();
+const EmailActionV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("email"),
+    email: z.string().trim().max(254).email(),
+  })
+  .strict();
+const ExternalActionV1Schema = z
+  .object({
+    id: IrIdSchema,
+    kind: z.literal("external"),
+    href: z.string().max(PAGE_IR_BOUNDS.maxUrlLength).refine(isSafeExternalHttpsUrl, {
+      message: "external action must use a public HTTPS URL without credentials",
+    }),
+  })
+  .strict();
+const ActionV1Schema = z.discriminatedUnion("kind", [
+  ScrollActionV1Schema,
+  CallActionV1Schema,
+  EmailActionV1Schema,
+  ExternalActionV1Schema,
+]);
+type ActionV1 = z.infer<typeof ActionV1Schema>;
+
+const HeadingSlotBindingV1Schema = z
+  .object({ nodeId: IrIdSchema, kind: z.literal("heading"), contentId: IrIdSchema })
+  .strict();
+const TextSlotBindingV1Schema = z
+  .object({ nodeId: IrIdSchema, kind: z.literal("text"), contentId: IrIdSchema })
+  .strict();
+const ListSlotBindingV1Schema = z
+  .object({ nodeId: IrIdSchema, kind: z.literal("list"), contentId: IrIdSchema })
+  .strict();
+const MediaSlotBindingV1Schema = z
+  .object({
+    nodeId: IrIdSchema,
+    kind: z.literal("media"),
+    assetId: IrIdSchema,
+    decorative: z.boolean(),
+    altText: z.string().max(300).optional(),
+  })
+  .strict();
+const ActionSlotBindingV1Schema = z
+  .object({
+    nodeId: IrIdSchema,
+    kind: z.literal("action"),
+    labelContentId: IrIdSchema,
+    actionId: IrIdSchema,
+  })
+  .strict();
+const SlotBindingV1Schema = z.discriminatedUnion("kind", [
+  HeadingSlotBindingV1Schema,
+  TextSlotBindingV1Schema,
+  ListSlotBindingV1Schema,
+  MediaSlotBindingV1Schema,
+  ActionSlotBindingV1Schema,
+]);
+type SlotBindingV1 = z.infer<typeof SlotBindingV1Schema>;
+
+const NodeTokenReferencesV1Schema = z
+  .object({
+    color: IrIdSchema.optional(),
+    typography: IrIdSchema.optional(),
+    spacing: IrIdSchema.optional(),
+    radius: IrIdSchema.optional(),
+    shadow: IrIdSchema.optional(),
+    motion: IrIdSchema.optional(),
+  })
+  .strict()
+  .refine((references) => Object.keys(references).length > 0, {
+    message: "node token bindings must contain at least one token reference",
+  });
+const NodeTokenBindingV1Schema = z
+  .object({
+    nodeId: IrIdSchema,
+    tokens: NodeTokenReferencesV1Schema,
+  })
+  .strict();
+
+const PageAccessibilityV1Schema = z
+  .object({
+    language: z.string().regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/),
+    titleContentId: IrIdSchema,
+    navigationNodeId: IrIdSchema,
+    mainNodeId: IrIdSchema,
+    skipToNodeId: IrIdSchema,
+  })
+  .strict();
+
+function addDuplicateIdIssues<T extends { id: string }>(
+  records: T[],
+  path: string,
+  issue: (path: PropertyKey[], message: string) => void
+) {
+  const seen = new Set<string>();
+  for (const [index, record] of records.entries()) {
+    if (seen.has(record.id)) {
+      issue([path, index, "id"], `${path} IDs must be unique`);
+    }
+    seen.add(record.id);
+  }
+}
+
+function validatePageIRV1(
+  page: {
+    layoutProgram: z.infer<typeof LayoutProgramV1Schema>;
+    content: ContentEntryV1[];
+    tokens: Array<{ id: string; category: PageTokenCategory }>;
+    assets: Array<z.infer<typeof AssetV1Schema>>;
+    actions: ActionV1[];
+    slotBindings: SlotBindingV1[];
+    nodeTokenBindings: Array<z.infer<typeof NodeTokenBindingV1Schema>>;
+    accessibility: z.infer<typeof PageAccessibilityV1Schema>;
+  },
+  context: z.RefinementCtx
+) {
+  const issue = createBoundedIssue(context);
+  addDuplicateIdIssues(page.content, "content", issue);
+  addDuplicateIdIssues(page.tokens, "tokens", issue);
+  addDuplicateIdIssues(page.assets, "assets", issue);
+  addDuplicateIdIssues(page.actions, "actions", issue);
+
+  const nodes = new Map(page.layoutProgram.nodes.map((node) => [node.id, node]));
+  const content = new Map(page.content.map((entry) => [entry.id, entry]));
+  const tokens = new Map(page.tokens.map((token) => [token.id, token]));
+  const assets = new Map(page.assets.map((asset) => [asset.id, asset]));
+  const actions = new Map(page.actions.map((action) => [action.id, action]));
+
+  const bindingCounts = new Map<string, number>();
+  for (const [index, binding] of page.slotBindings.entries()) {
+    bindingCounts.set(binding.nodeId, (bindingCounts.get(binding.nodeId) ?? 0) + 1);
+    const node = nodes.get(binding.nodeId);
+    if (!node) {
+      issue(["slotBindings", index, "nodeId"], "slot binding must reference an existing node");
+    } else if (node.kind !== "slot") {
+      issue(["slotBindings", index, "nodeId"], "slot binding must reference a slot node");
+    } else if (node.slotType !== binding.kind) {
+      issue(["slotBindings", index, "kind"], "slot binding kind must match the target slot");
+    }
+
+    if (binding.kind === "heading" || binding.kind === "text" || binding.kind === "list") {
+      const entry = content.get(binding.contentId);
+      if (!entry) {
+        issue(["slotBindings", index, "contentId"], "binding must reference existing content");
+      } else if (entry.kind !== binding.kind) {
+        issue(["slotBindings", index, "contentId"], "content kind must match the slot binding");
+      }
+    } else if (binding.kind === "media") {
+      if (!assets.has(binding.assetId)) {
+        issue(["slotBindings", index, "assetId"], "media binding must reference an existing asset");
+      }
+      if (binding.decorative && binding.altText !== undefined && binding.altText.length > 0) {
+        issue(["slotBindings", index, "altText"], "decorative media cannot declare alternative text");
+      }
+      if (!binding.decorative && (!binding.altText || binding.altText.trim().length === 0)) {
+        issue(["slotBindings", index, "altText"], "informative media requires alternative text");
+      }
+    } else {
+      const label = content.get(binding.labelContentId);
+      if (!label) {
+        issue(["slotBindings", index, "labelContentId"], "action label must reference existing content");
+      } else if (label.kind !== "text") {
+        issue(["slotBindings", index, "labelContentId"], "action labels must reference text content");
+      }
+      if (!actions.has(binding.actionId)) {
+        issue(["slotBindings", index, "actionId"], "action binding must reference an existing action");
+      }
+    }
+  }
+  for (const [index, node] of page.layoutProgram.nodes.entries()) {
+    if (node.kind !== "slot") continue;
+    if ((bindingCounts.get(node.id) ?? 0) !== 1) {
+      issue(["layoutProgram", "nodes", index, "id"], "every slot requires exactly one binding");
+    }
+  }
+
+  const tokenBindingNodes = new Set<string>();
+  for (const [index, binding] of page.nodeTokenBindings.entries()) {
+    if (tokenBindingNodes.has(binding.nodeId)) {
+      issue(["nodeTokenBindings", index, "nodeId"], "a node may have only one token binding");
+    }
+    tokenBindingNodes.add(binding.nodeId);
+    if (!nodes.has(binding.nodeId)) {
+      issue(["nodeTokenBindings", index, "nodeId"], "token binding must reference an existing node");
+    }
+    for (const [category, tokenId] of Object.entries(binding.tokens) as Array<
+      [PageTokenCategory, string]
+    >) {
+      const token = tokens.get(tokenId);
+      if (!token) {
+        issue(["nodeTokenBindings", index, "tokens", category], "token reference must exist");
+      } else if (token.category !== category) {
+        issue(["nodeTokenBindings", index, "tokens", category], "token reference category must match its binding");
+      }
+    }
+  }
+
+  for (const [index, action] of page.actions.entries()) {
+    if (action.kind !== "scroll-to") continue;
+    const target = nodes.get(action.targetNodeId);
+    if (
+      !target ||
+      !(
+        target.kind === "section" ||
+        (target.kind === "landmark" && target.landmark === "main")
+      )
+    ) {
+      issue(["actions", index, "targetNodeId"], "scroll actions must target a section or main landmark");
+    }
+  }
+
+  const title = content.get(page.accessibility.titleContentId);
+  if (!title || (title.kind !== "heading" && title.kind !== "text")) {
+    issue(["accessibility", "titleContentId"], "page title must reference heading or text content");
+  }
+  const navigation = nodes.get(page.accessibility.navigationNodeId);
+  if (!navigation || navigation.kind !== "landmark" || navigation.landmark !== "navigation") {
+    issue(["accessibility", "navigationNodeId"], "navigation reference must target the navigation landmark");
+  }
+  const main = nodes.get(page.accessibility.mainNodeId);
+  if (!main || main.kind !== "landmark" || main.landmark !== "main") {
+    issue(["accessibility", "mainNodeId"], "main reference must target the main landmark");
+  }
+  const skip = nodes.get(page.accessibility.skipToNodeId);
+  if (
+    !skip ||
+    !(skip.kind === "section" || (skip.kind === "landmark" && skip.landmark === "main"))
+  ) {
+    issue(["accessibility", "skipToNodeId"], "skip reference must target a section or main landmark");
+  }
+
+  const totalTextLength = page.content.reduce((total, entry) => {
+    if (entry.kind === "list") {
+      return total + entry.items.reduce((sum, item) => sum + item.length, 0);
+    }
+    return total + entry.text.length;
+  }, 0);
+  if (totalTextLength > PAGE_IR_BOUNDS.maxTotalTextLength) {
+    issue(["content"], "combined Page IR text exceeds the supported maximum");
+  }
+  const totalAssetBytes = page.assets.reduce((total, asset) => total + asset.sizeBytes, 0);
+  if (totalAssetBytes > PAGE_IR_BOUNDS.maxAssetBytes) {
+    issue(["assets"], "combined Page IR assets exceed the supported maximum");
+  }
+}
+
+export const PageIRV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    target: z.literal("website"),
+    referenceContract: ReferenceContractV1Schema,
+    layoutProgram: LayoutProgramV1Schema,
+    content: z.array(ContentEntryV1Schema).max(PAGE_IR_BOUNDS.maxContent),
+    tokens: z.array(PageTokenV1Schema).max(PAGE_IR_BOUNDS.maxTokens),
+    assets: z.array(AssetV1Schema).max(PAGE_IR_BOUNDS.maxAssets),
+    actions: z.array(ActionV1Schema).max(PAGE_IR_BOUNDS.maxActions),
+    slotBindings: z.array(SlotBindingV1Schema).max(PAGE_IR_BOUNDS.maxNodes),
+    nodeTokenBindings: z.array(NodeTokenBindingV1Schema).max(PAGE_IR_BOUNDS.maxNodes),
+    accessibility: PageAccessibilityV1Schema,
+  })
+  .strict()
+  .superRefine(validatePageIRV1);
+export type PageIRV1 = z.infer<typeof PageIRV1Schema>;
+
 export const ResearchConfigurationSchema = z.object({
   enabled: z.boolean().default(true),
   businessIntelligence: z.boolean().default(true),
@@ -1848,6 +2682,7 @@ export const ARTIFACTS = {
   tokens: "tokens.json",
   skeleton: "skeleton.json",
   copy: "copy.json",
+  pageIr: "page-ir.json",
   manifest: "site/manifest.json",
   gates: "gates.json",
   editorThread: "editor-thread.json",

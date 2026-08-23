@@ -124,6 +124,17 @@ reads now serialize through one documented site-authority-first lock order.
 Fresh-process exits at every promotion fault step, repeated recovery, reader
 contention, and cross-process lock contention are covered by regression tests.
 
+OBX-020 now defines the previously missing production Page IR contract boundary
+in `src/lib/contracts.ts`. Numeric-v1 Reference, Layout, and Website-only Page IR
+schemas are recursively strict and bounded. The layout is a normalized,
+single-parent graph with one required document, header, navigation, main, footer,
+and H1; Page IR registries validate every slot, content, token, image, action, and
+accessibility reference before compilation. Interactions are limited to scroll,
+call, email, and public HTTPS actions, and unrecognized executable or path-bearing
+field shapes fail closed. This resolves only the schema authority: derivation,
+deterministic compilation, runtime persistence/promotion, and authoritative edits
+remain owned by OBX-021, OBX-022, OBX-024, and OBX-031.
+
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and
 the workspace concatenated them into `/api/sites/<id>//Users/…`. Fixed at the
