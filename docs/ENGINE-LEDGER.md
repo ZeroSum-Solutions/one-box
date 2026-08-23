@@ -135,6 +135,20 @@ field shapes fail closed. This resolves only the schema authority: derivation,
 deterministic compilation, runtime persistence/promotion, and authoritative edits
 remain owned by OBX-021, OBX-022, OBX-024, and OBX-031.
 
+OBX-021 now closes the approved-input derivation seam in
+`src/lib/pageIrDerivation.ts`. The pure synchronous boundary accepts exactly one
+approved, positive-version, exact-byte binding for each of the eight fixed
+source kinds, hashes all source bytes before parsing, and rejects unknown,
+duplicate, missing, cross-run, stale-chain, or misattributed inputs. It parses
+the five existing evidence/design/token/CSS contracts plus closed numeric-v1
+layout, content, and image artifacts, then assembles and revalidates Page IR.
+Supported semantic tokens project deterministically to safe IDs and collision
+fails closed. The returned Page IR hash uses canonical recursively sorted object
+keys while preserving array order; fixed-order lineage carries source versions,
+hashes, purpose, and safe Refero alias/trait attribution without a timestamp.
+This does not claim human qualitative eval passage and does not read, persist,
+compile, promote, or edit an artifact; those remain later ticket boundaries.
+
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and
 the workspace concatenated them into `/api/sites/<id>//Users/…`. Fixed at the

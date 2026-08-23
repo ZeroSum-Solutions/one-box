@@ -308,11 +308,19 @@ cross-reference validation reject unknown or executable field shapes, arbitrary
 paths, unsafe action targets, malformed graph structure, and dangling registry
 references before a compiler can consume the artifact.
 
-This boundary defines and validates `page-ir.json`; it does not yet derive,
-compile, persist, promote, or edit that artifact. Those runtime responsibilities
-remain with OBX-021, OBX-022, OBX-024, and OBX-031 respectively. Image is the only
-Phase 1 Page IR asset kind; video and arbitrary embeddable media are not part of
-v1.
+`src/lib/pageIrDerivation.ts` owns the synchronous, pure derivation boundary. It
+accepts exact bytes plus approved run/version/SHA bindings for the fixed
+evidence, design, token, CSS, layout, content, and asset source set; it never
+selects a latest alias or reads a file. After hashing every source before JSON
+parsing, it validates the complete version and attribution chain, projects the
+approved token inventory, validates the assembled Page IR, and returns a
+canonical Page IR SHA-256 plus fixed-order, timestamp-free lineage. Raw Refero
+IDs remain only in lineage behind safe Page IR aliases.
+
+Derivation does not compile, persist, promote, or edit `page-ir.json`. Those
+runtime responsibilities remain with OBX-022, OBX-024, and OBX-031 respectively.
+Image is the only Phase 1 Page IR asset kind; video and arbitrary embeddable
+media are not part of v1.
 
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the

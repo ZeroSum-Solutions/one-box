@@ -503,14 +503,14 @@ const ListContentV1Schema = z
     items: z.array(z.string().max(PAGE_IR_BOUNDS.maxTextLength)).min(1).max(64),
   })
   .strict();
-const ContentEntryV1Schema = z.discriminatedUnion("kind", [
+export const ContentEntryV1Schema = z.discriminatedUnion("kind", [
   HeadingContentV1Schema,
   TextContentV1Schema,
   ListContentV1Schema,
 ]);
-type ContentEntryV1 = z.infer<typeof ContentEntryV1Schema>;
+export type ContentEntryV1 = z.infer<typeof ContentEntryV1Schema>;
 
-const PageTokenCategorySchema = z.enum([
+export const PageTokenCategorySchema = z.enum([
   "color",
   "typography",
   "spacing",
@@ -518,15 +518,16 @@ const PageTokenCategorySchema = z.enum([
   "shadow",
   "motion",
 ]);
-type PageTokenCategory = z.infer<typeof PageTokenCategorySchema>;
-const PageTokenV1Schema = z
+export type PageTokenCategory = z.infer<typeof PageTokenCategorySchema>;
+export const PageTokenV1Schema = z
   .object({
     id: IrIdSchema,
     category: PageTokenCategorySchema,
   })
   .strict();
+export type PageTokenV1 = z.infer<typeof PageTokenV1Schema>;
 
-const AssetV1Schema = z
+export const AssetV1Schema = z
   .object({
     id: IrIdSchema,
     kind: z.literal("image"),
@@ -537,6 +538,7 @@ const AssetV1Schema = z
     sizeBytes: z.number().int().nonnegative().max(PAGE_IR_BOUNDS.maxAssetBytes),
   })
   .strict();
+export type AssetV1 = z.infer<typeof AssetV1Schema>;
 
 function isSafeExternalHttpsUrl(value: string) {
   if (value.length > PAGE_IR_BOUNDS.maxUrlLength) return false;
@@ -600,13 +602,13 @@ const ExternalActionV1Schema = z
     }),
   })
   .strict();
-const ActionV1Schema = z.discriminatedUnion("kind", [
+export const ActionV1Schema = z.discriminatedUnion("kind", [
   ScrollActionV1Schema,
   CallActionV1Schema,
   EmailActionV1Schema,
   ExternalActionV1Schema,
 ]);
-type ActionV1 = z.infer<typeof ActionV1Schema>;
+export type ActionV1 = z.infer<typeof ActionV1Schema>;
 
 const HeadingSlotBindingV1Schema = z
   .object({ nodeId: IrIdSchema, kind: z.literal("heading"), contentId: IrIdSchema })
@@ -634,14 +636,14 @@ const ActionSlotBindingV1Schema = z
     actionId: IrIdSchema,
   })
   .strict();
-const SlotBindingV1Schema = z.discriminatedUnion("kind", [
+export const SlotBindingV1Schema = z.discriminatedUnion("kind", [
   HeadingSlotBindingV1Schema,
   TextSlotBindingV1Schema,
   ListSlotBindingV1Schema,
   MediaSlotBindingV1Schema,
   ActionSlotBindingV1Schema,
 ]);
-type SlotBindingV1 = z.infer<typeof SlotBindingV1Schema>;
+export type SlotBindingV1 = z.infer<typeof SlotBindingV1Schema>;
 
 const NodeTokenReferencesV1Schema = z
   .object({
@@ -656,14 +658,15 @@ const NodeTokenReferencesV1Schema = z
   .refine((references) => Object.keys(references).length > 0, {
     message: "node token bindings must contain at least one token reference",
   });
-const NodeTokenBindingV1Schema = z
+export const NodeTokenBindingV1Schema = z
   .object({
     nodeId: IrIdSchema,
     tokens: NodeTokenReferencesV1Schema,
   })
   .strict();
+export type NodeTokenBindingV1 = z.infer<typeof NodeTokenBindingV1Schema>;
 
-const PageAccessibilityV1Schema = z
+export const PageAccessibilityV1Schema = z
   .object({
     language: z.string().regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/),
     titleContentId: IrIdSchema,
@@ -672,6 +675,7 @@ const PageAccessibilityV1Schema = z
     skipToNodeId: IrIdSchema,
   })
   .strict();
+export type PageAccessibilityV1 = z.infer<typeof PageAccessibilityV1Schema>;
 
 function addDuplicateIdIssues<T extends { id: string }>(
   records: T[],
@@ -2090,6 +2094,233 @@ export const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{4,40}$/;
 export const RunIdSchema = z.string().regex(RUN_ID_PATTERN);
 
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+
+// ---------- Page IR v1 approved-artifact derivation ----------
+
+export const PAGE_IR_DERIVATION_KINDS = [
+  "evidence",
+  "design-contract",
+  "token-inventory",
+  "tailwind-plan",
+  "css-architecture",
+  "layout-decision",
+  "content",
+  "assets",
+] as const;
+export const PageIrDerivationKindSchema = z.enum(PAGE_IR_DERIVATION_KINDS);
+export type PageIrDerivationKind = z.infer<typeof PageIrDerivationKindSchema>;
+
+export const PAGE_IR_PURPOSES = [
+  "brochure-local-service",
+  "portfolio-showcase",
+  "saas-marketing",
+  "editorial-index",
+  "campaign-landing",
+  "institutional-presence",
+] as const;
+export const PagePurposeV1Schema = z.enum(PAGE_IR_PURPOSES);
+export type PagePurposeV1 = z.infer<typeof PagePurposeV1Schema>;
+
+const RawReferoIdV1Schema = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((value) => value === value.trim(), {
+    message: "raw Refero IDs cannot contain surrounding whitespace",
+  })
+  .refine((value) => !/[\u0000-\u001f\u007f]/.test(value), {
+    message: "raw Refero IDs cannot contain control characters",
+  });
+
+export const ReferenceTraceSourceV1Schema = z
+  .object({
+    alias: IrIdSchema,
+    sourceKind: z.enum(["refero-style", "refero-screen"]),
+    rawReferoId: RawReferoIdV1Schema,
+    traits: z.array(BoundedLabelSchema).min(1).max(8),
+  })
+  .strict()
+  .superRefine((source, context) => {
+    if (new Set(source.traits).size !== source.traits.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["traits"],
+        message: "reference trace traits must be unique",
+      });
+    }
+  });
+export type ReferenceTraceSourceV1 = z.infer<typeof ReferenceTraceSourceV1Schema>;
+
+export const ReferenceTraceV1Schema = z
+  .discriminatedUnion("mode", [
+    z
+      .object({
+        mode: z.literal("selected"),
+        sources: z
+          .array(ReferenceTraceSourceV1Schema)
+          .min(1)
+          .max(PAGE_IR_BOUNDS.maxReferenceSources),
+      })
+      .strict(),
+    z
+      .object({
+        mode: z.literal("explicit-none"),
+        sources: z.array(z.never()).length(0),
+      })
+      .strict(),
+  ])
+  .superRefine((trace, context) => {
+    if (trace.mode !== "selected") return;
+    const aliases = trace.sources.map((source) => source.alias);
+    const rawIds = trace.sources.map((source) => source.rawReferoId);
+    if (new Set(aliases).size !== aliases.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["sources"],
+        message: "reference trace aliases must be unique",
+      });
+    }
+    if (new Set(rawIds).size !== rawIds.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["sources"],
+        message: "reference trace raw IDs must be unique",
+      });
+    }
+  });
+export type ReferenceTraceV1 = z.infer<typeof ReferenceTraceV1Schema>;
+
+export const PageIrLayoutDecisionV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    purpose: PagePurposeV1Schema,
+    sourceVersions: z
+      .object({
+        evidence: z.number().int().positive(),
+        designContract: z.number().int().positive(),
+        tokenInventory: z.number().int().positive(),
+        tailwindPlan: z.number().int().positive(),
+        cssArchitecture: z.number().int().positive(),
+      })
+      .strict(),
+    referenceContract: ReferenceContractV1Schema,
+    referenceTrace: ReferenceTraceV1Schema,
+    layoutProgram: LayoutProgramV1Schema,
+    slotBindings: z.array(SlotBindingV1Schema).max(PAGE_IR_BOUNDS.maxNodes),
+    nodeTokenBindings: z
+      .array(NodeTokenBindingV1Schema)
+      .max(PAGE_IR_BOUNDS.maxNodes),
+    accessibility: PageAccessibilityV1Schema,
+  })
+  .strict()
+  .superRefine((decision, context) => {
+    if (decision.referenceContract.selection.mode !== decision.referenceTrace.mode) {
+      context.addIssue({
+        code: "custom",
+        path: ["referenceTrace", "mode"],
+        message: "reference trace mode must match the reference contract",
+      });
+    }
+  });
+export type PageIrLayoutDecisionV1 = z.infer<
+  typeof PageIrLayoutDecisionV1Schema
+>;
+
+export const PageIrContentV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    sourceLayoutDecisionVersion: z.number().int().positive(),
+    content: z.array(ContentEntryV1Schema).max(PAGE_IR_BOUNDS.maxContent),
+    actions: z.array(ActionV1Schema).max(PAGE_IR_BOUNDS.maxActions),
+  })
+  .strict();
+export type PageIrContentV1 = z.infer<typeof PageIrContentV1Schema>;
+
+export const PageIrAssetsV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    sourceLayoutDecisionVersion: z.number().int().positive(),
+    assets: z.array(AssetV1Schema).max(PAGE_IR_BOUNDS.maxAssets),
+  })
+  .strict();
+export type PageIrAssetsV1 = z.infer<typeof PageIrAssetsV1Schema>;
+
+export const MAX_PAGE_IR_ARTIFACT_BYTES = 8 * 1_024 * 1_024;
+export const PageIrArtifactBindingV1Schema = z
+  .object({
+    kind: PageIrDerivationKindSchema,
+    runId: RunIdSchema,
+    version: z.number().int().positive(),
+    approvalState: z.literal("approved"),
+    sha256: Sha256Schema,
+    bytes: z
+      .instanceof(Uint8Array)
+      .refine((bytes) => bytes.byteLength <= MAX_PAGE_IR_ARTIFACT_BYTES, {
+        message: "artifact bytes exceed the supported maximum",
+      }),
+  })
+  .strict();
+export type PageIrArtifactBindingV1 = z.infer<
+  typeof PageIrArtifactBindingV1Schema
+>;
+
+export const PageIrDerivationRequestV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: RunIdSchema,
+    bindings: z
+      .array(PageIrArtifactBindingV1Schema)
+      .length(PAGE_IR_DERIVATION_KINDS.length),
+  })
+  .strict()
+  .superRefine((request, context) => {
+    const kinds = request.bindings.map((binding) => binding.kind);
+    if (
+      new Set(kinds).size !== PAGE_IR_DERIVATION_KINDS.length ||
+      PAGE_IR_DERIVATION_KINDS.some((kind) => !kinds.includes(kind))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["bindings"],
+        message: "Page IR derivation requires the exact binding set",
+      });
+    }
+  });
+export type PageIrDerivationRequestV1 = z.infer<
+  typeof PageIrDerivationRequestV1Schema
+>;
+
+export const PageIrLineageSourceV1Schema = z
+  .object({
+    kind: PageIrDerivationKindSchema,
+    version: z.number().int().positive(),
+    sha256: Sha256Schema,
+  })
+  .strict();
+
+export const PageIrLineageV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: RunIdSchema,
+    purpose: PagePurposeV1Schema,
+    sources: z
+      .array(PageIrLineageSourceV1Schema)
+      .length(PAGE_IR_DERIVATION_KINDS.length),
+    referenceTrace: ReferenceTraceV1Schema,
+  })
+  .strict()
+  .superRefine((lineage, context) => {
+    for (const [index, expectedKind] of PAGE_IR_DERIVATION_KINDS.entries()) {
+      if (lineage.sources[index]?.kind !== expectedKind) {
+        context.addIssue({
+          code: "custom",
+          path: ["sources", index, "kind"],
+          message: "lineage sources must use the fixed artifact order",
+        });
+      }
+    }
+  });
+export type PageIrLineageV1 = z.infer<typeof PageIrLineageV1Schema>;
 
 function isSafeCandidateRelativePath(value: string): boolean {
   if (
