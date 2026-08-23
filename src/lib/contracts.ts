@@ -2415,6 +2415,58 @@ export const PageIrAssetsV1Schema = z
   .strict();
 export type PageIrAssetsV1 = z.infer<typeof PageIrAssetsV1Schema>;
 
+/** Closed response contract for the one cost-tracked PageIR source-draft call.
+ * Phase 1 is deliberately assetless until claimed-upload path and dimension
+ * bindings can be proven end-to-end. */
+export const PageIrGeneratedSourcesV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    layoutDecision: PageIrLayoutDecisionV1Schema,
+    content: PageIrContentV1Schema,
+    assets: PageIrAssetsV1Schema,
+  })
+  .strict()
+  .superRefine((sources, context) => {
+    if (sources.content.sourceLayoutDecisionVersion !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["content", "sourceLayoutDecisionVersion"],
+        message: "generated content must bind layout-decision v1",
+      });
+    }
+    if (sources.assets.sourceLayoutDecisionVersion !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["assets", "sourceLayoutDecisionVersion"],
+        message: "generated assets must bind layout-decision v1",
+      });
+    }
+    if (sources.assets.assets.length !== 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["assets", "assets"],
+        message: "Phase 1 generated PageIR sources must be assetless",
+      });
+    }
+    if (
+      sources.layoutDecision.layoutProgram.nodes.some(
+        (node) => node.kind === "slot" && node.slotType === "media",
+      ) ||
+      sources.layoutDecision.slotBindings.some(
+        (binding) => binding.kind === "media",
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["layoutDecision"],
+        message: "assetless PageIR sources cannot declare media slots",
+      });
+    }
+  });
+export type PageIrGeneratedSourcesV1 = z.infer<
+  typeof PageIrGeneratedSourcesV1Schema
+>;
+
 export const MAX_PAGE_IR_ARTIFACT_BYTES = 8 * 1_024 * 1_024;
 export const PageIrArtifactBindingV1Schema = z
   .object({
@@ -2765,6 +2817,35 @@ export const PageIrSourceBundleV1Schema = z
     }
   });
 export type PageIrSourceBundleV1 = z.infer<typeof PageIrSourceBundleV1Schema>;
+
+export const PageIrSourceGenerationCheckpointV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: RunIdSchema,
+    createdAt: z.string().datetime({ offset: true }),
+    model: z.string().trim().min(1).max(200),
+    inputSha256: Sha256Schema,
+    upstreamBindings: z
+      .array(PageIrSourceBundleUpstreamBindingV1Schema)
+      .length(PAGE_IR_SOURCE_BUNDLE_UPSTREAM_KINDS.length),
+    sourceSha256: Sha256Schema,
+    sources: PageIrGeneratedSourcesV1Schema,
+  })
+  .strict()
+  .superRefine((checkpoint, context) => {
+    for (const [index, kind] of PAGE_IR_SOURCE_BUNDLE_UPSTREAM_KINDS.entries()) {
+      if (checkpoint.upstreamBindings[index]?.kind !== kind) {
+        context.addIssue({
+          code: "custom",
+          path: ["upstreamBindings", index, "kind"],
+          message: "source generation bindings must use the fixed order",
+        });
+      }
+    }
+  });
+export type PageIrSourceGenerationCheckpointV1 = z.infer<
+  typeof PageIrSourceGenerationCheckpointV1Schema
+>;
 
 export const PersistedPageIrV1Schema = z
   .object({
@@ -3340,6 +3421,18 @@ export type PipelineEvent =
       note: string;
       at?: string;
     }
+  | {
+      /** Named-human review of the immutable PageIR Source Bundle. This is a
+       * build-stage subgate, not a seventh evidence workflow stage. */
+      type: "page-ir-source-paused";
+      runId: string;
+      stage: "built";
+      reviewState: "draft" | "in-review";
+      payloadSha256: string;
+      workspaceUrl: string;
+      note: string;
+      at?: string;
+    }
   | { type: "error"; message: string };
 
 /** Transport-only note: a stage the controller skipped because it was
@@ -3387,6 +3480,7 @@ export const ARTIFACTS = {
   skeleton: "skeleton.json",
   copy: "copy.json",
   pageIr: "page-ir.json",
+  pageIrSourceGeneration: "page-ir-source-generation.json",
   manifest: "site/manifest.json",
   gates: "gates.json",
   editorThread: "editor-thread.json",

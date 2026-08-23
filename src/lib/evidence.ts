@@ -563,7 +563,7 @@ export function buildVisualQa(
  * color-scheme, and reduced-motion states. Screenshots are run-relative paths
  * so the evidence record stays portable between the two Macs. */
 const QA_TARGET_SELECTOR =
-  ".hero__cta:visible, main .btn:visible, .nav__cta:visible";
+  ".hero__cta:visible, main .btn:visible, .nav__cta:visible, main a[data-edit-id]:visible";
 
 async function boundedVisibleQaTarget(page: Page) {
   const target = page.locator(QA_TARGET_SELECTOR).first();

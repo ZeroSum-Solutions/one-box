@@ -40,7 +40,6 @@ import {
   isResumeNoise,
 } from "./contracts";
 import {
-  assertRunLayoutAuthority,
   artifactApprovalState,
   loadRun,
   saveArtifact,
@@ -89,9 +88,12 @@ import {
 } from "./builder";
 import {
   inspectCandidate,
+  inspectPromotedLiveBundle,
   recoverCandidateState,
   type CandidateInspection,
 } from "./candidate";
+import { loadPageIrSourceBundleForReview } from "./pageIrPipeline";
+import { executePageIrBuildController } from "./pageIrController";
 import { assertWebsiteProductionRun } from "./productionTarget";
 import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
@@ -404,6 +406,15 @@ async function acquireRunStart(runId: string): Promise<() => void> {
 
 const PIPELINE_STAGES = ["scanned", "locked", "synthesized", "built"] as const;
 
+function isEnoent(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
+}
+
 export function assertBuiltCandidateParked(
   candidate: CandidateInspection,
 ): true {
@@ -439,6 +450,7 @@ export function projectPipelineReplayEvents(
     const event = events[index];
     if (
       event.type === "paused" ||
+      event.type === "page-ir-source-paused" ||
       event.type === "complete" ||
       event.type === "error"
     ) {
@@ -453,6 +465,7 @@ export function projectPipelineReplayEvents(
   return events.filter((event, index) => {
     if (
       event.type === "paused" ||
+      event.type === "page-ir-source-paused" ||
       event.type === "complete" ||
       event.type === "error"
     ) {
@@ -464,6 +477,38 @@ export function projectPipelineReplayEvents(
     seenCards.add(key);
     return true;
   });
+}
+
+export function replayedPageIrSourcePauseIsCurrent(
+  history: PipelineEvent[],
+  checkpoint: {
+    runId: string;
+    payloadSha256: string;
+    reviewState: string;
+  },
+): boolean {
+  if (!(["draft", "in-review"] as const).includes(
+    checkpoint.reviewState as "draft" | "in-review",
+  )) {
+    return false;
+  }
+  const latestTerminal = history
+    .slice()
+    .reverse()
+    .find(
+      (event) =>
+        event.type === "paused" ||
+        event.type === "page-ir-source-paused" ||
+        event.type === "reference-paused" ||
+        event.type === "complete" ||
+        event.type === "error",
+    );
+  return (
+    latestTerminal?.type === "page-ir-source-paused" &&
+    latestTerminal.runId === checkpoint.runId &&
+    latestTerminal.payloadSha256 === checkpoint.payloadSha256 &&
+    latestTerminal.reviewState === checkpoint.reviewState
+  );
 }
 
 interface ReplayCheckpoint {
@@ -551,6 +596,8 @@ interface RunPipelineDependencies {
   appendEvent: typeof appendEvent;
   recoverCandidateState?: typeof recoverCandidateState;
   inspectCandidate?: typeof inspectCandidate;
+  inspectPromotedLiveBundle?: typeof inspectPromotedLiveBundle;
+  loadPageIrSourceBundleForReview?: typeof loadPageIrSourceBundleForReview;
   executePipeline: typeof executePipeline;
 }
 
@@ -561,6 +608,8 @@ const defaultRunPipelineDependencies: RunPipelineDependencies = {
   appendEvent,
   recoverCandidateState,
   inspectCandidate,
+  inspectPromotedLiveBundle,
+  loadPageIrSourceBundleForReview,
   executePipeline,
 };
 
@@ -599,13 +648,6 @@ export async function runPipeline(
       return;
     }
 
-    const authorityRun = await dependencies.loadRun(runId);
-    assertRunLayoutAuthority(
-      authorityRun,
-      "template-v1",
-      "current pipeline controller",
-    );
-
     const persistedHistory = await dependencies.readEvents(runId);
     const history = projectPipelineReplayEvents(persistedHistory);
     const replayHistory = (includeTerminal: boolean) => {
@@ -613,6 +655,7 @@ export async function runPipeline(
         if (
           !includeTerminal &&
           (event.type === "paused" ||
+            event.type === "page-ir-source-paused" ||
             event.type === "complete" ||
             event.type === "error")
         ) {
@@ -629,15 +672,89 @@ export async function runPipeline(
   const candidate = await (
     dependencies.inspectCandidate ?? inspectCandidate
   )(runId);
+  if (
+    run.layoutAuthority === "page-ir-v1" &&
+    run.evidenceWorkflow.currentStage === "build"
+  ) {
+    let source: Awaited<ReturnType<typeof loadPageIrSourceBundleForReview>> | undefined;
+    try {
+      source = await (
+        dependencies.loadPageIrSourceBundleForReview ??
+        loadPageIrSourceBundleForReview
+      )(runId);
+    } catch (error) {
+      if (!isEnoent(error)) throw error;
+    }
+    if (source) {
+      if (
+        replayedPageIrSourcePauseIsCurrent(history, {
+          runId,
+          payloadSha256: source.bundle.payloadSha256,
+          reviewState: source.reviewState,
+        })
+      ) {
+        replayHistory(true);
+        emit({ type: "cost", usd: run.costUsd });
+        return;
+      }
+      if (
+        source.reviewState === "rejected" ||
+        source.reviewState === "superseded"
+      ) {
+        replayHistory(true);
+        if (history.at(-1)?.type !== "error") {
+          const terminal: PipelineEvent = {
+            type: "error",
+            message: `PageIR Source Bundle is durably ${source.reviewState}; start a new run.`,
+          };
+          await dependencies.appendEvent(runId, terminal);
+          emit(terminal);
+        }
+        emit({ type: "cost", usd: run.costUsd });
+        return;
+      }
+    }
+  }
   const candidateAwaitingPromotion =
+    run.layoutAuthority === "template-v1" &&
     candidate.status === "present" &&
     candidate.provenance.state === "promotable";
   const completedRepairStillFailed =
+    run.layoutAuthority === "template-v1" &&
     candidate.status === "present" &&
     candidate.provenance.state === "failed" &&
     (run.stages.built.gateRepairAttempts ?? 0) > 0;
+  const pageIrFailedParked =
+    run.layoutAuthority === "page-ir-v1" &&
+    candidate.status === "present" &&
+    candidate.provenance.state === "failed";
+  let exactPromotedPageIrLive = false;
+  if (
+    run.layoutAuthority === "page-ir-v1" &&
+    candidate.status === "present" &&
+    candidate.provenance.state === "promoted" &&
+    history.some((event) => event.type === "complete")
+  ) {
+    const live = await (
+      dependencies.inspectPromotedLiveBundle ?? inspectPromotedLiveBundle
+    )(runId);
+    exactPromotedPageIrLive =
+      live.status === "present" &&
+      live.provenance.state === "promoted" &&
+      live.provenance.pageIrSha256 === candidate.provenance.pageIrSha256 &&
+      live.provenance.candidateManifestSha256 ===
+        candidate.provenance.candidateManifestSha256 &&
+      live.provenance.gateReportSha256 ===
+        candidate.provenance.gateReportSha256 &&
+      live.manifest.buildSha256 === candidate.provenance.buildSha256 &&
+      live.provenance.buildSha256 === candidate.provenance.buildSha256 &&
+      live.provenance.promotedBuildSha256 === live.manifest.buildSha256 &&
+      live.receipt.candidateManifestSha256 ===
+        candidate.provenance.candidateManifestSha256 &&
+      live.receipt.buildSha256 === candidate.provenance.buildSha256;
+  }
   const recordedLiveCompletion =
-    candidate.status === "absent" &&
+    (candidate.status === "absent" || exactPromotedPageIrLive) &&
     history.some((event) => event.type === "complete");
   const gatedComplete =
     run.pipelineVersion === "evidence-gated-v2" &&
@@ -646,7 +763,11 @@ export async function runPipeline(
     run.evidenceWorkflow.artifacts.some(
       (artifact) =>
         artifact.artifactType === "visual-qa" &&
-        artifactApprovalState(artifact) === "approved"
+        artifactApprovalState(artifact) === "approved" &&
+        (run.layoutAuthority !== "page-ir-v1" ||
+          (candidate.status === "present" &&
+            artifact.artifact.buildSha256 ===
+              candidate.provenance.buildSha256))
   );
   if (
     recordedLiveCompletion &&
@@ -655,6 +776,20 @@ export async function runPipeline(
         PIPELINE_STAGES.every((name) => run.stages[name]?.status === "done")))
   ) {
     replayHistory(true);
+    emit({ type: "cost", usd: run.costUsd });
+    return;
+  }
+
+  if (pageIrFailedParked) {
+    replayHistory(true);
+    if (history.at(-1)?.type !== "error") {
+      const parked: PipelineEvent = {
+        type: "error",
+        message: "PageIR candidate is durably parked after gate failure; compiled-file repair is disabled.",
+      };
+      await dependencies.appendEvent(runId, parked);
+      emit(parked);
+    }
     emit({ type: "cost", usd: run.costUsd });
     return;
   }
@@ -721,6 +856,7 @@ export async function runPipeline(
     history: history.filter(
       (event) =>
         event.type !== "paused" &&
+        event.type !== "page-ir-source-paused" &&
         event.type !== "complete" &&
         event.type !== "error"
     ),
@@ -849,6 +985,17 @@ function pauseForReferenceSelection(runId: string, emit: Emit): void {
     note: "Choose one design direction before the site design is locked.",
     at: new Date().toISOString(),
   });
+}
+
+export async function executePageIrEvidenceBuildIfSelected(
+  authority: "page-ir-v1" | "template-v1",
+  runId: string,
+  emit: Emit,
+  execute: typeof executePageIrBuildController = executePageIrBuildController,
+): Promise<boolean> {
+  if (authority !== "page-ir-v1") return false;
+  await execute(runId, emit);
+  return true;
 }
 
 function latestWorkflowArtifact<T extends WorkflowArtifactType>(
@@ -1099,6 +1246,15 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
       "css-architecture"
     );
     if (!approvedArchitecture) throw new Error("approved CSS architecture missing");
+    if (
+      await executePageIrEvidenceBuildIfSelected(
+        run.layoutAuthority,
+        runId,
+        emit,
+      )
+    ) {
+      return;
+    }
     // tokens.css loads first and tailwind-theme.css re-declares every palette
     // name after it, so a contrast correction applied while emitting tokens.css
     // never reaches the page. Correct the inventory instead — both Tailwind

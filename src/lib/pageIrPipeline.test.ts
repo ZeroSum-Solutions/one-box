@@ -19,6 +19,7 @@ import { pageIrSha256 } from "./pageIrHash";
 import {
   advanceEvidenceWorkflow,
   createRun,
+  saveArtifact,
   saveEvidenceArtifactVersion,
   sitePaths,
   transitionEvidenceArtifactApproval,
@@ -35,6 +36,7 @@ import {
   proposePageIrSourceBundle,
   transitionPageIrSourceBundleReview,
 } from "./pageIrPipeline";
+import * as pageIrPipeline from "./pageIrPipeline";
 
 const HASH = "a".repeat(64);
 const OTHER_HASH = "b".repeat(64);
@@ -277,13 +279,90 @@ function sourceProposal(runId: string) {
   };
 }
 
+function assetlessGeneratedSources(runId: string) {
+  const proposal = sourceProposal(runId);
+  const layoutDecision = JSON.parse(
+    proposal.sources[0].bytes.toString("utf8"),
+  );
+  const mediaNodeIds = new Set(
+    layoutDecision.layoutProgram.nodes
+      .filter(
+        (node: { kind: string; slotType?: string }) =>
+          node.kind === "slot" && node.slotType === "media",
+      )
+      .map((node: { id: string }) => node.id),
+  );
+  layoutDecision.layoutProgram.nodes = layoutDecision.layoutProgram.nodes
+    .filter((node: { id: string }) => !mediaNodeIds.has(node.id))
+    .map((node: { childIds?: string[] }) =>
+      node.childIds
+        ? {
+            ...node,
+            childIds: node.childIds.filter((id) => !mediaNodeIds.has(id)),
+          }
+        : node,
+    );
+  layoutDecision.slotBindings = layoutDecision.slotBindings.filter(
+    (binding: { nodeId: string; kind: string }) =>
+      !mediaNodeIds.has(binding.nodeId) && binding.kind !== "media",
+  );
+  layoutDecision.nodeTokenBindings = layoutDecision.nodeTokenBindings.filter(
+    (binding: { nodeId: string }) => !mediaNodeIds.has(binding.nodeId),
+  );
+  return {
+    schemaVersion: 1 as const,
+    layoutDecision,
+    content: JSON.parse(proposal.sources[1].bytes.toString("utf8")),
+    assets: {
+      schemaVersion: 1 as const,
+      sourceLayoutDecisionVersion: 1,
+      assets: [],
+    },
+  };
+}
+
+async function savePageIrGenerationContext(runId: string) {
+  await saveArtifact(runId, "intake.json", {
+    businessName: "Acme",
+    category: "local service",
+    location: "Los Angeles, CA",
+    services: ["Installation"],
+    certifications: [],
+    claims: ["Locally operated"],
+    primaryAction: "quote",
+    vibeWords: ["confident"],
+    projectTarget: "website",
+    research: {
+      enabled: true,
+      businessIntelligence: true,
+      referoDesignEvidence: true,
+      allowPaidFirecrawlFallback: false,
+    },
+    uploads: [],
+  });
+  await saveArtifact(runId, "reference-lock.json", {
+    searchAngles: ["local service", "confident", "clear proof"],
+    primary: {
+      referoId: "raw/style:alpha",
+      kind: "style",
+      name: "Style alpha",
+      why: "Strong hierarchy",
+    },
+    borrowedDetails: [],
+    rejected: [],
+    decisionLedger: [
+      { decision: "Use a direct hero", source: "raw/style:alpha" },
+    ],
+  });
+}
+
 async function approveSourceBundle(runId: string) {
-  await proposePageIrSourceBundle(sourceProposal(runId));
-  await transitionPageIrSourceBundleReview(runId, "in-review", {
+  const proposed = await proposePageIrSourceBundle(sourceProposal(runId));
+  await transitionPageIrSourceBundleReview(runId, proposed.payloadSha256, "in-review", {
     actorKind: "human",
     actorName: "Devin",
   });
-  await transitionPageIrSourceBundleReview(runId, "approved", {
+  return transitionPageIrSourceBundleReview(runId, proposed.payloadSha256, "approved", {
     actorKind: "human",
     actorName: "Devin",
     humanAttestation: true,
@@ -571,6 +650,96 @@ describe("PersistedPageIrV1Schema", () => {
 });
 
 describe("Page IR source bundle persistence", () => {
+  it("generates and proposes one durable assetless source checkpoint across reconnects", async () => {
+    const runId = await createApprovedPageIrRun();
+    await savePageIrGenerationContext(runId);
+    const controller = await import("./pageIrController").catch(() => ({}));
+    const ensure = (
+      controller as {
+        ensurePageIrSourceBundle?: (
+          runId: string,
+          dependencies: {
+            generateJson: (...args: unknown[]) => Promise<unknown>;
+            proposePageIrSourceBundle: typeof proposePageIrSourceBundle;
+          },
+        ) => Promise<unknown>;
+      }
+    ).ensurePageIrSourceBundle;
+    const generated = assetlessGeneratedSources(runId);
+    const prompts: string[] = [];
+    let generationCalls = 0;
+    let proposalCalls = 0;
+    const dependencies = {
+      generateJson: async (...args: unknown[]) => {
+        generationCalls += 1;
+        prompts.push(String(args[3]));
+        return generated;
+      },
+      proposePageIrSourceBundle: async (
+        proposal: Parameters<typeof proposePageIrSourceBundle>[0],
+      ) => {
+        proposalCalls += 1;
+        await expect(
+          fs.stat(
+            path.join(
+              sitePaths(runId).root,
+              "page-ir-source-generation.json",
+            ),
+          ),
+        ).resolves.toBeDefined();
+        return proposePageIrSourceBundle(proposal);
+      },
+    };
+
+    const results = ensure
+      ? await Promise.all([
+          ensure(runId, dependencies),
+          ensure(runId, dependencies),
+        ])
+      : undefined;
+
+    expect(results).toHaveLength(2);
+    expect(generationCalls).toBe(1);
+    expect(proposalCalls).toBe(1);
+    expect(results?.[1]).toEqual(results?.[0]);
+    expect(results?.[0]).toMatchObject({
+      reviewState: "draft",
+      sources: { assets: { assets: [] } },
+    });
+    expect(prompts[0]).toMatch(/untrusted data/i);
+    expect(prompts[0]).toMatch(/executable source/i);
+    expect(prompts[0]).toMatch(/stable ids/i);
+    expect(prompts[0]).toMatch(/assetless/i);
+
+    const checkpoint = JSON.parse(
+      await fs.readFile(
+        path.join(sitePaths(runId).root, "page-ir-source-generation.json"),
+        "utf8",
+      ),
+    );
+    expect(checkpoint).toMatchObject({
+      schemaVersion: 1,
+      runId,
+      model: contracts.MODELS.orchestrator,
+      sources: generated,
+    });
+    expect(checkpoint.inputSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(checkpoint.sourceSha256).toMatch(/^[a-f0-9]{64}$/);
+
+    await transitionPageIrSourceBundleReview(
+      runId,
+      (results?.[0] as { bundle: { payloadSha256: string } }).bundle
+        .payloadSha256,
+      "in-review",
+      { actorKind: "human", actorName: "Devin" },
+    );
+    await expect(ensure?.(runId, dependencies)).resolves.toMatchObject({
+      reviewState: "in-review",
+    });
+    expect(generationCalls).toBe(1);
+    expect(proposalCalls).toBe(1);
+  });
+
   it("persists the exact three immutable source files only after CSS approval", async () => {
     const runId = await createApprovedPageIrRun();
     await proposePageIrSourceBundle(sourceProposal(runId));
@@ -609,17 +778,17 @@ describe("Page IR source bundle persistence", () => {
     const proposed = await proposePageIrSourceBundle(proposal);
 
     await expect(
-      transitionPageIrSourceBundleReview(runId, "in-review", {
+      transitionPageIrSourceBundleReview(runId, proposed.payloadSha256, "in-review", {
         actorKind: "model",
         actorName: "review-model",
       }),
     ).rejects.toThrow(/human/i);
-    await transitionPageIrSourceBundleReview(runId, "in-review", {
+    await transitionPageIrSourceBundleReview(runId, proposed.payloadSha256, "in-review", {
       actorKind: "human",
       actorName: "Devin",
     });
     await expect(
-      transitionPageIrSourceBundleReview(runId, "approved", {
+      transitionPageIrSourceBundleReview(runId, proposed.payloadSha256, "approved", {
         actorKind: "human",
         actorName: "Devin",
         humanAttestation: true,
@@ -634,6 +803,7 @@ describe("Page IR source bundle persistence", () => {
     ).rejects.toThrow(/all-pass|criteria/i);
     const approved = await transitionPageIrSourceBundleReview(
       runId,
+      proposed.payloadSha256,
       "approved",
       {
         actorKind: "human",
@@ -690,11 +860,71 @@ describe("Page IR source bundle persistence", () => {
     ).toEqual(approved);
 
     await expect(
-      transitionPageIrSourceBundleReview(runId, "rejected", {
+      transitionPageIrSourceBundleReview(runId, proposed.payloadSha256, "rejected", {
         actorKind: "human",
         actorName: "Devin",
       }),
     ).rejects.toThrow(/transition/i);
+  });
+
+  it("rejects a human review bound to a stale payload without appending it", async () => {
+    const runId = await createApprovedPageIrRun();
+    const proposed = await proposePageIrSourceBundle(sourceProposal(runId));
+
+    await expect(
+      transitionPageIrSourceBundleReview(runId, OTHER_HASH, "in-review", {
+        actorKind: "human",
+        actorName: "Devin",
+      }),
+    ).rejects.toThrow(/payload/i);
+
+    const persisted = JSON.parse(
+      await fs.readFile(
+        path.join(
+          sitePaths(runId).root,
+          "page-ir-sources",
+          "v1",
+          "bundle.json",
+        ),
+        "utf8",
+      ),
+    );
+    expect(persisted.payloadSha256).toBe(proposed.payloadSha256);
+    expect(persisted.reviewTransitions.map((entry: { state: string }) => entry.state))
+      .toEqual(["draft"]);
+  });
+
+  it("loads a validated read-only projection for draft and in-review bundles", async () => {
+    const runId = await createApprovedPageIrRun();
+    const proposal = sourceProposal(runId);
+    const proposed = await proposePageIrSourceBundle(proposal);
+    const loadForReview = (
+      pageIrPipeline as unknown as {
+        loadPageIrSourceBundleForReview?: (runId: string) => Promise<unknown>;
+      }
+    ).loadPageIrSourceBundleForReview;
+
+    const draft = loadForReview ? await loadForReview(runId) : undefined;
+    expect(draft).toEqual({
+      bundle: proposed,
+      reviewState: "draft",
+      sources: {
+        layoutDecision: JSON.parse(proposal.sources[0].bytes.toString("utf8")),
+        content: JSON.parse(proposal.sources[1].bytes.toString("utf8")),
+        assets: JSON.parse(proposal.sources[2].bytes.toString("utf8")),
+      },
+    });
+
+    const inReview = await transitionPageIrSourceBundleReview(
+      runId,
+      proposed.payloadSha256,
+      "in-review",
+      { actorKind: "human", actorName: "Devin" },
+    );
+    await expect(loadForReview?.(runId)).resolves.toMatchObject({
+      bundle: JSON.parse(JSON.stringify(inReview)),
+      reviewState: "in-review",
+    });
   });
 
   it("fails closed before CSS approval and for unsafe source-root entries", async () => {
@@ -768,8 +998,8 @@ describe("Page IR source bundle persistence", () => {
       );
 
       const rejectedRun = await createApprovedPageIrRun();
-      await proposePageIrSourceBundle(sourceProposal(rejectedRun));
-      await transitionPageIrSourceBundleReview(rejectedRun, "rejected", {
+      const rejected = await proposePageIrSourceBundle(sourceProposal(rejectedRun));
+      await transitionPageIrSourceBundleReview(rejectedRun, rejected.payloadSha256, "rejected", {
         actorKind: "human",
         actorName: "Devin",
       });
@@ -778,8 +1008,8 @@ describe("Page IR source bundle persistence", () => {
       );
 
       const supersededRun = await createApprovedPageIrRun();
-      await approveSourceBundle(supersededRun);
-      await transitionPageIrSourceBundleReview(supersededRun, "superseded", {
+      const superseded = await approveSourceBundle(supersededRun);
+      await transitionPageIrSourceBundleReview(supersededRun, superseded.payloadSha256, "superseded", {
         actorKind: "human",
         actorName: "Devin",
       });

@@ -8,6 +8,7 @@ import {
   replayedPauseIsCurrent,
   runPipeline,
 } from "./pipeline";
+import * as pipelineModule from "./pipeline";
 
 function pendingRun(id: string): RunState {
   return {
@@ -52,26 +53,50 @@ const disabledResearchIntake = {
 } satisfies Intake;
 
 describe("pipeline replay", () => {
-  it("rejects PageIR authority before candidate recovery or execution", async () => {
+  it("dispatches only PageIR evidence builds to the PageIR controller", async () => {
+    const dispatch = (
+      pipelineModule as unknown as {
+        executePageIrEvidenceBuildIfSelected?: (
+          authority: "page-ir-v1" | "template-v1",
+          runId: string,
+          emit: (event: PipelineEvent) => void,
+          execute: (runId: string, emit: (event: PipelineEvent) => void) => Promise<unknown>,
+        ) => Promise<boolean>;
+      }
+    ).executePageIrEvidenceBuildIfSelected;
+    const execute = vi.fn().mockResolvedValue({ status: "source-review" });
+    const emit = vi.fn();
+
+    await expect(
+      dispatch?.("page-ir-v1", "page-ir-run", emit, execute),
+    ).resolves.toBe(true);
+    await expect(
+      dispatch?.("template-v1", "template-run", emit, execute),
+    ).resolves.toBe(false);
+    expect(execute).toHaveBeenCalledOnce();
+    expect(execute).toHaveBeenCalledWith("page-ir-run", emit);
+  });
+
+  it("routes PageIR authority through candidate recovery and controller execution", async () => {
     const run = pendingRun("page-ir-run");
     run.layoutAuthority = "page-ir-v1";
-    const recoverCandidateState = vi.fn();
-    const executePipeline = vi.fn();
+    const recoverCandidateState = vi.fn().mockResolvedValue({ action: "absent" });
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
     const dependencies = {
-      readEvents: vi.fn(),
+      readEvents: vi.fn().mockResolvedValue([]),
       loadRun: vi.fn().mockResolvedValue(run),
       loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
       appendEvent: vi.fn(),
       recoverCandidateState,
+      inspectCandidate: vi.fn().mockResolvedValue({ status: "absent" }),
       executePipeline,
     };
 
-    await expect(runPipeline("page-ir-run", vi.fn(), dependencies)).rejects.toThrow(
-      "current pipeline controller requires template-v1 authority",
-    );
-    expect(recoverCandidateState).not.toHaveBeenCalled();
-    expect(executePipeline).not.toHaveBeenCalled();
-    expect(dependencies.readEvents).not.toHaveBeenCalled();
+    await runPipeline("page-ir-run", vi.fn(), dependencies);
+
+    expect(recoverCandidateState).toHaveBeenCalledOnce();
+    expect(executePipeline).toHaveBeenCalledOnce();
+    expect(dependencies.readEvents).toHaveBeenCalledOnce();
     expect(dependencies.appendEvent).not.toHaveBeenCalled();
   });
 
@@ -195,6 +220,287 @@ describe("pipeline replay", () => {
     expect(
       projectPipelineReplayEvents([error, error, card, card, error])
     ).toEqual([card, error]);
+  });
+
+  it("replays one current hash-bound PageIR source-review terminal", () => {
+    const sourcePause = {
+      type: "page-ir-source-paused",
+      runId: "run-test",
+      stage: "built",
+      reviewState: "draft",
+      payloadSha256: "a".repeat(64),
+      workspaceUrl: "/evidence/run-test",
+      note: "source bundle ready",
+      at: "2026-08-23T17:00:00.000Z",
+    } as unknown as PipelineEvent;
+    const staleError: PipelineEvent = { type: "error", message: "old failure" };
+    expect(projectPipelineReplayEvents([staleError, sourcePause, sourcePause]))
+      .toEqual([sourcePause]);
+
+    const isCurrent = (
+      pipelineModule as unknown as {
+        replayedPageIrSourcePauseIsCurrent?: (
+          history: PipelineEvent[],
+          checkpoint: {
+            runId: string;
+            payloadSha256: string;
+            reviewState: string;
+          },
+        ) => boolean;
+      }
+    ).replayedPageIrSourcePauseIsCurrent;
+    expect(isCurrent?.([sourcePause], {
+      runId: "run-test",
+      payloadSha256: "a".repeat(64),
+      reviewState: "draft",
+    })).toBe(true);
+    expect(isCurrent?.([sourcePause], {
+      runId: "run-test",
+      payloadSha256: "a".repeat(64),
+      reviewState: "approved",
+    })).toBe(false);
+  });
+
+  it.each([
+    ["draft", 0],
+    ["approved", 1],
+  ] as const)(
+    "%s Source Bundle state makes the hash-bound PageIR pause current only while review is pending",
+    async (reviewState, executionCalls) => {
+      const run = pendingRun("page-ir-source-run");
+      run.layoutAuthority = "page-ir-v1";
+      run.evidenceWorkflow.currentStage = "build";
+      const pause: PipelineEvent = {
+        type: "page-ir-source-paused",
+        runId: run.id,
+        stage: "built",
+        reviewState: "draft",
+        payloadSha256: "a".repeat(64),
+        workspaceUrl: `/evidence/${run.id}`,
+        note: "source review",
+      };
+      const executePipeline = vi.fn().mockResolvedValue(undefined);
+      const emit = vi.fn();
+
+      await runPipeline(run.id, emit, {
+        readEvents: vi.fn().mockResolvedValue([pause]),
+        loadRun: vi.fn().mockResolvedValue(run),
+        loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+        appendEvent: vi.fn().mockResolvedValue(undefined),
+        recoverCandidateState: vi.fn().mockResolvedValue({ action: "absent" }),
+        inspectCandidate: vi.fn().mockResolvedValue({ status: "absent" }),
+        loadPageIrSourceBundleForReview: vi.fn().mockResolvedValue({
+          reviewState,
+          bundle: { payloadSha256: "a".repeat(64) },
+          sources: {},
+        }),
+        executePipeline,
+      } as never);
+
+      expect(executePipeline).toHaveBeenCalledTimes(executionCalls);
+      if (reviewState === "draft") expect(emit).toHaveBeenCalledWith(pause);
+    },
+  );
+
+  it("parks a failed PageIR candidate at zero repair attempts", async () => {
+    const run = pendingRun("page-ir-failed-run");
+    run.layoutAuthority = "page-ir-v1";
+    run.evidenceWorkflow.currentStage = "build";
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+
+    await runPipeline(run.id, emit, {
+      readEvents: vi.fn().mockResolvedValue([]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      recoverCandidateState: vi.fn().mockResolvedValue({ action: "retain-failed" }),
+      inspectCandidate: vi.fn().mockResolvedValue({
+        status: "present",
+        provenance: { state: "failed" },
+      }),
+      loadPageIrSourceBundleForReview: vi.fn().mockResolvedValue({
+        reviewState: "approved",
+        bundle: { payloadSha256: "a".repeat(64) },
+        sources: {},
+      }),
+      executePipeline,
+    } as never);
+
+    expect(emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error", message: expect.stringMatching(/parked/i) }),
+    );
+    expect(appendEvent).toHaveBeenCalledWith(
+      run.id,
+      expect.objectContaining({ type: "error", message: expect.stringMatching(/parked/i) }),
+    );
+    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
+    expect(executePipeline).not.toHaveBeenCalled();
+    expect(run.stages.built.gateRepairAttempts).toBe(0);
+  });
+
+  it.each(["rejected", "superseded"] as const)(
+    "parks a durably %s PageIR Source Bundle without re-entering execution",
+    async (reviewState) => {
+      const run = pendingRun(`page-ir-${reviewState}-run`);
+      run.layoutAuthority = "page-ir-v1";
+      run.evidenceWorkflow.currentStage = "build";
+      const emit = vi.fn();
+      const appendEvent = vi.fn().mockResolvedValue(undefined);
+      const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+      await runPipeline(run.id, emit, {
+        readEvents: vi.fn().mockResolvedValue([]),
+        loadRun: vi.fn().mockResolvedValue(run),
+        loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+        appendEvent,
+        recoverCandidateState: vi.fn().mockResolvedValue({ action: "absent" }),
+        inspectCandidate: vi.fn().mockResolvedValue({ status: "absent" }),
+        loadPageIrSourceBundleForReview: vi.fn().mockResolvedValue({
+          reviewState,
+          bundle: { payloadSha256: "a".repeat(64) },
+          sources: {},
+        }),
+        executePipeline,
+      } as never);
+
+      expect(executePipeline).not.toHaveBeenCalled();
+      expect(appendEvent).toHaveBeenCalledWith(
+        run.id,
+        expect.objectContaining({
+          type: "error",
+          message: expect.stringContaining(reviewState),
+        }),
+      );
+      expect(emit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "error",
+          message: expect.stringContaining(reviewState),
+        }),
+      );
+    },
+  );
+
+  it("replays PageIR completion from an exact promoted candidate and live bundle", async () => {
+    const run = pendingRun("page-ir-complete-run");
+    run.layoutAuthority = "page-ir-v1";
+    run.evidenceWorkflow.currentStage = "build";
+    run.stages.built.status = "done";
+    const buildSha256 = "a".repeat(64);
+    run.evidenceWorkflow.artifacts = [
+      {
+        artifactType: "visual-qa",
+        version: 1,
+        createdAt: "2026-08-23T12:00:00.000Z",
+        approvalTransitions: [
+          { state: "draft", at: "2026-08-23T12:00:00.000Z" },
+          { state: "in-review", at: "2026-08-23T12:01:00.000Z" },
+          {
+            state: "approved",
+            at: "2026-08-23T12:02:00.000Z",
+            humanVisualReview: {
+              reviewerName: "Devin",
+              reviewerKind: "human",
+              humanAttestation: true,
+              reviewedAt: "2026-08-23T12:02:00.000Z",
+              buildSha256,
+              criteria: {
+                briefFidelity: { status: "pass" },
+                visualHierarchy: { status: "pass" },
+                spacingAndComposition: { status: "pass" },
+                businessSpecificity: { status: "pass" },
+                designAndReferenceAlignment: {
+                  status: "pass",
+                  referenceContext: "explicit-no-reference",
+                },
+              },
+            },
+          },
+        ],
+        artifact: {
+          sourceCssArchitectureVersion: 1,
+          buildSha256,
+          checks: [],
+        },
+      },
+    ];
+    const complete: PipelineEvent = {
+      type: "complete",
+      runId: run.id,
+      previewUrl: `/preview/${run.id}`,
+    };
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+    const inspectPromotedLiveBundle = vi.fn().mockResolvedValue({
+      status: "present",
+      manifest: { buildSha256 },
+      provenance: {
+        state: "promoted",
+        pageIrSha256: "e".repeat(64),
+        candidateManifestSha256: "c".repeat(64),
+        gateReportSha256: "d".repeat(64),
+        buildSha256,
+        promotedBuildSha256: buildSha256,
+      },
+      receipt: {
+        candidateManifestSha256: "c".repeat(64),
+        buildSha256,
+      },
+    });
+    const commonDependencies = {
+      readEvents: vi.fn().mockResolvedValue([complete]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent: vi.fn().mockResolvedValue(undefined),
+      recoverCandidateState: vi.fn().mockResolvedValue({ action: "promoted" }),
+      inspectCandidate: vi.fn().mockResolvedValue({
+        status: "present",
+        provenance: {
+          state: "promoted",
+          pageIrSha256: "e".repeat(64),
+          candidateManifestSha256: "c".repeat(64),
+          gateReportSha256: "d".repeat(64),
+          buildSha256,
+          promotedBuildSha256: buildSha256,
+        },
+      }),
+      inspectPromotedLiveBundle,
+      loadPageIrSourceBundleForReview: vi.fn().mockResolvedValue({
+        reviewState: "approved",
+        bundle: { payloadSha256: "b".repeat(64) },
+        sources: {},
+      }),
+      executePipeline,
+    };
+
+    await runPipeline(run.id, emit, commonDependencies as never);
+
+    expect(emit).toHaveBeenCalledWith(complete);
+    expect(executePipeline).not.toHaveBeenCalled();
+
+    inspectPromotedLiveBundle.mockResolvedValueOnce({
+      ...(await inspectPromotedLiveBundle.mock.results[0].value),
+      status: "present",
+      manifest: { buildSha256 },
+      provenance: {
+        state: "promoted",
+        pageIrSha256: "e".repeat(64),
+        candidateManifestSha256: "c".repeat(64),
+        gateReportSha256: "f".repeat(64),
+        buildSha256,
+        promotedBuildSha256: buildSha256,
+      },
+      receipt: {
+        candidateManifestSha256: "c".repeat(64),
+        buildSha256,
+      },
+    });
+    executePipeline.mockClear();
+    const mismatchEmit = vi.fn();
+    await runPipeline(run.id, mismatchEmit, commonDependencies as never);
+    expect(executePipeline).toHaveBeenCalledOnce();
+    expect(mismatchEmit).not.toHaveBeenCalledWith(complete);
   });
 
   it("stops a reconnect at the already-recorded current approval boundary", () => {

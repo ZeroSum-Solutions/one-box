@@ -560,6 +560,39 @@ describe("evidence artifact derivation", () => {
     expect(qa.buildSha256).toMatch(/^[a-f0-9]{64}$/);
   }, 30_000);
 
+  it("uses a compiled PageIR action anchor as the bounded interaction target", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    const runRoot = sitePaths(runId).root;
+    const site = sitePaths(runId).site;
+    temporaryDirectories.push(runRoot);
+    await fs.mkdir(site, { recursive: true });
+    await fs.writeFile(
+      path.join(site, "index.html"),
+      `<!doctype html><html><head><style>
+        html,body { margin: 0; background: #fff; color: #000; }
+        a[data-edit-id] { display: inline-block; color: #000; background: #fff; }
+        a[data-edit-id]:hover { background: #ddd; }
+        a[data-edit-id]:focus-visible { outline: 3px solid #000; }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0s; transition-duration: 0s; } }
+      </style></head><body><main><a data-edit-id="primary-action" href="#contact">Start</a><section id="contact">Contact</section></main></body></html>`,
+    );
+
+    const qa = await runThreeWidthVisualQa(runId, site, 1);
+
+    expect(qa.checks.find((check) => check.area === "hover")?.status).toBe(
+      "pass",
+    );
+    expect(qa.checks.find((check) => check.area === "focus")?.status).toBe(
+      "pass",
+    );
+    expect(
+      qa.checks.find((check) => check.area === "color-scheme")?.status,
+    ).toBe("pass");
+  }, 30_000);
+
   it("rejects empty, duplicate, and screenshot-free visual QA", () => {
     const base = buildVisualQa(1);
     expect(() => VisualQaSchema.parse({ ...base, checks: [] })).toThrow();

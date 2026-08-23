@@ -34,6 +34,7 @@ import {
 } from "./evidence";
 import { withReleaseAuthorization } from "./release";
 import { runGuardedMutation } from "./siteMutation";
+import { materializePromotedPageIrVisualQa } from "./pageIrController";
 import { GET as exportEvidence } from "../app/api/evidence/[id]/export/route";
 import { GET as readSiteArtifact } from "../app/api/sites/[id]/[...path]/route";
 
@@ -280,9 +281,14 @@ async function fixture(
   options: {
     gatePass?: boolean;
     priorVisualState?: PriorVisualState;
+    pageIr?: boolean;
   } = {},
 ) {
-  const runId = await createRun();
+  const runId = await createRun(
+    options.pageIr
+      ? { layoutAuthority: "page-ir-v1", pageIrRolloutPermitted: true }
+      : undefined,
+  );
   runIds.push(runId);
   const roots = sitePaths(runId);
   const candidate = candidatePaths(runId);
@@ -357,8 +363,9 @@ async function fixture(
       { state: "promotable", at: "2026-08-22T12:00:02.000Z" },
     ],
     inputArtifactHashes: [{ path: "intake.json", sha256: intakeSha256 }],
-    layoutAuthority: "template-v1",
+    layoutAuthority: options.pageIr ? "page-ir-v1" : "template-v1",
     compilerVersion: "fixture-v1",
+    ...(options.pageIr ? { pageIrSha256: "e".repeat(64) } : {}),
     candidateManifestSha256,
     buildSha256: manifest.buildSha256,
     gateReportSha256,
@@ -406,6 +413,86 @@ afterEach(async () => {
 });
 
 describe("candidate promotion", () => {
+  it("lawfully replaces the promoted PageIR pending QA placeholder once", async () => {
+    const prepared = await fixture({ pageIr: true });
+    await promoteCandidate(prepared.runId);
+    let captures = 0;
+    const stageVisualQa = async (
+      _siteDirectory: string,
+      sourceCssArchitectureVersion: number,
+      _visualQaVersion: number,
+      stagingDirectory: string,
+      evidenceBasePath: string,
+    ) => {
+      captures += 1;
+      await fs.mkdir(stagingDirectory, { recursive: true });
+      const widths = ["desktop-1440.png", "tablet-768.png", "mobile-390.png"];
+      await Promise.all(
+        widths.map((name) => fs.writeFile(path.join(stagingDirectory, name), name)),
+      );
+      return {
+        sourceCssArchitectureVersion,
+        buildSha256: prepared.manifest.buildSha256,
+        checks: ([
+          "desktop",
+          "tablet",
+          "mobile",
+          "hover",
+          "focus",
+          "color-scheme",
+          "reduced-motion",
+        ] as const).map((area) => ({
+          area,
+          status: "pass" as const,
+          ...(["desktop", "tablet", "mobile"].includes(area)
+            ? {
+                evidencePath: `${evidenceBasePath}/${
+                  area === "desktop"
+                    ? "desktop-1440.png"
+                    : area === "tablet"
+                      ? "tablet-768.png"
+                      : "mobile-390.png"
+                }`,
+              }
+            : {}),
+        })),
+      };
+    };
+
+    const first = await materializePromotedPageIrVisualQa(prepared.runId, {
+      stageThreeWidthVisualQa: stageVisualQa,
+    });
+    const second = await materializePromotedPageIrVisualQa(prepared.runId, {
+      stageThreeWidthVisualQa: stageVisualQa,
+    });
+
+    expect(second).toEqual(first);
+    expect(captures).toBe(1);
+    expect(first).toMatchObject({
+      artifactType: "visual-qa",
+      version: 3,
+      artifact: { buildSha256: prepared.manifest.buildSha256 },
+      approvalTransitions: [{ state: "draft" }],
+    });
+    const visualQa = (await loadRun(prepared.runId)).evidenceWorkflow.artifacts
+      .filter((artifact) => artifact.artifactType === "visual-qa");
+    expect(visualQa.at(-2)?.approvalTransitions.map((entry) => entry.state)).toEqual([
+      "draft",
+      "revision-requested",
+      "superseded",
+    ]);
+    expect(visualQa.at(-1)).toEqual(first);
+    await expect(
+      fs.readFile(
+        path.join(
+          prepared.roots.root,
+          "evidence/qa/v3/desktop-1440.png",
+        ),
+        "utf8",
+      ),
+    ).resolves.toBe("desktop-1440.png");
+  });
+
   it("blocks authority-mismatched promotion before changing live or reports", async () => {
     const prepared = await fixture();
     const runPath = path.join(prepared.roots.root, "run.json");

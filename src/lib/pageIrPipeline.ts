@@ -313,6 +313,15 @@ async function currentUpstreamArtifactBindings(
   );
 }
 
+/** Validated current build-boundary inputs for the PageIR source producer.
+ * Approval state and bytes are checked together before they leave this module. */
+export async function loadCurrentApprovedPageIrUpstreamArtifacts(
+  runId: string,
+): Promise<UpstreamArtifactBinding[]> {
+  const parsedRunId = RunIdSchema.parse(runId);
+  return currentUpstreamArtifactBindings(await loadRun(parsedRunId));
+}
+
 async function currentUpstreamBindings(state: RunState) {
   return (await currentUpstreamArtifactBindings(state)).map(
     ({ kind, version, sha256: bindingSha256 }) => ({
@@ -562,10 +571,14 @@ export async function proposePageIrSourceBundle(
 
 export async function transitionPageIrSourceBundleReview(
   runId: string,
+  expectedPayloadSha256: string,
   nextState: PageIrSourceBundleReviewStateV1,
   input: unknown,
 ): Promise<PageIrSourceBundleV1> {
   const parsedRunId = RunIdSchema.parse(runId);
+  const expectedPayload = z.string().regex(/^[a-f0-9]{64}$/).parse(
+    expectedPayloadSha256,
+  );
   const stateName = PageIrSourceBundleReviewStateV1Schema.parse(nextState);
   const options = ReviewTransitionOptionsSchema.parse(input);
   return withRunTransaction(parsedRunId, async (transaction) => {
@@ -573,6 +586,11 @@ export async function transitionPageIrSourceBundleReview(
       transaction.state,
       false,
     );
+    if (bundle.payloadSha256 !== expectedPayload) {
+      throw new Error(
+        "Page IR source bundle payload changed after the reviewer opened it",
+      );
+    }
     const current = bundle.reviewTransitions.at(-1)!;
     const allowed = PAGE_IR_SOURCE_BUNDLE_REVIEW_TRANSITIONS[
       current.state
@@ -639,6 +657,46 @@ export async function transitionPageIrSourceBundleReview(
 export async function loadApprovedPageIrSourceBundle(runId: string) {
   const parsedRunId = RunIdSchema.parse(runId);
   return loadSourceBundleUnderState(await loadRun(parsedRunId), true);
+}
+
+export interface PageIrSourceBundleReviewProjection {
+  bundle: PageIrSourceBundleV1;
+  reviewState: PageIrSourceBundleReviewStateV1;
+  sources: {
+    layoutDecision: z.infer<typeof PageIrLayoutDecisionV1Schema>;
+    content: z.infer<typeof PageIrContentV1Schema>;
+    assets: z.infer<typeof PageIrAssetsV1Schema>;
+  };
+}
+
+/** Validated read-only projection for the named-human source review surface. */
+export async function loadPageIrSourceBundleForReview(
+  runId: string,
+): Promise<PageIrSourceBundleReviewProjection> {
+  const parsedRunId = RunIdSchema.parse(runId);
+  const loaded = await loadSourceBundleUnderState(
+    await loadRun(parsedRunId),
+    false,
+  );
+  const parsed = parseProposalSources({
+    schemaVersion: 1,
+    runId: parsedRunId,
+    bundleVersion: 1,
+    sources: loaded.bundle.sourceArtifacts.map((artifact) => ({
+      kind: artifact.kind,
+      version: artifact.version,
+      bytes: Uint8Array.from(loaded.sourceBytes[artifact.kind]),
+    })),
+  });
+  return {
+    bundle: loaded.bundle,
+    reviewState: loaded.bundle.reviewTransitions.at(-1)!.state,
+    sources: {
+      layoutDecision: parsed.layout,
+      content: parsed.content,
+      assets: parsed.assets,
+    },
+  };
 }
 
 async function approvedDerivationBindingsUnderState(
