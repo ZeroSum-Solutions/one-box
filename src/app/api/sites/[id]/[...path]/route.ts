@@ -9,6 +9,7 @@ import path from "node:path";
 import { sitePaths } from "../../../../../lib/runstate";
 import { ARTIFACTS, SiteManifestSchema } from "../../../../../lib/contracts";
 import { LIVE_BUNDLE_METADATA_DIR } from "../../../../../lib/liveBundle";
+import { inspectPromotedLiveBundle } from "../../../../../lib/candidate";
 
 const MIME: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -87,8 +88,20 @@ export async function GET(
   }
 
   const roots = sitePaths(id);
+  if (safeParts.length === 1 && safeParts[0] === "gates.json") {
+    try {
+      const liveBundle = await inspectPromotedLiveBundle(id);
+      if (liveBundle.status === "present") {
+        return Response.json(liveBundle.receipt.reports, {
+          headers: { "Cache-Control": "no-store" },
+        });
+      }
+    } catch {
+      return new Response("canonical live gate report invalid", { status: 409 });
+    }
+  }
   // research/* serves scan artifacts to the chat UI; gates.json and DESIGN.md
-  // live at the run root; everything else is the built site.
+  // use the run root only for historical bundles; everything else is the built site.
   const isResearch = safeParts[0] === "research";
   const isEvidence =
     safeParts[0] === "evidence" &&

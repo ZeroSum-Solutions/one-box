@@ -38,6 +38,7 @@ type PromotionFaultStep =
   | "after-live-replaced"
   | "before-live-directory-sync"
   | "before-provenance-sync"
+  | "after-provenance-renamed"
   | "after-provenance-committed"
   | "before-visual-approval-invalidation"
   | "after-visual-approval-invalidation"
@@ -562,6 +563,7 @@ describe("candidate promotion", () => {
     "after-live-replaced",
     "before-live-directory-sync",
     "before-provenance-sync",
+    "after-provenance-renamed",
     "after-provenance-committed",
     "before-visual-approval-invalidation",
     "after-visual-approval-invalidation",
@@ -600,6 +602,7 @@ describe("candidate promotion", () => {
     "after-live-replaced",
     "before-live-directory-sync",
     "before-provenance-sync",
+    "after-provenance-renamed",
     "after-provenance-committed",
     "before-visual-approval-invalidation",
     "after-visual-approval-invalidation",

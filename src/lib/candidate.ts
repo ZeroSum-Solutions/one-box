@@ -541,6 +541,7 @@ export type PromotionFaultStep =
   | "after-live-replaced"
   | "before-live-directory-sync"
   | "before-provenance-sync"
+  | "after-provenance-renamed"
   | "after-provenance-committed"
   | "before-visual-approval-invalidation"
   | "after-visual-approval-invalidation"
@@ -694,6 +695,7 @@ async function syncTree(root: string): Promise<void> {
 async function durableAtomicWrite(
   filePath: string,
   content: string | Uint8Array,
+  afterRename?: () => void | Promise<void>,
 ): Promise<void> {
   const directory = path.dirname(filePath);
   await fs.mkdir(directory, { recursive: true });
@@ -710,6 +712,7 @@ async function durableAtomicWrite(
       await handle.close();
     }
     await fs.rename(temporary, filePath);
+    await afterRename?.();
     await syncDirectory(directory);
   } finally {
     await fs.rm(temporary, { force: true });
@@ -888,8 +891,14 @@ export function promoteCandidate(
       await options.injectFault?.("after-live-replaced");
 
       await options.injectFault?.("before-provenance-sync");
-      await durableAtomicWrite(candidateProvenancePath, promotedProvenanceBytes);
-      provenanceCommitted = true;
+      await durableAtomicWrite(
+        candidateProvenancePath,
+        promotedProvenanceBytes,
+        async () => {
+          provenanceCommitted = true;
+          await options.injectFault?.("after-provenance-renamed");
+        },
+      );
       await options.injectFault?.("after-provenance-committed");
       await options.injectFault?.("before-visual-approval-invalidation");
       const { visualApprovalInvalidated } =

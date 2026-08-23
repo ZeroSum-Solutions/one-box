@@ -105,9 +105,11 @@ promotable candidate under the shared site-authority lock, swaps one durable
 and only after the authoritative commit supersedes the prior visual decision
 and creates a pending visual-QA version bound to the promoted hash. The run-root
 `gates.json` is now only a derived compatibility projection; release, evidence
-export, and client handoff validate the canonical bundle plus a named human
-review bound to its promoted build hash. OBX-024 still owns calling this
-operation from the resumable pipeline, and OBX-015 owns startup crash recovery.
+export, client handoff, promoted preview gate status, and promoted edit baselines
+validate the canonical bundle rather than this projection. Outward actions also
+require a named human review bound to the promoted build hash. OBX-024 still owns
+calling this operation from the resumable pipeline, and OBX-015 owns startup
+crash recovery.
 
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and

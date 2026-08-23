@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,10 +14,16 @@ vi.mock("./runstate", () => ({
   RunNotFoundError: class RunNotFoundError extends Error {},
   sitePaths: (runId: string) => ({
     root: `/tmp/onebox-site-mutation-locks/${runId}`,
+    site: `/tmp/onebox-site-mutation-locks/${runId}/site`,
   }),
 }));
 
 import { BlockingMutationError, runGuardedMutation } from "./siteMutation";
+import {
+  CANDIDATE_GATE_EXPECTATIONS,
+  CandidateGateReceiptV1Schema,
+  CandidateProvenanceV1Schema,
+} from "./contracts";
 
 const tempDirectories: string[] = [];
 
@@ -135,8 +142,53 @@ describe("blocking-gate refusal distinguishes inherited failures", () => {
     );
   }
 
+  async function writePromotedCanonicalBaseline(): Promise<void> {
+    const manifestHash = "a".repeat(64);
+    const buildHash = "b".repeat(64);
+    const receipt = CandidateGateReceiptV1Schema.parse({
+      schemaVersion: 1,
+      runId,
+      candidateManifestSha256: manifestHash,
+      buildSha256: buildHash,
+      reports: CANDIDATE_GATE_EXPECTATIONS.map(({ gate, blocking }) => ({
+        gate,
+        blocking,
+        pass: true,
+        details: [],
+        ranAt: "2026-08-22T00:00:01.000Z",
+      })),
+    });
+    const receiptBytes = Buffer.from(JSON.stringify(receipt, null, 2));
+    const provenance = CandidateProvenanceV1Schema.parse({
+      schemaVersion: 1,
+      candidateId: `${runId}-candidate`,
+      runId,
+      createdAt: "2026-08-22T00:00:00.000Z",
+      state: "promoted",
+      history: [
+        { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+        { state: "ready-for-gates", at: "2026-08-22T00:00:01.000Z" },
+        { state: "promotable", at: "2026-08-22T00:00:02.000Z" },
+        { state: "promoted", at: "2026-08-22T00:00:03.000Z" },
+      ],
+      inputArtifactHashes: [{ path: "intake.json", sha256: "c".repeat(64) }],
+      layoutAuthority: "template-v1",
+      compilerVersion: "fixture-v1",
+      candidateManifestSha256: manifestHash,
+      buildSha256: buildHash,
+      gateReportSha256: createHash("sha256").update(receiptBytes).digest("hex"),
+      promotedBuildSha256: buildHash,
+    });
+    const metadata = path.join(runRoot, "site", ".one-box");
+    await fs.mkdir(metadata, { recursive: true });
+    await Promise.all([
+      fs.writeFile(path.join(metadata, "gates.json"), receiptBytes),
+      fs.writeFile(path.join(metadata, "provenance.json"), JSON.stringify(provenance, null, 2)),
+    ]);
+  }
+
   afterEach(async () => {
-    await fs.rm(path.join(runRoot, "gates.json"), { force: true });
+    await fs.rm(runRoot, { recursive: true, force: true });
   });
 
   it("names the change when the failure is new", async () => {
@@ -154,5 +206,16 @@ describe("blocking-gate refusal distinguishes inherited failures", () => {
     expect(error.message).not.toContain("rejected the change");
     expect(error.preexisting).toEqual(["token-drift"]);
     expect(error.regressions).toEqual([]);
+  });
+
+  it("ignores an opposite root compatibility copy for a promoted edit baseline", async () => {
+    await writeBaseline([{ gate: "token-drift", pass: false }]);
+    await writePromotedCanonicalBaseline();
+
+    const error = await attempt("token-drift");
+
+    expect(error.message).toBe("blocking gates rejected the change: token-drift");
+    expect(error.regressions).toEqual(["token-drift"]);
+    expect(error.preexisting).toEqual([]);
   });
 });

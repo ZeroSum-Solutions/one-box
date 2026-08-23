@@ -175,8 +175,9 @@ The old site is retired only after the new bundle, promotion provenance, and
 visual state are durable; cleanup failure leaves the committed new bundle
 authoritative for OBX-015 recovery instead of reporting promotion failure.
 Run-root `gates.json` is a best-effort compatibility projection of the receipt
-reports and is never read to decide live, release, export, or client-handoff
-status.
+reports. Promoted preview gate status, edit baselines, release, export, and
+client-handoff decisions read the canonical receipt; only historical bundles
+without promotion metadata fall back to the run-root copy.
 
 `withReleaseAuthorization` is the common release/export/client-handoff guard.
 Under the same site authority it validates the canonical live metadata and
