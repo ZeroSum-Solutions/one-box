@@ -121,8 +121,11 @@ gate modules.
 candidate root. Production compilation requires a durable `run.json` plus
 stable regular-file copies of the supplied intake, tokens, skeleton, copy,
 approved runtime Tailwind theme when present, and run-owned hero asset when
-present. Their exact bytes are hash-bound in candidate provenance. The approved
-runtime Tailwind theme lives at
+present. The run authorization itself uses the same no-follow, nonlinked
+regular-file reader, and its persisted ID must exactly match the validated
+requested run before candidate or staging output can begin. Input artifact
+bytes are hash-bound in candidate provenance. The approved runtime Tailwind
+theme lives at
 `evidence/approved/runtime-tailwind-theme.css`; compilation copies it into the
 candidate bundle but never writes it into the live site. Standalone tests and
 browser fixtures use `test-support/buildSiteFixture.ts`, whose explicit live
@@ -149,7 +152,9 @@ streams project it into one current journey, suppress superseded terminal events
 and repeated narrative cards, attach to in-flight emissions, and flush queued
 event writes before closing. Evidence truth is derived from persisted artifacts;
 the intake artifact owns the user's research choice, while `run.json` owns the
-current stage and approval state.
+current stage and approval state. For both legacy and evidence-gated runs, a
+promotable candidate suppresses stale live-completion replay or synthesis and
+resumes pipeline execution until OBX-014 provides a closed promotion proof.
 
 `src/lib/productionTarget.ts` owns the production target policy. Persisted
 contracts continue to parse `website`, `web-app`, and `ios-app` so historical

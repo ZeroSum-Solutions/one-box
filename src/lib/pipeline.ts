@@ -600,12 +600,12 @@ export async function runPipeline(
       (artifact) =>
         artifact.artifactType === "visual-qa" &&
         artifactApprovalState(artifact) === "approved"
-    );
+  );
   if (
-    gatedComplete ||
-    (!candidateAwaitingPromotion &&
-      run.pipelineVersion === "legacy-v1" &&
-      PIPELINE_STAGES.every((name) => run.stages[name]?.status === "done"))
+    !candidateAwaitingPromotion &&
+    (gatedComplete ||
+      (run.pipelineVersion === "legacy-v1" &&
+        PIPELINE_STAGES.every((name) => run.stages[name]?.status === "done")))
   ) {
     replayHistory(true);
     emit({ type: "cost", usd: run.costUsd });

@@ -321,7 +321,7 @@ describe("evidence workflow persistence", () => {
 
   it("blocks a gated build until CSS architecture is approved", async () => {
     const runId = await createTestRun();
-    await expect(assertBuildAuthorized(sitePaths(runId).root)).rejects.toThrow(
+    await expect(assertBuildAuthorized(sitePaths(runId).root, runId)).rejects.toThrow(
       /build blocked/
     );
 
@@ -331,7 +331,9 @@ describe("evidence workflow persistence", () => {
       await reviewAndApprove(runId, artifact);
       await advanceEvidenceWorkflow(runId, EVIDENCE_WORKFLOW_STAGES[index + 1]);
     }
-    await expect(assertBuildAuthorized(sitePaths(runId).root)).resolves.toBeUndefined();
+    await expect(
+      assertBuildAuthorized(sitePaths(runId).root, runId),
+    ).resolves.toBeUndefined();
   });
 
   it("rejects nonexistent and mismatched predecessor versions", async () => {

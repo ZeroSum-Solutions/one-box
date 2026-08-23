@@ -85,3 +85,12 @@
   Full suite: 610 passed, 2 skipped. Typecheck and lint pass; security review:
   PASS with no findings. The legacy smoke command remains baseline-blocked on
   Node 26 strip-only handling of `productionTarget.ts` before fixture execution.
+- OBX-012 Fix Round 1: verified. Evidence-gated completion replay and synthesis
+  now stop when an unserved promotable candidate exists, even if the prior live
+  build has approved visual QA. Durable `run.json` authorization is a stable
+  no-follow, nonlinked regular-file read whose persisted ID must equal the
+  validated requested run before candidate/staging output. Symlink, hardlink,
+  and cross-run authorization cases fail closed. A mechanical boundary test
+  prevents app or pipeline imports of the test-only live publication helper.
+  Focused verification: 62 passed. Full suite: 616 passed, 2 skipped.
+  Typecheck and lint pass; security review: PASS with no findings.

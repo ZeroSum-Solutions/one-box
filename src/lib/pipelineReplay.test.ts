@@ -335,4 +335,85 @@ describe("pipeline replay", () => {
     expect(executePipeline).toHaveBeenCalledOnce();
   });
 
+  it.each([
+    ["synthesize", []],
+    [
+      "replay",
+      [
+        {
+          type: "complete",
+          runId: "promotable-gated-run",
+          previewUrl: "/preview/promotable-gated-run",
+        } satisfies PipelineEvent,
+      ],
+    ],
+  ])(
+    "does not %s gated completion from stale visual QA while a candidate awaits promotion",
+    async (_mode, history) => {
+      const run = pendingRun("promotable-gated-run");
+      run.stages.built.status = "done";
+      run.evidenceWorkflow.currentStage = "build";
+      run.evidenceWorkflow.artifacts = [
+        {
+          artifactType: "visual-qa",
+          version: 1,
+          createdAt: "2026-08-14T12:00:00.000Z",
+          approvalTransitions: [
+            { state: "draft", at: "2026-08-14T12:00:00.000Z" },
+            {
+              state: "approved",
+              at: "2026-08-14T12:01:00.000Z",
+              humanVisualReview: {
+                reviewerName: "Prior live reviewer",
+                reviewerKind: "human",
+                humanAttestation: true,
+                reviewedAt: "2026-08-14T12:01:00.000Z",
+                buildSha256: "a".repeat(64),
+                criteria: {
+                  briefFidelity: { status: "pass" },
+                  visualHierarchy: { status: "pass" },
+                  spacingAndComposition: { status: "pass" },
+                  businessSpecificity: { status: "pass" },
+                  designAndReferenceAlignment: {
+                    status: "pass",
+                    referenceContext: "explicit-no-reference",
+                  },
+                },
+              },
+            },
+          ],
+          artifact: {
+            sourceCssArchitectureVersion: 1,
+            buildSha256: "a".repeat(64),
+            checks: [],
+          },
+        },
+      ];
+      const emit = vi.fn();
+      const appendEvent = vi.fn().mockResolvedValue(undefined);
+      const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+      await runPipeline("promotable-gated-run", emit, {
+        readEvents: vi.fn().mockResolvedValue(history),
+        loadRun: vi.fn().mockResolvedValue(run),
+        loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+        appendEvent,
+        inspectCandidate: vi.fn().mockResolvedValue({
+          status: "present",
+          provenance: { state: "promotable" },
+        }),
+        executePipeline,
+      } as never);
+
+      expect(emit).not.toHaveBeenCalledWith(
+        expect.objectContaining({ type: "complete" }),
+      );
+      expect(appendEvent).not.toHaveBeenCalledWith(
+        "promotable-gated-run",
+        expect.objectContaining({ type: "complete" }),
+      );
+      expect(executePipeline).toHaveBeenCalledOnce();
+    },
+  );
+
 });

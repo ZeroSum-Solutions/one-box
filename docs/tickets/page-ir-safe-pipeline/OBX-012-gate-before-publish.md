@@ -33,3 +33,12 @@ full gates on the unserved candidate and make no live mutation on failure.
 ## Non-goals
 
 Page IR compilation or automated repair.
+
+## Fix Round 1
+
+Durable `run.json` authorization now uses the stable no-follow, nonlinked
+regular-file reader and must bind its persisted ID to the requested run before
+candidate output. Pipeline replay suppresses stale evidence-gated completion,
+not only legacy completion, whenever an unserved promotable candidate exists.
+A mechanical import guard keeps the test-only live publication helper out of
+production app and pipeline modules.

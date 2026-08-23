@@ -94,7 +94,7 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   const runId = assertSafeRunId(input.runId);
   assertWebsiteProductionTarget(input.intake.projectTarget);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
-  await assertBuildAuthorized(runRoot);
+  await assertBuildAuthorized(runRoot, runId);
   const inputArtifactHashes = await authorizedInputHashes(runRoot, input);
   const paths = candidatePaths(runId);
   const stagingRoot = `${paths.root}.building-${process.pid}-${Date.now()}`;
@@ -554,22 +554,26 @@ async function authorizedInputHashes(
   return hashes;
 }
 
-export async function assertBuildAuthorized(runRoot: string): Promise<void> {
-  let raw: string;
+export async function assertBuildAuthorized(
+  runRoot: string,
+  runId: string,
+): Promise<void> {
+  let bytes: Buffer;
   try {
-    raw = await readFile(path.join(runRoot, "run.json"), "utf8");
+    bytes = await readStableBuildInput(
+      path.join(runRoot, "run.json"),
+      "durable run authorization",
+    );
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
+    if (isEnoent(error)) {
       throw new Error("durable run authorization is required");
     }
     throw error;
   }
-  const run = RunStateSchema.parse(JSON.parse(raw));
+  const run = RunStateSchema.parse(JSON.parse(bytes.toString("utf8")));
+  if (run.id !== runId) {
+    throw new Error("durable run authorization does not match requested run");
+  }
   if (run.pipelineVersion === "legacy-v1") return;
   const approvedCss = run.evidenceWorkflow.artifacts.some(
     (artifact) =>

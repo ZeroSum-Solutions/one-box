@@ -7,6 +7,7 @@ import {
   buildAndPublishSiteFixture,
   publishBuildFixture,
 } from "../../test-support/buildSiteFixture";
+import { candidatePaths, createRun, sitePaths } from "./runstate";
 
 describe("Website-only builds", () => {
   it.each(["web-app", "ios-app"] as const)(
@@ -41,6 +42,69 @@ describe("Website-only builds", () => {
       } as Parameters<typeof buildSite>[0])
     ).rejects.toThrow("durable run authorization is required");
     await expect(fs.stat(runRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.each(["symbolic", "hard"] as const)(
+    "rejects a %s-linked durable run authorization before candidate output",
+    async (linkKind) => {
+      const sourceRunId = `obx012-auth-src-${linkKind}-${process.pid}`;
+      const runId = `obx012-auth-${linkKind}-${process.pid}`;
+      const sourceRoot = sitePaths(sourceRunId).root;
+      const runRoot = sitePaths(runId).root;
+      await fs.rm(sourceRoot, { recursive: true, force: true });
+      await fs.rm(runRoot, { recursive: true, force: true });
+      try {
+        await createRun({ id: sourceRunId, pipelineVersion: "legacy-v1" });
+        await fs.mkdir(runRoot, { recursive: true });
+        const sourceRunFile = path.join(sourceRoot, "run.json");
+        const runFile = path.join(runRoot, "run.json");
+        if (linkKind === "symbolic") {
+          await fs.symlink(sourceRunFile, runFile);
+        } else {
+          await fs.link(sourceRunFile, runFile);
+        }
+
+        await expect(
+          buildSite({
+            runId,
+            intake: { projectTarget: "website" },
+          } as Parameters<typeof buildSite>[0]),
+        ).rejects.toThrow(/regular non-linked file/);
+        await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await fs.readdir(runRoot)).toEqual(["run.json"]);
+      } finally {
+        await fs.rm(runRoot, { recursive: true, force: true });
+        await fs.rm(sourceRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("rejects durable authorization for a different run before candidate output", async () => {
+    const runId = `obx012-auth-mismatch-${process.pid}`;
+    const runRoot = sitePaths(runId).root;
+    await fs.rm(runRoot, { recursive: true, force: true });
+    try {
+      await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+      const runFile = path.join(runRoot, "run.json");
+      const persisted = JSON.parse(await fs.readFile(runFile, "utf8"));
+      persisted.id = `other-${process.pid}`;
+      await fs.writeFile(runFile, JSON.stringify(persisted, null, 2), "utf8");
+
+      await expect(
+        buildSite({
+          runId,
+          intake: { projectTarget: "website" },
+        } as Parameters<typeof buildSite>[0]),
+      ).rejects.toThrow(/does not match requested run/);
+      await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect(await fs.readdir(runRoot)).toEqual(["run.json"]);
+    } finally {
+      await fs.rm(runRoot, { recursive: true, force: true });
+    }
   });
 
   it("makes the fixture publication helper unreachable in production", async () => {

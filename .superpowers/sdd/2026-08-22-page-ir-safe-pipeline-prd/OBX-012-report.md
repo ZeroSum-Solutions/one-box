@@ -127,3 +127,63 @@ property in `src/lib/productionTarget.ts:63`. OBX-011 recorded the same failure
 on its untouched base archive; no OBX-012 path is on the failing stack, so this
 ticket reports the baseline-only skip without expanding into the unrelated
 loader repair.
+
+## Fix Round 1 — bind candidate build authorization
+
+Controller review found two real gaps in the original delivery. First,
+evidence-gated reconnect accepted stale approved visual QA independently of a
+new promotable candidate, so it could replay or synthesize completion for the
+old live build. Second, durable `run.json` authorization used ordinary
+`readFile` and did not prove that the persisted run ID matched the requested
+run root.
+
+### Fix Round 1 RED evidence
+
+The focused command was:
+
+```text
+npm test -- src/lib/pipelineReplay.test.ts src/lib/builder.test.ts
+```
+
+Exit `1`: 29 tests passed and all 5 intended tests failed. Both evidence-gated
+cases emitted `complete` with a promotable candidate present. Symbolic-link,
+hardlink, and mismatched-ID authorization all advanced beyond `run.json` into
+the missing `copy.json` read.
+
+The import-boundary mutation command was:
+
+```text
+npm test -- src/lib/productionFixtureBoundary.test.ts
+```
+
+With a temporary forbidden pipeline import, exit `1` named
+`src/lib/pipeline.ts` as the offender. The mutation was removed before GREEN.
+
+### Fix Round 1 GREEN evidence
+
+- Replay, builder, run-state, and import-boundary suite: exit `0`; 4 files and
+  62 tests passed.
+- Typecheck: exit `0`; Next route types generated and `tsc --noEmit` completed.
+- Full `npm test`: exit `0`; 67 files passed and 2 skipped; 616 tests passed and
+  2 skipped.
+- Lint: exit `0`; 0 errors and 6 pre-existing warnings.
+- `git diff --check`: exit `0`.
+- Security report validation: `OK`; range gitleaks scan passed with no leaks.
+- Project-documentation verification: `status: ok`; all changed paths were
+  classified and the canonical architecture passed path, Markdown, shell, and
+  secret checks.
+
+### Fix Round 1 acceptance mapping
+
+- Completion for both pipeline versions is conditional on no promotable
+  candidate awaiting OBX-014. Tests cover both stale terminal replay and
+  terminal synthesis from stale approved visual QA, and both resume execution.
+- `run.json` uses the existing stable no-follow/nonblocking reader. Symbolic and
+  hard links fail before candidate or staging output.
+- Parsed durable authorization must bind its ID to the validated requested run;
+  a schema-valid cross-run ID fails before candidate or staging output.
+- `src/lib/productionFixtureBoundary.test.ts` scans every TypeScript app module
+  plus the production pipeline module and rejects static or dynamic imports of
+  `test-support/buildSiteFixture`.
+- OBX-011 candidate gate runtime, Website-only policy, fixture runtime guard,
+  Page IR, repair, promotion, and OBX-015 recovery/locking remain unchanged.
