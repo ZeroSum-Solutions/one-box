@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  CandidateManifestV1Schema,
+  CandidateProvenanceV1Schema,
+  CANDIDATE_STATE_TRANSITIONS,
   CrawlProvenanceSchema,
   ScanResultSchema,
   YelpMarketSchema,
@@ -11,6 +14,265 @@ import {
   RunStateSchema,
   STAGES,
 } from "./contracts";
+
+const HASH_A = "a".repeat(64);
+const HASH_B = "b".repeat(64);
+const HASH_C = "c".repeat(64);
+const HASH_D = "d".repeat(64);
+
+function candidateProvenance(overrides: Record<string, unknown> = {}) {
+  return {
+    schemaVersion: 1,
+    candidateId: "candidate-v1",
+    runId: "run-1234",
+    createdAt: "2026-08-22T00:00:00.000Z",
+    state: "preparing",
+    history: [
+      { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+    ],
+    inputArtifactHashes: [
+      { path: "evidence/design-contract.json", sha256: HASH_A },
+    ],
+    layoutAuthority: "template-v1",
+    compilerVersion: "template-compiler@1",
+    ...overrides,
+  };
+}
+
+describe("candidate contracts", () => {
+  const manifest = {
+    schemaVersion: 1,
+    entry: "index.html",
+    files: [
+      { path: "assets/site.css", sizeBytes: 3, sha256: HASH_A },
+      { path: "index.html", sizeBytes: 4, sha256: HASH_B },
+    ],
+    totalBytes: 7,
+    buildSha256: HASH_C,
+  };
+
+  it("accepts only a sorted, unique, bounded deterministic manifest", () => {
+    expect(CandidateManifestV1Schema.parse(manifest)).toEqual(manifest);
+    expect(
+      CandidateManifestV1Schema.safeParse({
+        ...manifest,
+        files: [...manifest.files].reverse(),
+      }).success,
+    ).toBe(false);
+    expect(
+      CandidateManifestV1Schema.safeParse({
+        ...manifest,
+        files: [manifest.files[0], manifest.files[0]],
+        totalBytes: 6,
+      }).success,
+    ).toBe(false);
+    expect(
+      CandidateManifestV1Schema.safeParse({ ...manifest, totalBytes: 8 })
+        .success,
+    ).toBe(false);
+  });
+
+  it.each([
+    "",
+    ".",
+    "..",
+    "../index.html",
+    "assets/../index.html",
+    "/index.html",
+    "C:\\index.html",
+    "\\\\server\\share\\index.html",
+    "assets\\site.css",
+    "./index.html",
+    "assets//site.css",
+    "index.html\0ignored",
+  ])("rejects hostile candidate file path %j", (filePath) => {
+    expect(
+      CandidateManifestV1Schema.safeParse({
+        ...manifest,
+        files: [{ ...manifest.files[0], path: filePath }],
+        totalBytes: 3,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("rejects unknown manifest and provenance keys", () => {
+    expect(
+      CandidateManifestV1Schema.safeParse({ ...manifest, builtAt: "now" })
+        .success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse({
+        ...candidateProvenance(),
+        operatorNote: "publish it",
+      }).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse({
+        ...candidateProvenance(),
+        history: [
+          {
+            state: "preparing",
+            at: "2026-08-22T00:00:00.000Z",
+            extra: true,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("enforces the complete transition matrix", () => {
+    expect(CANDIDATE_STATE_TRANSITIONS).toEqual({
+      preparing: ["ready-for-gates", "failed", "abandoned"],
+      "ready-for-gates": ["promotable", "failed", "abandoned"],
+      failed: ["preparing", "abandoned"],
+      promotable: ["promoted", "failed", "abandoned"],
+      promoted: [],
+      abandoned: [],
+    });
+
+    const prefixes = {
+      preparing: ["preparing"],
+      "ready-for-gates": ["preparing", "ready-for-gates"],
+      failed: ["preparing", "failed"],
+      promotable: ["preparing", "ready-for-gates", "promotable"],
+      promoted: [
+        "preparing",
+        "ready-for-gates",
+        "promotable",
+        "promoted",
+      ],
+      abandoned: ["preparing", "abandoned"],
+    } as const;
+    const states = Object.keys(prefixes) as Array<keyof typeof prefixes>;
+
+    for (const from of states) {
+      for (const to of states) {
+        const sequence = [...prefixes[from], to];
+        const history = sequence.map((state, index) => ({
+          state,
+          at: new Date(Date.UTC(2026, 7, 22, 0, 0, index)).toISOString(),
+        }));
+        const result = CandidateProvenanceV1Schema.safeParse(
+          candidateProvenance({
+            createdAt: history[0].at,
+            state: to,
+            history,
+            candidateManifestSha256: HASH_A,
+            buildSha256: HASH_B,
+            gateReportSha256: HASH_C,
+            promotedBuildSha256: HASH_B,
+          }),
+        );
+        const allowed = CANDIDATE_STATE_TRANSITIONS[
+          from
+        ] as readonly string[];
+        expect(result.success, `${from} -> ${to}`).toBe(
+          allowed.includes(to),
+        );
+      }
+    }
+  });
+
+  it("requires creation into preparing, contiguous history, matching state, and monotonic timestamps", () => {
+    const cases = [
+      candidateProvenance({ history: [] }),
+      candidateProvenance({
+        state: "failed",
+        history: [{ state: "failed", at: "2026-08-22T00:00:00.000Z" }],
+      }),
+      candidateProvenance({
+        createdAt: "2026-08-21T23:59:59.000Z",
+      }),
+      candidateProvenance({
+        state: "ready-for-gates",
+        history: [
+          { state: "preparing", at: "2026-08-22T00:00:01.000Z" },
+          { state: "ready-for-gates", at: "2026-08-22T00:00:00.000Z" },
+        ],
+        candidateManifestSha256: HASH_A,
+        buildSha256: HASH_B,
+      }),
+      candidateProvenance({
+        state: "failed",
+        history: [
+          { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+          { state: "promotable", at: "2026-08-22T00:00:01.000Z" },
+          { state: "failed", at: "2026-08-22T00:00:02.000Z" },
+        ],
+      }),
+      candidateProvenance({
+        state: "preparing",
+        history: [
+          { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+          { state: "failed", at: "2026-08-22T00:00:01.000Z" },
+        ],
+      }),
+    ];
+
+    for (const item of cases) {
+      expect(CandidateProvenanceV1Schema.safeParse(item).success).toBe(false);
+    }
+  });
+
+  it("requires state-specific hash bindings and Page IR provenance", () => {
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance({ layoutAuthority: "page-ir-v1" }),
+      ).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance({
+          state: "ready-for-gates",
+          history: [
+            { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+            {
+              state: "ready-for-gates",
+              at: "2026-08-22T00:00:01.000Z",
+            },
+          ],
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance({
+          state: "promotable",
+          history: [
+            { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+            {
+              state: "ready-for-gates",
+              at: "2026-08-22T00:00:01.000Z",
+            },
+            { state: "promotable", at: "2026-08-22T00:00:02.000Z" },
+          ],
+          candidateManifestSha256: HASH_A,
+          buildSha256: HASH_B,
+        }),
+      ).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance({
+          state: "promoted",
+          history: [
+            { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+            {
+              state: "ready-for-gates",
+              at: "2026-08-22T00:00:01.000Z",
+            },
+            { state: "promotable", at: "2026-08-22T00:00:02.000Z" },
+            { state: "promoted", at: "2026-08-22T00:00:03.000Z" },
+          ],
+          candidateManifestSha256: HASH_A,
+          buildSha256: HASH_B,
+          gateReportSha256: HASH_C,
+          promotedBuildSha256: HASH_D,
+        }),
+      ).success,
+    ).toBe(false);
+  });
+});
 
 describe("additive project contracts", () => {
   it("defaults legacy intake to the existing website research behavior", () => {

@@ -13,11 +13,13 @@ import path from "node:path";
 import {
   ARTIFACT_APPROVAL_TRANSITIONS,
   ArtifactApprovalStateSchema,
+  CANDIDATE_DIR,
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
   EVENTS_FILE,
   MODELS,
   RESEARCH_DIR,
+  RunIdSchema,
   RunStateSchema,
   SITE_DIR,
   STAGES,
@@ -97,6 +99,31 @@ export function sitePaths(runId: string): SitePaths {
     site: path.join(root, SITE_DIR),
     uploads: path.join(root, UPLOADS_DIR),
   };
+}
+
+export interface CandidatePaths {
+  /** sites/<id>/candidate/ — the only candidate root for this run */
+  root: string;
+  /** Deterministic static output, never served by the site route. */
+  site: string;
+  manifest: string;
+  provenance: string;
+  gates: string;
+}
+
+/** Derive only the closed one-candidate-per-run layout. Unlike the legacy
+ * artifactPath helper, this API accepts no caller-provided suffix. */
+export function candidatePaths(runId: string): Readonly<CandidatePaths> {
+  const parsed = RunIdSchema.safeParse(runId);
+  if (!parsed.success) throw new Error("bad runId");
+  const root = path.join(SITES_ROOT, parsed.data, CANDIDATE_DIR);
+  return Object.freeze({
+    root,
+    site: path.join(root, SITE_DIR),
+    manifest: path.join(root, "manifest.json"),
+    provenance: path.join(root, "provenance.json"),
+    gates: path.join(root, "gates.json"),
+  });
 }
 
 /** Resolve any ARTIFACTS.* relative path (or a hand-built one) under the run root. */

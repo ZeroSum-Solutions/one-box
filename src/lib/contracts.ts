@@ -1252,6 +1252,275 @@ export type CopyDoc = z.infer<typeof CopyDocSchema>;
 
 // ---------- Stage 5: build ----------
 
+export const RUN_ID_PATTERN = /^[A-Za-z0-9_-]{4,40}$/;
+export const RunIdSchema = z.string().regex(RUN_ID_PATTERN);
+
+const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+
+function isSafeCandidateRelativePath(value: string): boolean {
+  if (
+    value.length === 0 ||
+    value.includes("\\") ||
+    value.includes("\0") ||
+    value.startsWith("/") ||
+    /^[A-Za-z]:[\\/]/.test(value)
+  ) {
+    return false;
+  }
+  const segments = value.split("/");
+  return segments.every(
+    (segment) => segment.length > 0 && segment !== "." && segment !== "..",
+  );
+}
+
+export const CandidateRelativePathSchema = z
+  .string()
+  .refine(isSafeCandidateRelativePath, "unsafe candidate relative path");
+
+export const MAX_CANDIDATE_BYTES = 100 * 1024 * 1024;
+
+export const CandidateFileRecordSchema = z
+  .object({
+    path: CandidateRelativePathSchema,
+    sizeBytes: z.number().int().nonnegative().safe().max(MAX_CANDIDATE_BYTES),
+    sha256: Sha256Schema,
+  })
+  .strict();
+export type CandidateFileRecord = z.infer<typeof CandidateFileRecordSchema>;
+
+export const CandidateManifestV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    entry: z.literal("index.html"),
+    files: z.array(CandidateFileRecordSchema).min(1),
+    totalBytes: z
+      .number()
+      .int()
+      .nonnegative()
+      .safe()
+      .max(MAX_CANDIDATE_BYTES),
+    buildSha256: Sha256Schema,
+  })
+  .strict()
+  .superRefine((manifest, context) => {
+    let previousPath: string | undefined;
+    let totalBytes = 0;
+    for (const [index, file] of manifest.files.entries()) {
+      if (previousPath !== undefined && file.path <= previousPath) {
+        context.addIssue({
+          code: "custom",
+          path: ["files", index, "path"],
+          message: "candidate files must be sorted and unique by path",
+        });
+      }
+      previousPath = file.path;
+      totalBytes += file.sizeBytes;
+    }
+    if (!manifest.files.some((file) => file.path === manifest.entry)) {
+      context.addIssue({
+        code: "custom",
+        path: ["entry"],
+        message: "candidate manifest must inventory index.html",
+      });
+    }
+    if (totalBytes !== manifest.totalBytes) {
+      context.addIssue({
+        code: "custom",
+        path: ["totalBytes"],
+        message: "candidate totalBytes must equal the file inventory total",
+      });
+    }
+    if (totalBytes > MAX_CANDIDATE_BYTES) {
+      context.addIssue({
+        code: "custom",
+        path: ["totalBytes"],
+        message: "candidate inventory exceeds 100 MiB",
+      });
+    }
+  });
+export type CandidateManifestV1 = z.infer<typeof CandidateManifestV1Schema>;
+
+export const CANDIDATE_STATES = [
+  "preparing",
+  "ready-for-gates",
+  "failed",
+  "promotable",
+  "promoted",
+  "abandoned",
+] as const;
+export const CandidateStateSchema = z.enum(CANDIDATE_STATES);
+export type CandidateState = z.infer<typeof CandidateStateSchema>;
+
+export const CANDIDATE_STATE_TRANSITIONS = Object.freeze({
+  preparing: Object.freeze(["ready-for-gates", "failed", "abandoned"] as const),
+  "ready-for-gates": Object.freeze(["promotable", "failed", "abandoned"] as const),
+  failed: Object.freeze(["preparing", "abandoned"] as const),
+  promotable: Object.freeze(["promoted", "failed", "abandoned"] as const),
+  promoted: Object.freeze([] as const),
+  abandoned: Object.freeze([] as const),
+}) satisfies Readonly<Record<CandidateState, readonly CandidateState[]>>;
+
+export const CandidateLifecycleEventSchema = z
+  .object({
+    state: CandidateStateSchema,
+    at: z.string().datetime({ offset: true }),
+  })
+  .strict();
+export type CandidateLifecycleEvent = z.infer<
+  typeof CandidateLifecycleEventSchema
+>;
+
+export const CandidateInputArtifactHashSchema = z
+  .object({
+    path: CandidateRelativePathSchema,
+    sha256: Sha256Schema,
+  })
+  .strict();
+
+export const CandidateProvenanceV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    candidateId: z.string().regex(/^[A-Za-z0-9_-]{1,80}$/),
+    runId: RunIdSchema,
+    createdAt: z.string().datetime({ offset: true }),
+    state: CandidateStateSchema,
+    history: z.array(CandidateLifecycleEventSchema).min(1),
+    inputArtifactHashes: z.array(CandidateInputArtifactHashSchema).min(1),
+    layoutAuthority: z.enum(["page-ir-v1", "template-v1"]),
+    compilerVersion: z.string().min(1).max(200),
+    pageIrSha256: Sha256Schema.optional(),
+    candidateManifestSha256: Sha256Schema.optional(),
+    buildSha256: Sha256Schema.optional(),
+    gateReportSha256: Sha256Schema.optional(),
+    promotedBuildSha256: Sha256Schema.optional(),
+  })
+  .strict()
+  .superRefine((provenance, context) => {
+    const first = provenance.history[0];
+    if (!first) return;
+    if (first.state !== "preparing") {
+      context.addIssue({
+        code: "custom",
+        path: ["history", 0, "state"],
+        message: "candidate history must begin in preparing",
+      });
+    }
+    if (first.at !== provenance.createdAt) {
+      context.addIssue({
+        code: "custom",
+        path: ["createdAt"],
+        message: "candidate createdAt must equal its preparing transition",
+      });
+    }
+    for (let index = 1; index < provenance.history.length; index += 1) {
+      const previous = provenance.history[index - 1];
+      const current = provenance.history[index];
+      if (Date.parse(current.at) < Date.parse(previous.at)) {
+        context.addIssue({
+          code: "custom",
+          path: ["history", index, "at"],
+          message: "candidate transition timestamps must be monotonic",
+        });
+      }
+      const allowed = CANDIDATE_STATE_TRANSITIONS[
+        previous.state
+      ] as readonly CandidateState[];
+      if (!allowed.includes(current.state)) {
+        context.addIssue({
+          code: "custom",
+          path: ["history", index, "state"],
+          message: `illegal candidate transition ${previous.state} -> ${current.state}`,
+        });
+      }
+    }
+    const last = provenance.history[provenance.history.length - 1];
+    if (last.state !== provenance.state) {
+      context.addIssue({
+        code: "custom",
+        path: ["state"],
+        message: "candidate state must match the last history transition",
+      });
+    }
+
+    let previousInputPath: string | undefined;
+    for (const [index, input] of provenance.inputArtifactHashes.entries()) {
+      if (previousInputPath !== undefined && input.path <= previousInputPath) {
+        context.addIssue({
+          code: "custom",
+          path: ["inputArtifactHashes", index, "path"],
+          message: "input artifact hashes must be sorted and unique by path",
+        });
+      }
+      previousInputPath = input.path;
+    }
+
+    if (provenance.layoutAuthority === "page-ir-v1" && !provenance.pageIrSha256) {
+      context.addIssue({
+        code: "custom",
+        path: ["pageIrSha256"],
+        message: "page-ir-v1 authority requires a Page IR SHA-256",
+      });
+    }
+    const manifestBound = Boolean(provenance.candidateManifestSha256);
+    const buildBound = Boolean(provenance.buildSha256);
+    if (manifestBound !== buildBound) {
+      context.addIssue({
+        code: "custom",
+        path: [manifestBound ? "buildSha256" : "candidateManifestSha256"],
+        message: "candidate manifest and build SHA-256 bindings must appear together",
+      });
+    }
+    if (provenance.gateReportSha256 && (!manifestBound || !buildBound)) {
+      context.addIssue({
+        code: "custom",
+        path: ["gateReportSha256"],
+        message: "a gate report binding requires manifest and build bindings",
+      });
+    }
+    if (
+      ["ready-for-gates", "promotable", "promoted"].includes(
+        provenance.state,
+      ) &&
+      (!manifestBound || !buildBound)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["candidateManifestSha256"],
+        message: `${provenance.state} requires manifest and build bindings`,
+      });
+    }
+    if (
+      ["promotable", "promoted"].includes(provenance.state) &&
+      !provenance.gateReportSha256
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["gateReportSha256"],
+        message: `${provenance.state} requires a candidate gate report binding`,
+      });
+    }
+    if (provenance.state === "promoted" && !provenance.promotedBuildSha256) {
+      context.addIssue({
+        code: "custom",
+        path: ["promotedBuildSha256"],
+        message: "promoted requires a promoted build binding",
+      });
+    }
+    if (
+      provenance.promotedBuildSha256 &&
+      provenance.promotedBuildSha256 !== provenance.buildSha256
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["promotedBuildSha256"],
+        message: "promoted build SHA-256 must match the candidate build SHA-256",
+      });
+    }
+  });
+export type CandidateProvenanceV1 = z.infer<
+  typeof CandidateProvenanceV1Schema
+>;
+
 export const SiteManifestSchema = z.object({
   entry: z.string(), // "index.html"
   files: z.array(z.string()), // relative paths only, no ".." — validated
@@ -1481,6 +1750,7 @@ export const RUN_FILE = "run.json";
 export const EVENTS_FILE = "events.jsonl";
 export const RESEARCH_DIR = "research";
 export const SITE_DIR = "site"; // the built artifact lives here
+export const CANDIDATE_DIR = "candidate"; // unserved, one fixed candidate per run
 export const UPLOADS_DIR = "uploads"; // server-claimed intake blobs + manifest
 export const ARTIFACTS = {
   intake: "intake.json",

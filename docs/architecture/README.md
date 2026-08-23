@@ -81,6 +81,19 @@ upload area. Guarded mutations use the run/site authority and re-run blocking
 gates; a human evidence or visual approval is never replaced by a mechanical
 test result.
 
+The candidate contract is additive to the legacy site manifest and run-stage
+state. One validated run ID maps to the closed
+`sites/<id>/candidate/{site,manifest.json,provenance.json,gates.json}` layout;
+the public site route never serves that root. `src/lib/contracts.ts` owns the
+strict lifecycle, deterministic manifest, and mutable provenance schemas, while
+`src/lib/candidate.ts` owns regular-file inventory, deterministic hashes,
+read-only inspection, and failed/abandoned diagnostic cleanup. Inventory rejects
+unsafe paths, links, special files, mismatches, and output over 100 MiB. Cleanup
+uses the last lifecycle transition rather than mtime, retains exactly-24-hour
+diagnostics, and can remove only the fixed candidate root. Compilation, gate
+execution, repair, promotion, and crash recovery remain separate consumers of
+this contract and are not performed by the candidate module.
+
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events
 and repeated narrative cards, attach to in-flight emissions, and flush queued

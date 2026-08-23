@@ -11,6 +11,7 @@ beforeEach(async () => {
   await fs.mkdir(path.join(runRoot, "research"), { recursive: true });
   await fs.mkdir(path.join(runRoot, "uploads"), { recursive: true });
   await fs.mkdir(path.join(runRoot, "site"), { recursive: true });
+  await fs.mkdir(path.join(runRoot, "candidate", "site"), { recursive: true });
   await fs.mkdir(path.join(runRoot, "evidence", "versions", "design-contract"), { recursive: true });
   await fs.writeFile(path.join(runRoot, "evidence", "versions", "design-contract", "v1.DESIGN.md"), "approved preview");
   await fs.writeFile(
@@ -18,6 +19,10 @@ beforeEach(async () => {
     "public research",
   );
   await fs.writeFile(path.join(runRoot, "uploads", "claimed.bin"), secret);
+  await fs.writeFile(
+    path.join(runRoot, "candidate", "site", "candidate-secret.html"),
+    "candidate-private-bytes",
+  );
   await fs.writeFile(
     path.join(runRoot, "intake.json"),
     JSON.stringify({
@@ -79,6 +84,37 @@ describe("public site artifact boundary", () => {
     const response = await request(["uploads", "claimed.bin"]);
     expect(response.status).not.toBe(200);
     expect(await response.text()).not.toContain(secret);
+  });
+
+  it("does not serve candidate bytes through a candidate-shaped site URL or symlink", async () => {
+    await fs.writeFile(
+      path.join(runRoot, "site", "manifest.json"),
+      JSON.stringify({
+        entry: "index.html",
+        files: ["index.html"],
+        assets: [],
+        builtAt: "2026-08-22T00:00:00.000Z",
+        complete: true,
+      }),
+    );
+    await fs.writeFile(path.join(runRoot, "site", "index.html"), "live");
+
+    const direct = await request([
+      "candidate",
+      "site",
+      "candidate-secret.html",
+    ]);
+    expect(direct.status).not.toBe(200);
+    expect(await direct.text()).not.toContain("candidate-private-bytes");
+
+    await fs.symlink("../candidate", path.join(runRoot, "site", "candidate"));
+    const symlinked = await request([
+      "candidate",
+      "site",
+      "candidate-secret.html",
+    ]);
+    expect(symlinked.status).toBe(403);
+    expect(await symlinked.text()).not.toContain("candidate-private-bytes");
   });
 
   it("does not follow a research symlink to a claimed upload", async () => {

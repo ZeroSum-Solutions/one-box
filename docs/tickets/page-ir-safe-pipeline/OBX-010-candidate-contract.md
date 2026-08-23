@@ -1,7 +1,7 @@
 ---
 id: OBX-010
 title: Define the candidate lifecycle and manifest contract
-status: ready
+status: verified
 priority: P0
 epic: Candidate
 depends_on: []
