@@ -322,6 +322,9 @@ const pageIrDesignTokens = {
 async function createReadyPageIrCandidate(
   runId: string,
   pageIr: PageIRV1 = compilerPageIr(),
+  options: {
+    tokensCss?: string;
+  } = {},
 ) {
   await createRun({
     id: runId,
@@ -395,9 +398,15 @@ async function createReadyPageIrCandidate(
   for (const file of compilation.files) {
     const output = path.join(paths.site, ...file.path.split("/"));
     await fs.mkdir(path.dirname(output), { recursive: true });
-    await fs.writeFile(output, file.bytes);
+    await fs.writeFile(
+      output,
+      file.path === "tokens.css" && options.tokensCss !== undefined
+        ? Buffer.from(options.tokensCss)
+        : file.bytes,
+    );
   }
-  await fs.writeFile(paths.manifest, compilation.manifestBytes);
+  const manifest = await createCandidateManifest(paths.site);
+  await writeJson(paths.manifest, manifest);
   const preparing = CandidateProvenanceV1Schema.parse({
     schemaVersion: 1,
     candidateId: "candidate-v1",
@@ -418,8 +427,8 @@ async function createReadyPageIrCandidate(
     "ready-for-gates",
     "2026-08-22T00:00:01.000Z",
     {
-      candidateManifestSha256: candidateManifestSha256(compilation.manifest),
-      buildSha256: compilation.manifest.buildSha256,
+      candidateManifestSha256: candidateManifestSha256(manifest),
+      buildSha256: manifest.buildSha256,
     },
   );
   await writeJson(paths.provenance, ready);
@@ -751,6 +760,99 @@ describe("candidate gates", () => {
         pass: false,
         details: [
           '<main data-edit-id="main"> backgroundColor rgb(255, 255, 255) not in tokens.css',
+        ],
+      });
+  });
+
+  it("ignores custom-property lookalikes in CSS comments and strings", async () => {
+    const candidate = await createReadyPageIrCandidate(
+      testRunId("pgi-token-spoof"),
+      compilerPageIr(),
+      {
+        tokensCss: [
+          "/* --compiler-canvas: #ffffff; */",
+          'body::before { content: "--compiler-color: #172033;"; }',
+          ":root { --payload: url(data:text/plain;--compiler-font:ui-sans-serif;); }",
+        ].join("\n"),
+      },
+    );
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    gateHarness.state.renderedElements.push({
+      tag: "main",
+      editId: "main",
+      color: "rgb(23, 32, 51)",
+      backgroundColor: "rgb(255, 255, 255)",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    });
+
+    const result = await runCandidateGates(candidate.ready.runId);
+
+    expect(result.receipt.reports.find((report) => report.gate === "token-drift"))
+      .toMatchObject({
+        pass: false,
+        details: [
+          '<main data-edit-id="main"> color rgb(23, 32, 51) not in tokens.css',
+          '<main data-edit-id="main"> backgroundColor rgb(255, 255, 255) not in tokens.css',
+          '<main data-edit-id="main"> fontFamily ui-sans-serif, system-ui, sans-serif not in tokens.css',
+        ],
+      });
+  });
+
+  it("uses normalized color and first-font equivalence without widening token authority", async () => {
+    const equivalent = await createReadyPageIrCandidate(
+      testRunId("pgi-token-equivalent"),
+      compilerPageIr(),
+      {
+        tokensCss: [
+          ":root {",
+          "  --compiler-canvas: rgb(255, 255, 255);",
+          "  --compiler-color: #172033;",
+          '  --compiler-font: "UI-SANS-SERIF", system-ui, sans-serif;',
+          "}",
+        ].join("\n"),
+      },
+    );
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    gateHarness.state.renderedElements.push({
+      tag: "main",
+      editId: "main",
+      color: "rgb(23, 32, 51)",
+      backgroundColor: "rgb(255, 255, 255)",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    });
+    const equivalentResult = await runCandidateGates(equivalent.ready.runId);
+    expect(equivalentResult.receipt.reports.find((report) => report.gate === "token-drift"))
+      .toMatchObject({ pass: true, details: [] });
+
+    gateHarness.reset();
+    const widened = await createReadyPageIrCandidate(
+      testRunId("pgi-token-different"),
+      compilerPageIr(),
+      {
+        tokensCss: [
+          ":root {",
+          "  --compiler-canvas: #fffffe;",
+          "  --compiler-color: #172033;",
+          "  --compiler-font: system-ui, ui-sans-serif;",
+          "}",
+        ].join("\n"),
+      },
+    );
+    gateHarness.state.telHrefs.push("tel:+15550100400");
+    gateHarness.state.renderedElements.push({
+      tag: "main",
+      editId: "main",
+      color: "rgb(23, 32, 51)",
+      backgroundColor: "rgb(255, 255, 255)",
+      fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    });
+    const widenedResult = await runCandidateGates(widened.ready.runId);
+    expect(widenedResult.receipt.reports.find((report) => report.gate === "token-drift"))
+      .toMatchObject({
+        pass: false,
+        details: [
+          '<main data-edit-id="main"> backgroundColor rgb(255, 255, 255) not in tokens.css',
+          '<main data-edit-id="main"> fontFamily ui-sans-serif, system-ui, sans-serif not in tokens.css',
         ],
       });
   });

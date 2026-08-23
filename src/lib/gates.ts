@@ -511,6 +511,81 @@ function normalizedPageIrCallTarget(phone: string): string {
   return `tel:${phone.replace(/[ ()-]/g, "")}`;
 }
 
+function maskCssNonDeclarationContexts(cssText: string): string {
+  const masked = cssText.split("");
+  for (let index = 0; index < cssText.length;) {
+    if (cssText[index] === "/" && cssText[index + 1] === "*") {
+      masked[index++] = " ";
+      masked[index++] = " ";
+      while (index < cssText.length) {
+        const closesComment = cssText[index] === "*" && cssText[index + 1] === "/";
+        if (cssText[index] !== "\n" && cssText[index] !== "\r") masked[index] = " ";
+        index += 1;
+        if (closesComment) {
+          if (index < cssText.length) masked[index] = " ";
+          index += 1;
+          break;
+        }
+      }
+      continue;
+    }
+    const quote = cssText[index];
+    if (quote === '"' || quote === "'") {
+      masked[index++] = " ";
+      while (index < cssText.length) {
+        const character = cssText[index];
+        if (character !== "\n" && character !== "\r") masked[index] = " ";
+        index += 1;
+        if (character === "\\" && index < cssText.length) {
+          if (cssText[index] !== "\n" && cssText[index] !== "\r") masked[index] = " ";
+          index += 1;
+        } else if (character === quote) {
+          break;
+        }
+      }
+      continue;
+    }
+    index += 1;
+  }
+  const groupClosers: string[] = [];
+  for (let index = 0; index < masked.length; index += 1) {
+    const character = masked[index];
+    if (character === "(" || character === "[") {
+      groupClosers.push(character === "(" ? ")" : "]");
+      masked[index] = " ";
+      continue;
+    }
+    if (groupClosers.length === 0) continue;
+    if (character === groupClosers[groupClosers.length - 1]) groupClosers.pop();
+    if (character !== "\n" && character !== "\r") masked[index] = " ";
+  }
+  return masked.join("");
+}
+
+function declaredCustomProperties(cssText: string): Map<string, string[]> {
+  const masked = maskCssNonDeclarationContexts(cssText);
+  const declarations = new Map<string, string[]>();
+  const declarationPattern = /(?:^|[;{])\s*(--[\w-]+)\s*:([^;{}]*)(?=;|})/g;
+  let match: RegExpExecArray | null;
+  while ((match = declarationPattern.exec(masked))) {
+    const colonOffset = match[0].indexOf(":", match[0].indexOf(match[1]) + match[1].length);
+    const valueStart = match.index + colonOffset + 1;
+    const rawValue = cssText.slice(valueStart, valueStart + match[2].length).trim();
+    const values = declarations.get(match[1]) ?? [];
+    values.push(rawValue);
+    declarations.set(match[1], values);
+  }
+  return declarations;
+}
+
+function normalizedFirstFontFamily(value: string): string | undefined {
+  return value
+    .split(",")[0]
+    ?.trim()
+    .replace(/^["']|["']$/g, "")
+    .toLowerCase() || undefined;
+}
+
 function withCssBoundDesignContractTokens(
   allowed: AllowedTokens,
   tokens: DesignTokens,
@@ -518,31 +593,26 @@ function withCssBoundDesignContractTokens(
 ): AllowedTokens {
   const colorRgb = new Set(allowed.colorRgb);
   const fontFirstFamilies = new Set(allowed.fontFirstFamilies);
-  const declarations = new Map<string, string>();
-  const declarationPattern = /(--[\w-]+)\s*:\s*([^;]+);/g;
-  let match: RegExpExecArray | null;
-  while ((match = declarationPattern.exec(tokensCssText))) {
-    declarations.set(match[1], match[2].trim());
-  }
+  const declarations = declaredCustomProperties(tokensCssText);
   for (const color of tokens.colors) {
-    const declared = declarations.get(color.cssVar);
-    const normalizedDeclared = declared ? colorToRgbString(declared) : undefined;
+    const normalizedContract = colorToRgbString(color.value);
+    const declared = declarations.get(color.cssVar) ?? [];
     if (
-      normalizedDeclared &&
-      normalizedDeclared === colorToRgbString(color.value)
+      normalizedContract &&
+      declared.length > 0 &&
+      declared.every((value) => colorToRgbString(value) === normalizedContract)
     ) {
-      colorRgb.add(normalizedDeclared);
+      colorRgb.add(normalizedContract);
     }
   }
   for (const font of tokens.fonts) {
-    const declared = declarations.get(font.cssVar);
-    const declaredFirstFamily = declared
-      ?.split(",")[0]
-      ?.trim()
-      .replace(/^["']|["']$/g, "")
-      .toLowerCase();
-    if (declaredFirstFamily === font.family.toLowerCase()) {
-      fontFirstFamilies.add(declaredFirstFamily);
+    const normalizedContract = font.family.toLowerCase();
+    const declared = declarations.get(font.cssVar) ?? [];
+    if (
+      declared.length > 0 &&
+      declared.every((value) => normalizedFirstFontFamily(value) === normalizedContract)
+    ) {
+      fontFirstFamilies.add(normalizedContract);
     }
   }
   return { colorRgb, fontFirstFamilies };
