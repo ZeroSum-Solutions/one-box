@@ -100,6 +100,54 @@ Test Files  1 passed (1)
 Tests       1 passed | 62 skipped (63)
 ```
 
+## Grok 4.6 proof-audit adjudication
+
+### Finding 1: rejected
+
+The integration-proof finding was stale. The existing assertions in
+`src/lib/gates.candidate.integration.test.ts` lines 231-256 already require:
+
+- the exact ordered list of all nine gates;
+- zero blocking failures;
+- the candidate receipt's manifest and build bindings;
+- byte-identical live `index.html` and run-root `gates.json` sentinels; and
+- candidate-scoped receipt bytes equal to the returned receipt.
+
+No integration test change was needed.
+
+### Finding 2: accepted
+
+The focused compiler test now asserts all three exact fixed token declarations:
+
+```text
+--compiler-canvas:#fff;
+--compiler-color:#172033;
+--compiler-font:ui-sans-serif,system-ui,sans-serif;
+```
+
+This makes the declaration side of the compiler compatibility contract explicit
+for canvas, ink, and body typography.
+
+### Finding 3: accepted with a narrow test-only hardening
+
+The raw-literal audit now inspects rendered `color`, `background`,
+`background-color`, and `font-family` declarations. Its mutation table proves
+that the guard catches three-, six-, and eight-digit hex forms regardless of
+case, comma and modern-space `rgb()` forms, opaque `rgba()` forms, and the raw
+compiler font stack. Separate assertions preserve `inherit` and compiler-owned
+`var(...)` declarations as valid.
+
+The current `page-ir-static@2` output was already compliant, so the strengthened
+test passed on its first run. No production RED was manufactured. The test earns
+its proof by injecting twelve raw CSS mutations one at a time and requiring the
+audit to identify each exact declaration:
+
+```text
+npm test -- src/lib/pageIrCompiler.test.ts -t 'declares and consumes every fixed rendered color and font'
+Test Files  1 passed (1)
+Tests       1 passed | 36 skipped (37)
+```
+
 ## Verification
 
 - Required focused suite: PASS, 3 files and 59 tests.

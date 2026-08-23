@@ -231,8 +231,22 @@ describe("compilePageIRV1", () => {
     const result = compilePageIRV1(compilerRequest());
     const siteCss = decode(file(result, "site.css").bytes);
     const tokensCss = decode(file(result, "tokens.css").bytes);
+    const fixedRenderedLiterals = (css: string): string[] => {
+      const declarations = css.matchAll(
+        /(?:^|[;{}])\s*(color|background(?:-color)?|font-family)\s*:\s*([^;{}]+)/gi,
+      );
+      const fixedColor = /#(?:fff|ffffff|ffffffff|172033|172033ff)\b|rgba?\(\s*(?:255\s*(?:,\s*|\s+)255\s*(?:,\s*|\s+)255|23\s*(?:,\s*|\s+)32\s*(?:,\s*|\s+)51)(?:\s*(?:,|\/)\s*(?:1(?:\.0*)?|100%))?\s*\)/i;
+      return [...declarations].flatMap(([, property, value]) =>
+        fixedColor.test(value) ||
+        (property.toLowerCase() === "font-family" && /\bui-sans-serif\b/i.test(value))
+          ? [`${property.toLowerCase()}:${value.trim()}`]
+          : [],
+      );
+    };
 
     expect(tokensCss).toContain("--compiler-canvas:#fff;");
+    expect(tokensCss).toContain("--compiler-color:#172033;");
+    expect(tokensCss).toContain("--compiler-font:ui-sans-serif,system-ui,sans-serif;");
     expect(siteCss).toContain(
       "body{margin:0;color:var(--compiler-color);background:var(--compiler-canvas);font-family:var(--compiler-font);line-height:1.5}",
     );
@@ -240,8 +254,33 @@ describe("compilePageIRV1", () => {
       ".skip-link{position:absolute;left:.5rem;top:.5rem;transform:translateY(-200%);background:var(--compiler-canvas);padding:.75rem;z-index:1}",
     );
     expect(siteCss.match(/background:var\(--compiler-canvas\)/g)).toHaveLength(2);
-    expect(siteCss).not.toMatch(/(?:color|background):#(?:fff|172033)/);
-    expect(siteCss).not.toContain("font-family:ui-sans-serif,system-ui,sans-serif");
+    expect(fixedRenderedLiterals(siteCss)).toEqual([]);
+    expect(fixedRenderedLiterals(
+      "a{color:inherit;background:var(--compiler-canvas);font-family:var(--compiler-font)}",
+    )).toEqual([]);
+
+    const rawMutations = [
+      ["background:var(--compiler-canvas)", "background:#FFF"],
+      ["background:var(--compiler-canvas)", "background:#FFFFFF"],
+      ["background:var(--compiler-canvas)", "background:#FFFFFFFF"],
+      ["background:var(--compiler-canvas)", "background:rgb(255,255,255)"],
+      ["background:var(--compiler-canvas)", "background:rgba(255, 255, 255, 1)"],
+      ["background:var(--compiler-canvas)", "background:rgb(255 255 255)"],
+      ["background:var(--compiler-canvas)", "background:rgba(255 255 255 / 1)"],
+      ["color:var(--compiler-color)", "color:#172033"],
+      ["color:var(--compiler-color)", "color:#172033FF"],
+      ["color:var(--compiler-color)", "color:rgb(23, 32, 51)"],
+      ["color:var(--compiler-color)", "color:rgba(23 32 51 / 1)"],
+      [
+        "font-family:var(--compiler-font)",
+        "font-family:ui-sans-serif,system-ui,sans-serif",
+      ],
+    ] as const;
+    for (const [declared, raw] of rawMutations) {
+      const mutated = siteCss.replace(declared, raw);
+      expect(mutated).not.toBe(siteCss);
+      expect(fixedRenderedLiterals(mutated)).toEqual([raw]);
+    }
   });
 
   it("emits one stable unique edit ID for every Page IR node", () => {
