@@ -341,6 +341,24 @@ no-JavaScript gate also assumes frozen template edit IDs and a run-root
 `tokens.json`, so OBX-024 must not claim this compiler inventory is gate-compatible
 until that separate integration mismatch is resolved.
 
+### Persisted layout authority and template fallback
+
+Every run persists one immutable layout authority: `template-v1` for the
+current production path or rollout-gated `page-ir-v1`. The current pipeline and
+template builder reject Page IR authority before recovery, provider, staging,
+or candidate writes. Candidate and promoted-live reads require provenance
+authority to equal the persisted run, so recovery, repair, inspection, and
+promotion cannot blend the two layouts.
+
+`createTemplateFallbackRun` is the server-side explicit recovery boundary for a
+failed Page IR run. It appends one terminal source link, creates or resumes one
+distinct template child with immutable origin provenance and fresh stage/spend
+counters, and clones only validated intake plus hash-verified claimed uploads.
+It does not copy Page IR, layout, candidate, live site, gate, evidence, or
+visual artifacts. Exact source and child links plus atomic upload installation
+make retries after each committed boundary converge on the same child. OBX-024
+still owns Page IR persistence/routing; OBX-050 owns any operator/API surface.
+
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the
 supporting runtime files. The builder and contracts define what can be emitted;

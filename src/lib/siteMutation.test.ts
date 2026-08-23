@@ -12,6 +12,14 @@ vi.mock("./runstate", () => ({
   invalidateApprovedVisualQaUnderSiteAuthority:
     mocks.invalidateApprovedVisualQaUnderSiteAuthority,
   RunNotFoundError: class RunNotFoundError extends Error {},
+  LayoutAuthorityMismatchError: class LayoutAuthorityMismatchError extends Error {},
+  loadRun: async () => ({ layoutAuthority: "template-v1" }),
+  assertRunLayoutAuthority: (
+    state: { layoutAuthority: string },
+    expected: string,
+  ) => {
+    if (state.layoutAuthority !== expected) throw new Error("authority mismatch");
+  },
   sitePaths: (runId: string) => ({
     root: `/tmp/onebox-site-mutation-locks/${runId}`,
     site: `/tmp/onebox-site-mutation-locks/${runId}/site`,

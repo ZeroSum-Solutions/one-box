@@ -55,6 +55,28 @@ afterEach(async () => {
 });
 
 describe("builder site authority", () => {
+  it("rejects PageIR authority before creating template candidate bytes", async () => {
+    const runId = await createRun({
+      pipelineVersion: "legacy-v1",
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    runIds.push(runId);
+    for (const [name, value] of [
+      ["intake.json", intake],
+      ["tokens.json", tokens],
+      ["skeleton.json", skeleton],
+      ["copy.json", copy],
+    ] as const) await saveArtifact(runId, name, value);
+
+    await expect(
+      buildSite({ runId, intake, tokens, skeleton, copy, assets: {} }),
+    ).rejects.toThrow("current template builder requires template-v1 authority");
+    await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("does not write candidate bytes while another site-authority owner is active", async () => {
     const runId = await createRun({ pipelineVersion: "legacy-v1" });
     runIds.push(runId);

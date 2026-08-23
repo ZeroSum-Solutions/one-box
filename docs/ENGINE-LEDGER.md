@@ -309,6 +309,19 @@ Recorded because they recur.
 
 ## Next
 
+### OBX-023 — layout authority and explicit fallback boundary
+
+- **Implemented:** immutable persisted `template-v1 | page-ir-v1` authority,
+  rollout-gated Page IR creation, candidate provenance cross-binding, and
+  fail-closed guards on the current template builder/pipeline and candidate
+  inspection, recovery, promotion, and promoted-live reads.
+- **Implemented:** one append-only terminal fallback link from a failed Page IR
+  source to one fresh template child. Retries reuse that exact child; the child
+  carries an immutable bounded failure snapshot and copies only validated
+  intake and claimed upload bytes through exact path/size/SHA and nonlink checks.
+- **Not included:** Page IR persistence/routing (OBX-024), fallback UI/API or
+  environment flags (OBX-050), and Page IR editing (OBX-031).
+
 1. Trial several more Refero style directions against the same frozen brief
    (`spikes/refero-baseline/BRIEF.md`) to test the convergence prediction in
    REF-001..007 — specifically whether different foundations produce genuinely

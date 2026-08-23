@@ -9,7 +9,7 @@ import {
 } from "./candidate";
 import { CandidateProvenanceV1Schema } from "./contracts";
 import { runCandidateGates } from "./gates";
-import { candidatePaths, sitePaths } from "./runstate";
+import { candidatePaths, createRun, sitePaths } from "./runstate";
 
 const runIds: string[] = [];
 
@@ -39,6 +39,7 @@ describe("candidate gates real browser", () => {
     async () => {
       const runId = `candidate-real-${process.pid}`;
       runIds.push(runId);
+      await createRun({ id: runId, pipelineVersion: "legacy-v1" });
       const paths = candidatePaths(runId);
       await fs.mkdir(paths.site, { recursive: true });
       await fs.writeFile(

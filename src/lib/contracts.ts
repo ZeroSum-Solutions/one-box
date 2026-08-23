@@ -1587,6 +1587,58 @@ export const StageStatusSchema = z.object({
   gateRepairAttempts: z.number().default(0),
 });
 
+export const LayoutAuthoritySchema = z.enum(["template-v1", "page-ir-v1"]);
+export type LayoutAuthority = z.infer<typeof LayoutAuthoritySchema>;
+
+export const TemplateFallbackReasonSchema = z.enum([
+  "page-ir-derivation-failed",
+  "page-ir-compilation-failed",
+  "candidate-gates-failed",
+  "candidate-promotion-failed",
+  "operator-requested-after-failure",
+]);
+export type TemplateFallbackReason = z.infer<
+  typeof TemplateFallbackReasonSchema
+>;
+
+const FallbackRunIdSchema = z.string().regex(/^[A-Za-z0-9_-]{4,40}$/);
+const FallbackSha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
+
+export const FallbackFailureSnapshotSchema = z
+  .object({
+    stage: z.enum(STAGES),
+    message: z.string().min(1).max(500),
+    messageSha256: FallbackSha256Schema.optional(),
+  })
+  .strict();
+export type FallbackFailureSnapshot = z.infer<
+  typeof FallbackFailureSnapshotSchema
+>;
+
+export const TemplateFallbackLinkSchema = z
+  .object({
+    childRunId: FallbackRunIdSchema,
+    reason: TemplateFallbackReasonSchema,
+    failure: FallbackFailureSnapshotSchema,
+  })
+  .strict();
+export type TemplateFallbackLink = z.infer<
+  typeof TemplateFallbackLinkSchema
+>;
+
+export const FallbackOriginSchema = z
+  .object({
+    sourceRunId: FallbackRunIdSchema,
+    reason: TemplateFallbackReasonSchema,
+    failure: FallbackFailureSnapshotSchema,
+  })
+  .strict();
+export type FallbackOrigin = z.infer<typeof FallbackOriginSchema>;
+
+export function normalizeFallbackFailureMessage(message: string): string {
+  return message.replace(/\s+/g, " ").trim();
+}
+
 // ---------- Reference selection (picker pilot, plan rev 2) ----------
 
 /** Preview images must come from Refero's own hosts over https — candidate
@@ -1802,7 +1854,72 @@ export const RunStateSchema = z.object({
   /** Sibling picker state — deliberately NOT an evidence-workflow stage, so
    * every persisted run parses unchanged (Sol audit blocker 1). */
   referenceSelection: ReferenceSelectionStateSchema.optional(),
+  /** Frozen per-run layout authority. Missing legacy values parse as the
+   * current template path without rewriting their persisted bytes. */
+  layoutAuthority: LayoutAuthoritySchema.default("template-v1"),
+  /** Append-only terminal link from a failed PageIR run to its one template
+   * fallback child. */
+  templateFallback: TemplateFallbackLinkSchema.optional(),
+  /** Immutable provenance on a server-created template fallback child. */
+  fallbackOrigin: FallbackOriginSchema.optional(),
 }).superRefine((state, context) => {
+  if (state.templateFallback && state.fallbackOrigin) {
+    context.addIssue({
+      code: "custom",
+      path: ["fallbackOrigin"],
+      message: "a run cannot be both a fallback source and fallback child",
+    });
+  }
+  if (state.templateFallback) {
+    if (state.layoutAuthority !== "page-ir-v1") {
+      context.addIssue({
+        code: "custom",
+        path: ["templateFallback"],
+        message: "only a page-ir-v1 run may link to a template fallback",
+      });
+    }
+    if (state.templateFallback.childRunId === state.id) {
+      context.addIssue({
+        code: "custom",
+        path: ["templateFallback", "childRunId"],
+        message: "a fallback child must have a distinct run ID",
+      });
+    }
+    const failure = state.templateFallback.failure;
+    const failedStage = state.stages[failure.stage];
+    const normalizedError = normalizeFallbackFailureMessage(
+      failedStage?.error ?? "",
+    );
+    const expectedPreview = normalizedError.slice(0, 500);
+    if (
+      failedStage?.status !== "failed" ||
+      expectedPreview.length === 0 ||
+      failure.message !== expectedPreview ||
+      (normalizedError.length > 500) !== Boolean(failure.messageSha256)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["templateFallback", "failure"],
+        message: "template fallback must snapshot the current failed stage",
+      });
+    }
+  }
+  if (state.fallbackOrigin) {
+    if (state.layoutAuthority !== "template-v1") {
+      context.addIssue({
+        code: "custom",
+        path: ["fallbackOrigin"],
+        message: "only a template-v1 run may have a fallback origin",
+      });
+    }
+    if (state.fallbackOrigin.sourceRunId === state.id) {
+      context.addIssue({
+        code: "custom",
+        path: ["fallbackOrigin", "sourceRunId"],
+        message: "a fallback source must have a distinct run ID",
+      });
+    }
+  }
   if (state.pipelineVersion !== "evidence-gated-v2") return;
   for (const [index, artifact] of state.evidenceWorkflow.artifacts.entries()) {
     if (artifact.artifactType !== "design-contract") continue;
@@ -2577,6 +2694,13 @@ export const CandidateProvenanceV1Schema = z
         code: "custom",
         path: ["pageIrSha256"],
         message: "page-ir-v1 authority requires a Page IR SHA-256",
+      });
+    }
+    if (provenance.layoutAuthority === "template-v1" && provenance.pageIrSha256) {
+      context.addIssue({
+        code: "custom",
+        path: ["pageIrSha256"],
+        message: "template-v1 authority rejects a Page IR SHA-256",
       });
     }
     const manifestBound = Boolean(provenance.candidateManifestSha256);

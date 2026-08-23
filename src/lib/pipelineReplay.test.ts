@@ -28,6 +28,7 @@ function pendingRun(id: string): RunState {
     referenceMode: "refero",
     evidenceWorkflow: { currentStage: "evidence", artifacts: [] },
     referencePickerEnabled: false,
+    layoutAuthority: "template-v1",
   };
 }
 
@@ -51,6 +52,28 @@ const disabledResearchIntake = {
 } satisfies Intake;
 
 describe("pipeline replay", () => {
+  it("rejects PageIR authority before candidate recovery or execution", async () => {
+    const run = pendingRun("page-ir-run");
+    run.layoutAuthority = "page-ir-v1";
+    const recoverCandidateState = vi.fn();
+    const executePipeline = vi.fn();
+    const dependencies = {
+      readEvents: vi.fn(),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent: vi.fn(),
+      recoverCandidateState,
+      executePipeline,
+    };
+
+    await expect(runPipeline("page-ir-run", vi.fn(), dependencies)).rejects.toThrow(
+      "current pipeline controller requires template-v1 authority",
+    );
+    expect(recoverCandidateState).not.toHaveBeenCalled();
+    expect(executePipeline).not.toHaveBeenCalled();
+    expect(dependencies.readEvents).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["missing", { status: "absent" }],
     [

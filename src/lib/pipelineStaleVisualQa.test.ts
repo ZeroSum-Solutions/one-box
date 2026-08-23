@@ -108,6 +108,7 @@ function staleQaRun(): RunState {
       ],
     },
     referencePickerEnabled: false,
+    layoutAuthority: "template-v1",
   };
 }
 

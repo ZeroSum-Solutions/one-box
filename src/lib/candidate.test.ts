@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { constants } from "node:fs";
+import { constants, mkdirSync, writeFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import { createServer } from "node:net";
 import os from "node:os";
@@ -13,6 +13,7 @@ import {
   cleanupCandidateDiagnostics,
   createCandidateManifest,
   inspectCandidate,
+  recoverCandidateState,
   transitionCandidateProvenance,
   validateCandidateInventory,
 } from "./candidate";
@@ -43,6 +44,22 @@ async function temporarySite(): Promise<string> {
 function testRunId(prefix = "candidate-test"): string {
   const runId = `${prefix}-${process.pid}-${runIds.length}`;
   runIds.push(runId);
+  const root = sitePaths(runId).root;
+  mkdirSync(root, { recursive: true });
+  writeFileSync(
+    path.join(root, "run.json"),
+    JSON.stringify({
+      id: runId,
+      createdAt: "2026-08-22T00:00:00.000Z",
+      stages: Object.fromEntries(
+        ["intake", "scanned", "locked", "synthesized", "built", "edited"].map(
+          (stage) => [stage, { status: "pending", retries: 0 }],
+        ),
+      ),
+      modelSlugs: {},
+      layoutAuthority: "template-v1",
+    }),
+  );
   return runId;
 }
 
@@ -386,6 +403,32 @@ describe("candidate inspection and transitions", () => {
       provenance: ready,
     });
     expect(await fs.readFile(paths.provenance)).toEqual(before);
+  });
+
+  it("blocks inspection and recovery on persisted authority mismatch without mutating candidate, live, or report", async () => {
+    const runId = testRunId("candidate-authority-mismatch");
+    const { paths } = await createReadyCandidate(runId);
+    await fs.mkdir(sitePaths(runId).site, { recursive: true });
+    await fs.writeFile(path.join(sitePaths(runId).site, "index.html"), "last-known-good");
+    const runFile = path.join(sitePaths(runId).root, "run.json");
+    const run = JSON.parse(await fs.readFile(runFile, "utf8"));
+    run.layoutAuthority = "page-ir-v1";
+    await fs.writeFile(runFile, JSON.stringify(run));
+    const beforeProvenance = await fs.readFile(paths.provenance);
+    const beforeLive = await fs.readFile(path.join(sitePaths(runId).site, "index.html"));
+
+    await expect(inspectCandidate(runId)).rejects.toThrow(
+      "candidate provenance requires template-v1 authority",
+    );
+    await expect(recoverCandidateState(runId)).resolves.toMatchObject({
+      action: "blocked",
+      reason: expect.stringContaining("candidate provenance requires template-v1 authority"),
+    });
+    expect(await fs.readFile(paths.provenance)).toEqual(beforeProvenance);
+    expect(await fs.readFile(path.join(sitePaths(runId).site, "index.html"))).toEqual(beforeLive);
+    await expect(
+      fs.stat(path.join(sitePaths(runId).root, "candidate-recovery.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("binds promotable inspection to candidate-scoped gates", async () => {

@@ -24,6 +24,17 @@ beforeEach(async () => {
   await fs.mkdir(path.join(runRoot, "site"), { recursive: true });
   await fs.mkdir(path.join(runRoot, "candidate", "site"), { recursive: true });
   await fs.mkdir(path.join(runRoot, "evidence", "versions", "design-contract"), { recursive: true });
+  await fs.writeFile(path.join(runRoot, "run.json"), JSON.stringify({
+    id: runId,
+    createdAt: "2026-08-22T00:00:00.000Z",
+    stages: Object.fromEntries(
+      ["intake", "scanned", "locked", "synthesized", "built", "edited"].map(
+        (stage) => [stage, { status: "pending", retries: 0 }],
+      ),
+    ),
+    modelSlugs: {},
+    layoutAuthority: "template-v1",
+  }));
   await fs.writeFile(path.join(runRoot, "evidence", "versions", "design-contract", "v1.DESIGN.md"), "approved preview");
   await fs.writeFile(
     path.join(runRoot, "research", "public.md"),

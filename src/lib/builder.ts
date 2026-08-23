@@ -40,6 +40,7 @@ import {
   type SkeletonSpec,
   type CopyDoc,
   type Intake,
+  type RunState,
   type CandidateProvenanceV1,
   type CandidateGateReceiptV1,
   type SiteManifest,
@@ -52,6 +53,7 @@ import {
   validateCandidateInventory,
 } from "./candidate";
 import {
+  assertRunLayoutAuthority,
   candidatePaths,
   claimBuildGateRepair,
   loadRun,
@@ -114,7 +116,7 @@ async function buildSiteUnderAuthority(
 ): Promise<SiteManifest> {
   assertWebsiteProductionTarget(input.intake.projectTarget);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
-  await assertBuildAuthorized(runRoot, runId);
+  const run = await loadBuildAuthorization(runRoot, runId);
   const authorizedInputs = await authorizeBuildInputs(runRoot, input);
   const paths = candidatePaths(runId);
   const stagingRoot = `${paths.root}.building-${process.pid}-${Date.now()}`;
@@ -136,7 +138,7 @@ async function buildSiteUnderAuthority(
       state: "preparing",
       history: [{ state: "preparing", at: createdAt }],
       inputArtifactHashes: authorizedInputs.inputArtifactHashes,
-      layoutAuthority: "template-v1",
+      layoutAuthority: run.layoutAuthority,
       compilerVersion: "template-compiler@1",
     });
     const ready = transitionCandidateProvenance(
@@ -1192,6 +1194,13 @@ export async function assertBuildAuthorized(
   runRoot: string,
   runId: string,
 ): Promise<void> {
+  await loadBuildAuthorization(runRoot, runId);
+}
+
+async function loadBuildAuthorization(
+  runRoot: string,
+  runId: string,
+): Promise<RunState> {
   let bytes: Buffer;
   try {
     bytes = await readStableBuildInput(
@@ -1208,7 +1217,8 @@ export async function assertBuildAuthorized(
   if (run.id !== runId) {
     throw new Error("durable run authorization does not match requested run");
   }
-  if (run.pipelineVersion === "legacy-v1") return;
+  assertRunLayoutAuthority(run, "template-v1", "current template builder");
+  if (run.pipelineVersion === "legacy-v1") return run;
   const approvedCss = run.evidenceWorkflow.artifacts.some(
     (artifact) =>
       artifact.artifactType === "css-architecture" &&
@@ -1219,6 +1229,7 @@ export async function assertBuildAuthorized(
       "evidence-gated-v2 build blocked: approve evidence, contract, tokens, Tailwind, and CSS architecture first"
     );
   }
+  return run;
 }
 
 // ---------- manifest ----------

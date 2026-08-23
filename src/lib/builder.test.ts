@@ -101,7 +101,10 @@ describe("Website-only builds", () => {
       await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
         code: "ENOENT",
       });
-      expect(await fs.readdir(runRoot)).toEqual(["run.json"]);
+      expect((await fs.readdir(runRoot)).sort()).toEqual([
+        ".run-state-lock",
+        "run.json",
+      ]);
     } finally {
       await fs.rm(runRoot, { recursive: true, force: true });
     }

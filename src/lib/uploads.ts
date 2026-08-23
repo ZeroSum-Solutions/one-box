@@ -4,6 +4,7 @@ import {
   randomUUID,
   timingSafeEqual,
 } from "node:crypto";
+import { constants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -116,6 +117,12 @@ export type UploadSessionManifest = z.infer<
   typeof UploadSessionManifestSchema
 >;
 export type RunUploadManifest = z.infer<typeof RunUploadManifestSchema>;
+
+interface VerifiedClaimedUpload {
+  metadata: UploadMetadata;
+  storedName: string;
+  bytes: Uint8Array;
+}
 
 interface InspectedUpload {
   bytes: Uint8Array;
@@ -885,6 +892,171 @@ export async function readRunUpload(
     throw new UploadError("Run upload failed its integrity check.", 409);
   }
   return bytes;
+}
+
+async function readRegularUnlinkedFile(
+  filePath: string,
+  errorMessage: string,
+): Promise<Uint8Array> {
+  const before = await fs.lstat(filePath);
+  if (!before.isFile() || before.isSymbolicLink() || before.nlink !== 1) {
+    throw new UploadError(errorMessage, 409);
+  }
+  const handle = await fs.open(
+    filePath,
+    constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+  );
+  try {
+    const opened = await handle.stat();
+    if (
+      !opened.isFile() ||
+      opened.nlink !== 1 ||
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino
+    ) {
+      throw new UploadError(errorMessage, 409);
+    }
+    const bytes = new Uint8Array(await handle.readFile());
+    const after = await handle.stat();
+    if (
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== bytes.byteLength
+    ) {
+      throw new UploadError(errorMessage, 409);
+    }
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function verifiedClaimedUploads(
+  runId: string,
+  expectedUploads: UploadMetadata[],
+): Promise<{ manifest: RunUploadManifest; uploads: VerifiedClaimedUpload[] }> {
+  if (!RUN_ID_PATTERN.test(runId)) throw new UploadError("Invalid run id.");
+  if (
+    expectedUploads.length > MAX_UPLOAD_FILES ||
+    expectedUploads.some((upload) => upload.sizeBytes > MAX_UPLOAD_BYTES) ||
+    expectedUploads.reduce((total, upload) => total + upload.sizeBytes, 0) >
+      MAX_SESSION_UPLOAD_BYTES
+  ) {
+    throw new UploadError("Claimed uploads exceed the closed upload limits.", 409);
+  }
+  const directory = sitePaths(runId).uploads;
+  const directoryStat = await fs.lstat(directory);
+  if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+    throw new UploadError("Claimed uploads are not a safe directory.", 409);
+  }
+  const manifestBytes = await readRegularUnlinkedFile(
+    path.join(directory, "manifest.json"),
+    "Claimed upload manifest is not a safe regular file.",
+  );
+  const manifest = RunUploadManifestSchema.parse(
+    JSON.parse(Buffer.from(manifestBytes).toString("utf8")),
+  );
+  if (manifest.files.length !== expectedUploads.length) {
+    throw new UploadError("Claimed uploads do not match the validated intake.", 409);
+  }
+  const ids = manifest.files.map((file) => file.id);
+  const storagePaths = manifest.files.map((file) => file.storagePath);
+  if (
+    new Set(ids).size !== ids.length ||
+    new Set(storagePaths).size !== storagePaths.length
+  ) {
+    throw new UploadError("Claimed upload identities must be unique.", 409);
+  }
+  const uploads: VerifiedClaimedUpload[] = [];
+  for (const [index, file] of manifest.files.entries()) {
+    const expected = UploadMetadataSchema.parse(expectedUploads[index]);
+    const metadata = UploadMetadataSchema.parse(file);
+    if (JSON.stringify(metadata) !== JSON.stringify(expected)) {
+      throw new UploadError("Claimed uploads do not match the validated intake.", 409);
+    }
+    if (!file.sha256 || !file.storagePath) {
+      throw new UploadError("Claimed upload metadata is incomplete.", 409);
+    }
+    const storedName = path.posix.basename(file.storagePath);
+    if (
+      !/^[a-f0-9-]{36}\.[a-z0-9]+$/.test(storedName) ||
+      !AcceptedExtensionSchema.safeParse(path.extname(storedName)).success ||
+      file.storagePath !== path.posix.join(UPLOADS_DIR, storedName)
+    ) {
+      throw new UploadError("Claimed upload path is invalid.", 409);
+    }
+    const bytes = await readRegularUnlinkedFile(
+      path.join(directory, storedName),
+      "Claimed upload is not a safe regular file.",
+    );
+    if (
+      bytes.byteLength !== file.sizeBytes ||
+      createHash("sha256").update(bytes).digest("hex") !== file.sha256
+    ) {
+      throw new UploadError("Claimed upload failed its integrity check.", 409);
+    }
+    uploads.push({ metadata, storedName, bytes });
+  }
+  return { manifest, uploads };
+}
+
+/** Clone only intake-bound, server-claimed upload bytes into a fallback child.
+ * Every source and existing destination byte is revalidated; writes use a
+ * fresh directory and one atomic rename, never links or recursive copying. */
+export async function cloneClaimedUploadsForFallback(
+  sourceRunId: string,
+  childRunId: string,
+  expectedUploads: UploadMetadata[],
+): Promise<UploadMetadata[]> {
+  if (sourceRunId === childRunId || !RUN_ID_PATTERN.test(childRunId)) {
+    throw new UploadError("Fallback upload run ids are invalid.");
+  }
+  if (expectedUploads.length === 0) return [];
+  const source = await verifiedClaimedUploads(sourceRunId, expectedUploads);
+  const childRoot = sitePaths(childRunId).root;
+  const destination = sitePaths(childRunId).uploads;
+  const existing = await fs.lstat(destination).catch((error: unknown) => {
+    if (typeof error === "object" && error !== null && "code" in error &&
+      (error as { code?: unknown }).code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (existing) {
+    await verifiedClaimedUploads(childRunId, expectedUploads);
+    return source.uploads.map(({ metadata }) => metadata);
+  }
+
+  const childRootStat = await fs.lstat(childRoot);
+  if (!childRootStat.isDirectory() || childRootStat.isSymbolicLink()) {
+    throw new UploadError("Fallback run root is not a safe directory.", 409);
+  }
+  const temporary = path.join(
+    childRoot,
+    `.${UPLOADS_DIR}.fallback-${randomBytes(6).toString("hex")}.tmp`,
+  );
+  try {
+    await fs.mkdir(temporary, { mode: 0o700 });
+    for (const upload of source.uploads) {
+      await fs.writeFile(path.join(temporary, upload.storedName), upload.bytes, {
+        flag: "wx",
+        mode: 0o600,
+      });
+    }
+    const childManifest = RunUploadManifestSchema.parse({
+      version: 1,
+      sessionId: source.manifest.sessionId,
+      state: "claimed",
+      claimedAt: source.manifest.claimedAt,
+      files: source.uploads.map(({ metadata }) => metadata),
+    });
+    await writeJsonAtomic(path.join(temporary, "manifest.json"), childManifest);
+    await fs.rename(temporary, destination);
+  } catch (error) {
+    await fs.rm(temporary, { recursive: true, force: true });
+    const raced = await fs.lstat(destination).catch(() => undefined);
+    if (!raced) throw error;
+    await verifiedClaimedUploads(childRunId, expectedUploads);
+  }
+  return source.uploads.map(({ metadata }) => metadata);
 }
 
 export interface UploadEvidenceEntry {

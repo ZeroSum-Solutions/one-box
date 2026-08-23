@@ -406,6 +406,75 @@ afterEach(async () => {
 });
 
 describe("candidate promotion", () => {
+  it("blocks authority-mismatched promotion before changing live or reports", async () => {
+    const prepared = await fixture();
+    const runPath = path.join(prepared.roots.root, "run.json");
+    const run = JSON.parse(await fs.readFile(runPath, "utf8"));
+    run.layoutAuthority = "page-ir-v1";
+    await fs.writeFile(runPath, JSON.stringify(run));
+    const beforeLive = await fs.readFile(path.join(prepared.roots.site, "index.html"));
+    const beforeReport = await fs.readFile(path.join(prepared.roots.root, "gates.json"));
+    const beforeProvenance = await fs.readFile(prepared.candidate.provenance);
+
+    await expect(promoteCandidate(prepared.runId)).rejects.toThrow(
+      "candidate provenance requires template-v1 authority",
+    );
+    expect(await fs.readFile(path.join(prepared.roots.site, "index.html"))).toEqual(beforeLive);
+    expect(await fs.readFile(path.join(prepared.roots.root, "gates.json"))).toEqual(beforeReport);
+    expect(await fs.readFile(prepared.candidate.provenance)).toEqual(beforeProvenance);
+  });
+
+  it("blocks authority-mismatched promoted-live inspection without changing live bytes", async () => {
+    const prepared = await fixture();
+    await promoteCandidate(prepared.runId);
+    const runPath = path.join(prepared.roots.root, "run.json");
+    const run = JSON.parse(await fs.readFile(runPath, "utf8"));
+    run.layoutAuthority = "page-ir-v1";
+    await fs.writeFile(runPath, JSON.stringify(run));
+    const beforeLive = await fs.readFile(path.join(prepared.roots.site, "index.html"));
+    const beforeMetadata = await fs.readFile(
+      path.join(prepared.roots.site, ".one-box", "provenance.json"),
+    );
+
+    await expect(
+      candidateModule.inspectPromotedLiveBundle(prepared.runId),
+    ).rejects.toThrow("candidate provenance requires template-v1 authority");
+    expect(await fs.readFile(path.join(prepared.roots.site, "index.html"))).toEqual(beforeLive);
+    expect(
+      await fs.readFile(path.join(prepared.roots.site, ".one-box", "provenance.json")),
+    ).toEqual(beforeMetadata);
+  });
+
+  it("blocks recovery when live provenance authority differs without writing a recovery report", async () => {
+    const prepared = await fixture();
+    await promoteCandidate(prepared.runId);
+    const liveProvenancePath = path.join(
+      prepared.roots.site,
+      ".one-box",
+      "provenance.json",
+    );
+    const liveProvenance = JSON.parse(
+      await fs.readFile(liveProvenancePath, "utf8"),
+    );
+    liveProvenance.layoutAuthority = "page-ir-v1";
+    liveProvenance.pageIrSha256 = "c".repeat(64);
+    await fs.writeFile(liveProvenancePath, JSON.stringify(liveProvenance, null, 2));
+    const beforeLive = await fs.readFile(path.join(prepared.roots.site, "index.html"));
+    const beforeReport = await fs.readFile(path.join(prepared.roots.root, "gates.json"));
+    const beforeMetadata = await fs.readFile(liveProvenancePath);
+
+    await expect(recoverCandidateState(prepared.runId)).resolves.toMatchObject({
+      action: "blocked",
+      reason: expect.stringContaining("candidate provenance requires page-ir-v1 authority"),
+    });
+    expect(await fs.readFile(path.join(prepared.roots.site, "index.html"))).toEqual(beforeLive);
+    expect(await fs.readFile(path.join(prepared.roots.root, "gates.json"))).toEqual(beforeReport);
+    expect(await fs.readFile(liveProvenancePath)).toEqual(beforeMetadata);
+    await expect(
+      fs.stat(path.join(prepared.roots.root, "candidate-recovery.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it.each(PROMOTION_FAULT_STEPS)(
     "recovers idempotently after a fresh process exits at %s",
     async (faultStep) => {

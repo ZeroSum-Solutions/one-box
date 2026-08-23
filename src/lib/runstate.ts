@@ -7,7 +7,7 @@
  * stage + cost helpers below are the shared contract every pipeline stage,
  * API route, and tool module builds on — see contracts.ts for the shapes.
  */
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import {
@@ -18,7 +18,9 @@ import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
   EVENTS_FILE,
+  IntakeSchema,
   MODELS,
+  normalizeFallbackFailureMessage,
   RESEARCH_DIR,
   RunIdSchema,
   RunStateSchema,
@@ -30,10 +32,14 @@ import {
   V2DesignContractMetadataSchema,
   type ArtifactApprovalState,
   type EvidenceWorkflowStage,
+  type FallbackFailureSnapshot,
+  type FallbackOrigin,
   type HumanVisualReview,
+  type LayoutAuthority,
   type PipelineEvent,
   type RunState,
   type Stage,
+  type TemplateFallbackReason,
   type WorkflowArtifactDraft,
   type WorkflowArtifactType,
   type WorkflowArtifactVersion,
@@ -190,6 +196,13 @@ export interface CreateRunOptions {
   id?: string;
   costCapUsd?: number;
   pipelineVersion?: RunState["pipelineVersion"];
+  referenceMode?: RunState["referenceMode"];
+  layoutAuthority?: LayoutAuthority;
+  /** Required only when creating a new page-ir-v1 run. Existing runs resume
+   * from persisted authority without consulting a future rollout decision. */
+  pageIrRolloutPermitted?: boolean;
+  /** Server-owned provenance for createTemplateFallbackRun. */
+  fallbackOrigin?: FallbackOrigin;
   /** defaults to the pinned MODELS from contracts.ts (audit #3: record the
    * exact slugs a run used in its own manifest). */
   modelSlugs?: Record<string, string>;
@@ -202,6 +215,13 @@ export interface CreateRunOptions {
 export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
   const id = opts.id ?? makeRunId();
   if (!/^[a-z0-9_-]{4,40}$/i.test(id)) throw new Error("bad runId");
+  const layoutAuthority = opts.layoutAuthority ?? "template-v1";
+  if (
+    layoutAuthority === "page-ir-v1" &&
+    opts.pageIrRolloutPermitted !== true
+  ) {
+    throw new Error("page-ir-v1 run creation requires explicit rollout permission");
+  }
   const stages = Object.fromEntries(
     STAGES.map((s) => [
       s,
@@ -216,10 +236,13 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
     stages,
     costCapUsd: opts.costCapUsd,
     modelSlugs: opts.modelSlugs ?? { ...MODELS },
+    referenceMode: opts.referenceMode,
     referencePickerEnabled: opts.referencePickerEnabled,
+    layoutAuthority,
+    fallbackOrigin: opts.fallbackOrigin,
   });
 
-  await saveRun(state);
+  await persistNewRun(state);
   return id;
 }
 
@@ -231,12 +254,29 @@ export async function ensureRun(
   opts: Omit<CreateRunOptions, "id"> = {}
 ): Promise<string> {
   try {
-    await loadRun(runId);
+    const existing = await loadRun(runId);
+    if (
+      opts.layoutAuthority !== undefined &&
+      opts.layoutAuthority !== existing.layoutAuthority
+    ) {
+      throw new Error("existing run layout authority does not match request");
+    }
+    if (
+      opts.fallbackOrigin !== undefined &&
+      JSON.stringify(opts.fallbackOrigin) !== JSON.stringify(existing.fallbackOrigin)
+    ) {
+      throw new Error("existing run fallback origin does not match request");
+    }
     return runId;
   } catch (error) {
     if (!(error instanceof RunNotFoundError)) throw error;
   }
-  return createRun({ ...opts, id: runId });
+  try {
+    return await createRun({ ...opts, id: runId });
+  } catch (error) {
+    if (!(error instanceof RunAlreadyExistsError)) throw error;
+    return ensureRun(runId, opts);
+  }
 }
 
 /** Remove only a validated run root. Used when setup fails before a run can be
@@ -254,12 +294,215 @@ export async function loadRun(runId: string): Promise<RunState> {
     if (isEnoent(err)) throw new RunNotFoundError(runId);
     throw err;
   }
-  return RunStateSchema.parse(JSON.parse(raw));
+  const parsed = RunStateSchema.parse(JSON.parse(raw));
+  if (parsed.templateFallback) {
+    assertFailureSnapshotMatchesState(parsed, parsed.templateFallback.failure);
+  }
+  return parsed;
 }
 
-export async function saveRun(state: RunState): Promise<void> {
+function equalPersistedValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+class RunAlreadyExistsError extends Error {}
+
+async function persistNewRun(state: RunState): Promise<void> {
   const validated = RunStateSchema.parse(state);
+  await withRunLock(validated.id, async () => {
+    try {
+      await loadRun(validated.id);
+      throw new RunAlreadyExistsError(`run already exists: ${validated.id}`);
+    } catch (error) {
+      if (!(error instanceof RunNotFoundError)) throw error;
+    }
+    await atomicWrite(
+      runFilePath(validated.id),
+      JSON.stringify(validated, null, 2),
+    );
+  });
+}
+
+function assertFailureSnapshotMatchesState(
+  state: RunState,
+  snapshot: FallbackFailureSnapshot,
+): void {
+  const stage = state.stages[snapshot.stage];
+  const normalized = normalizeFallbackFailureMessage(stage?.error ?? "");
+  const expectedHash = createHash("sha256").update(normalized).digest("hex");
+  if (
+    stage?.status !== "failed" ||
+    normalized.length === 0 ||
+    snapshot.message !== normalized.slice(0, 500) ||
+    (normalized.length > 500
+      ? snapshot.messageSha256 !== expectedHash
+      : snapshot.messageSha256 !== undefined)
+  ) {
+    throw new Error("template fallback failure snapshot does not match source run");
+  }
+}
+
+function assertStoredRunMutation(existing: RunState, next: RunState): void {
+  if (existing.id !== next.id) throw new Error("run ID is immutable");
+  if (existing.layoutAuthority !== next.layoutAuthority) {
+    throw new Error("run layout authority is immutable");
+  }
+  if (!equalPersistedValue(existing.fallbackOrigin, next.fallbackOrigin)) {
+    throw new Error("run fallback origin is immutable");
+  }
+  if (existing.templateFallback) {
+    if (!equalPersistedValue(existing, next)) {
+      throw new Error("a run linked to a template fallback is terminal and immutable");
+    }
+    return;
+  }
+  if (next.templateFallback) {
+    const withoutLink = { ...next, templateFallback: undefined };
+    if (!equalPersistedValue(existing, withoutLink)) {
+      throw new Error("template fallback link is append-only");
+    }
+  }
+}
+
+async function saveRunUnlocked(state: RunState): Promise<void> {
+  const validated = RunStateSchema.parse(state);
+  if (validated.templateFallback) {
+    assertFailureSnapshotMatchesState(
+      validated,
+      validated.templateFallback.failure,
+    );
+  }
+  const existing = await loadRun(validated.id);
+  assertStoredRunMutation(existing, validated);
   await atomicWrite(runFilePath(validated.id), JSON.stringify(validated, null, 2));
+}
+
+export function saveRun(state: RunState): Promise<void> {
+  return withRunLock(state.id, () => saveRunUnlocked(state));
+}
+
+export function assertRunLayoutAuthority(
+  state: RunState,
+  expected: LayoutAuthority,
+  operation: string,
+): void {
+  if (state.layoutAuthority !== expected) {
+    throw new LayoutAuthorityMismatchError(
+      `${operation} requires ${expected} authority; persisted run uses ${state.layoutAuthority}`,
+    );
+  }
+}
+
+export class LayoutAuthorityMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LayoutAuthorityMismatchError";
+  }
+}
+
+export interface TemplateFallbackHooks {
+  afterSourceClaim?: () => void | Promise<void>;
+  afterChildCreate?: () => void | Promise<void>;
+  afterUploadClone?: () => void | Promise<void>;
+  afterIntakeSave?: () => void | Promise<void>;
+}
+
+function fallbackFailureSnapshot(state: RunState): FallbackFailureSnapshot {
+  const stage = [...STAGES]
+    .reverse()
+    .find((candidate) => state.stages[candidate]?.status === "failed");
+  if (!stage) throw new Error("template fallback requires a currently failed stage");
+  const normalized = normalizeFallbackFailureMessage(
+    state.stages[stage].error ?? "",
+  );
+  if (!normalized) {
+    throw new Error("template fallback requires a visible source failure");
+  }
+  return {
+    stage,
+    message: normalized.slice(0, 500),
+    ...(normalized.length > 500
+      ? {
+          messageSha256: createHash("sha256")
+            .update(normalized)
+            .digest("hex"),
+        }
+      : {}),
+  };
+}
+
+/** Create or resume the one server-owned template fallback for a failed
+ * PageIR run. The source link is claimed first; all later steps are exact and
+ * idempotent so a retry after any injected crash converges on the same child. */
+export async function createTemplateFallbackRun(
+  sourceRunId: string,
+  reason: TemplateFallbackReason,
+  hooks: TemplateFallbackHooks = {},
+): Promise<string> {
+  const reservedChildRunId = makeRunId();
+  return withRunLock(sourceRunId, async () => {
+    const source = await loadRun(sourceRunId);
+    assertRunLayoutAuthority(source, "page-ir-v1", "template fallback source");
+    const failure = fallbackFailureSnapshot(source);
+
+    let childRunId = reservedChildRunId;
+    if (source.templateFallback) {
+      if (source.templateFallback.reason !== reason) {
+        throw new Error("template fallback reason conflicts with the claimed child");
+      }
+      childRunId = source.templateFallback.childRunId;
+      assertFailureSnapshotMatchesState(source, source.templateFallback.failure);
+    } else {
+      source.templateFallback = { childRunId, reason, failure };
+      await saveRunUnlocked(source);
+    }
+    await hooks.afterSourceClaim?.();
+
+    const fallbackOrigin: FallbackOrigin = {
+      sourceRunId,
+      reason,
+      failure,
+    };
+    await ensureRun(childRunId, {
+      pipelineVersion: source.pipelineVersion,
+      referenceMode: source.referenceMode,
+      modelSlugs: { ...source.modelSlugs },
+      costCapUsd: source.costCapUsd,
+      referencePickerEnabled: source.referencePickerEnabled,
+      layoutAuthority: "template-v1",
+      fallbackOrigin,
+    });
+    await hooks.afterChildCreate?.();
+
+    const rawIntake = await loadArtifact<unknown>(sourceRunId, ARTIFACTS.intake);
+    if (rawIntake === undefined) {
+      throw new Error("template fallback source intake is missing");
+    }
+    const sourceIntake = IntakeSchema.parse(rawIntake);
+    const { cloneClaimedUploadsForFallback } = await import("./uploads");
+    const uploads = await cloneClaimedUploadsForFallback(
+      sourceRunId,
+      childRunId,
+      sourceIntake.uploads,
+    );
+    await hooks.afterUploadClone?.();
+
+    const childIntake = IntakeSchema.parse({ ...sourceIntake, uploads });
+    const childState = await loadRun(childRunId);
+    if (childState.stages.intake.status !== "done") {
+      await saveArtifact(childRunId, ARTIFACTS.intake, childIntake);
+      await hooks.afterIntakeSave?.();
+      await finishStage(childRunId, "intake");
+    } else {
+      const existingIntake = IntakeSchema.parse(
+        await loadArtifact<unknown>(childRunId, ARTIFACTS.intake),
+      );
+      if (!equalPersistedValue(existingIntake, childIntake)) {
+        throw new Error("existing fallback child intake does not match source");
+      }
+    }
+    return childRunId;
+  });
 }
 
 // ---------- artifacts ----------
@@ -450,7 +693,7 @@ export function withRunTransaction<T>(
     };
     try {
       const result = await callback(transaction);
-      await saveRun(state);
+      await saveRunUnlocked(state);
       return result;
     } catch (error) {
       for (const [target, previous] of [...backups].reverse()) {
@@ -896,7 +1139,7 @@ export function advanceEvidenceWorkflow(
     }
 
     state.evidenceWorkflow.currentStage = nextStage;
-    await saveRun(state);
+    await saveRunUnlocked(state);
     return state;
   });
 }
@@ -906,6 +1149,9 @@ export function advanceEvidenceWorkflow(
 export function startStage(runId: string, stage: Stage): Promise<RunState> {
   return withRunLock(runId, async () => {
     const state = await loadRun(runId);
+    if (state.templateFallback) {
+      throw new Error("a run linked to a template fallback is terminal and immutable");
+    }
     const prior = state.stages[stage];
     state.stages[stage] = {
       status: "running",
@@ -913,7 +1159,7 @@ export function startStage(runId: string, stage: Stage): Promise<RunState> {
       retries: prior?.retries ?? 0,
       gateRepairAttempts: prior?.gateRepairAttempts ?? 0,
     };
-    await saveRun(state);
+    await saveRunUnlocked(state);
     return state;
   });
 }
@@ -928,7 +1174,7 @@ export function finishStage(runId: string, stage: Stage): Promise<RunState> {
       finishedAt: new Date().toISOString(),
       error: undefined,
     };
-    await saveRun(state);
+    await saveRunUnlocked(state);
     return state;
   });
 }
@@ -951,7 +1197,7 @@ export function failStage(
       error,
       retries: (prior?.retries ?? 0) + 1,
     };
-    await saveRun(state);
+    await saveRunUnlocked(state);
     return state;
   });
 }
@@ -963,7 +1209,7 @@ export function claimBuildGateRepair(runId: string): Promise<boolean> {
     const built = state.stages.built;
     if ((built.gateRepairAttempts ?? 0) > 0) return false;
     built.gateRepairAttempts = 1;
-    await saveRun(state);
+    await saveRunUnlocked(state);
     return true;
   });
 }
@@ -979,7 +1225,7 @@ export function releaseBuildGateRepair(runId: string): Promise<void> {
   return withRunLock(runId, async () => {
     const state = await loadRun(runId);
     state.stages.built.gateRepairAttempts = 0;
-    await saveRun(state);
+    await saveRunUnlocked(state);
   });
 }
 
@@ -1006,7 +1252,7 @@ export async function addCost(runId: string, usd: number): Promise<RunState> {
     const s = await loadRun(runId);
     // round to a hundredth of a cent — avoids float grime accumulating across calls
     s.costUsd = Math.round((s.costUsd + usd) * 1e6) / 1e6;
-    await saveRun(s);
+    await saveRunUnlocked(s);
     return s;
   });
   if (state.costUsd > state.costCapUsd) {

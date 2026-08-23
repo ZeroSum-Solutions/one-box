@@ -16,7 +16,10 @@ import {
   type CandidateGateReceiptV1,
 } from "./contracts";
 import {
+  assertRunLayoutAuthority,
   candidatePaths,
+  LayoutAuthorityMismatchError,
+  loadRun,
   preparePromotedVisualQaUnderSiteAuthority,
   sitePaths,
   type CandidatePaths,
@@ -396,7 +399,20 @@ async function readProvenanceSnapshot(
   if (provenance.runId !== runId) {
     throw new Error("candidate provenance runId does not match its root");
   }
+  await assertCandidateAuthorityMatchesRun(runId, provenance);
   return { provenance, bytesSha256: sha256(bytes) };
+}
+
+async function assertCandidateAuthorityMatchesRun(
+  runId: string,
+  provenance: CandidateProvenanceV1,
+): Promise<void> {
+  const run = await loadRun(runId);
+  assertRunLayoutAuthority(
+    run,
+    provenance.layoutAuthority,
+    "candidate provenance",
+  );
 }
 
 async function assertClosedCandidateRoot(
@@ -757,6 +773,12 @@ export function recoverCandidateState(runId: string): Promise<CandidateRecoveryR
       inspection = await recoverCanonicalCandidate(runId, leftovers);
     } catch (error) {
       const reason = error instanceof Error ? error.message : "candidate validation failed";
+      if (error instanceof LayoutAuthorityMismatchError) {
+        return {
+          action: "blocked",
+          reason: boundedRecoveryReason(reason),
+        };
+      }
       const abandoned = await abandonInvalidCanonicalCandidate(runId, reason);
       if (abandoned) return abandoned;
       return recordRecovery(runId, {
@@ -851,6 +873,12 @@ export function recoverCandidateState(runId: string): Promise<CandidateRecoveryR
         state: inspection.provenance.state,
       });
     } catch (error) {
+      if (error instanceof LayoutAuthorityMismatchError) {
+        return {
+          action: "blocked",
+          reason: boundedRecoveryReason(error.message),
+        };
+      }
       const reason = boundedRecoveryReason(
         error instanceof Error ? error.message : "candidate recovery failed",
       );
@@ -1027,6 +1055,7 @@ async function inspectPromotedBundleAtSite(
   const provenance = CandidateProvenanceV1Schema.parse(
     JSON.parse(provenanceBytes.toString("utf8")),
   );
+  await assertCandidateAuthorityMatchesRun(runId, provenance);
   const receipt = CandidateGateReceiptV1Schema.parse(
     JSON.parse(receiptBytes.toString("utf8")),
   );
@@ -1157,6 +1186,7 @@ async function readPromotableCandidateSnapshot(
   const provenance = CandidateProvenanceV1Schema.parse(
     JSON.parse(provenanceBytes.toString("utf8")),
   );
+  await assertCandidateAuthorityMatchesRun(runId, provenance);
   const receipt = CandidateGateReceiptV1Schema.parse(
     JSON.parse(receiptBytes.toString("utf8")),
   );

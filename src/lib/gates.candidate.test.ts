@@ -20,7 +20,7 @@ import { runPipeline } from "./pipeline";
 import {
   candidatePaths,
   claimBuildGateRepair,
-  createRun,
+  ensureRun,
   loadRun,
   sitePaths,
 } from "./runstate";
@@ -151,6 +151,7 @@ function provenance(
 }
 
 async function createReadyCandidate(runId: string) {
+  await ensureRun(runId, { pipelineVersion: "legacy-v1" });
   const paths = candidatePaths(runId);
   await fs.mkdir(paths.site, { recursive: true });
   await fs.writeFile(
@@ -301,7 +302,7 @@ function candidateRepairApi() {
 
 async function createFailedRepairCandidate() {
   const runId = testRunId("repair");
-  await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+  await ensureRun(runId, { pipelineVersion: "legacy-v1" });
   const candidate = await createReadyCandidate(runId);
   gateHarness.state.contrastPass = false;
   const disposition = await gateBuiltCandidate(runId);
@@ -932,7 +933,7 @@ describe("failed candidate repair", () => {
   it("repairs only the candidate bundle and reruns the complete gate suite", async () => {
     const { gateAndRepairBuiltCandidate } = candidateRepairApi();
     const runId = testRunId("repair-full-suite");
-    await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+    await ensureRun(runId, { pipelineVersion: "legacy-v1" });
     const candidate = await createReadyCandidate(runId);
     const live = await writeLiveSentinels(runId);
     const approvedEvidence = path.join(

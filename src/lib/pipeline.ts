@@ -40,6 +40,7 @@ import {
   isResumeNoise,
 } from "./contracts";
 import {
+  assertRunLayoutAuthority,
   artifactApprovalState,
   loadRun,
   saveArtifact,
@@ -597,6 +598,13 @@ export async function runPipeline(
       }
       return;
     }
+
+    const authorityRun = await dependencies.loadRun(runId);
+    assertRunLayoutAuthority(
+      authorityRun,
+      "template-v1",
+      "current pipeline controller",
+    );
 
     const persistedHistory = await dependencies.readEvents(runId);
     const history = projectPipelineReplayEvents(persistedHistory);
