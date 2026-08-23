@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { WorkflowArtifactVersion } from "../lib/contracts";
+import {
+  WorkflowArtifactVersionSchema,
+  type WorkflowArtifactVersion,
+} from "../lib/contracts";
 import {
   ArtifactPreview,
   EvidenceWorkspace,
@@ -637,7 +640,16 @@ describe("EvidenceWorkspace PageIR Source Bundle review", () => {
   });
 
   it("yields an approved Source Bundle panel to the current human visual-QA review", () => {
-    const visualQa = {
+    const realChecks = (
+      ["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const
+    ).map((area) => ({
+      area,
+      status: "pass" as const,
+      ...(["desktop", "tablet", "mobile"].includes(area)
+        ? { evidencePath: `evidence/qa/v1/${area}.png` }
+        : {}),
+    }));
+    const visualQa = WorkflowArtifactVersionSchema.parse({
       version: 1,
       createdAt: "2026-08-23T12:01:00.000Z",
       artifactType: "visual-qa",
@@ -648,9 +660,9 @@ describe("EvidenceWorkspace PageIR Source Bundle review", () => {
       artifact: {
         sourceCssArchitectureVersion: 1,
         buildSha256: "f".repeat(64),
-        checks: [{ area: "desktop", status: "pass" }],
+        checks: realChecks,
       },
-    };
+    });
     const run = {
       ...pageIrBuildRun,
       evidenceWorkflow: { currentStage: "build", artifacts: [visualQa] },
@@ -669,6 +681,47 @@ describe("EvidenceWorkspace PageIR Source Bundle review", () => {
     expect(html).not.toContain("Begin named human review");
     expect(html).not.toContain("Approve PageIR Source Bundle");
     expect(html).not.toContain("Reject Source Bundle");
+  });
+
+  it("keeps an approved Source Bundle active while visual QA is only the pending placeholder", () => {
+    const pendingChecks = (
+      ["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const
+    ).map((area) => ({
+      area,
+      status: "pending" as const,
+      ...(["desktop", "tablet", "mobile"].includes(area)
+        ? { evidencePath: `evidence/qa/pending-${area}.png` }
+        : {}),
+    }));
+    const placeholder = WorkflowArtifactVersionSchema.parse({
+      version: 1,
+      createdAt: "2026-08-23T12:01:00.000Z",
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-23T12:01:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "f".repeat(64),
+        checks: pendingChecks,
+      },
+    });
+    const run = {
+      ...pageIrBuildRun,
+      evidenceWorkflow: { currentStage: "build", artifacts: [placeholder] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace
+        initialRun={run}
+        initialPageIrSourceReview={sourceReview("approved")}
+      />
+    );
+
+    expect(html).toContain("Reviewed by Devin");
+    expect(html).toContain('href="/?run=page-ir-run"');
+    expect(html).not.toContain("Submit for review");
+    expect(html).not.toContain("Human visual review");
   });
 
   it("blocks rejected and superseded bundles without approve or resume actions", () => {

@@ -145,6 +145,15 @@ export function pageIrSourceApprovalReady(
   return draft.humanAttestation && Object.values(draft.confirmations).every(Boolean);
 }
 
+function isRealVisualQaArtifact(
+  artifact: WorkflowArtifactVersion | undefined,
+): boolean {
+  return (
+    artifact?.artifactType === "visual-qa" &&
+    artifact.artifact.checks.every((check) => check.status !== "pending")
+  );
+}
+
 export function isPageIrSourceReviewActive(
   run: RunState,
   review: PageIrSourceReviewView | null,
@@ -152,7 +161,7 @@ export function isPageIrSourceReviewActive(
 ): boolean {
   const current = latestCurrentArtifact(run);
   const approvedReviewHasYieldedToVisualQa =
-    review?.state === "approved" && current?.artifactType === "visual-qa";
+    review?.state === "approved" && isRealVisualQaArtifact(current);
   return (
     !browsing &&
     run.layoutAuthority === "page-ir-v1" &&
@@ -1097,7 +1106,7 @@ export function EvidenceWorkspace({
     !browsing &&
       pageIrSourceReview?.state === "approved" &&
       pageIrSourceReview.humanReview &&
-      current?.artifactType === "visual-qa",
+      isRealVisualQaArtifact(current),
   );
   const canApproveAndContinue = Boolean(
     !legacyReadOnly &&
