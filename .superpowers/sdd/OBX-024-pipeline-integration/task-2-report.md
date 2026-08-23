@@ -4,7 +4,11 @@ Date: 2026-08-23
 
 Base: `2874118e00c33674cd61fe5f69692a8aa71be20e`
 
-Implementation commit: `c24dfc3` (`feat: add authority-aware PageIR candidate gates`)
+Code and test commits:
+
+- `c24dfc3` — `feat: add authority-aware PageIR candidate gates`
+- `fb96ff2` — `fix: ignore CSS token declaration lookalikes`
+- `acee3a1` — `test: define normalized token equivalence`
 
 ## Outcome
 
@@ -62,6 +66,10 @@ The final focused tests cover:
 - the complete PageIR authority suite without run-root `tokens.json` or
   `intake.json`, IR-derived selectors, receipt output, and live sentinels;
 - CSS-bound design-token enforcement;
+- CSS comment, quoted-content, and function-payload declaration-lookalike
+  rejection;
+- normalized color and first-font equivalence with different-value,
+  different-first-family, and named-color fail-closed boundaries;
 - missing, tampered, unbound, or hash-mismatched PageIR;
 - missing, tampered, wrong-version, linked, or token-less design contracts;
 - linked PageIR inputs;
@@ -71,18 +79,75 @@ The final focused tests cover:
 - a real compiled PageIR candidate in Playwright; and
 - all pre-existing template-v1 candidate behavior.
 
+## Grok 4.6 Pass A adjudication
+
+### Finding 1 — accepted and fixed
+
+The PageIR design-token binding initially used a raw declaration-shaped regular
+expression. A comment or quoted `content` value could therefore make a matching
+`cssVar` appear declared when it was not a CSS declaration. The initial review
+regression was RED:
+
+```text
+npm test -- src/lib/gates.candidate.test.ts -t 'lookalikes|normalized color'
+Test Files  1 failed (1)
+Tests       1 failed | 1 passed | 60 skipped (62)
+```
+
+The spoof case received `pass: true, details: []` instead of the three expected
+token-drift failures. A follow-up RED also proved that declaration-shaped text in
+an unquoted `url(...)` payload could be misread.
+
+The minimum fix masks comments, strings, parentheses, and brackets while
+preserving source positions, then recognizes custom properties only at declaration
+positions. The raw value is taken from the original CSS only after that structural
+match. A design token is authorized only when the exact `cssVar` has at least one
+real declaration and every declaration for that variable normalizes to the
+contract value.
+
+Focused GREEN:
+
+```text
+npm test -- src/lib/gates.candidate.test.ts -t 'lookalikes|normalized color'
+Test Files  1 passed (1)
+Tests       2 passed | 60 skipped (62)
+```
+
+### Finding 2 — rejected as stated; boundary locked by tests
+
+Requiring byte-identical design-contract and CSS values would contradict the
+frozen Task 2 rule: the exact `cssVar` must bind a **normalized value**. Token drift
+compares browser `getComputedStyle` output, so `#ffffff` and
+`rgb(255, 255, 255)` are the same rendered authority. CSS font-family matching
+likewise ignores quoting and ASCII case for the first family.
+
+The boundary test passed before the parser fix and remains green:
+
+- contract `#ffffff` accepts an actual declaration of
+  `rgb(255, 255, 255)`;
+- contract `ui-sans-serif` accepts a first family of `"UI-SANS-SERIF"`;
+- `#fffffe` does not authorize rendered white;
+- `system-ui, ui-sans-serif` does not authorize rendered `ui-sans-serif` because
+  the first family differs; and
+- the named declaration `white` remains fail-closed under the existing supported
+  hex/rgb normalization and does not authorize rendered white.
+
+This rejects the reviewer's byte-identity remedy while retaining its underlying
+non-widening concern through exact-variable, declaration-position, normalized-value,
+and first-family checks.
+
 ## Verification
 
 - Focused gate unit tests:
-  `npm test -- src/lib/gates.candidate.test.ts` — PASS, 1 file, 60 tests.
+  `npm test -- src/lib/gates.candidate.test.ts` — PASS, 1 file, 62 tests.
 - Candidate real-browser integration:
   `npm test -- src/lib/gates.candidate.integration.test.ts` — PASS, 1 file,
   2 tests.
 - Combined focused suite:
   `npm test -- src/lib/gates.candidate.test.ts src/lib/gates.candidate.integration.test.ts`
-  — PASS, 2 files, 62 tests.
+  — PASS, 2 files, 64 tests.
 - Full suite: `npm test` — PASS on the fresh final rerun, 80 files passed,
-  4 skipped; 962 tests passed, 4 skipped. The first attempt saw the unrelated
+  4 skipped; 964 tests passed, 4 skipped. The first attempt saw the unrelated
   cross-process timing test
   `imageLibrary > enforces the credit cap across processes with different request ids`
   fail once; that exact test passed immediately in isolation before the clean full
@@ -112,5 +177,6 @@ drift or modify the compiler to hide this incompatibility.
 ## Scope confirmation
 
 No pipeline, controller, API, UI, PageIR compiler, template builder, promotion,
-repair, or rollout file was changed. No model reviewer was invoked, and no push,
-PR, merge, or history amendment was performed.
+repair, or rollout file was changed. No additional model reviewer was invoked by
+the Task 2 implementation agent, and no push, PR, merge, or history amendment was
+performed.
