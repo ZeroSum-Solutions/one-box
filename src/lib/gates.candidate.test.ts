@@ -16,7 +16,13 @@ import {
 } from "./contracts";
 import { runCandidateGates } from "./gates";
 import { runPipeline } from "./pipeline";
-import { candidatePaths, createRun, loadRun, sitePaths } from "./runstate";
+import {
+  candidatePaths,
+  claimBuildGateRepair,
+  createRun,
+  loadRun,
+  sitePaths,
+} from "./runstate";
 
 const gateHarness = vi.hoisted(() => {
   const state = {
@@ -834,6 +840,22 @@ describe("candidate gates", () => {
 });
 
 describe("failed candidate repair", () => {
+  it("validates durable run authorization before a consumed-allowance return", async () => {
+    const { repairFailedCandidate } = candidateRepairApi();
+    const { runId } = await createFailedRepairCandidate();
+    expect(await claimBuildGateRepair(runId)).toBe(true);
+    const runFile = path.join(sitePaths(runId).root, "run.json");
+    const persisted = JSON.parse(await fs.readFile(runFile, "utf8"));
+    persisted.id = `other-${process.pid}`;
+    await fs.writeFile(runFile, JSON.stringify(persisted, null, 2));
+    const provider = vi.fn();
+
+    await expect(repairFailedCandidate(runId, provider)).rejects.toThrow(
+      /authorization does not match requested run/,
+    );
+    expect(provider).not.toHaveBeenCalled();
+  });
+
   it("repairs only the candidate bundle and reruns the complete gate suite", async () => {
     const { gateAndRepairBuiltCandidate } = candidateRepairApi();
     const runId = testRunId("repair-full-suite");

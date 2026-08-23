@@ -772,6 +772,7 @@ export async function repairFailedCandidate(
   runId: string,
   provider: CandidateRepairProvider,
 ): Promise<CandidateGateDisposition | undefined> {
+  await assertBuildAuthorized(sitePaths(runId).root, runId);
   const run = await loadRun(runId);
   if ((run.stages.built.gateRepairAttempts ?? 0) > 0) return undefined;
   const snapshot = await readFailedCandidateSnapshot(runId);
