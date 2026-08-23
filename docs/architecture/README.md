@@ -304,8 +304,10 @@ callback validation, refresh persistence, and the local connect flow.
 `src/lib/contracts.ts` is the only authority for the numeric-v1
 `ReferenceContractV1`, `LayoutProgramV1`, and `PageIRV1` schemas. Phase 1 is
 Website-only. The layout contract is a bounded normalized graph whose node ID is
-also its stable editor identity; it admits only document, landmark, section,
-group, and semantic slot nodes. Page IR carries inert content, typed token and
+also its stable editor identity. Editor IDs use the same bounded two-to-64
+character grammar at the Page IR, preview, and overlay boundaries; they never
+derive from DOM position or a generated selector. The graph admits only document,
+landmark, section, group, and semantic slot nodes. Page IR carries inert content, typed token and
 asset references, constrained call, email, scroll, and public-HTTPS actions,
 and page-level accessibility references. Recursive strict schemas plus bounded
 cross-reference validation reject unknown or executable field shapes, arbitrary
@@ -332,6 +334,16 @@ boundary does not repair compiled files or mutate the live site. Authoritative
 Page IR editing remains with OBX-031. Image is the only Phase 1 Page IR asset
 kind; video and arbitrary embeddable media are not part of v1.
 
+Each Page IR candidate provenance envelope carries one closed
+`PageIrEditorSourceMapV1`. Its sorted identity entries cover every layout node
+exactly once and bind those IDs to the persisted Page IR SHA-256, approved
+fixed-order lineage, and binding-set SHA-256. Creation and reuse revalidate that
+entire map before committing candidate bytes. Template provenance rejects the
+map. Legacy `page-ir-static@2` provenance remains parseable as legacy state, but
+cannot be silently reused as the current compiler; a ready candidate may migrate
+once through normal materialization, while failed, promotable, and promoted
+terminal candidates remain preserved.
+
 `src/lib/pageIrController.ts` owns the resumable Phase 1 PageIR build sequence.
 A dedicated per-run filesystem lock serializes the one orchestrator source call;
 its strict assetless result is bound to current approved upstream versions plus
@@ -348,10 +360,11 @@ existing attested all-pass human approval can permit completion.
 `src/lib/pageIrCompiler.ts` owns the next pure boundary: numeric-v1 Page IR plus
 an exact in-memory set of hash- and metadata-bound image bytes becomes a sorted
 static inventory, deterministic candidate manifest, and fixed
-`page-ir-static@2` compiler identity. The compiler reparses Page IR, renders the
+`page-ir-static@3` compiler identity. The compiler reparses Page IR, renders the
 layout graph from ordered child IDs, escapes inert content, emits no executable
-source, validates image magic, and returns bytes without reading, writing,
-publishing, or calling a provider. `src/lib/pageIrHash.ts` is the shared pure
+source, validates image magic, and returns bytes plus the sorted editor-identity
+entries without reading, writing, publishing, or calling a provider.
+`src/lib/pageIrHash.ts` is the shared pure
 authority for the canonical Page IR SHA-256 used by derivation and compilation.
 
 Page IR v1 tokens carry only IDs and categories, not approved client values or
@@ -365,11 +378,11 @@ no-JavaScript oracles from validated IR, and revalidate both authority snapshots
 before receipt publication. Template candidates retain their existing run-root
 token/intake and fixed-selector behavior. Token drift remains fail-closed: a PageIR
 design value is allowed only when its exact custom property and normalized value are
-declared in candidate `tokens.css`. `page-ir-static@2` declares its fixed canvas
+declared in candidate `tokens.css`. `page-ir-static@3` declares its fixed canvas
 background and consumes that token for the body and skip link; its fixed ink and
 font fallbacks are likewise consumed through compiler-owned properties. An exact
 compiled PageIR candidate therefore passes all nine gates without weakening token
-drift, and `page-ir-static@1` candidates are stale for materialization.
+drift, and earlier compiler candidates are never silently treated as current.
 
 ### Persisted layout authority and template fallback
 
