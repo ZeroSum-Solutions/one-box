@@ -6,7 +6,8 @@ import { compile } from "tailwindcss";
 import postcss from "postcss";
 import { chromium } from "playwright";
 import { buildSite } from "./builder";
-import { createRun, sitePaths } from "./runstate";
+import { buildAndPublishSiteFixture } from "../../test-support/buildSiteFixture";
+import { candidatePaths, createRun, saveArtifact, sitePaths } from "./runstate";
 import { withSiteAuthorityLock } from "./siteMutation";
 import {
   assertCanonicalTokenInventory,
@@ -437,6 +438,51 @@ describe("evidence artifact derivation", () => {
     30_000
   );
 
+  it("compiles an authorized build into the unserved candidate root", async () => {
+    const runId = await createRun({ pipelineVersion: "legacy-v1" });
+    const runRoot = sitePaths(runId).root;
+    const candidate = candidatePaths(runId);
+    temporaryDirectories.push(runRoot);
+    const skeleton = {
+      sections: [
+        { id: "nav", name: "Navigation", purpose: "wayfinding", contentNeeds: [] },
+        { id: "hero", name: "Hero", purpose: "conversion", contentNeeds: [] },
+        { id: "contact", name: "Contact", purpose: "conversion", contentNeeds: [] },
+        { id: "footer", name: "Footer", purpose: "chrome", contentNeeds: [] },
+      ],
+    };
+    const copy = {
+      sections: {
+        nav: { logo: "Northstar", phone: "555-0100" },
+        hero: { headline: "Proof first", sub: "Ready", cta: "Start", "image-alt": "Field work" },
+        contact: { headline: "Contact", sub: "Ready", cta: "Start" },
+        footer: { tagline: "Northstar" },
+      },
+    };
+    await saveArtifact(runId, "intake.json", intake);
+    await saveArtifact(runId, "tokens.json", tokens);
+    await saveArtifact(runId, "skeleton.json", skeleton);
+    await saveArtifact(runId, "copy.json", copy);
+
+    await buildSite({
+      runId,
+      intake,
+      tokens,
+      skeleton,
+      copy,
+      assets: {},
+    });
+
+    expect(await fs.readFile(path.join(candidate.site, "index.html"), "utf8"))
+      .toContain('data-project-target="website"');
+    expect(JSON.parse(await fs.readFile(candidate.provenance, "utf8"))).toMatchObject({
+      runId,
+      state: "ready-for-gates",
+      layoutAuthority: "template-v1",
+    });
+    await expect(fs.stat(sitePaths(runId).site)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("records passing visual QA at desktop, tablet, and mobile widths", async () => {
     const runId = await createRun({ pipelineVersion: "legacy-v1" });
     const runRoot = sitePaths(runId).root;
@@ -456,7 +502,7 @@ describe("evidence artifact derivation", () => {
     };
     const inventory = buildTokenInventory(runtimeTokens, 1, ["fixture"]);
     const plan = buildTailwindPlan(inventory, 1);
-    await buildSite({
+    await buildAndPublishSiteFixture({
       runId,
       intake,
       tokens: runtimeTokens,

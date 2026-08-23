@@ -1844,7 +1844,7 @@ export const ARTIFACTS = {
   tailwindPlan: "evidence/tailwind-plan.json",
   cssArchitecture: "evidence/css-architecture.json",
   visualQa: "evidence/visual-qa.json",
-  tailwindTheme: "site/tailwind-theme.css",
+  tailwindTheme: "evidence/approved/runtime-tailwind-theme.css",
   tokens: "tokens.json",
   skeleton: "skeleton.json",
   copy: "copy.json",

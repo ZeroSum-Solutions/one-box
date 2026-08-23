@@ -50,8 +50,6 @@ import {
   failStage,
   stageDone,
   appendEvent,
-  claimBuildGateRepair,
-  releaseBuildGateRepair,
   readEvents,
   saveEvidenceArtifactVersion,
   withRunTransaction,
@@ -82,9 +80,9 @@ import {
 } from "./tools/refero";
 import { generateImage } from "./tools/higgsfield";
 import { localLibraryCandidates, localLibraryRecord } from "./tools/locallib";
-import { buildSite } from "./builder";
+import { buildSite, gateBuiltCandidate } from "./builder";
+import { inspectCandidate } from "./candidate";
 import { assertWebsiteProductionRun } from "./productionTarget";
-import { runGates } from "./gates";
 import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
   buildCssArchitecture,
@@ -521,6 +519,7 @@ interface RunPipelineDependencies {
   loadRun: typeof loadRun;
   loadArtifact: typeof loadArtifact;
   appendEvent: typeof appendEvent;
+  inspectCandidate?: typeof inspectCandidate;
   executePipeline: typeof executePipeline;
 }
 
@@ -529,6 +528,7 @@ const defaultRunPipelineDependencies: RunPipelineDependencies = {
   loadRun,
   loadArtifact,
   appendEvent,
+  inspectCandidate,
   executePipeline,
 };
 
@@ -586,6 +586,12 @@ export async function runPipeline(
   // Nothing left to execute: replaying the log IS the response. Re-running the
   // controller here would only re-emit "resumed from checkpoint" noise.
   const run = await dependencies.loadRun(runId);
+  const candidate = await (
+    dependencies.inspectCandidate ?? inspectCandidate
+  )(runId);
+  const candidateAwaitingPromotion =
+    candidate.status === "present" &&
+    candidate.provenance.state === "promotable";
   const gatedComplete =
     run.pipelineVersion === "evidence-gated-v2" &&
     run.stages.built.status === "done" &&
@@ -597,7 +603,8 @@ export async function runPipeline(
     );
   if (
     gatedComplete ||
-    (run.pipelineVersion === "legacy-v1" &&
+    (!candidateAwaitingPromotion &&
+      run.pipelineVersion === "legacy-v1" &&
       PIPELINE_STAGES.every((name) => run.stages[name]?.status === "done"))
   ) {
     replayHistory(true);
@@ -760,6 +767,13 @@ async function executeLegacyPipeline(runId: string, emit: Emit) {
     await stage(runId, "built", emit, () =>
       stageBuild(runId, intake, synth, emit)
     );
+    const candidate = await inspectCandidate(runId);
+    if (
+      candidate.status === "present" &&
+      candidate.provenance.state === "promotable"
+    ) {
+      return;
+    }
     const run = await loadRun(runId);
     emit({ type: "cost", usd: run.costUsd });
     emit({
@@ -1105,6 +1119,13 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
         tailwindComponentUtilityClasses(approvedPlan.artifact)
       )
     );
+    const candidate = await inspectCandidate(runId);
+    if (
+      candidate.status === "present" &&
+      candidate.provenance.state === "promotable"
+    ) {
+      return;
+    }
     const qa = await runThreeWidthVisualQa(
       runId,
       sitePaths(runId).site,
@@ -2429,48 +2450,15 @@ async function stageBuild(
     tailwindThemeCss,
     tailwindUtilityClasses,
   });
-  emit({ type: "card", stage: "built", title: "Site assembled", body: "Running quality gates…" });
+  emit({ type: "card", stage: "built", title: "Candidate assembled", body: "Running quality gates before publication…" });
 
-  let reports = await runGates(runId, {});
-  const failing = reports.filter((r) => r.blocking && !r.pass);
-  const repairClaimed =
-    failing.length > 0 && (await claimBuildGateRepair(runId));
-  if (repairClaimed) {
-    // one repair cycle: builder model gets the gate report + files, patches
-    emit({
-      type: "card",
-      stage: "built",
-      title: `${failing.length} gate(s) failing — repairing`,
-      body: failing.map((f) => `${f.gate}: ${f.details.slice(0, 2).join("; ")}`).join("\n"),
-    });
-    const sitePath = path.join(sitePaths(runId).site, "index.html");
-    const css = path.join(sitePaths(runId).site, "tokens.css");
-    const html = await fs.readFile(sitePath, "utf8");
-    const cssText = await fs.readFile(css, "utf8");
-    // A repair call that throws bought no fix, so it must not spend the one
-    // allowance — otherwise a transient timeout makes the run unfinishable.
-    let fix;
-    try {
-      fix = await generateJson(
-        runId,
-        MODELS.builder,
-        z.object({ files: z.array(z.object({ path: z.enum(["index.html", "tokens.css"]), content: z.string() })) }),
-        `Fix ONLY these gate failures with minimal diffs. Preserve every data-edit-id. Failures:\n${JSON.stringify(failing)}\n\nindex.html:\n${html}\n\ntokens.css:\n${cssText}`
-      );
-    } catch (cause) {
-      await releaseBuildGateRepair(runId);
-      throw cause;
-    }
-    for (const f of fix.files) {
-      await fs.writeFile(path.join(sitePaths(runId).site, f.path), f.content);
-    }
-    reports = await runGates(runId, {});
-  }
+  const disposition = await gateBuiltCandidate(runId);
+  const reports = disposition.receipt.reports;
   const stillFailing = reports.filter((r) => r.blocking && !r.pass);
   emit({
     type: "card",
     stage: "built",
-    title: stillFailing.length ? `Gates: ${stillFailing.length} still failing after repair` : "All blocking gates green",
+    title: stillFailing.length ? `Gates: ${stillFailing.length} blocking failure(s)` : "Candidate passed all blocking gates",
     // `gates` renders the structured pass/fail row list; `body` stays as the
     // plain-text fallback for any consumer replaying an events.jsonl line
     // recorded before this field existed.
@@ -2481,9 +2469,15 @@ async function stageBuild(
   // (audit P1). The stage stays failed and resumable, never published green.
   if (stillFailing.length) {
     throw new Error(
-      `blocking gates failing after repair: ${stillFailing.map((r) => r.gate).join(", ")}`
+      `blocking candidate gates failed: ${stillFailing.map((r) => r.gate).join(", ")}`
     );
   }
+  emit({
+    type: "card",
+    stage: "built",
+    title: "Candidate ready for promotion",
+    body: "The verified candidate is not live. Atomic promotion remains pending.",
+  });
 }
 
 // ---------- helpers ----------

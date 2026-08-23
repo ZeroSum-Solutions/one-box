@@ -1,7 +1,7 @@
 ---
 id: OBX-012
 title: Move initial build and rebuild behind gate-before-publish
-status: ready
+status: verified
 priority: P0
 epic: Candidate
 depends_on: [OBX-010, OBX-011]

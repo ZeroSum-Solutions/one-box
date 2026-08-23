@@ -1,8 +1,12 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { buildSite, deriveTextMuted, findDanglingTokenRefs, publishBuild } from "./builder";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildSite, deriveTextMuted, findDanglingTokenRefs } from "./builder";
+import {
+  buildAndPublishSiteFixture,
+  publishBuildFixture,
+} from "../../test-support/buildSiteFixture";
 
 describe("Website-only builds", () => {
   it.each(["web-app", "ios-app"] as const)(
@@ -24,6 +28,31 @@ describe("Website-only builds", () => {
       await expect(fs.stat(staging)).rejects.toMatchObject({ code: "ENOENT" });
     }
   );
+
+  it("fails closed before writing when durable run authorization is absent", async () => {
+    const runId = `obx012-auth-${process.pid}`;
+    const runRoot = path.join(process.cwd(), "sites", runId);
+    await fs.rm(runRoot, { recursive: true, force: true });
+
+    await expect(
+      buildSite({
+        runId,
+        intake: { projectTarget: "website" },
+      } as Parameters<typeof buildSite>[0])
+    ).rejects.toThrow("durable run authorization is required");
+    await expect(fs.stat(runRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("makes the fixture publication helper unreachable in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      await expect(
+        buildAndPublishSiteFixture({} as Parameters<typeof buildSite>[0])
+      ).rejects.toThrow("test-only builder fixture is disabled in production");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 // ENG-008. A generated site shipped `--border-subtle: 1px solid
@@ -162,7 +191,7 @@ describe("deriveTextMuted", () => {
   });
 });
 
-describe("publishBuild", () => {
+describe("publishBuildFixture", () => {
   const roots: string[] = [];
   afterEach(async () =>
     Promise.all(roots.splice(0).map((r) => fs.rm(r, { recursive: true, force: true })))
@@ -185,7 +214,7 @@ describe("publishBuild", () => {
 
   it("publishes a first build", async () => {
     const { publishDir, stagingDir } = await staged();
-    await publishBuild(stagingDir, publishDir);
+    await publishBuildFixture(stagingDir, publishDir);
     expect(await fs.readFile(path.join(publishDir, "index.html"), "utf8")).toBe("new");
   });
 
@@ -193,7 +222,7 @@ describe("publishBuild", () => {
     // A plain copy-over would leave stale.css behind, still served and still
     // listed by nothing — the manifest would disagree with the directory.
     const { root, publishDir, stagingDir } = await staged("old");
-    await publishBuild(stagingDir, publishDir);
+    await publishBuildFixture(stagingDir, publishDir);
     expect(await fs.readFile(path.join(publishDir, "index.html"), "utf8")).toBe("new");
     expect(await fs.readdir(publishDir)).toEqual(["index.html"]);
     expect(await fs.readdir(root)).toEqual(["site"]); // staging and retired both gone
@@ -201,9 +230,9 @@ describe("publishBuild", () => {
 
   it("leaves the previous build serving when the staged one never arrives", async () => {
     // The property the staging directory exists for: buildSite throws before
-    // it ever calls publishBuild, so the live site is untouched.
+    // it ever calls publishBuildFixture, so the live site is untouched.
     const { publishDir } = await staged("old");
-    await expect(publishBuild(path.join(publishDir, "..", "nope"), publishDir)).rejects.toThrow();
+    await expect(publishBuildFixture(path.join(publishDir, "..", "nope"), publishDir)).rejects.toThrow();
     expect(await fs.readFile(path.join(publishDir, "index.html"), "utf8")).toBe("old");
   });
 });

@@ -117,6 +117,33 @@ repair, promotion, crash recovery, and final cross-process locking remain
 separate consumers of this contract and are not performed by the candidate or
 gate modules.
 
+`src/lib/builder.ts` compiles the frozen template only into that closed
+candidate root. Production compilation requires a durable `run.json` plus
+stable regular-file copies of the supplied intake, tokens, skeleton, copy,
+approved runtime Tailwind theme when present, and run-owned hero asset when
+present. Their exact bytes are hash-bound in candidate provenance. The approved
+runtime Tailwind theme lives at
+`evidence/approved/runtime-tailwind-theme.css`; compilation copies it into the
+candidate bundle but never writes it into the live site. Standalone tests and
+browser fixtures use `test-support/buildSiteFixture.ts`, whose explicit live
+copy/swap helper rejects production runtime use and is not imported by app or
+pipeline routes.
+
+After compilation, `gateBuiltCandidate(runId)` reuses
+`runCandidateGates(runId)` and moves `ready-for-gates` to `failed` when any
+blocking report fails or to `promotable` when all blocking reports pass. It
+re-reads, parses, binds, and hashes the exact candidate receipt immediately
+before the provenance transition. Receipt publication and provenance
+disposition are one same-process transaction: if the provenance rename fails,
+the prior receipt bytes and provenance bytes, or their prior absence, are
+restored exactly. If gate execution throws before a receipt exists, provenance
+becomes `failed` without inventing a receipt or hash. Initial failure leaves no
+served site; rebuild failure leaves the complete live inventory and canonical
+run-root gate report unchanged. A promotable candidate is still unserved, and
+the pipeline stops before visual QA or a live-complete event. OBX-014 owns
+promotion and resumption of the existing visual-QA flow; OBX-015 owns
+cross-process locking and crash recovery.
+
 `events.jsonl` is the append-only audit record, not the UI view model. Reconnect
 streams project it into one current journey, suppress superseded terminal events
 and repeated narrative cards, attach to in-flight emissions, and flush queued

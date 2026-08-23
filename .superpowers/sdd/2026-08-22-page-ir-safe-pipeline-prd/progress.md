@@ -72,3 +72,16 @@
   134 passed, including the real Playwright path. Full suite: 600 passed,
   2 skipped. Typecheck and lint pass; security review: PASS with no findings.
   OBX-015 retains ownership of the final cross-process lock window.
+- OBX-012: verified. Production builds require durable run/input authorization,
+  compile only into the fixed unserved candidate, run the OBX-011 full gate
+  suite, and disposition the OBX-010 lifecycle as `failed` or `promotable`
+  without live publication. Initial blocking failure leaves no served site;
+  rebuild failure preserves exact live inventory and canonical live gate-report
+  bytes/hashes. Same-process disposition failure restores exact prior candidate
+  receipt/provenance bytes or absence, while a thrown gate run records `failed`
+  without a fabricated receipt/hash. The pipeline stops before existing visual
+  QA or live-complete semantics; OBX-014 still owns promotion and OBX-015 owns
+  cross-process recovery/locking. Focused candidate verification: 18 passed.
+  Full suite: 610 passed, 2 skipped. Typecheck and lint pass; security review:
+  PASS with no findings. The legacy smoke command remains baseline-blocked on
+  Node 26 strip-only handling of `productionTarget.ts` before fixture execution.

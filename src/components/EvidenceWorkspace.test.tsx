@@ -224,7 +224,9 @@ describe("EvidenceWorkspace artifact previews", () => {
     const css = render({ ...base, artifactType: "css-architecture", artifact: { sourceTailwindPlanVersion: 2, cssVariableHierarchy: ["tokens"], tokenToComponentUsage: { "--color-primary": ["button"] }, justifiedExceptions: [], generatedCssPath: "site/tailwind-utilities.css" } });
     expect(css).toContain("versioned CSS architecture JSON");
     expect(css).toContain("Generated Tailwind theme source (@theme mapping)");
-    expect(css).toContain("/api/sites/run-test/tailwind-theme.css");
+    expect(css).toContain(
+      "/api/sites/run-test/evidence/approved/runtime-tailwind-theme.css",
+    );
     expect(css).toContain("Compiled Tailwind utility output");
     expect(css).toContain("/api/sites/run-test/tailwind-utilities.css");
 

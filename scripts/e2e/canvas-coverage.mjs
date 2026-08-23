@@ -54,7 +54,7 @@ registerHooks({
   },
 });
 
-const { buildSite } = await import("../../src/lib/builder.ts");
+const { buildAndPublishSiteFixture } = await import("../../test-support/buildSiteFixture.ts");
 
 const base = process.env.ONEBOX_BASE_URL ?? "http://localhost:3000";
 const root = process.cwd();
@@ -719,9 +719,8 @@ const ASSERTIONS = {
 async function main() {
   await fs.rm(runRoot, { recursive: true, force: true });
   await fs.mkdir(runRoot, { recursive: true });
-  // A minimal legacy-v1 run.json — not required by buildSite itself (a
-  // missing run.json is treated as a standalone fixture), but the
-  // composer-reach assertion drives the real "Ask about your site" tool,
+  // A minimal legacy-v1 run.json keeps the fixture aligned with the
+  // composer-reach assertion, which drives the real "Ask about your site" tool,
   // whose GET /api/assistant/<id> route 404s without one. Writing it keeps
   // that assertion honest about the assistant tool's real composer state
   // instead of an artifact of an incomplete fixture.
@@ -741,7 +740,7 @@ async function main() {
     referenceMode: "none",
   };
   await fs.writeFile(path.join(runRoot, "run.json"), JSON.stringify(runState, null, 2));
-  await buildSite({ runId, intake, tokens, skeleton, copy, assets: {} });
+  await buildAndPublishSiteFixture({ runId, intake, tokens, skeleton, copy, assets: {} });
 
   const browser = await chromium.launch();
   const results = [];

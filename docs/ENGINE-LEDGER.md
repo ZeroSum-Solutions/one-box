@@ -91,6 +91,14 @@ is unmistakably incomplete rather than plausible. Covered by three
 `publishBuild` tests, including replace-not-merge (a copy-over would leave
 stale files the manifest no longer lists).
 
+OBX-012 supersedes that interim publication boundary. Production `buildSite`
+now requires a durable authorized run, compiles into the fixed unserved
+`candidate/site/` root, and stops at `ready-for-gates`. The old directory-swap
+behavior survives only in the guarded test fixture helper. The candidate runs
+the full candidate gate suite and becomes `failed` or `promotable`; neither
+outcome mutates the live site, and promotion remains a separate OBX-014
+operation.
+
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and
 the workspace concatenated them into `/api/sites/<id>//Users/…`. Fixed at the

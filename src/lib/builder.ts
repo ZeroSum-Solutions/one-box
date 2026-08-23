@@ -1,16 +1,19 @@
 /**
- * Renders the FROZEN templates/local-service/ skeleton into a static site
- * under sites/<runId>/site/. Parameterizes tokens + copy + skeleton — never
- * invents structure (audit B6). See WAVE-NOTES-buildgate.md for the full
- * field contract (CSS var naming, CopyDoc key convention, deviations).
+ * Renders the FROZEN templates/local-service/ skeleton into an unserved
+ * candidate under sites/<runId>/candidate/site/. Parameterizes tokens + copy
+ * + skeleton — never invents structure (audit B6). See
+ * WAVE-NOTES-buildgate.md for the full field contract (CSS var naming,
+ * CopyDoc key convention, deviations).
  *
- * Path resolution is self-contained (no import from ./runstate): that
- * module is owned by a different wave and did not exist yet at the time
- * this file was written, and buildSite must work standalone for
- * scripts/smoke/gates-smoke.mjs regardless of build order across waves.
+ * Production compilation requires a durable run and matching durable input
+ * artifacts. Standalone consumers must use the explicitly test-only fixture
+ * helper; production code never publishes from this module.
  */
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile, copyFile, rename, rm, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import fs from "node:fs/promises";
+import { mkdir, open, readFile, writeFile, copyFile, rename, rm, stat, lstat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { compile } from "tailwindcss";
@@ -21,6 +24,13 @@ const execFileAsync = promisify(execFile);
 import {
   SITES_DIR,
   SITE_DIR,
+  ARTIFACTS,
+  CandidateGateReceiptV1Schema,
+  CandidateProvenanceV1Schema,
+  CopyDocSchema,
+  DesignTokensSchema,
+  IntakeSchema,
+  SkeletonSpecSchema,
   SiteManifestSchema,
   RunStateSchema,
   workflowArtifactApprovalState,
@@ -28,11 +38,23 @@ import {
   type SkeletonSpec,
   type CopyDoc,
   type Intake,
+  type CandidateProvenanceV1,
   type SiteManifest,
 } from "./contracts";
+import {
+  candidateManifestSha256,
+  createCandidateManifest,
+  inspectCandidate,
+  transitionCandidateProvenance,
+} from "./candidate";
+import { candidatePaths, sitePaths } from "./runstate";
+import { runCandidateGates, type CandidateGateRunResult } from "./gates";
 
 const TEMPLATE_DIR = path.join(process.cwd(), "templates", "local-service");
 const RUN_ID_RE = /^[a-z0-9_-]{4,40}$/i;
+const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
+const NONBLOCK = constants.O_NONBLOCK ?? 0;
+const READ_FLAGS = constants.O_RDONLY | NOFOLLOW | NONBLOCK;
 
 // Sections the template always renders regardless of skeleton content (nav
 // and footer are chrome, hero and contact carry the primary conversion
@@ -73,11 +95,202 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   assertWebsiteProductionTarget(input.intake.projectTarget);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
   await assertBuildAuthorized(runRoot);
-  const publishDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
-  // Build into a staging directory and swap it in at the end (ENG-005).
-  // Writing into the live directory meant a rebuild dismantled the site that
-  // was being served, and a build that failed halfway left it that way.
-  const siteDir = `${publishDir}.building`;
+  const inputArtifactHashes = await authorizedInputHashes(runRoot, input);
+  const paths = candidatePaths(runId);
+  const stagingRoot = `${paths.root}.building-${process.pid}-${Date.now()}`;
+  const siteDir = path.join(stagingRoot, SITE_DIR);
+  await rm(stagingRoot, { recursive: true, force: true });
+  try {
+    const siteManifest = await compileSiteToDirectory(input, siteDir);
+    const candidateManifest = await createCandidateManifest(siteDir);
+    const createdAt = new Date().toISOString();
+    const preparing = CandidateProvenanceV1Schema.parse({
+      schemaVersion: 1,
+      candidateId: "candidate-v1",
+      runId,
+      createdAt,
+      state: "preparing",
+      history: [{ state: "preparing", at: createdAt }],
+      inputArtifactHashes,
+      layoutAuthority: "template-v1",
+      compilerVersion: "template-compiler@1",
+    });
+    const ready = transitionCandidateProvenance(
+      preparing,
+      "ready-for-gates",
+      new Date().toISOString(),
+      {
+        candidateManifestSha256: candidateManifestSha256(candidateManifest),
+        buildSha256: candidateManifest.buildSha256,
+      },
+    );
+    await writeFile(
+      path.join(stagingRoot, "manifest.json"),
+      JSON.stringify(candidateManifest, null, 2),
+      "utf8",
+    );
+    await writeFile(
+      path.join(stagingRoot, "provenance.json"),
+      JSON.stringify(ready, null, 2),
+      "utf8",
+    );
+    await replaceDirectory(stagingRoot, paths.root);
+    return siteManifest;
+  } catch (error) {
+    await rm(stagingRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export type CandidateGateDisposition = CandidateGateRunResult & {
+  state: "failed" | "promotable";
+};
+
+async function atomicWriteCandidateProvenance(
+  filePath: string,
+  provenance: CandidateProvenanceV1,
+): Promise<void> {
+  const temporary = path.join(
+    path.dirname(path.dirname(filePath)),
+    `.candidate-provenance.${process.pid}.${Date.now()}.tmp`,
+  );
+  try {
+    await fs.writeFile(temporary, JSON.stringify(provenance, null, 2), "utf8");
+    await fs.rename(temporary, filePath);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+function isEnoent(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
+}
+
+async function readOptionalStableBuildInput(
+  filePath: string,
+  label: string,
+): Promise<Buffer | undefined> {
+  try {
+    return await readStableBuildInput(filePath, label);
+  } catch (error) {
+    if (isEnoent(error)) return undefined;
+    throw error;
+  }
+}
+
+async function restoreCandidateReceipt(
+  runRoot: string,
+  receiptPath: string,
+  priorBytes: Buffer | undefined,
+): Promise<void> {
+  if (!priorBytes) {
+    await fs.rm(receiptPath, { force: true });
+    return;
+  }
+  const temporary = path.join(
+    runRoot,
+    `.candidate-receipt-restore.${process.pid}.${Date.now()}.tmp`,
+  );
+  try {
+    await fs.writeFile(temporary, priorBytes, { flag: "wx" });
+    await fs.rename(temporary, receiptPath);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+export async function gateBuiltCandidate(
+  runId: string,
+): Promise<CandidateGateDisposition> {
+  const inspection = await inspectCandidate(runId);
+  if (
+    inspection.status !== "present" ||
+    !inspection.manifest ||
+    inspection.provenance.state !== "ready-for-gates"
+  ) {
+    throw new Error("candidate must be ready-for-gates before disposition");
+  }
+  const paths = candidatePaths(runId);
+  const provenanceBefore = await readStableBuildInput(
+    paths.provenance,
+    "candidate provenance",
+  );
+  const priorReceipt = await readOptionalStableBuildInput(
+    paths.gates,
+    "candidate gate receipt",
+  );
+  let result: CandidateGateRunResult;
+  try {
+    result = await runCandidateGates(runId);
+  } catch (error) {
+    await atomicWriteCandidateProvenance(
+      inspection.paths.provenance,
+      transitionCandidateProvenance(
+        inspection.provenance,
+        "failed",
+        new Date().toISOString(),
+      ),
+    );
+    throw error;
+  }
+  try {
+    const receiptBytes = await readStableBuildInput(
+      paths.gates,
+      "candidate gate receipt",
+    );
+    const receipt = CandidateGateReceiptV1Schema.parse(
+      JSON.parse(receiptBytes.toString("utf8")),
+    );
+    if (
+      sha256(receiptBytes) !== result.gateReportSha256 ||
+      JSON.stringify(receipt) !== JSON.stringify(result.receipt) ||
+      receipt.runId !== runId ||
+      receipt.candidateManifestSha256 !==
+        inspection.provenance.candidateManifestSha256 ||
+      receipt.buildSha256 !== inspection.provenance.buildSha256
+    ) {
+      throw new Error("candidate gate receipt does not match the compiled candidate");
+    }
+    const state = receipt.reports.some(
+      (report) => report.blocking && !report.pass,
+    )
+      ? "failed"
+      : "promotable";
+    const provenance = transitionCandidateProvenance(
+      inspection.provenance,
+      state,
+      new Date().toISOString(),
+      { gateReportSha256: result.gateReportSha256 },
+    );
+    if (
+      !(await readStableBuildInput(paths.provenance, "candidate provenance"))
+        .equals(provenanceBefore) ||
+      !(await readStableBuildInput(paths.gates, "candidate gate receipt"))
+        .equals(receiptBytes)
+    ) {
+      throw new Error("candidate disposition inputs changed before publication");
+    }
+    await atomicWriteCandidateProvenance(paths.provenance, provenance);
+    return { ...result, receipt, state };
+  } catch (error) {
+    await restoreCandidateReceipt(
+      sitePaths(runId).root,
+      paths.gates,
+      priorReceipt,
+    );
+    throw error;
+  }
+}
+
+async function compileSiteToDirectory(
+  input: BuildSiteInput,
+  siteDir: string,
+): Promise<SiteManifest> {
   await rm(siteDir, { recursive: true, force: true }); // discard a crashed build's leftovers
   await mkdir(path.join(siteDir, "assets"), { recursive: true });
 
@@ -189,27 +402,17 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     complete: true,
   });
   await writeManifest(siteDir, manifest);
-  await publishBuild(siteDir, publishDir);
   return manifest;
 }
 
-/**
- * Swaps the staged build over the live one.
- *
- * Two renames rather than one, because POSIX rename() refuses to replace a
- * non-empty directory. The live copy is moved aside first and only deleted
- * once the new one is in place; if the second rename fails, the old site is
- * put back. A build that fails must leave the previous site serving — that is
- * the entire reason the staging directory exists.
- */
-export async function publishBuild(stagingDir: string, publishDir: string): Promise<void> {
-  const retired = `${publishDir}.retired-${process.pid}`;
-  const hadPrevious = await stat(publishDir).then(() => true).catch(() => false);
-  if (hadPrevious) await rename(publishDir, retired);
+async function replaceDirectory(stagingDir: string, targetDir: string): Promise<void> {
+  const retired = `${targetDir}.retired-${process.pid}-${Date.now()}`;
+  const hadPrevious = await stat(targetDir).then(() => true).catch(() => false);
+  if (hadPrevious) await rename(targetDir, retired);
   try {
-    await rename(stagingDir, publishDir);
+    await rename(stagingDir, targetDir);
   } catch (error) {
-    if (hadPrevious) await rename(retired, publishDir).catch(() => {});
+    if (hadPrevious) await rename(retired, targetDir).catch(() => {});
     throw error;
   }
   if (hadPrevious) await rm(retired, { recursive: true, force: true });
@@ -241,6 +444,116 @@ export function decorateTargetMarkup(
     );
 }
 
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, child]) => [key, canonicalize(child)]),
+    );
+  }
+  return value;
+}
+
+function sha256(bytes: string | Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+async function readStableBuildInput(
+  filePath: string,
+  label: string,
+): Promise<Buffer> {
+  const initial = await lstat(filePath, { bigint: true });
+  if (initial.isSymbolicLink() || !initial.isFile() || initial.nlink > BigInt(1)) {
+    throw new Error(`${label} must be one regular non-linked file`);
+  }
+  const handle = await open(filePath, READ_FLAGS);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (
+      !opened.isFile() ||
+      opened.nlink > BigInt(1) ||
+      opened.dev !== initial.dev ||
+      opened.ino !== initial.ino ||
+      opened.size !== initial.size
+    ) {
+      throw new Error(`${label} changed before compilation`);
+    }
+    const bytes = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+    if (
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size
+    ) {
+      throw new Error(`${label} changed during compilation authorization`);
+    }
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function authorizedInputHashes(
+  runRoot: string,
+  input: BuildSiteInput,
+): Promise<Array<{ path: string; sha256: string }>> {
+  const jsonInputs = [
+    { path: ARTIFACTS.copy, schema: CopyDocSchema, value: input.copy },
+    { path: ARTIFACTS.intake, schema: IntakeSchema, value: input.intake },
+    { path: ARTIFACTS.skeleton, schema: SkeletonSpecSchema, value: input.skeleton },
+    { path: ARTIFACTS.tokens, schema: DesignTokensSchema, value: input.tokens },
+  ] as const;
+  const hashes: Array<{ path: string; sha256: string }> = [];
+  for (const artifact of jsonInputs) {
+    const bytes = await readStableBuildInput(
+      path.join(runRoot, artifact.path),
+      `build input ${artifact.path}`,
+    );
+    const persisted = artifact.schema.parse(JSON.parse(bytes.toString("utf8")));
+    const supplied = artifact.schema.parse(artifact.value);
+    if (
+      JSON.stringify(canonicalize(persisted)) !==
+      JSON.stringify(canonicalize(supplied))
+    ) {
+      throw new Error(`build input ${artifact.path} does not match its durable artifact`);
+    }
+    hashes.push({ path: artifact.path, sha256: sha256(bytes) });
+  }
+  if (input.tailwindThemeCss) {
+    const bytes = await readStableBuildInput(
+      path.join(runRoot, ARTIFACTS.tailwindTheme),
+      `build input ${ARTIFACTS.tailwindTheme}`,
+    );
+    if (bytes.toString("utf8") !== input.tailwindThemeCss) {
+      throw new Error(
+        `build input ${ARTIFACTS.tailwindTheme} does not match its durable artifact`,
+      );
+    }
+    hashes.push({ path: ARTIFACTS.tailwindTheme, sha256: sha256(bytes) });
+  }
+  if (input.assets.heroImagePath) {
+    const absoluteHero = path.resolve(input.assets.heroImagePath);
+    const relativeHero = path.relative(runRoot, absoluteHero).split(path.sep).join("/");
+    if (
+      relativeHero.startsWith("../") ||
+      relativeHero === ".." ||
+      !relativeHero.startsWith("assets/")
+    ) {
+      throw new Error("hero image must be a run-owned asset");
+    }
+    hashes.push({
+      path: relativeHero,
+      sha256: sha256(await readStableBuildInput(absoluteHero, "hero image")),
+    });
+  }
+  hashes.sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  );
+  return hashes;
+}
+
 export async function assertBuildAuthorized(runRoot: string): Promise<void> {
   let raw: string;
   try {
@@ -252,7 +565,7 @@ export async function assertBuildAuthorized(runRoot: string): Promise<void> {
       "code" in error &&
       error.code === "ENOENT"
     ) {
-      return; // standalone builder fixture, not a durable pipeline run
+      throw new Error("durable run authorization is required");
     }
     throw error;
   }

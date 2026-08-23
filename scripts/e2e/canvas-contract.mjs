@@ -84,7 +84,7 @@ registerHooks({
     }
   },
 });
-const { buildSite } = await import("../../src/lib/builder.ts");
+const { buildAndPublishSiteFixture } = await import("../../test-support/buildSiteFixture.ts");
 
 const fixtureRunId = `canvas-contract-${Date.now().toString(36)}`;
 const fixtureRoot = path.join(process.cwd(), "sites", fixtureRunId);
@@ -230,7 +230,7 @@ async function buildSectionFixture() {
     referenceMode: "none",
   };
   await fs.writeFile(path.join(fixtureRoot, "run.json"), JSON.stringify(runState, null, 2));
-  await buildSite({ runId: fixtureRunId, intake, tokens, skeleton, copy, assets: {} });
+  await buildAndPublishSiteFixture({ runId: fixtureRunId, intake, tokens, skeleton, copy, assets: {} });
 }
 
 await buildSectionFixture();

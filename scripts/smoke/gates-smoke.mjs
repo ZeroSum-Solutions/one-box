@@ -38,7 +38,7 @@ registerHooks({
   },
 });
 
-const { buildSite } = await import("../../src/lib/builder.ts");
+const { buildAndPublishSiteFixture } = await import("../../test-support/buildSiteFixture.ts");
 const { runGates } = await import("../../src/lib/gates.ts");
 
 const ROOT = process.cwd();
@@ -209,7 +209,7 @@ async function main() {
   await writeFile(heroImagePath, Buffer.from(HERO_PNG_BASE64, "base64"));
 
   console.log(`[gates-smoke] building ${RUN_ID}...`);
-  const manifest = await buildSite({
+  const manifest = await buildAndPublishSiteFixture({
     runId: RUN_ID,
     intake,
     tokens,
@@ -228,10 +228,8 @@ async function main() {
   // tokens.json alongside the build — runGates() reads runRoot/tokens.json
   // (ARTIFACTS.tokens) for the token-drift/color-role-compliance gates on
   // every call, including the afterEdit path an edit-and-save mutation
-  // triggers. buildSite() only ever consumes `tokens`, it never persists
-  // the artifact itself, so any fixture consumer that skips this write (as
-  // this script did) leaves every downstream sites/smoke-fixture copy
-  // missing the file runGates() unconditionally requires.
+  // triggers. The fixture helper persists this artifact before compilation;
+  // this explicit write documents the live gate's run-root dependency.
   await writeFile(path.join(runRoot, "tokens.json"), JSON.stringify(tokens, null, 2));
 
   const siteDir = path.join(runRoot, "site");

@@ -310,4 +310,29 @@ describe("pipeline replay", () => {
     });
   });
 
+  it("does not report a promotable candidate as a completed live build", async () => {
+    const run = pendingRun("promotable-run");
+    run.pipelineVersion = "legacy-v1";
+    for (const stage of Object.values(run.stages)) stage.status = "done";
+    const emit = vi.fn();
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+    await runPipeline("promotable-run", emit, {
+      readEvents: vi.fn().mockResolvedValue([]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent: vi.fn().mockResolvedValue(undefined),
+      inspectCandidate: vi.fn().mockResolvedValue({
+        status: "present",
+        provenance: { state: "promotable" },
+      }),
+      executePipeline,
+    } as never);
+
+    expect(emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "complete" }),
+    );
+    expect(executePipeline).toHaveBeenCalledOnce();
+  });
+
 });

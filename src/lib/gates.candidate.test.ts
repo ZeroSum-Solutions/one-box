@@ -8,6 +8,7 @@ import {
   createCandidateManifest,
   transitionCandidateProvenance,
 } from "./candidate";
+import { gateBuiltCandidate } from "./builder";
 import {
   CandidateProvenanceV1Schema,
   type CandidateProvenanceV1,
@@ -212,22 +213,51 @@ async function createReadyCandidate(runId: string) {
 async function writeLiveSentinels(runId: string) {
   const liveIndex = Buffer.from("live-site-sentinel");
   const liveGates = Buffer.from("live-gates-sentinel");
-  await fs.mkdir(sitePaths(runId).site, { recursive: true });
+  await fs.mkdir(path.join(sitePaths(runId).site, "assets"), { recursive: true });
   await fs.writeFile(path.join(sitePaths(runId).site, "index.html"), liveIndex);
+  await fs.writeFile(
+    path.join(sitePaths(runId).site, "manifest.json"),
+    Buffer.from("live-manifest-sentinel"),
+  );
+  await fs.writeFile(
+    path.join(sitePaths(runId).site, "assets", "live.css"),
+    Buffer.from("live-asset-sentinel"),
+  );
   await fs.writeFile(path.join(sitePaths(runId).root, "gates.json"), liveGates);
-  return { liveIndex, liveGates };
+  return {
+    liveGates,
+    liveInventory: [
+      ["assets/live.css", "live-asset-sentinel"],
+      ["index.html", "live-site-sentinel"],
+      ["manifest.json", "live-manifest-sentinel"],
+    ].map(([relativePath, bytes]) => ({
+      path: relativePath,
+      bytes,
+      sha256: sha256(bytes),
+    })),
+  };
 }
 
 async function expectLiveSentinels(
   runId: string,
   sentinels: Awaited<ReturnType<typeof writeLiveSentinels>>,
 ) {
-  expect(await fs.readFile(path.join(sitePaths(runId).site, "index.html"))).toEqual(
-    sentinels.liveIndex,
-  );
+  const liveFiles = (
+    await fs.readdir(sitePaths(runId).site, { recursive: true })
+  )
+    .filter((relativePath) => !relativePath.endsWith("assets"))
+    .sort();
+  expect(liveFiles).toEqual(sentinels.liveInventory.map((file) => file.path));
+  for (const expected of sentinels.liveInventory) {
+    const bytes = await fs.readFile(path.join(sitePaths(runId).site, expected.path));
+    expect(bytes.toString("utf8")).toBe(expected.bytes);
+    expect(sha256(bytes)).toBe(expected.sha256);
+  }
   expect(await fs.readFile(path.join(sitePaths(runId).root, "gates.json"))).toEqual(
     sentinels.liveGates,
   );
+  expect(sha256(await fs.readFile(path.join(sitePaths(runId).root, "gates.json"))))
+    .toBe(sha256(sentinels.liveGates));
 }
 
 afterEach(async () => {
@@ -307,6 +337,136 @@ describe("candidate gates", () => {
       blocking: true,
     });
     expect(JSON.parse(await fs.readFile(paths.gates, "utf8"))).toEqual(result.receipt);
+    await expectLiveSentinels(runId, sentinels);
+  });
+
+  it("dispositions a blocking candidate receipt as failed without changing live bytes", async () => {
+    const runId = testRunId("candidate-disposition-failed");
+    const { paths } = await createReadyCandidate(runId);
+    const sentinels = await writeLiveSentinels(runId);
+    gateHarness.state.contrastPass = false;
+
+    const result = await gateBuiltCandidate(runId);
+
+    expect(result.state).toBe("failed");
+    const provenance = JSON.parse(await fs.readFile(paths.provenance, "utf8"));
+    const receiptBytes = await fs.readFile(paths.gates);
+    expect(provenance).toMatchObject({
+      state: "failed",
+      gateReportSha256: sha256(receiptBytes),
+    });
+    await expectLiveSentinels(runId, sentinels);
+  });
+
+  it("leaves no served site or canonical live receipt after an initial blocking failure", async () => {
+    const runId = testRunId("candidate-initial-failed");
+    const { paths } = await createReadyCandidate(runId);
+    gateHarness.state.contrastPass = false;
+
+    const result = await gateBuiltCandidate(runId);
+
+    expect(result.state).toBe("failed");
+    expect(JSON.parse(await fs.readFile(paths.provenance, "utf8"))).toMatchObject({
+      state: "failed",
+      gateReportSha256: result.gateReportSha256,
+    });
+    await expect(fs.stat(sitePaths(runId).site)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(fs.stat(path.join(sitePaths(runId).root, "gates.json")))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("dispositions a fully passing candidate as promotable without publishing it", async () => {
+    const runId = testRunId("candidate-disposition-promotable");
+    const { paths } = await createReadyCandidate(runId);
+
+    const result = await gateBuiltCandidate(runId);
+
+    expect(result.state).toBe("promotable");
+    expect(JSON.parse(await fs.readFile(paths.provenance, "utf8"))).toMatchObject({
+      state: "promotable",
+      gateReportSha256: result.gateReportSha256,
+    });
+    await expect(fs.stat(sitePaths(runId).site)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("marks the candidate failed without a fake receipt when gate execution throws", async () => {
+    const runId = testRunId("candidate-disposition-error");
+    const { paths } = await createReadyCandidate(runId);
+    const sentinels = await writeLiveSentinels(runId);
+    gateHarness.state.gotoError = new Error("browser failed");
+
+    await expect(gateBuiltCandidate(runId)).rejects.toThrow("browser failed");
+
+    expect(JSON.parse(await fs.readFile(paths.provenance, "utf8"))).toMatchObject({
+      state: "failed",
+    });
+    expect(JSON.parse(await fs.readFile(paths.provenance, "utf8")))
+      .not.toHaveProperty("gateReportSha256");
+    await expect(fs.stat(paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
+    await expectLiveSentinels(runId, sentinels);
+  });
+
+  it("rolls back a new receipt when provenance disposition cannot publish", async () => {
+    const runId = testRunId("candidate-disposition-rollback");
+    const { paths } = await createReadyCandidate(runId);
+    const provenanceBefore = await fs.readFile(paths.provenance);
+    const sentinels = await writeLiveSentinels(runId);
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (
+        String(to) === paths.provenance &&
+        String(from).includes(".candidate-provenance.")
+      ) {
+        throw new Error("provenance disposition rename failed");
+      }
+      return realRename(from, to);
+    });
+
+    await expect(gateBuiltCandidate(runId)).rejects.toThrow(
+      "provenance disposition rename failed",
+    );
+
+    expect(await fs.readFile(paths.provenance)).toEqual(provenanceBefore);
+    await expect(fs.stat(paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await fs.readdir(paths.root)).some((entry) => entry.includes(".tmp")))
+      .toBe(false);
+    await expectLiveSentinels(runId, sentinels);
+  });
+
+  it("restores exact prior receipt and provenance bytes when disposition cannot publish", async () => {
+    const runId = testRunId("candidate-prior-rollback");
+    const { paths, ready } = await createReadyCandidate(runId);
+    const priorReceipt = Buffer.from("prior candidate receipt bytes\n");
+    await fs.writeFile(paths.gates, priorReceipt);
+    await writeJson(paths.provenance, {
+      ...ready,
+      gateReportSha256: sha256(priorReceipt),
+    });
+    const provenanceBefore = await fs.readFile(paths.provenance);
+    const sentinels = await writeLiveSentinels(runId);
+    const realRename = fs.rename.bind(fs);
+    vi.spyOn(fs, "rename").mockImplementation(async (from, to) => {
+      if (
+        String(to) === paths.provenance &&
+        String(from).includes(".candidate-provenance.")
+      ) {
+        throw new Error("provenance disposition rename failed");
+      }
+      return realRename(from, to);
+    });
+
+    await expect(gateBuiltCandidate(runId)).rejects.toThrow(
+      "provenance disposition rename failed",
+    );
+
+    expect(await fs.readFile(paths.provenance)).toEqual(provenanceBefore);
+    expect(await fs.readFile(paths.gates)).toEqual(priorReceipt);
+    expect((await fs.readdir(paths.root)).some((entry) => entry.includes(".tmp")))
+      .toBe(false);
     await expectLiveSentinels(runId, sentinels);
   });
 

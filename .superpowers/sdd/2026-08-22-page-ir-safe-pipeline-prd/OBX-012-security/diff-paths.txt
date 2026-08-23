@@ -1,0 +1,17 @@
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md
+docs/ENGINE-LEDGER.md
+docs/architecture/README.md
+docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md
+scripts/e2e/canvas-contract.mjs
+scripts/e2e/canvas-coverage.mjs
+scripts/smoke/gates-smoke.mjs
+src/components/EvidenceWorkspace.test.tsx
+src/lib/builder.test.ts
+src/lib/builder.ts
+src/lib/contracts.ts
+src/lib/evidence.test.ts
+src/lib/gates.candidate.test.ts
+src/lib/pipeline.ts
+src/lib/pipelineReplay.test.ts
+test-support/buildSiteFixture.ts
