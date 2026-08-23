@@ -28,6 +28,10 @@ import {
   buildTokenInventory,
   computeSiteBuildSha256,
 } from "./evidence";
+import { withReleaseAuthorization } from "./release";
+import { runGuardedMutation } from "./siteMutation";
+import { GET as exportEvidence } from "../app/api/evidence/[id]/export/route";
+import { GET as readSiteArtifact } from "../app/api/sites/[id]/[...path]/route";
 
 type PromotionFaultStep =
   | "after-revalidation"
@@ -349,6 +353,16 @@ async function snapshotApproval(runId: string): Promise<{
   };
 }
 
+async function promoteThenDeleteLiveMetadata() {
+  const prepared = await fixture();
+  await promoteCandidate(prepared.runId);
+  await fs.rm(
+    path.join(prepared.roots.site, ".one-box"),
+    { recursive: true },
+  );
+  return prepared;
+}
+
 afterEach(async () => {
   await Promise.all(
     runIds.splice(0).map((runId) =>
@@ -358,6 +372,78 @@ afterEach(async () => {
 });
 
 describe("candidate promotion", () => {
+  it("fails closed when promoted live metadata disappears", async () => {
+    const prepared = await promoteThenDeleteLiveMetadata();
+
+    await expect(
+      candidateModule.inspectPromotedLiveBundle(prepared.runId),
+    ).rejects.toThrow(/promoted live bundle metadata is missing/i);
+  });
+
+  it("blocks release and export when promoted live metadata disappears", async () => {
+    const prepared = await promoteThenDeleteLiveMetadata();
+
+    await expect(
+      withReleaseAuthorization(prepared.runId, async () => "released"),
+    ).rejects.toThrow(/promoted live bundle metadata is invalid/i);
+
+    const response = await exportEvidence(
+      new Request(
+        `http://localhost:3000/api/evidence/${prepared.runId}/export`,
+        {
+          headers: {
+            Origin: "http://localhost:3000",
+            Host: "localhost:3000",
+          },
+        },
+      ),
+      { params: Promise.resolve({ id: prepared.runId }) },
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/promoted live bundle metadata is invalid/i),
+    });
+  });
+
+  it("does not serve root gates when promoted live metadata disappears", async () => {
+    const prepared = await promoteThenDeleteLiveMetadata();
+
+    const response = await readSiteArtifact(
+      new Request(
+        `http://localhost:3000/api/sites/${prepared.runId}/gates.json`,
+      ),
+      {
+        params: Promise.resolve({
+          id: prepared.runId,
+          path: ["gates.json"],
+        }),
+      },
+    );
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toMatch(/canonical live gate report invalid/i);
+  });
+
+  it("does not use root gates as an edit baseline when promoted live metadata disappears", async () => {
+    const prepared = await promoteThenDeleteLiveMetadata();
+    const target = path.join(prepared.roots.site, "index.html");
+    let mutated = false;
+
+    await expect(
+      runGuardedMutation({
+        runId: prepared.runId,
+        snapshotPaths: [target],
+        mutate: async () => {
+          mutated = true;
+          await fs.writeFile(target, "edited");
+        },
+        gateRunner: async () => [],
+      }),
+    ).rejects.toThrow(/promoted live bundle metadata is missing/i);
+    expect(mutated).toBe(false);
+    expect(await fs.readFile(target, "utf8")).toBe("new-live");
+  });
+
   it("promotes the exact gated bytes as one live bundle before invalidating approval", async () => {
     const prepared = await fixture();
 
@@ -439,6 +525,30 @@ describe("candidate promotion", () => {
         entry.startsWith(".site-promotion-retired-"),
       ),
     ).toEqual([]);
+  });
+
+  it("replaces the approved visual-QA alias with its invalidation transition", async () => {
+    const prepared = await fixture();
+
+    await promoteCandidate(prepared.runId);
+
+    const alias = JSON.parse(
+      await fs.readFile(
+        path.join(
+          prepared.roots.root,
+          workflowArtifactAliasPath("visual-qa"),
+        ),
+        "utf8",
+      ),
+    ) as {
+      version: number;
+      approvalTransitions: Array<{ state: string }>;
+    };
+    expect(alias.version).toBe(1);
+    expect(alias.approvalTransitions.at(-1)?.state).toBe(
+      "revision-requested",
+    );
+    expect(alias.approvalTransitions.at(-1)?.state).not.toBe("approved");
   });
 
   it("rejects a receipt with a blocking failure without changing live bytes or approval", async () => {

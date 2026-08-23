@@ -124,6 +124,33 @@ async function legacyFixture(projectTarget: "web-app" | "ios-app") {
 }
 
 describe("legacy persisted-record compatibility", () => {
+  it("exports an absent-metadata legacy non-Website run without mutating it", async () => {
+    const { runId, roots } = await legacyFixture("web-app");
+    const before = await snapshotTree(roots.root);
+
+    await expect(
+      fs.access(path.join(roots.site, ".one-box")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      fs.access(path.join(roots.root, "candidate", "provenance.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+
+    const response = await EXPORT_EVIDENCE(
+      authorizedRequest(`http://localhost:3000/api/evidence/${runId}/export`),
+      { params: Promise.resolve({ id: runId }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      projectTarget: "web-app",
+      compatibility: {
+        mode: "legacy-read-only",
+        readOnly: true,
+      },
+    });
+    expect(await snapshotTree(roots.root)).toEqual(before);
+  });
+
   it.each(["web-app", "ios-app"] as const)(
     "keeps a %s record byte-for-byte read-only across asset view, preview, evidence, and export",
     async (projectTarget) => {

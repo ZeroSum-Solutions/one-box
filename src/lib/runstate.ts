@@ -806,10 +806,11 @@ export function preparePromotedVisualQaUnderSiteAuthority(
     }
 
     let visualApprovalInvalidated = false;
+    let invalidatedAlias: string | undefined;
     if (previous) {
       const approval = artifactApprovalState(previous);
       if (["draft", "in-review", "approved"].includes(approval)) {
-        await transaction.transitionEvidenceArtifactApproval(
+        const invalidated = await transaction.transitionEvidenceArtifactApproval(
           "visual-qa",
           previous.version,
           "revision-requested",
@@ -818,6 +819,7 @@ export function preparePromotedVisualQaUnderSiteAuthority(
             note: "Prior visual QA invalidated by an atomically promoted build.",
           },
         );
+        invalidatedAlias = JSON.stringify(invalidated, null, 2);
         visualApprovalInvalidated = true;
       }
     }
@@ -834,10 +836,10 @@ export function preparePromotedVisualQaUnderSiteAuthority(
       ARTIFACTS.visualQa,
       `${JSON.stringify(pending, null, 2)}\n`,
     );
-    if (previous) {
+    if (invalidatedAlias) {
       await transaction.writeArtifact(
         workflowArtifactAliasPath("visual-qa"),
-        JSON.stringify(previous, null, 2),
+        invalidatedAlias,
       );
     }
     await options.afterPreparation?.();

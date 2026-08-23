@@ -16,9 +16,20 @@ vi.mock("./runstate", () => ({
     root: `/tmp/onebox-site-mutation-locks/${runId}`,
     site: `/tmp/onebox-site-mutation-locks/${runId}/site`,
   }),
+  candidatePaths: (runId: string) => ({
+    root: `/tmp/onebox-site-mutation-locks/${runId}/candidate`,
+    site: `/tmp/onebox-site-mutation-locks/${runId}/candidate/site`,
+    manifest: `/tmp/onebox-site-mutation-locks/${runId}/candidate/manifest.json`,
+    provenance: `/tmp/onebox-site-mutation-locks/${runId}/candidate/provenance.json`,
+    gates: `/tmp/onebox-site-mutation-locks/${runId}/candidate/gates.json`,
+  }),
 }));
 
 import { BlockingMutationError, runGuardedMutation } from "./siteMutation";
+import {
+  candidateManifestSha256,
+  createCandidateManifest,
+} from "./candidate";
 import {
   CANDIDATE_GATE_EXPECTATIONS,
   CandidateGateReceiptV1Schema,
@@ -143,8 +154,12 @@ describe("blocking-gate refusal distinguishes inherited failures", () => {
   }
 
   async function writePromotedCanonicalBaseline(): Promise<void> {
-    const manifestHash = "a".repeat(64);
-    const buildHash = "b".repeat(64);
+    const site = path.join(runRoot, "site");
+    await fs.mkdir(site, { recursive: true });
+    await fs.writeFile(path.join(site, "index.html"), "promoted-live");
+    const manifest = await createCandidateManifest(site);
+    const manifestHash = candidateManifestSha256(manifest);
+    const buildHash = manifest.buildSha256;
     const receipt = CandidateGateReceiptV1Schema.parse({
       schemaVersion: 1,
       runId,
@@ -182,6 +197,10 @@ describe("blocking-gate refusal distinguishes inherited failures", () => {
     const metadata = path.join(runRoot, "site", ".one-box");
     await fs.mkdir(metadata, { recursive: true });
     await Promise.all([
+      fs.writeFile(
+        path.join(metadata, "candidate-manifest.json"),
+        JSON.stringify(manifest, null, 2),
+      ),
       fs.writeFile(path.join(metadata, "gates.json"), receiptBytes),
       fs.writeFile(path.join(metadata, "provenance.json"), JSON.stringify(provenance, null, 2)),
     ]);

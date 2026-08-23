@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { runGates } from "./gates";
 import {
   invalidateApprovedVisualQaUnderSiteAuthority,
@@ -12,15 +12,9 @@ import {
   withSiteAuthorityLock,
 } from "./siteAuthority";
 import {
-  CandidateGateReceiptV1Schema,
-  CandidateProvenanceV1Schema,
   type GateReport,
 } from "./contracts";
-import {
-  LIVE_BUNDLE_GATES_FILE,
-  LIVE_BUNDLE_METADATA_DIR,
-  LIVE_BUNDLE_PROVENANCE_FILE,
-} from "./liveBundle";
+import { inspectPromotedLiveBundle } from "./candidate";
 
 export {
   assertSafeRunId,
@@ -72,61 +66,25 @@ export class BlockingMutationError extends Error {
 async function promotedGateReports(
   runId: string,
 ): Promise<GateReport[] | undefined> {
-  const metadata = path.join(sitePaths(runId).site, LIVE_BUNDLE_METADATA_DIR);
-  let metadataStat: Awaited<ReturnType<typeof fs.lstat>>;
-  try {
-    metadataStat = await fs.lstat(metadata);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw error;
-  }
-  if (metadataStat.isSymbolicLink() || !metadataStat.isDirectory()) {
-    throw new Error("live bundle metadata must be a directory");
-  }
-  const receiptPath = path.join(metadata, LIVE_BUNDLE_GATES_FILE);
-  const provenancePath = path.join(metadata, LIVE_BUNDLE_PROVENANCE_FILE);
-  const [receiptStat, provenanceStat] = await Promise.all([
-    fs.lstat(receiptPath),
-    fs.lstat(provenancePath),
-  ]);
-  if (
-    receiptStat.isSymbolicLink() ||
-    !receiptStat.isFile() ||
-    provenanceStat.isSymbolicLink() ||
-    !provenanceStat.isFile()
-  ) {
-    throw new Error("live gate authority must contain regular files");
-  }
-  const [receiptBytes, provenanceBytes] = await Promise.all([
-    fs.readFile(receiptPath),
-    fs.readFile(provenancePath),
-  ]);
-  const receipt = CandidateGateReceiptV1Schema.parse(
-    JSON.parse(receiptBytes.toString("utf8")),
-  );
-  const provenance = CandidateProvenanceV1Schema.parse(
-    JSON.parse(provenanceBytes.toString("utf8")),
-  );
-  if (
-    receipt.runId !== runId ||
-    provenance.runId !== runId ||
-    provenance.state !== "promoted" ||
-    provenance.gateReportSha256 !==
-      createHash("sha256").update(receiptBytes).digest("hex") ||
-    provenance.candidateManifestSha256 !== receipt.candidateManifestSha256 ||
-    provenance.promotedBuildSha256 !== receipt.buildSha256
-  ) {
-    throw new Error("live gate authority bindings do not match");
-  }
-  return receipt.reports;
+  const liveBundle = await inspectPromotedLiveBundle(runId);
+  return liveBundle.status === "present"
+    ? liveBundle.receipt.reports
+    : undefined;
 }
 
 /** Promoted bundles read the canonical receipt. Historical bundles retain the
  * run-root gates.json fallback, which is only a compatibility authority. */
 async function failingBlockingGates(runId: string): Promise<Set<string>> {
+  const promoted = await promotedGateReports(runId);
+  if (promoted) {
+    return new Set(
+      promoted
+        .filter((report) => report.blocking && !report.pass)
+        .map((report) => report.gate),
+    );
+  }
   try {
-    const promoted = await promotedGateReports(runId);
-    const parsed: unknown = promoted ?? JSON.parse(
+    const parsed: unknown = JSON.parse(
       await fs.readFile(path.join(sitePaths(runId).root, "gates.json"), "utf8"),
     );
     if (!Array.isArray(parsed)) return new Set();

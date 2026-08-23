@@ -589,11 +589,19 @@ function liveMetadataPath(liveSite: string, fileName: string): string {
 export async function inspectPromotedLiveBundle(
   runId: string,
 ): Promise<PromotedLiveBundleInspection> {
-  candidatePaths(runId);
+  const candidate = candidatePaths(runId);
   const liveSite = sitePaths(runId).site;
   const metadata = path.join(liveSite, LIVE_BUNDLE_METADATA_DIR);
   const metadataStat = await lstatMaybe(metadata);
-  if (!metadataStat) return { status: "absent" };
+  if (!metadataStat) {
+    const candidateProvenanceStat = await lstatMaybe(candidate.provenance);
+    if (!candidateProvenanceStat) return { status: "absent" };
+    const { provenance } = await readProvenanceSnapshot(candidate, runId);
+    if (provenance.state === "promoted") {
+      throw new Error("promoted live bundle metadata is missing");
+    }
+    return { status: "absent" };
+  }
   assertDirectory(metadataStat, "live bundle metadata");
   const entries = (await fs.readdir(metadata)).sort();
   const expectedEntries = [
