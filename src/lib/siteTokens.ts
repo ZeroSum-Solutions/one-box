@@ -280,6 +280,7 @@ export async function applyTokenEdit(runId: string, tokenName: string, value: st
   const files = sitePaths(sitesRoot, runId);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.tokensCss, files.sourceTokens, files.history, files.gates],
     gateRunner: options.gateRunner,
     mutate: async () => {
@@ -317,6 +318,7 @@ export async function revertTokenEdit(runId: string, options: TokenSiteOptions =
   const files = sitePaths(sitesRoot, runId);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.tokensCss, files.sourceTokens, files.history, files.gates],
     gateRunner: options.gateRunner,
     mutate: async () => {

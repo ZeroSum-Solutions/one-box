@@ -8,9 +8,9 @@ import type { GateReport } from "./contracts";
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))));
 
-async function fixture() {
+async function fixture(runId = "test-run") {
   const sitesRoot = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-tokens-")); roots.push(sitesRoot);
-  const root = path.join(sitesRoot, "test-run"); await fs.mkdir(path.join(root, "site"), { recursive: true });
+  const root = path.join(sitesRoot, runId); await fs.mkdir(path.join(root, "site"), { recursive: true });
   await fs.writeFile(path.join(root, "site", "tokens.css"), ":root { --color-primary: #112233; --color-primary-text: #445566; --space-md: 16px; }");
   await fs.writeFile(path.join(root, "site", "site.css"), ".hero, .btn:hover { color: var(--color-primary); padding: var(--space-md); }");
   await fs.writeFile(path.join(root, "site", "index.html"), '<main class="hero" data-edit-id="hero.section"><a class="btn" data-edit-id="hero.cta">Go</a></main>');
@@ -19,6 +19,23 @@ async function fixture() {
 }
 
 describe("semantic token inspection and persistence", () => {
+  it("keeps an injected-root apply and revert away from the default run root", async () => {
+    const runId = "tokens-injected-root";
+    const defaultRunRoot = path.join(process.cwd(), "sites", runId);
+    roots.push(defaultRunRoot);
+    await fs.rm(defaultRunRoot, { recursive: true, force: true });
+    const { sitesRoot } = await fixture(runId);
+    const gateRunner = async (): Promise<GateReport[]> => [];
+
+    await applyTokenEdit(runId, "--color-primary", "#abcdef", { sitesRoot, gateRunner });
+    await revertTokenEdit(runId, { sitesRoot, gateRunner });
+
+    expect((await inspectSiteTokens(runId, { sitesRoot })).tokens.find(
+      (token) => token.name === "--color-primary",
+    )?.value).toBe("#112233");
+    await expect(fs.stat(defaultRunRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("reports usage scope and affected edit IDs", () => {
     const tokens = inspectTokenSheet(":root{--color-primary:#112233;}", ".hero,.btn:hover{color:var(--color-primary)}", '<main class="hero" data-edit-id="hero.section"><a class="btn" data-edit-id="hero.cta">Go</a></main>');
     expect(tokens[0].usageScope).toEqual([".hero", ".btn:hover"]);

@@ -32,12 +32,12 @@ afterEach(async () => {
   );
 });
 
-async function fixture() {
+async function fixture(runId = "test-run") {
   const sitesRoot = await fs.mkdtemp(
     path.join(os.tmpdir(), "onebox-elements-"),
   );
   temporaryRoots.push(sitesRoot);
-  const siteDir = path.join(sitesRoot, "test-run", "site");
+  const siteDir = path.join(sitesRoot, runId, "site");
   await fs.mkdir(siteDir, { recursive: true });
   const html =
     '<!doctype html><html><body><h1 data-edit-id="hero.headline">Original</h1><a data-edit-id="hero.cta" href="#contact">Call us</a><section id="contact">Contact</section></body></html>';
@@ -218,6 +218,26 @@ describe("structured element patch", () => {
 });
 
 describe("element persistence history", () => {
+  it("keeps an injected-root apply and undo away from the default run root", async () => {
+    const runId = "element-injected-root";
+    const defaultRunRoot = path.join(process.cwd(), "sites", runId);
+    temporaryRoots.push(defaultRunRoot);
+    await fs.rm(defaultRunRoot, { recursive: true, force: true });
+    const { sitesRoot, siteDir, html } = await fixture(runId);
+    const options = { sitesRoot, gateRunner: passGate };
+
+    await applyStructuredElementEdit(
+      runId,
+      "hero.headline",
+      { text: "Updated" },
+      options,
+    );
+    await moveElementHistory(runId, "undo", options);
+
+    expect(await fs.readFile(path.join(siteDir, "index.html"), "utf8")).toBe(html);
+    await expect(fs.stat(defaultRunRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("applies actual values and supports explicit undo and redo", async () => {
     const { sitesRoot, siteDir } = await fixture();
     const options = { sitesRoot, gateRunner: passGate };

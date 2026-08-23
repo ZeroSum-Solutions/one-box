@@ -331,6 +331,7 @@ function editorPaths(runId: string, testSitesRoot?: string) {
     ? path.join(testSitesRoot, safeRunId)
     : path.join(/* turbopackIgnore: true */ SITES_ROOT, safeRunId);
   return {
+    root,
     index: path.join(root, "site", "index.html"),
     history: path.join(root, "element-history.json"),
     gates: path.join(root, "gates.json"),
@@ -416,6 +417,7 @@ export async function applyElementHtmlEdit(
   const files = editorPaths(runId, options.sitesRoot);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [
       files.index,
       files.history,
@@ -473,6 +475,7 @@ export async function moveElementHistory(
   const files = editorPaths(runId, options.sitesRoot);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.index, files.history, files.gates],
     gateRunner: options.gateRunner,
     mutate: async () => {

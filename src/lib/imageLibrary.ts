@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import * as cheerio from "cheerio";
@@ -17,6 +18,8 @@ import {
 import {
   assertSafeRunId,
   atomicWrite,
+  atomicWriteGeneratedSiteFile,
+  runGuardedMutation,
   withSiteAuthorityLock,
   type GateRunner,
 } from "./siteMutation";
@@ -428,7 +431,6 @@ type ApprovalInvalidator = (runId: string) => Promise<boolean>;
 async function findRecoverableOutput(
   files: LibraryPaths,
   requestId: string,
-  includeStaging: boolean,
 ) {
   if (!GENERATION_REQUEST_ID.test(requestId)) return null;
   for (const extension of ["png", "jpg", "webp"] as const) {
@@ -441,21 +443,7 @@ async function findRecoverableOutput(
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
-  if (!includeStaging) return null;
-  const stagingPath = path.join(files.staging, `${requestId}.download`);
-  try {
-    const buffer = await fs.readFile(stagingPath);
-    const metadata = detectGeneratedImage(buffer);
-    if (!metadata) return null;
-    const relativePath = `assets/generated/${requestId}.${metadata.extension}`;
-    const finalPath = path.join(files.site, relativePath);
-    await fs.mkdir(path.dirname(finalPath), { recursive: true });
-    await fs.rename(stagingPath, finalPath);
-    return { relativePath, metadata };
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
-  }
+  return null;
 }
 
 async function markApprovalInvalidated(
@@ -517,7 +505,7 @@ async function synchronizeUnlocked(
         currentTime - updatedAt >= IMAGE_GENERATION_STALE_MS);
 
     if (item.status === "pending") {
-      const recovered = await findRecoverableOutput(files, item.id, stale);
+      const recovered = await findRecoverableOutput(files, item.id);
       if (recovered) {
         next = ImageLibraryItemSchema.parse({
           ...item,
@@ -745,93 +733,242 @@ export interface ImageLibraryDependencies {
   sitesRoot?: string;
   now?: () => Date;
   invalidateApproval?: ApprovalInvalidator;
+  gateRunner?: GateRunner;
   estimate?: (options: GenerateImageOptions) => Promise<number | { error: string }>;
   generate?: (
     options: GenerateImageOptions,
   ) => Promise<GenerateImageResult | { error: string }>;
 }
 
+export interface ValidatedGeneratedImageStaging {
+  buffer: Buffer;
+  metadata: NonNullable<ReturnType<typeof detectGeneratedImage>>;
+  stagingPath: string;
+  relativePath: string;
+  finalPath: string;
+}
+
+export async function readValidatedGeneratedImageStaging(
+  runId: string,
+  requestId: string,
+  sitesRoot?: string,
+): Promise<ValidatedGeneratedImageStaging> {
+  const files = libraryPaths(runId, sitesRoot);
+  if (!GENERATION_REQUEST_ID.test(requestId)) {
+    throw new ImageLibraryError("invalid image request id");
+  }
+  const stagingPath = path.join(files.staging, `${requestId}.download`);
+  let handle: Awaited<ReturnType<typeof fs.open>>;
+  try {
+    handle = await fs.open(
+      stagingPath,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      throw new ImageLibraryError("staged image is missing", 502);
+    }
+    if (code === "ELOOP") {
+      throw new ImageLibraryError("staged image must be a regular file", 502);
+    }
+    throw error;
+  }
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) {
+      throw new ImageLibraryError("staged image must be a regular file", 502);
+    }
+    const buffer = await handle.readFile();
+    const metadata = detectGeneratedImage(buffer);
+    if (!metadata) {
+      throw new ImageLibraryError(
+        "provider returned an unsupported image format",
+        502,
+      );
+    }
+    const relativePath = `assets/generated/${requestId}.${metadata.extension}`;
+    return {
+      buffer,
+      metadata,
+      stagingPath,
+      relativePath,
+      finalPath: path.join(files.site, relativePath),
+    };
+  } finally {
+    await handle.close();
+  }
+}
+
+async function readStagedOutput(
+  files: LibraryPaths,
+  runId: string,
+  requestId: string,
+): Promise<ValidatedGeneratedImageStaging | null> {
+  try {
+    return await readValidatedGeneratedImageStaging(
+      runId,
+      requestId,
+      path.dirname(files.root),
+    );
+  } catch (error) {
+    if (error instanceof ImageLibraryError && error.status === 502) return null;
+    throw error;
+  }
+}
+
+async function finishPaidGeneration(
+  runId: string,
+  requestId: string,
+  files: LibraryPaths,
+) {
+  await withImageAuthority(runId, files, async () => {
+    const ledger = await readImageGenerationLedger(files.ledger);
+    const entry = ledger.entries.find(
+      (candidate) => candidate.requestId === requestId,
+    );
+    if (!entry) throw new Error("image-generation reservation not found");
+    if (entry.status !== "completed") {
+      await finishImageGeneration(files.ledger, requestId, "completed");
+    }
+  });
+}
+
+async function finalizeStagedGeneration(
+  input: GenerateProjectImageInput,
+  files: LibraryPaths,
+  staged: ValidatedGeneratedImageStaging,
+  now: () => Date,
+  gateRunner?: GateRunner,
+): Promise<{ item: ImageLibraryItem; library: ImageLibrary }> {
+  await finishPaidGeneration(input.runId, input.requestId, files);
+  const { value: library } = await runGuardedMutation({
+    runId: input.runId,
+    runRoot: files.root,
+    snapshotPaths: [
+      files.catalog,
+      path.join(files.root, "gates.json"),
+      staged.finalPath,
+    ],
+    gateRunner,
+    mutate: async () => {
+      const catalog = await readCatalog(files.catalog);
+      const replay = matchingReplay(catalog, input);
+      if (!replay) {
+        throw new ImageLibraryError("pending image request not found", 409);
+      }
+      await atomicWriteGeneratedSiteFile(
+        input.runId,
+        staged.finalPath,
+        staged.buffer,
+      );
+      const updatedAt = now().toISOString();
+      const items = catalog.items.map((item) =>
+        item.id === input.requestId
+          ? ImageLibraryItemSchema.parse({
+              ...item,
+              status: "completed",
+              dimensions: staged.metadata.dimensions,
+              mimeType: staged.metadata.mimeType,
+              outputPath: `site/${staged.relativePath}`,
+              error: null,
+              updatedAt,
+              approvalInvalidatedAt: updatedAt,
+            })
+          : item,
+      );
+      return writeCatalog(files.catalog, { version: 1, items });
+    },
+  });
+  await fs.unlink(staged.stagingPath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+  });
+  return {
+    item: library.items.find((item) => item.id === input.requestId)!,
+    library,
+  };
+}
+
 async function recoverClaimedOrphan(
   input: GenerateProjectImageInput,
   files: LibraryPaths,
   now: () => Date,
-  invalidator: ApprovalInvalidator,
+  gateRunner?: GateRunner,
 ) {
-  return withImageAuthority(input.runId, files, async () => {
+  const staged = await readStagedOutput(files, input.runId, input.requestId);
+  const recovery = await withImageAuthority(input.runId, files, async () => {
     const catalog = await readCatalog(files.catalog);
-    if (catalog.items.some((item) => item.id === input.requestId)) return null;
+    const replay = matchingReplay(catalog, input);
+    if (replay?.item.status === "completed") {
+      return { terminal: replay };
+    }
     const ledger = await readImageGenerationLedger(files.ledger);
     const entry = ledger.entries.find(
       (candidate) => candidate.requestId === input.requestId,
     );
     if (!entry) return null;
-    if (catalog.items.length >= IMAGE_LIBRARY_CAPACITY) {
+    if (replay && !staged) return { terminal: replay };
+    if (!replay && catalog.items.length >= IMAGE_LIBRARY_CAPACITY) {
       throw new ImageLibraryError(
         `image catalog capacity reached (${IMAGE_LIBRARY_CAPACITY})`,
         409,
       );
     }
 
-    const recoveredOutput = await findRecoverableOutput(
-      files,
-      input.requestId,
-      true,
-    );
     const timestamp = now().toISOString();
-    let item = ImageLibraryItemSchema.parse({
-      id: input.requestId,
-      status: recoveredOutput ? "completed" : "failed",
-      prompt: input.prompt,
-      model: input.model,
-      provider: IMAGE_MODELS[0].provider,
-      aspectRatio: input.aspectRatio,
-      quality: input.quality,
-      dimensions: recoveredOutput?.metadata.dimensions ?? null,
-      mimeType: recoveredOutput?.metadata.mimeType ?? null,
-      createdAt: entry.reservedAt,
-      updatedAt: timestamp,
-      credits: entry.credits,
-      error: recoveredOutput ? null : entry.error ?? ORPHANED_RESERVATION_ERROR,
-      outputPath: recoveredOutput
-        ? `site/${recoveredOutput.relativePath}`
-        : null,
-      source: {
-        kind: "generated",
-        parentAssetId: input.sourceAssetId ?? null,
-        targetEditId: input.targetEditId ?? null,
-        originalPath: null,
-      },
-      usage: [],
-    });
-    let library = await writeCatalog(files.catalog, {
+    const item = replay
+      ? ImageLibraryItemSchema.parse({
+          ...replay.item,
+          status: staged ? "pending" : replay.item.status,
+          error: staged ? null : replay.item.error,
+          updatedAt: staged ? timestamp : replay.item.updatedAt,
+        })
+      : ImageLibraryItemSchema.parse({
+          id: input.requestId,
+          status: staged ? "pending" : "failed",
+          prompt: input.prompt,
+          model: input.model,
+          provider: IMAGE_MODELS[0].provider,
+          aspectRatio: input.aspectRatio,
+          quality: input.quality,
+          dimensions: null,
+          mimeType: null,
+          createdAt: entry.reservedAt,
+          updatedAt: timestamp,
+          credits: entry.credits,
+          error: staged ? null : entry.error ?? ORPHANED_RESERVATION_ERROR,
+          outputPath: null,
+          source: {
+            kind: "generated",
+            parentAssetId: input.sourceAssetId ?? null,
+            targetEditId: input.targetEditId ?? null,
+            originalPath: null,
+          },
+          usage: [],
+        });
+    const library = await writeCatalog(files.catalog, {
       version: 1,
-      items: [item, ...catalog.items],
+      items: replay
+        ? catalog.items.map((candidate) =>
+            candidate.id === input.requestId ? item : candidate,
+          )
+        : [item, ...catalog.items],
     });
-    const terminalStatus = recoveredOutput ? "completed" : "failed";
-    if (entry.status !== terminalStatus) {
+    if (!staged && entry.status !== "failed") {
       await finishImageGeneration(
         files.ledger,
         input.requestId,
-        terminalStatus,
+        "failed",
         item.error ?? undefined,
       );
     }
-    item = await markApprovalInvalidated(
-      input.runId,
-      item,
-      invalidator,
-      now().toISOString(),
-    );
-    if (
-      item.approvalInvalidatedAt !== library.items[0].approvalInvalidatedAt
-    ) {
-      library = await writeCatalog(files.catalog, {
-        version: 1,
-        items: [item, ...library.items.slice(1)],
-      });
-    }
-    return { item, library };
+    return staged
+      ? { terminal: null, library }
+      : { terminal: { item, library } };
   });
+  if (!recovery) return null;
+  if (recovery.terminal) return recovery.terminal;
+  return finalizeStagedGeneration(input, files, staged!, now, gateRunner);
 }
 
 export async function generateProjectImage(
@@ -876,6 +1013,10 @@ async function executeClaimedGeneration(
   const invalidateApproval =
     dependencies.invalidateApproval ??
     invalidateApprovedVisualQaUnderSiteAuthority;
+  // sitesRoot is an isolated-library test adapter; a real gate runner cannot
+  // resolve that non-canonical root unless the caller explicitly supplies one.
+  const finalizationGateRunner =
+    dependencies.gateRunner ?? (dependencies.sitesRoot ? async () => [] : undefined);
   const stagingPath = path.join(files.staging, `${input.requestId}.download`);
   const generationOptions: GenerateImageOptions = {
     prompt: input.prompt,
@@ -888,7 +1029,7 @@ async function executeClaimedGeneration(
     input,
     files,
     now,
-    invalidateApproval,
+    finalizationGateRunner,
   );
   if (orphanReplay) return orphanReplay;
 
@@ -983,8 +1124,14 @@ async function executeClaimedGeneration(
 
   // The paid, potentially multi-minute provider call is deliberately outside
   // the site lock. A refresh can read the durable pending catalog entry.
+  await fs.unlink(stagingPath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+  });
   const generated = await providerGenerate(generationOptions);
   if ("error" in generated) {
+    await fs.unlink(stagingPath).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") throw error;
+    });
     const library = await failGeneration(
       input.runId,
       input.requestId,
@@ -998,78 +1145,9 @@ async function executeClaimedGeneration(
     };
   }
 
-  try {
-    const buffer = await fs.readFile(stagingPath);
-    const metadata = detectGeneratedImage(buffer);
-    if (!metadata) throw new ImageLibraryError("provider returned an unsupported image format", 502);
-    const relativeOutput = `assets/generated/${input.requestId}.${metadata.extension}`;
-    const finalPath = path.join(files.site, relativeOutput);
-    let library!: ImageLibrary;
-    await withImageAuthority(input.runId, files, async () => {
-      const catalog = await readCatalog(files.catalog);
-      await fs.mkdir(path.dirname(finalPath), { recursive: true });
-      await fs.rename(stagingPath, finalPath);
-      const updatedAt = now().toISOString();
-      const items = catalog.items.map((item) =>
-        item.id === input.requestId
-          ? ImageLibraryItemSchema.parse({
-              ...item,
-              status: "completed",
-              dimensions: metadata.dimensions,
-              mimeType: metadata.mimeType,
-              outputPath: `site/${relativeOutput}`,
-              updatedAt,
-            })
-          : item,
-      );
-      library = await writeCatalog(files.catalog, { version: 1, items });
-      await finishImageGeneration(files.ledger, input.requestId, "completed");
-      const completedItem = library.items.find(
-        (item) => item.id === input.requestId,
-      )!;
-      const approvalSafeItem = await markApprovalInvalidated(
-        input.runId,
-        completedItem,
-        invalidateApproval,
-        now().toISOString(),
-      );
-      if (approvalSafeItem !== completedItem) {
-        library = await writeCatalog(files.catalog, {
-          version: 1,
-          items: library.items.map((item) =>
-            item.id === input.requestId ? approvalSafeItem : item,
-          ),
-        });
-      }
-    });
-    return {
-      item: library.items.find((item) => item.id === input.requestId)!,
-      library,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "image finalization failed";
-    const completedOutput = await findRecoverableOutput(
-      files,
-      input.requestId,
-      false,
-    );
-    if (completedOutput) {
-      const recovered = await withImageAuthority(input.runId, files, () =>
-        synchronizeUnlocked(
-          input.runId,
-          dependencies.sitesRoot,
-          invalidateApproval,
-          now,
-        ),
-      );
-      const recoveredItem = recovered.items.find(
-        (item) => item.id === input.requestId,
-      );
-      if (recoveredItem?.status === "completed") {
-        return { item: recoveredItem, library: recovered };
-      }
-      throw error;
-    }
+  const staged = await readStagedOutput(files, input.runId, input.requestId);
+  if (!staged) {
+    const message = "provider returned an unsupported image format";
     const library = await failGeneration(
       input.runId,
       input.requestId,
@@ -1081,9 +1159,14 @@ async function executeClaimedGeneration(
       item: library.items.find((item) => item.id === input.requestId)!,
       library,
     };
-  } finally {
-    await fs.unlink(stagingPath).catch(() => undefined);
   }
+  return finalizeStagedGeneration(
+    input,
+    files,
+    staged,
+    now,
+    finalizationGateRunner,
+  );
 }
 
 async function failGeneration(

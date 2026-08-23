@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { runGates } from "./gates";
 import {
   invalidateApprovedVisualQaUnderSiteAuthority,
@@ -9,6 +10,7 @@ import {
 } from "./runstate";
 import {
   assertSafeRunId,
+  assertSiteAuthorityHeld,
   withSiteAuthorityLock,
 } from "./siteAuthority";
 import {
@@ -26,6 +28,45 @@ export type GateRunner = (
   runId: string,
   options: { afterEdit: true }
 ) => Promise<GateReport[]>;
+
+export class GeneratedSiteMutationAuthorityError extends Error {
+  constructor(message = "generated-site live writes require an active guarded mutation") {
+    super(message);
+    this.name = "GeneratedSiteMutationAuthorityError";
+  }
+}
+
+const activeGeneratedSiteMutation = new AsyncLocalStorage<{
+  active: boolean;
+  runId: string;
+  siteRoot: string;
+}>();
+
+export async function atomicWriteGeneratedSiteFile(
+  runId: string,
+  filePath: string,
+  content: string | Buffer,
+): Promise<void> {
+  const safeRunId = assertSafeRunId(runId);
+  const authority = activeGeneratedSiteMutation.getStore();
+  if (!authority?.active || authority.runId !== safeRunId) {
+    throw new GeneratedSiteMutationAuthorityError();
+  }
+  assertSiteAuthorityHeld(safeRunId);
+  const target = path.resolve(filePath);
+  const relativeTarget = path.relative(authority.siteRoot, target);
+  if (
+    relativeTarget === "" ||
+    relativeTarget === ".." ||
+    relativeTarget.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    throw new GeneratedSiteMutationAuthorityError(
+      "generated-site live write target is outside the guarded site root",
+    );
+  }
+  await atomicWrite(target, content);
+}
 
 export class BlockingMutationError extends Error {
   readonly reports: GateReport[];
@@ -74,18 +115,23 @@ async function promotedGateReports(
 
 /** Promoted bundles read the canonical receipt. Historical bundles retain the
  * run-root gates.json fallback, which is only a compatibility authority. */
-async function failingBlockingGates(runId: string): Promise<Set<string>> {
-  const promoted = await promotedGateReports(runId);
-  if (promoted) {
-    return new Set(
-      promoted
-        .filter((report) => report.blocking && !report.pass)
-        .map((report) => report.gate),
-    );
+async function failingBlockingGates(
+  runId: string,
+  runRoot: string,
+): Promise<Set<string>> {
+  if (path.resolve(runRoot) === path.resolve(sitePaths(runId).root)) {
+    const promoted = await promotedGateReports(runId);
+    if (promoted) {
+      return new Set(
+        promoted
+          .filter((report) => report.blocking && !report.pass)
+          .map((report) => report.gate),
+      );
+    }
   }
   try {
     const parsed: unknown = JSON.parse(
-      await fs.readFile(path.join(sitePaths(runId).root, "gates.json"), "utf8"),
+      await fs.readFile(path.join(runRoot, "gates.json"), "utf8"),
     );
     if (!Array.isArray(parsed)) return new Set();
     return new Set(
@@ -135,10 +181,28 @@ async function restoreFiles(snapshots: Map<string, Buffer | null>): Promise<void
 
 export interface GuardedMutationOptions<T> {
   runId: string;
+  runRoot?: string;
   snapshotPaths: string[] | (() => string[]);
   mutate: () => Promise<T>;
   commit?: (value: T) => Promise<void>;
   gateRunner?: GateRunner;
+}
+
+async function withGeneratedSiteMutationAuthority<T>(
+  runId: string,
+  siteRoot: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const authority = {
+    active: true,
+    runId,
+    siteRoot: path.resolve(siteRoot),
+  };
+  try {
+    return await activeGeneratedSiteMutation.run(authority, operation);
+  } finally {
+    authority.active = false;
+  }
 }
 
 /** Tentatively mutates generated-site files, preserving them only after all blocking gates pass. */
@@ -147,28 +211,39 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
   reports: GateReport[];
 }> {
   const runId = assertSafeRunId(options.runId);
+  const defaultRunRoot = sitePaths(runId).root;
+  const runRoot = options.runRoot ?? defaultRunRoot;
+  const siteRoot = path.join(runRoot, "site");
+  const usesDefaultRunRoot =
+    path.resolve(runRoot) === path.resolve(defaultRunRoot);
   const gateRunner = options.gateRunner ?? runGates;
   return withSiteAuthorityLock(runId, async () => {
     const snapshotPaths =
       typeof options.snapshotPaths === "function" ? options.snapshotPaths() : options.snapshotPaths;
     const snapshots = await snapshotFiles([...new Set(snapshotPaths)]);
-    const preexistingFailures = await failingBlockingGates(runId);
+    const preexistingFailures = await failingBlockingGates(runId, runRoot);
     let value: T;
     try {
-      value = await options.mutate();
+      value = await withGeneratedSiteMutationAuthority(
+        runId,
+        siteRoot,
+        options.mutate,
+      );
       const reports = await gateRunner(runId, { afterEdit: true });
       if (reports.some((report) => report.blocking && !report.pass)) {
         throw new BlockingMutationError(reports, preexistingFailures);
       }
       await options.commit?.(value);
-      try {
-        // Lock order is site filesystem authority -> run-state transaction.
-        // This internal invalidator must never reacquire site authority.
-        await invalidateApprovedVisualQaUnderSiteAuthority(runId);
-      } catch (error) {
-        // Unit-level mutation fixtures may intentionally omit durable run
-        // state. Real committed runs must successfully invalidate approval.
-        if (!(error instanceof RunNotFoundError)) throw error;
+      if (usesDefaultRunRoot) {
+        try {
+          // Lock order is site filesystem authority -> run-state transaction.
+          // This internal invalidator must never reacquire site authority.
+          await invalidateApprovedVisualQaUnderSiteAuthority(runId);
+        } catch (error) {
+          // Unit-level mutation fixtures may intentionally omit durable run
+          // state. Real committed runs must successfully invalidate approval.
+          if (!(error instanceof RunNotFoundError)) throw error;
+        }
       }
       return { value, reports };
     } catch (error) {
@@ -184,5 +259,5 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
       }
       throw error;
     }
-  });
+  }, { runRoot });
 }

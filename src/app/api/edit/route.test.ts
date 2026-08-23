@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyElementHtmlEdit: vi.fn(),
@@ -7,9 +7,21 @@ const mocks = vi.hoisted(() => ({
   generateImage: vi.fn(),
   reserveImageGeneration: vi.fn(),
   finishImageGeneration: vi.fn(),
+  readImageGenerationLedger: vi.fn(),
   loadArtifact: vi.fn(),
   loadRun: vi.fn(),
   listProjectImages: vi.fn(),
+  readValidatedGeneratedImageStaging: vi.fn(),
+  atomicWriteGeneratedSiteFile: vi.fn(),
+  withSiteAuthorityLock: vi.fn(),
+  readFile: vi.fn(),
+  unlink: vi.fn(),
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:fs/promises")>()),
+  readFile: mocks.readFile,
+  unlink: mocks.unlink,
 }));
 
 vi.mock("../../../lib/elementEditor", async (importOriginal) => {
@@ -25,20 +37,57 @@ vi.mock("../../../lib/imageGenerationBudget", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../lib/imageGenerationBudget")>()),
   reserveImageGeneration: mocks.reserveImageGeneration,
   finishImageGeneration: mocks.finishImageGeneration,
+  readImageGenerationLedger: mocks.readImageGenerationLedger,
 }));
 vi.mock("../../../lib/runstate", () => ({
   sitePaths: () => ({ root: "/unused", site: "/unused/site" }),
   loadArtifact: mocks.loadArtifact,
   loadRun: mocks.loadRun,
 }));
-vi.mock("../../../lib/imageLibrary", () => ({
+vi.mock("../../../lib/imageLibrary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../lib/imageLibrary")>()),
   listProjectImages: mocks.listProjectImages,
+  readValidatedGeneratedImageStaging:
+    mocks.readValidatedGeneratedImageStaging,
+}));
+vi.mock("../../../lib/siteMutation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../lib/siteMutation")>()),
+  atomicWriteGeneratedSiteFile: mocks.atomicWriteGeneratedSiteFile,
+  withSiteAuthorityLock: mocks.withSiteAuthorityLock,
 }));
 
 import { POST } from "./route";
 import { ImageGenerationBudgetError } from "../../../lib/imageGenerationBudget";
 
 const originalToken = process.env.ONE_BOX_API_TOKEN;
+
+beforeEach(() => {
+  mocks.readFile.mockResolvedValue(
+    '<div data-edit-id="hero.image" data-aspect="16:9"><img src="old.jpg" alt="Old"></div>',
+  );
+  mocks.unlink.mockResolvedValue(undefined);
+  mocks.readImageGenerationLedger.mockResolvedValue({
+    version: 1,
+    capCredits: 14,
+    entries: [],
+  });
+  mocks.withSiteAuthorityLock.mockImplementation(
+    async (_runId, operation: () => Promise<unknown>) => operation(),
+  );
+  mocks.readValidatedGeneratedImageStaging.mockImplementation(
+    async (_runId, requestId: string) => ({
+      buffer: Buffer.from([137, 80, 78, 71]),
+      metadata: {
+        mimeType: "image/png",
+        extension: "png",
+        dimensions: { width: 1, height: 1 },
+      },
+      stagingPath: `/unused/image-staging/${requestId}.download`,
+      relativePath: `assets/generated/${requestId}.png`,
+      finalPath: `/unused/site/assets/generated/${requestId}.png`,
+    }),
+  );
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -209,6 +258,101 @@ describe("edit route authorization", () => {
     }));
     expect(response.status).toBe(429);
     expect(mocks.generateImage).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing image target before estimate, reservation, or provider work", async () => {
+    mocks.loadArtifact.mockResolvedValue({
+      imageryBrief: {
+        subject: "field technician",
+        lighting: "natural",
+        grade: "neutral",
+        framing: "wide",
+        avoid: [],
+      },
+      colors: [],
+    });
+    mocks.readFile.mockResolvedValue(
+      '<div data-edit-id="other.image"><img src="old.jpg" alt="Old"></div>',
+    );
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.image",
+        instruction: "Field work",
+        imageIntent: true,
+        requestId: "00000000-0000-4000-8000-000000000146",
+      }),
+    }));
+
+    expect(response.status).toBe(404);
+    expect(mocks.estimateImageCredits).not.toHaveBeenCalled();
+    expect(mocks.reserveImageGeneration).not.toHaveBeenCalled();
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+    expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
+  it("revalidates the image target after paid provider work before publishing live bytes", async () => {
+    mocks.loadArtifact.mockResolvedValue({
+      imageryBrief: {
+        subject: "field technician",
+        lighting: "natural",
+        grade: "neutral",
+        framing: "wide",
+        avoid: [],
+      },
+      colors: [],
+    });
+    mocks.estimateImageCredits.mockResolvedValue(2);
+    mocks.reserveImageGeneration.mockResolvedValue({
+      usedCredits: 2,
+      capCredits: 14,
+    });
+    mocks.generateImage.mockResolvedValue({
+      path: "/unused/image-staging/request.download",
+      url: "https://image.example/result.png",
+    });
+    mocks.applyElementHtmlEdit.mockImplementation(
+      async (_runId, _editId, transform) => {
+        await transform(
+          '<div data-edit-id="hero.image"><p>The image was removed concurrently</p></div>',
+        );
+        return { gates: [] };
+      },
+    );
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.image",
+        instruction: "Field work",
+        imageIntent: true,
+        requestId: "00000000-0000-4000-8000-000000000147",
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.generateImage).toHaveBeenCalledOnce();
+    expect(mocks.finishImageGeneration).toHaveBeenCalledWith(
+      "/unused/image-generation-ledger.json",
+      "00000000-0000-4000-8000-000000000147",
+      "completed",
+    );
+    expect(mocks.atomicWriteGeneratedSiteFile).not.toHaveBeenCalled();
   });
 
   // Proves the container-edit descendant-preservation contract named in

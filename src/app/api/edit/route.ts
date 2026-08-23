@@ -4,8 +4,8 @@
  * edit (audit finding: gates are invariants, not build-time stamps).
  */
 import path from "node:path";
-import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { readFile, unlink } from "node:fs/promises";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import {
@@ -24,12 +24,22 @@ import {
 import {
   ImageGenerationBudgetError,
   finishImageGeneration,
+  readImageGenerationLedger,
   reserveImageGeneration,
 } from "../../../lib/imageGenerationBudget";
 import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEditor";
-import { listProjectImages } from "../../../lib/imageLibrary";
+import {
+  ImageLibraryError,
+  listProjectImages,
+  readValidatedGeneratedImageStaging,
+  type ValidatedGeneratedImageStaging,
+} from "../../../lib/imageLibrary";
 import { describeTokensForEdit } from "../../../lib/editorPromptContext";
-import { BlockingMutationError } from "../../../lib/siteMutation";
+import {
+  atomicWriteGeneratedSiteFile,
+  BlockingMutationError,
+  withSiteAuthorityLock,
+} from "../../../lib/siteMutation";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
 import { classifyEditInstruction } from "../../../lib/editPreflight";
 import {
@@ -50,6 +60,31 @@ async function readPreflightElementContext(runId: string, editId: string) {
     elementTag: element[0].tagName.toLowerCase(),
     elementRole: element.attr("role") || undefined,
   };
+}
+
+async function readPreflightImageTarget(runId: string, editId: string) {
+  const html = await readFile(path.join(sitePaths(runId).site, "index.html"), "utf8");
+  const $ = cheerio.load(html);
+  const element = $("[data-edit-id]").filter(
+    (_, candidate) => $(candidate).attr("data-edit-id") === editId,
+  );
+  if (element.length !== 1) {
+    throw new ElementEditError(
+      `edit id not found or ambiguous: ${editId}`,
+      404,
+    );
+  }
+  const target = element.is("img") ? element : element.find("img").first();
+  if (!target.length) {
+    throw new ElementEditError("no <img> under that element");
+  }
+  return { aspectRatio: element.attr("data-aspect") ?? "16:9" };
+}
+
+async function removeStagingFile(filePath: string) {
+  await unlink(filePath).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+  });
 }
 
 export async function POST(req: Request) {
@@ -81,19 +116,19 @@ export async function POST(req: Request) {
   }
 
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
+  let preflightElement: Awaited<ReturnType<typeof readPreflightElementContext>>;
   if (!imageIntent) {
     // Each context source degrades independently (review finding): a digest
     // read failure must not skip classification, and only the classifier
     // itself is allowed to fail open.
-    let element: Awaited<ReturnType<typeof readPreflightElementContext>>;
     try {
-      element = await readPreflightElementContext(runId, editId);
+      preflightElement = await readPreflightElementContext(runId, editId);
     } catch (error) {
       console.warn(
         `[edit-preflight] run ${runId}: unable to read edit context; applying edit through deterministic gates: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
-    if (element && element.elementTag !== "img") {
+    if (preflightElement && preflightElement.elementTag !== "img") {
       let digestData;
       try {
         const digest = ReferenceStyleDigestSchema.safeParse(
@@ -107,7 +142,7 @@ export async function POST(req: Request) {
       }
       const classification = await classifyEditInstruction(runId, {
         instruction,
-        ...element,
+        ...preflightElement,
         tokens,
         ...(digestData ? { digest: digestData } : {}),
       });
@@ -119,13 +154,13 @@ export async function POST(req: Request) {
       }
     }
   }
-  const assetName = `edit-${randomUUID()}.jpg`;
-  const outPath = path.join(sitePaths(runId).site, "assets", assetName);
+  const paths = sitePaths(runId);
   const generationLedgerPath = path.join(
-    sitePaths(runId).root,
+    paths.root,
     "image-generation-ledger.json",
   );
   let imageCredits: { used: number; cap: number } | undefined;
+  let stagedImage: ValidatedGeneratedImageStaging | undefined;
   try {
     // Play 11 (canvas-upgrade B3): a referenceAssetId is an id, never trusted
     // on its own — it is resolved against THIS run's own image library
@@ -150,6 +185,125 @@ export async function POST(req: Request) {
         );
       }
     }
+    const inlineImageRequested =
+      imageIntent || preflightElement?.elementTag === "img";
+    if (inlineImageRequested) {
+      if (!requestId) {
+        throw new ElementEditError(
+          "image generation requires an idempotency requestId",
+          400,
+        );
+      }
+      const preflightTarget = await readPreflightImageTarget(runId, editId);
+      const stagingPath = path.join(
+        paths.root,
+        "image-staging",
+        `${requestId}.download`,
+      );
+      const b = tokens.imageryBrief;
+      const referenceClause = referenceItem?.prompt
+        ? ` Match the visual style of this earlier generated image: "${referenceItem.prompt}".`
+        : "";
+      const generationOptions = {
+        prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}.${referenceClause} No text, no logos.`,
+        aspectRatio: preflightTarget.aspectRatio,
+        outPath: stagingPath,
+      };
+      const ledger = await withSiteAuthorityLock(
+        runId,
+        () => readImageGenerationLedger(generationLedgerPath),
+        { runRoot: paths.root },
+      );
+      const existing = ledger.entries.find(
+        (entry) => entry.requestId === requestId,
+      );
+      if (existing) {
+        const instructionSha256 = createHash("sha256")
+          .update(instruction)
+          .digest("hex");
+        if (
+          existing.editId !== editId ||
+          existing.instructionSha256 !== instructionSha256
+        ) {
+          throw new ElementEditError(
+            "this image request id was already used with a different payload",
+            409,
+          );
+        }
+        imageCredits = {
+          used: ledger.entries.reduce(
+            (total, entry) => total + entry.credits,
+            0,
+          ),
+          cap: ledger.capCredits,
+        };
+        if (existing.status === "failed") {
+          throw new ElementEditError(
+            `image generation failed: ${existing.error ?? "provider request failed"}`,
+            502,
+          );
+        }
+        if (existing.status === "reserved") {
+          throw new ElementEditError(
+            "image generation is still in progress; retry this request",
+            409,
+          );
+        }
+      } else {
+        const estimate = await estimateImageCredits(generationOptions);
+        if (typeof estimate !== "number") {
+          throw new ElementEditError(estimate.error, 502);
+        }
+        const reservation = await withSiteAuthorityLock(
+          runId,
+          () =>
+            reserveImageGeneration(generationLedgerPath, {
+              requestId,
+              editId,
+              instruction,
+              credits: estimate,
+            }),
+          { runRoot: paths.root },
+        );
+        imageCredits = {
+          used: reservation.usedCredits,
+          cap: reservation.capCredits,
+        };
+        await removeStagingFile(stagingPath);
+        const generated = await generateImage(generationOptions);
+        if ("error" in generated) {
+          await withSiteAuthorityLock(
+            runId,
+            () =>
+              finishImageGeneration(
+                generationLedgerPath,
+                requestId,
+                "failed",
+                generated.error,
+              ),
+            { runRoot: paths.root },
+          );
+          await removeStagingFile(stagingPath);
+          throw new ElementEditError(
+            `image generation failed: ${generated.error}`,
+            502,
+          );
+        }
+        // Paid provider completion is operational truth even if staging is
+        // malformed or the subsequent guarded site mutation is rejected.
+        await withSiteAuthorityLock(
+          runId,
+          () =>
+            finishImageGeneration(
+              generationLedgerPath,
+              requestId,
+              "completed",
+            ),
+          { runRoot: paths.root },
+        );
+      }
+      stagedImage = await readValidatedGeneratedImageStaging(runId, requestId);
+    }
     const mutation = await applyElementHtmlEdit(
       runId,
       editId,
@@ -163,60 +317,26 @@ export async function POST(req: Request) {
             `edit id not found or ambiguous: ${editId}`,
             404,
           );
+        if (!stagedImage && el.is("img")) {
+          throw new ElementEditError(
+            "image target preflight was unavailable; retry the edit",
+            409,
+          );
+        }
 
-        if (imageIntent || el.is("img")) {
-          // Image swap: resolve + validate the target BEFORE the paid generation
-          // (audit P2: a bad selection must cost nothing and write nothing).
+        if (stagedImage) {
+          // Revalidate under the guarded mutation because the target may have
+          // changed while the provider ran outside site authority.
           const target = el.is("img") ? el : el.find("img").first();
           if (!target.length) {
             throw new ElementEditError("no <img> under that element");
           }
-          if (!requestId) {
-            throw new ElementEditError(
-              "image generation requires an idempotency requestId",
-              400,
-            );
-          }
-          const b = tokens.imageryBrief;
-          const referenceClause = referenceItem?.prompt
-            ? ` Match the visual style of this earlier generated image: "${referenceItem.prompt}".`
-            : "";
-          const generationOptions = {
-            prompt: `${instruction}. Stay inside this art direction — subject family: ${b.subject}; lighting: ${b.lighting}; grade: ${b.grade}; framing: ${b.framing}; avoid: ${b.avoid.join(", ")}.${referenceClause} No text, no logos.`,
-            aspectRatio: el.attr("data-aspect") ?? "16:9",
-            outPath,
-          };
-          const estimate = await estimateImageCredits(generationOptions);
-          if (typeof estimate !== "number") {
-            throw new ElementEditError(estimate.error, 502);
-          }
-          const reservation = await reserveImageGeneration(
-            generationLedgerPath,
-            { requestId, editId, instruction, credits: estimate },
+          await atomicWriteGeneratedSiteFile(
+            runId,
+            stagedImage.finalPath,
+            stagedImage.buffer,
           );
-          imageCredits = {
-            used: reservation.usedCredits,
-            cap: reservation.capCredits,
-          };
-          const gen = await generateImage(generationOptions);
-          if ("error" in gen) {
-            await finishImageGeneration(
-              generationLedgerPath,
-              requestId,
-              "failed",
-              gen.error,
-            );
-            throw new ElementEditError(
-              `image generation failed: ${gen.error}`,
-              502,
-            );
-          }
-          await finishImageGeneration(
-            generationLedgerPath,
-            requestId,
-            "completed",
-          );
-          target.attr("src", `assets/${assetName}`);
+          target.attr("src", stagedImage.relativePath);
           if (!target.attr("alt"))
             target.attr("alt", instruction.slice(0, 100));
         } else {
@@ -274,8 +394,9 @@ export async function POST(req: Request) {
         }
         return $.html();
       },
-      { snapshotPaths: [outPath] },
+      { snapshotPaths: stagedImage ? [stagedImage.finalPath] : [] },
     );
+    if (stagedImage) await removeStagingFile(stagedImage.stagingPath);
     const run = await loadRun(runId);
 
     return Response.json({
@@ -301,6 +422,9 @@ export async function POST(req: Request) {
       return Response.json({ error: error.message }, { status: error.status });
     }
     if (error instanceof ImageGenerationBudgetError) {
+      return Response.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof ImageLibraryError) {
       return Response.json({ error: error.message }, { status: error.status });
     }
     throw error;

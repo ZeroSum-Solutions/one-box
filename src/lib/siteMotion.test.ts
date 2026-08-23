@@ -14,10 +14,10 @@ import type { GateReport } from "./contracts";
 const roots: string[] = [];
 const passGate = async (): Promise<GateReport[]> => [];
 
-async function fixture() {
+async function fixture(runId = "test-run") {
   const sitesRoot = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-motion-"));
   roots.push(sitesRoot);
-  const root = path.join(sitesRoot, "test-run");
+  const root = path.join(sitesRoot, runId);
   await fs.mkdir(path.join(root, "site"), { recursive: true });
   await fs.writeFile(path.join(root, "site", "index.html"), '<main><h1 data-edit-id="hero.headline">Hello</h1><div data-edit-id="hero.webgl"><canvas></canvas></div></main>');
   await fs.writeFile(path.join(root, "gates.json"), "original gates");
@@ -71,6 +71,24 @@ describe("motion schema", () => {
 });
 
 describe("motion persistence", () => {
+  it("keeps an injected-root apply and revert away from the default run root", async () => {
+    const runId = "motion-injected-root";
+    const defaultRunRoot = path.join(process.cwd(), "sites", runId);
+    roots.push(defaultRunRoot);
+    await fs.rm(defaultRunRoot, { recursive: true, force: true });
+    const { sitesRoot } = await fixture(runId);
+
+    await mutateSiteMotion(
+      runId,
+      { action: "apply", draft },
+      { sitesRoot, gateRunner: passGate },
+    );
+    await revertSiteMotion(runId, { sitesRoot, gateRunner: passGate });
+
+    expect((await inspectSiteMotion(runId, undefined, { sitesRoot })).entries).toEqual([]);
+    await expect(fs.stat(defaultRunRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("applies, replaces, removes, and reverts through guarded history", async () => {
     const { sitesRoot } = await fixture();
     await mutateSiteMotion("test-run", { action: "apply", draft }, { sitesRoot, gateRunner: passGate });

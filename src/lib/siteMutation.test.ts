@@ -33,7 +33,12 @@ vi.mock("./runstate", () => ({
   }),
 }));
 
-import { BlockingMutationError, runGuardedMutation } from "./siteMutation";
+import {
+  atomicWriteGeneratedSiteFile,
+  BlockingMutationError,
+  runGuardedMutation,
+  withSiteAuthorityLock,
+} from "./siteMutation";
 import {
   candidateManifestSha256,
   createCandidateManifest,
@@ -53,6 +58,209 @@ afterEach(async () => {
       fs.rm(directory, { recursive: true, force: true })
     )
   );
+});
+
+describe("generated-site mutation write authority", () => {
+  it("fails closed before a live write attempted outside runGuardedMutation", async () => {
+    const siteRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-live-write-authority-"),
+    );
+    tempDirectories.push(siteRoot);
+    const target = path.join(siteRoot, "index.html");
+    await expect(
+      async () => atomicWriteGeneratedSiteFile("test-run", target, "blocked"),
+    ).rejects.toThrow(
+      "generated-site live writes require an active guarded mutation",
+    );
+    await expect(fs.stat(target)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("does not grant mutation context to a plain compiler/promotion/recovery site lock", async () => {
+    const runId = "authority-plain-lock";
+    const siteRoot = `/tmp/onebox-site-mutation-locks/${runId}/site`;
+    tempDirectories.push(path.dirname(siteRoot));
+    const target = path.join(siteRoot, "index.html");
+
+    await expect(
+      withSiteAuthorityLock(runId, () =>
+        atomicWriteGeneratedSiteFile(runId, target, "blocked"),
+      ),
+    ).rejects.toThrow(
+      "generated-site live writes require an active guarded mutation",
+    );
+    await expect(fs.stat(target)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("writes atomically inside runGuardedMutation under the existing site lock", async () => {
+    const runId = "authority-guarded-write";
+    const siteRoot = `/tmp/onebox-site-mutation-locks/${runId}/site`;
+    tempDirectories.push(path.dirname(siteRoot));
+    const target = path.join(siteRoot, "index.html");
+
+    await runGuardedMutation({
+      runId,
+      snapshotPaths: [target],
+      mutate: () =>
+        atomicWriteGeneratedSiteFile(runId, target, "committed"),
+      gateRunner: async () => [],
+    });
+
+    expect(await fs.readFile(target, "utf8")).toBe("committed");
+  });
+
+  it("restores a guarded live write and preserves invalidation ordering on gate rejection", async () => {
+    const runId = "authority-rollback";
+    const siteRoot = `/tmp/onebox-site-mutation-locks/${runId}/site`;
+    tempDirectories.push(path.dirname(siteRoot));
+    await fs.mkdir(siteRoot, { recursive: true });
+    const target = path.join(siteRoot, "index.html");
+    await fs.writeFile(target, "before");
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        snapshotPaths: [target],
+        mutate: () =>
+          atomicWriteGeneratedSiteFile(runId, target, "rejected"),
+        gateRunner: async () => [
+          {
+            gate: "axe",
+            pass: false,
+            blocking: true,
+            details: ["blocked"],
+            ranAt: "2026-08-23T00:00:00.000Z",
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BlockingMutationError);
+
+    expect(await fs.readFile(target, "utf8")).toBe("before");
+    expect(
+      mocks.invalidateApprovedVisualQaUnderSiteAuthority,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("binds mutation authority to the current run and generated-site root", async () => {
+    const runId = "authority-binding";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const siteRoot = path.join(runRoot, "site");
+    const outsideTarget = path.join(runRoot, "outside.html");
+    const otherRunTarget = path.join(siteRoot, "other-run.html");
+    tempDirectories.push(runRoot);
+
+    await runGuardedMutation({
+      runId,
+      snapshotPaths: [],
+      mutate: async () => {
+        await expect(
+          atomicWriteGeneratedSiteFile(
+            "authority-other-run",
+            otherRunTarget,
+            "blocked",
+          ),
+        ).rejects.toThrow(
+          "generated-site live writes require an active guarded mutation",
+        );
+        await expect(
+          atomicWriteGeneratedSiteFile(runId, outsideTarget, "blocked"),
+        ).rejects.toThrow(
+          "generated-site live write target is outside the guarded site root",
+        );
+      },
+      gateRunner: async () => [],
+    });
+
+    await expect(fs.stat(otherRunTarget)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(outsideTarget)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("binds an injected run root to the site lock and guarded write root", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-injected-mutation-root-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-injected-root";
+    const runRoot = path.join(container, runId);
+    const siteRoot = path.join(runRoot, "site");
+    const target = path.join(siteRoot, "index.html");
+
+    await runGuardedMutation({
+      runId,
+      runRoot,
+      snapshotPaths: [target],
+      mutate: async () => {
+        await expect(
+          fs.stat(path.join(runRoot, ".site-authority-lock", "owner.lock")),
+        ).resolves.toBeDefined();
+        await atomicWriteGeneratedSiteFile(runId, target, "committed");
+      },
+      gateRunner: async () => [],
+    });
+
+    expect(await fs.readFile(target, "utf8")).toBe("committed");
+    expect(
+      mocks.invalidateApprovedVisualQaUnderSiteAuthority,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("rejects a sibling of the injected site root and reads its preexisting gates", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-injected-mutation-root-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-injected-gates";
+    const runRoot = path.join(container, runId);
+    const siteRoot = path.join(runRoot, "site");
+    const target = path.join(siteRoot, "index.html");
+    const sibling = path.join(runRoot, "outside.html");
+    await fs.mkdir(siteRoot, { recursive: true });
+    await fs.writeFile(
+      path.join(runRoot, "gates.json"),
+      JSON.stringify([
+        {
+          gate: "axe",
+          pass: false,
+          blocking: true,
+          details: ["preexisting"],
+          ranAt: "2026-08-23T00:00:00.000Z",
+        },
+      ]),
+    );
+
+    let rejection: BlockingMutationError | undefined;
+    try {
+      await runGuardedMutation({
+        runId,
+        runRoot,
+        snapshotPaths: [target],
+        mutate: async () => {
+          await expect(
+            atomicWriteGeneratedSiteFile(runId, sibling, "blocked"),
+          ).rejects.toThrow(
+            "generated-site live write target is outside the guarded site root",
+          );
+          await atomicWriteGeneratedSiteFile(runId, target, "rejected");
+        },
+        gateRunner: async () => [
+          {
+            gate: "axe",
+            pass: false,
+            blocking: true,
+            details: ["still failing"],
+            ranAt: "2026-08-23T00:00:01.000Z",
+          },
+        ],
+      });
+    } catch (error) {
+      rejection = error as BlockingMutationError;
+    }
+
+    expect(rejection).toBeInstanceOf(BlockingMutationError);
+    expect(rejection?.regressions).toEqual([]);
+    expect(rejection?.preexisting).toEqual(["axe"]);
+    await expect(fs.stat(target)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(sibling)).rejects.toMatchObject({ code: "ENOENT" });
+  });
 });
 
 describe("committed site mutation visual-QA invalidation", () => {

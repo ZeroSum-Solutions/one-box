@@ -151,6 +151,7 @@ function motionPaths(testSitesRoot: string | undefined, runId: string) {
     ? path.join(testSitesRoot, safeRunId)
     : path.join(/* turbopackIgnore: true */ SITES_ROOT, safeRunId);
   return {
+    root,
     html: path.join(root, "site", "index.html"),
     manifest: path.join(root, "site", "motion.json"),
     manifestScript: path.join(root, "site", "motion-manifest.js"),
@@ -259,6 +260,7 @@ export async function mutateSiteMotion(
   const files = motionPaths(options.sitesRoot, runId);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.manifest, files.manifestScript, files.history, files.gates],
     gateRunner: options.gateRunner,
     mutate: async () => {
@@ -322,6 +324,7 @@ export async function revertSiteMotion(runId: string, options: MotionSiteOptions
   const files = motionPaths(options.sitesRoot, runId);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.manifest, files.manifestScript, files.history, files.gates],
     gateRunner: options.gateRunner,
     mutate: async () => {
