@@ -160,7 +160,7 @@ describe("candidate contracts", () => {
             candidateManifestSha256: HASH_A,
             buildSha256: HASH_B,
             gateReportSha256: HASH_C,
-            promotedBuildSha256: HASH_B,
+            ...(to === "promoted" ? { promotedBuildSha256: HASH_B } : {}),
           }),
         );
         const allowed = CANDIDATE_STATE_TRANSITIONS[
@@ -268,6 +268,75 @@ describe("candidate contracts", () => {
           buildSha256: HASH_B,
           gateReportSha256: HASH_C,
           promotedBuildSha256: HASH_D,
+        }),
+      ).success,
+    ).toBe(false);
+  });
+
+  it("preserves history-implied bindings through failure and repair", () => {
+    const repairedAfterReady = {
+      state: "preparing",
+      history: [
+        { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+        { state: "ready-for-gates", at: "2026-08-22T00:00:01.000Z" },
+        { state: "failed", at: "2026-08-22T00:00:02.000Z" },
+        { state: "preparing", at: "2026-08-22T00:00:03.000Z" },
+      ],
+    };
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance(repairedAfterReady),
+      ).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance({
+          ...repairedAfterReady,
+          candidateManifestSha256: HASH_A,
+          buildSha256: HASH_B,
+        }),
+      ).success,
+    ).toBe(true);
+
+    const repairedAfterPromotable = {
+      state: "preparing",
+      history: [
+        { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+        { state: "ready-for-gates", at: "2026-08-22T00:00:01.000Z" },
+        { state: "promotable", at: "2026-08-22T00:00:02.000Z" },
+        { state: "failed", at: "2026-08-22T00:00:03.000Z" },
+        { state: "preparing", at: "2026-08-22T00:00:04.000Z" },
+      ],
+      candidateManifestSha256: HASH_A,
+      buildSha256: HASH_B,
+    };
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance(repairedAfterPromotable),
+      ).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance({
+          ...repairedAfterPromotable,
+          gateReportSha256: HASH_C,
+        }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("allows promoted build bindings only in the promoted state", () => {
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        candidateProvenance({
+          state: "failed",
+          history: [
+            { state: "preparing", at: "2026-08-22T00:00:00.000Z" },
+            { state: "failed", at: "2026-08-22T00:00:01.000Z" },
+          ],
+          candidateManifestSha256: HASH_A,
+          buildSha256: HASH_B,
+          promotedBuildSha256: HASH_B,
         }),
       ).success,
     ).toBe(false);

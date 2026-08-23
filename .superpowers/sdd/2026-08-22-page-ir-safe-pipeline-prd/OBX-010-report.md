@@ -143,3 +143,82 @@ with exit `0`; all 27 contract tests passed.
   oversized once provenance is included.
 - Cleanup uses no competing lock. OBX-015 must coordinate its recovery actions
   through the existing site authority where live publication is involved.
+
+## Fix Round 1 — harden file and cleanup races
+
+Grok 4.6 sustained four defects in the original delivery: a FIFO swap could
+block at `open`, opened-file growth was not charged before hashing or reading,
+cleanup could remove a candidate revived during its diagnostic walk, and a
+crafted provenance record could discard bindings implied by earlier lifecycle
+states. This round closes those four defects without adding a lock, recovery,
+compiler, gate, repair, or promotion behavior.
+
+### Fix Round 1 RED/GREEN evidence
+
+Focused command:
+
+```text
+npm test -- src/lib/contracts.test.ts src/lib/candidate.test.ts
+```
+
+RED exit `1`: 2 files ran; 6 intended tests failed and 50 tests passed. The
+failures proved that read flags lacked `O_NONBLOCK`, an aggregate one-byte
+growth reached the file-body read, provenance growth reached `readFile`, a
+failed candidate revived to `preparing` was removed, history-implied bindings
+could be omitted after repair, and a non-promoted record could carry a promoted
+build binding.
+
+GREEN exit `0`: both files passed; all 56 tests passed. The race fixtures use
+sparse files and intercepted file handles, so they fail deterministically
+before a large body read and do not depend on timing or a blocking FIFO.
+
+Final verification:
+
+- `npm test`: exit `0`; 64 files passed, 2 skipped; 586 tests passed,
+  2 skipped.
+- `npm run typecheck`: exit `0`; route types generated and `tsc --noEmit`
+  completed.
+- `npm run lint`: exit `0`; 0 errors and 6 pre-existing warnings.
+- `git diff --check`: exit `0`.
+- Range-based `gitleaks`: exit `0`; 1 commit and approximately 9.82 KB
+  scanned, with no leaks found.
+- Fix Round 1 security report validation: exit `0`; verdict `PASS` with no
+  findings.
+
+### Fix Round 1 acceptance mapping
+
+- Candidate and diagnostic reads add `O_NONBLOCK` where the platform exposes
+  it, retain `O_NOFOLLOW`, and reject non-regular opened handles after `fstat`.
+  A regular-path-to-FIFO swap therefore cannot wait indefinitely for a writer.
+- Inventory passes each opened file the exact remaining aggregate budget and
+  accounts from the opened record size, not the earlier `lstat`. A file that
+  grows the aggregate to 100 MiB plus one byte is rejected before its body is
+  read. Diagnostic JSON reads compare opened size with both the initial size
+  and cap before `readFile`.
+- Cleanup hashes the exact validated provenance bytes at its first read. After
+  the diagnostic walk it rechecks the candidate-root inode, rereads and reparses
+  provenance, and requires the exact snapshot hash before removing the root. A
+  deterministic `failed -> preparing` revival test preserves the full root.
+- Provenance parsing now retains manifest/build bindings after history reaches
+  `ready-for-gates` and the candidate gate-report binding after history reaches
+  `promotable`, including later failed and preparing repair states. Only a
+  currently promoted record may carry `promotedBuildSha256`.
+
+### Fix Round 1 files, assumptions, and risks
+
+- File-open, inventory, inspection, and cleanup hardening:
+  `src/lib/candidate.ts` and `src/lib/candidate.test.ts`.
+- Persisted provenance closure: `src/lib/contracts.ts` and
+  `src/lib/contracts.test.ts`.
+- Canonical contract and delivery evidence: `docs/architecture/README.md`, the
+  OBX-010 ticket, this report, the SDD progress ledger, and the
+  `OBX-010-fix-round-1-security` directory.
+- Assumption: exact provenance-byte equality is intentionally stricter than
+  semantic equality; even whitespace-only replacement during cleanup fails
+  closed and preserves the root.
+- Risk: no new lock was added. The final instant between the second provenance
+  read and recursive removal remains assigned to OBX-015 cross-process
+  coordination through the existing site authority.
+- The diagnostic cap remains unchanged: it covers the entire failed diagnostic,
+  so a legal 100 MiB site plus metadata can be removed immediately once
+  terminal.

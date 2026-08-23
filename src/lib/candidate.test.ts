@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
+import { constants } from "node:fs";
 import fs from "node:fs/promises";
 import { createServer } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   MAX_CANDIDATE_BYTES,
   candidateManifestSha256,
@@ -92,6 +93,7 @@ async function createReadyCandidate(runId: string) {
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all([
     ...roots.splice(0).map((root) =>
       fs.rm(root, { recursive: true, force: true }),
@@ -136,6 +138,58 @@ describe("candidate paths", () => {
 });
 
 describe("candidate inventory", () => {
+  it("opens candidate files with nonblocking no-follow reads", async () => {
+    const root = await temporarySite();
+    await fs.writeFile(path.join(root, "index.html"), "index");
+    const realOpen = fs.open.bind(fs);
+    const observedFlags: number[] = [];
+    vi.spyOn(fs, "open").mockImplementation(async (filePath, flags, mode) => {
+      if (typeof flags === "number") observedFlags.push(flags);
+      return realOpen(filePath, flags, mode);
+    });
+
+    await createCandidateManifest(root);
+
+    const nonblock = constants.O_NONBLOCK ?? 0;
+    if (nonblock !== 0) {
+      expect(observedFlags.length).toBeGreaterThan(0);
+      expect(observedFlags.every((flags) => (flags & nonblock) === nonblock)).toBe(
+        true,
+      );
+    }
+  });
+
+  it("rejects opened aggregate growth before reading the grown file body", async () => {
+    const root = await temporarySite();
+    await fs.writeFile(path.join(root, "index.html"), "index");
+    const largePath = path.join(root, "z.bin");
+    const sparse = await fs.open(largePath, "w");
+    await sparse.truncate(MAX_CANDIDATE_BYTES - 5);
+    await sparse.close();
+
+    const realOpen = fs.open.bind(fs);
+    let grew = false;
+    let bodyReadAttempted = false;
+    vi.spyOn(fs, "open").mockImplementation(async (filePath, flags, mode) => {
+      if (String(filePath) !== largePath || grew) {
+        return realOpen(filePath, flags, mode);
+      }
+      grew = true;
+      const grow = await realOpen(largePath, "r+");
+      await grow.truncate(MAX_CANDIDATE_BYTES - 4);
+      await grow.close();
+      const opened = await realOpen(filePath, flags, mode);
+      opened.read = (async () => {
+        bodyReadAttempted = true;
+        throw new Error("candidate file body read attempted");
+      }) as typeof opened.read;
+      return opened;
+    });
+
+    await expect(createCandidateManifest(root)).rejects.toThrow(/100 MiB/);
+    expect(bodyReadAttempted).toBe(false);
+  });
+
   it("is deterministic across creation order and mtime", async () => {
     const first = await temporarySite();
     const second = await temporarySite();
@@ -294,6 +348,32 @@ describe("candidate inventory", () => {
 });
 
 describe("candidate inspection and transitions", () => {
+  it("rejects provenance growth between lstat and open before reading its body", async () => {
+    const runId = testRunId("candidate-provenance-grow");
+    const { paths } = await createReadyCandidate(runId);
+    const realOpen = fs.open.bind(fs);
+    let grew = false;
+    let bodyReadAttempted = false;
+    vi.spyOn(fs, "open").mockImplementation(async (filePath, flags, mode) => {
+      if (String(filePath) !== paths.provenance || grew) {
+        return realOpen(filePath, flags, mode);
+      }
+      grew = true;
+      const grow = await realOpen(paths.provenance, "a");
+      await grow.writeFile(" ");
+      await grow.close();
+      const opened = await realOpen(filePath, flags, mode);
+      opened.readFile = (async () => {
+        bodyReadAttempted = true;
+        throw new Error("candidate provenance body read attempted");
+      }) as typeof opened.readFile;
+      return opened;
+    });
+
+    await expect(inspectCandidate(runId)).rejects.toThrow(/changed before read/);
+    expect(bodyReadAttempted).toBe(false);
+  });
+
   it("reads and verifies a ready candidate without writing recovery state", async () => {
     const runId = testRunId();
     const { paths, manifest, ready } = await createReadyCandidate(runId);
@@ -498,5 +578,44 @@ describe("candidate diagnostic cleanup", () => {
       ),
     ).rejects.toThrow(/symlink/);
     await expect(fs.stat(symlinkPaths.root)).resolves.toBeDefined();
+  });
+
+  it("preserves a terminal candidate revived while cleanup is in progress", async () => {
+    const runId = testRunId("candidate-revived");
+    const paths = await writeDiagnostic(
+      runId,
+      "failed",
+      "2026-08-20T00:00:01.000Z",
+    );
+    const failed = CandidateProvenanceV1Schema.parse(
+      JSON.parse(await fs.readFile(paths.provenance, "utf8")),
+    );
+    const revived = transitionCandidateProvenance(
+      failed,
+      "preparing",
+      "2026-08-20T00:00:02.000Z",
+    );
+    const realLstat = fs.lstat.bind(fs);
+    let rootChecks = 0;
+    vi.spyOn(fs, "lstat").mockImplementation(async (filePath, options) => {
+      if (String(filePath) === paths.root) {
+        rootChecks += 1;
+        if (rootChecks === 2) await writeJson(paths.provenance, revived);
+      }
+      return realLstat(filePath, options);
+    });
+
+    await expect(
+      cleanupCandidateDiagnostics(
+        runId,
+        new Date("2026-08-22T00:00:00.000Z"),
+      ),
+    ).rejects.toThrow(/provenance changed during cleanup/);
+    await expect(fs.stat(paths.root)).resolves.toBeDefined();
+    expect(
+      CandidateProvenanceV1Schema.parse(
+        JSON.parse(await fs.readFile(paths.provenance, "utf8")),
+      ).state,
+    ).toBe("preparing");
   });
 });

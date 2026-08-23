@@ -20,7 +20,8 @@ export const CANDIDATE_DIAGNOSTIC_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
-const READ_FLAGS = constants.O_RDONLY | NOFOLLOW;
+const NONBLOCK = constants.O_NONBLOCK ?? 0;
+const READ_FLAGS = constants.O_RDONLY | NOFOLLOW | NONBLOCK;
 
 const CandidateBindingPatchSchema = z
   .object({
@@ -104,6 +105,7 @@ async function hashOpenedRegularFile(
   absolutePath: string,
   relativePath: string,
   initial: BigIntStats,
+  remainingBytes: number,
 ): Promise<CandidateFileRecord> {
   const handle = await fs.open(absolutePath, READ_FLAGS);
   try {
@@ -114,6 +116,9 @@ async function hashOpenedRegularFile(
     }
     if (opened.size > BigInt(Number.MAX_SAFE_INTEGER)) {
       throw new Error(`candidate file is too large to inventory: ${relativePath}`);
+    }
+    if (opened.size > BigInt(remainingBytes)) {
+      throw new Error("candidate inventory exceeds 100 MiB");
     }
 
     const sizeBytes = Number(opened.size);
@@ -177,13 +182,14 @@ async function inventoryRegularFiles(
       if (stat.size > BigInt(Number.MAX_SAFE_INTEGER)) {
         throw new Error(`candidate file is too large to inventory: ${relative}`);
       }
-      totalBytes += Number(stat.size);
-      if (totalBytes > MAX_CANDIDATE_BYTES) {
-        throw new Error("candidate inventory exceeds 100 MiB");
-      }
-      files.push(
-        await hashOpenedRegularFile(absolute, relative, stat),
+      const file = await hashOpenedRegularFile(
+        absolute,
+        relative,
+        stat,
+        MAX_CANDIDATE_BYTES - totalBytes,
       );
+      totalBytes += file.sizeBytes;
+      files.push(file);
     }
   }
 
@@ -302,7 +308,15 @@ async function readRegularFile(
   const handle = await fs.open(filePath, READ_FLAGS);
   try {
     const opened = await handle.stat({ bigint: true });
-    if (!opened.isFile() || !sameFile(initial, opened)) {
+    if (opened.size > BigInt(MAX_CANDIDATE_BYTES)) {
+      throw new Error(`${label} exceeds the candidate diagnostic size limit`);
+    }
+    if (
+      !opened.isFile() ||
+      opened.nlink > BigInt(1) ||
+      !sameFile(initial, opened) ||
+      opened.size !== initial.size
+    ) {
       throw new Error(`${label} changed before read`);
     }
     const bytes = await handle.readFile();
@@ -316,17 +330,23 @@ async function readRegularFile(
   }
 }
 
-async function readProvenance(
+type CandidateProvenanceSnapshot = {
+  provenance: CandidateProvenanceV1;
+  bytesSha256: string;
+};
+
+async function readProvenanceSnapshot(
   paths: Readonly<CandidatePaths>,
   runId: string,
-): Promise<CandidateProvenanceV1> {
+): Promise<CandidateProvenanceSnapshot> {
+  const bytes = await readRegularFile(paths.provenance, "candidate provenance");
   const provenance = CandidateProvenanceV1Schema.parse(
-    JSON.parse((await readRegularFile(paths.provenance, "candidate provenance")).toString("utf8")),
+    JSON.parse(bytes.toString("utf8")),
   );
   if (provenance.runId !== runId) {
     throw new Error("candidate provenance runId does not match its root");
   }
-  return provenance;
+  return { provenance, bytesSha256: sha256(bytes) };
 }
 
 async function assertClosedCandidateRoot(
@@ -399,7 +419,7 @@ export async function inspectCandidate(
   if (!rootStat) return { status: "absent", paths };
   assertDirectory(rootStat, "candidate root");
   await assertClosedCandidateRoot(paths);
-  const provenance = await readProvenance(paths, runId);
+  const { provenance } = await readProvenanceSnapshot(paths, runId);
 
   let manifest: CandidateManifestV1 | undefined;
   const manifestStat = await lstatMaybe(paths.manifest);
@@ -458,7 +478,8 @@ export async function cleanupCandidateDiagnostics(
   const rootStat = await lstatMaybe(paths.root);
   if (!rootStat) return { removed: false, reason: "absent" };
   assertDirectory(rootStat, "candidate root");
-  const provenance = await readProvenance(paths, runId);
+  const provenanceSnapshot = await readProvenanceSnapshot(paths, runId);
+  const { provenance } = provenanceSnapshot;
   if (provenance.state !== "failed" && provenance.state !== "abandoned") {
     return { removed: false, reason: "active" };
   }
@@ -479,6 +500,12 @@ export async function cleanupCandidateDiagnostics(
   assertDirectory(beforeRemove, "candidate root");
   if (!sameFile(rootStat, beforeRemove)) {
     throw new Error("candidate root changed before cleanup");
+  }
+  const beforeRemoveProvenance = await readProvenanceSnapshot(paths, runId);
+  if (
+    beforeRemoveProvenance.bytesSha256 !== provenanceSnapshot.bytesSha256
+  ) {
+    throw new Error("candidate provenance changed during cleanup");
   }
   await fs.rm(paths.root, { recursive: true, force: false });
   return { removed: true, reason };

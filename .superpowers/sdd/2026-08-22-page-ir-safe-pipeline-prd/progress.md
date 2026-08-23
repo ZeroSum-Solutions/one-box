@@ -50,3 +50,8 @@
   and bounded terminal diagnostic cleanup are implemented without changing builder,
   gates, promotion, recovery, or legacy run/site state. Candidate suite: 23 passed.
   Full suite: 580 passed, 2 skipped. Security review: PASS with no findings.
+- OBX-010 Fix Round 1: verified. Candidate reads are nonblocking/no-follow,
+  opened sizes are charged before body reads, cleanup revalidates exact provenance
+  after its diagnostic walk, and lifecycle history retains all reached-state bindings.
+  Focused verification: 56 passed. Full suite: 586 passed, 2 skipped. Security review:
+  PASS with no findings.

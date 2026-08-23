@@ -1463,6 +1463,12 @@ export const CandidateProvenanceV1Schema = z
     }
     const manifestBound = Boolean(provenance.candidateManifestSha256);
     const buildBound = Boolean(provenance.buildSha256);
+    const reachedReadyForGates = provenance.history.some(
+      (event) => event.state === "ready-for-gates",
+    );
+    const reachedPromotable = provenance.history.some(
+      (event) => event.state === "promotable",
+    );
     if (manifestBound !== buildBound) {
       context.addIssue({
         code: "custom",
@@ -1489,6 +1495,14 @@ export const CandidateProvenanceV1Schema = z
         message: `${provenance.state} requires manifest and build bindings`,
       });
     }
+    if (reachedReadyForGates && (!manifestBound || !buildBound)) {
+      context.addIssue({
+        code: "custom",
+        path: ["candidateManifestSha256"],
+        message:
+          "history that reached ready-for-gates requires manifest and build bindings",
+      });
+    }
     if (
       ["promotable", "promoted"].includes(provenance.state) &&
       !provenance.gateReportSha256
@@ -1499,11 +1513,29 @@ export const CandidateProvenanceV1Schema = z
         message: `${provenance.state} requires a candidate gate report binding`,
       });
     }
+    if (reachedPromotable && !provenance.gateReportSha256) {
+      context.addIssue({
+        code: "custom",
+        path: ["gateReportSha256"],
+        message:
+          "history that reached promotable requires a candidate gate report binding",
+      });
+    }
     if (provenance.state === "promoted" && !provenance.promotedBuildSha256) {
       context.addIssue({
         code: "custom",
         path: ["promotedBuildSha256"],
         message: "promoted requires a promoted build binding",
+      });
+    }
+    if (
+      provenance.state !== "promoted" &&
+      provenance.promotedBuildSha256
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["promotedBuildSha256"],
+        message: "only promoted provenance may carry a promoted build binding",
       });
     }
     if (
