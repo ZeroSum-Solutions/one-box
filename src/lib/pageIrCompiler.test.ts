@@ -129,9 +129,9 @@ function replaceImage(
 describe("compilePageIRV1", () => {
   it("pins the compiler version and closed exact inventory", () => {
     const result = compilePageIRV1(compilerRequest());
-    expect(result.compilerVersion).toBe("page-ir-static@2");
-    expect(PAGE_IR_COMPILER_VERSION).toBe("page-ir-static@2");
-    expect(PAGE_IR_COMPILER_VERSION).not.toBe("page-ir-static@1");
+    expect(result.compilerVersion).toBe("page-ir-static@3");
+    expect(PAGE_IR_COMPILER_VERSION).toBe("page-ir-static@3");
+    expect(PAGE_IR_COMPILER_VERSION).not.toBe("page-ir-static@2");
     expect(result.files.map((candidate) => candidate.path)).toEqual([
       "assets/hero-image.webp",
       "index.html",
@@ -154,19 +154,46 @@ describe("compilePageIRV1", () => {
   });
 
   it.each(Object.keys(COMPILER_PURPOSE_SECTIONS) as PagePurposeV1[])(
-    "compiles %s identically ten times",
+    "compiles %s with the same complete identity mapping ten times",
     (purpose) => {
-      const results = Array.from({ length: 10 }, () => compilePageIRV1(compilerRequest(purpose)));
+      const request = compilerRequest(purpose);
+      const expectedEntries = request.pageIr.layoutProgram.nodes
+        .map((node) => node.id)
+        .sort()
+        .map((nodeId) => ({ editId: nodeId, nodeId }));
+      const results = Array.from({ length: 10 }, () => compilePageIRV1(request));
       const first = results[0];
+      expect(first.editorIdentityEntries).toEqual(expectedEntries);
       for (const result of results.slice(1)) {
         expect(fileMap(result)).toEqual(fileMap(first));
         expect(result.manifest).toEqual(first.manifest);
         expect(result.manifestBytes).toEqual(first.manifestBytes);
         expect(result.manifest.buildSha256).toBe(first.manifest.buildSha256);
         expect(result.pageIrSha256).toBe(first.pageIrSha256);
+        expect(result.editorIdentityEntries).toEqual(expectedEntries);
       }
     },
   );
+
+  it("preserves identity mappings when unrelated content and sibling order change", () => {
+    const original = compilerRequest("institutional-presence");
+    const contentChanged = compilerRequest("institutional-presence");
+    const footerCopy = contentChanged.pageIr.content.find((entry) => entry.id === "footer-copy");
+    if (!footerCopy || footerCopy.kind !== "text") throw new Error("fixture footer copy missing");
+    footerCopy.text = "Different unrelated footer copy";
+    const siblingsChanged = compilerRequest("institutional-presence");
+    const main = siblingsChanged.pageIr.layoutProgram.nodes.find((node) => node.id === "main");
+    if (!main || main.kind !== "landmark") throw new Error("fixture main landmark missing");
+    main.childIds.reverse();
+
+    const expectedEntries = original.pageIr.layoutProgram.nodes
+      .map((node) => node.id)
+      .sort()
+      .map((nodeId) => ({ editId: nodeId, nodeId }));
+    expect(compilePageIRV1(original).editorIdentityEntries).toEqual(expectedEntries);
+    expect(compilePageIRV1(contentChanged).editorIdentityEntries).toEqual(expectedEntries);
+    expect(compilePageIRV1(siblingsChanged).editorIdentityEntries).toEqual(expectedEntries);
+  });
 
   it.each(Object.entries(COMPILER_PURPOSE_SECTIONS) as Array<[PagePurposeV1, readonly string[]]>)(
     "renders purpose-specific %s sections, title, and skip target",
@@ -383,6 +410,20 @@ describe("compilePageIRV1", () => {
         (action as unknown as Record<string, unknown>).href = "data:text/html,<script>alert(1)</script>";
       },
       (input) => { (input.pageIr.actions[0] as unknown as Record<string, unknown>).kind = "submit"; },
+    ];
+    for (const mutate of mutations) {
+      const input = compilerRequest();
+      mutate(input);
+      expectCompilerError(input, "Invalid Page IR compiler request");
+    }
+  });
+
+  it("rejects duplicate or unsafe editor IDs before producing a compiler result", () => {
+    const mutations: Array<(input: ReturnType<typeof compilerRequest>) => void> = [
+      (input) => { input.pageIr.layoutProgram.nodes.find((node) => node.id === "hero")!.id = "header"; },
+      (input) => { input.pageIr.layoutProgram.nodes.find((node) => node.id === "hero")!.id = "a"; },
+      (input) => { input.pageIr.layoutProgram.nodes.find((node) => node.id === "hero")!.id = "hero.item"; },
+      (input) => { input.pageIr.layoutProgram.nodes.find((node) => node.id === "hero")!.id = "constructor"; },
     ];
     for (const mutate of mutations) {
       const input = compilerRequest();

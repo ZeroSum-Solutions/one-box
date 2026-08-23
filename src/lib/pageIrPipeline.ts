@@ -15,6 +15,7 @@ import {
   PageIrAssetMediaTypeV1Schema,
   PageIrAssetsV1Schema,
   PageIrContentV1Schema,
+  PageIrEditorSourceMapV1Schema,
   PageIrLayoutDecisionV1Schema,
   PageIrSourceBundleReviewCriteriaV1Schema,
   PageIrSourceBundleReviewStateV1Schema,
@@ -27,6 +28,7 @@ import {
   type CandidateProvenanceV1,
   type PageIrSourceBundleReviewStateV1,
   type PageIrSourceBundleV1,
+  type PageIrEditorSourceMapV1,
   type PersistedPageIrV1,
   type RunState,
   type WorkflowArtifactType,
@@ -858,6 +860,47 @@ function sameInputHashes(
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function assertEditorSourceMapMatchesPersistedPageIr(
+  sourceMap: PageIrEditorSourceMapV1,
+  persisted: PersistedPageIrV1,
+): void {
+  if (sourceMap.pageIrSha256 !== persisted.pageIrSha256) {
+    throw new Error("editor source map Page IR SHA-256 mismatch");
+  }
+  if (sourceMap.bindingSetSha256 !== persisted.bindingSetSha256) {
+    throw new Error("editor source map binding-set SHA-256 mismatch");
+  }
+  if (JSON.stringify(sourceMap.lineage) !== JSON.stringify(persisted.lineage)) {
+    throw new Error("editor source map lineage mismatch");
+  }
+  const expectedEntries = persisted.pageIr.layoutProgram.nodes
+    .map((node) => ({ editId: node.id, nodeId: node.id }))
+    .sort((left, right) =>
+      left.editId < right.editId ? -1 : left.editId > right.editId ? 1 : 0,
+    );
+  if (JSON.stringify(sourceMap.entries) !== JSON.stringify(expectedEntries)) {
+    throw new Error("editor source map node coverage mismatch");
+  }
+}
+
+function editorSourceMapForCompilation(
+  persisted: PersistedPageIrV1,
+  compilation: ReturnType<typeof compilePageIRV1>,
+): PageIrEditorSourceMapV1 {
+  if (compilation.pageIrSha256 !== persisted.pageIrSha256) {
+    throw new Error("compiled Page IR SHA-256 does not match persisted Page IR");
+  }
+  const sourceMap = PageIrEditorSourceMapV1Schema.parse({
+    schemaVersion: 1,
+    pageIrSha256: persisted.pageIrSha256,
+    bindingSetSha256: persisted.bindingSetSha256,
+    lineage: persisted.lineage,
+    entries: compilation.editorIdentityEntries,
+  });
+  assertEditorSourceMapMatchesPersistedPageIr(sourceMap, persisted);
+  return sourceMap;
+}
+
 async function installCandidateDirectory(
   staging: string,
   target: string,
@@ -965,6 +1008,10 @@ export async function materializePageIrCandidate(
       pageIr: persisted.pageIr,
       assets: compilerAssets,
     });
+    const editorSourceMap = editorSourceMapForCompilation(
+      persisted,
+      compilation,
+    );
     const inputArtifactHashes = [
       { path: "page-ir.json", sha256: sha256(pageIrBytes) },
       ...request.assets.map((asset) => ({
@@ -976,6 +1023,16 @@ export async function materializePageIrCandidate(
     );
     const manifestSha256 = candidateManifestSha256(compilation.manifest);
     const current = await inspectCandidate(request.runId);
+    if (
+      current.status === "present" &&
+      current.provenance.layoutAuthority === "page-ir-v1" &&
+      current.provenance.compilerVersion === PAGE_IR_COMPILER_VERSION
+    ) {
+      assertEditorSourceMapMatchesPersistedPageIr(
+        current.provenance.editorSourceMap!,
+        persisted,
+      );
+    }
     const matchesCurrentCompilation = Boolean(
       current.status === "present" &&
       current.manifest &&
@@ -991,6 +1048,8 @@ export async function materializePageIrCandidate(
       ) &&
       current.provenance.candidateManifestSha256 === manifestSha256 &&
       current.provenance.buildSha256 === compilation.manifest.buildSha256 &&
+      JSON.stringify(current.provenance.editorSourceMap) ===
+        JSON.stringify(editorSourceMap) &&
       JSON.stringify(current.manifest) === JSON.stringify(compilation.manifest),
     );
     if (
@@ -1049,6 +1108,7 @@ export async function materializePageIrCandidate(
         layoutAuthority: "page-ir-v1",
         compilerVersion: PAGE_IR_COMPILER_VERSION,
         pageIrSha256: persisted.pageIrSha256,
+        editorSourceMap,
       });
       const ready = transitionCandidateProvenance(
         preparing,
@@ -1078,12 +1138,11 @@ export async function materializePageIrCandidate(
         "page-ir-v1",
         "Page IR candidate commit",
       );
-      if (
-        (await loadPersistedPageIrUnderState(currentRun)).pageIrSha256 !==
-        persisted.pageIrSha256
-      ) {
-        throw new Error("persisted Page IR changed before candidate commit");
-      }
+      const currentPersisted = await loadPersistedPageIrUnderState(currentRun);
+      assertEditorSourceMapMatchesPersistedPageIr(
+        editorSourceMap,
+        currentPersisted,
+      );
       await installCandidateDirectory(staging, candidateRoot, hooks);
       committed = true;
       return {

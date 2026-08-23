@@ -33,14 +33,17 @@ export const PAGE_IR_BOUNDS = {
 } as const;
 
 const FORBIDDEN_IR_IDS = new Set(["__proto__", "prototype", "constructor"]);
-const IrIdSchema = z
+export const PageIrEditorIdSchema = z
   .string()
-  .min(1)
+  .min(2)
   .max(64)
   .regex(/^[A-Za-z][A-Za-z0-9_-]*$/)
   .refine((value) => !FORBIDDEN_IR_IDS.has(value), {
     message: "reserved identifiers are not allowed",
   });
+export type PageIrEditorId = z.infer<typeof PageIrEditorIdSchema>;
+
+const IrIdSchema = PageIrEditorIdSchema;
 
 const BoundedLabelSchema = z
   .string()
@@ -2544,6 +2547,70 @@ export const PageIrLineageV1Schema = z
   });
 export type PageIrLineageV1 = z.infer<typeof PageIrLineageV1Schema>;
 
+export const PageIrEditorIdentityEntryV1Schema = z
+  .object({
+    editId: PageIrEditorIdSchema,
+    nodeId: PageIrEditorIdSchema,
+  })
+  .strict()
+  .superRefine((entry, context) => {
+    if (entry.editId !== entry.nodeId) {
+      context.addIssue({
+        code: "custom",
+        path: ["nodeId"],
+        message: "Page IR editor identity must equal its source node ID",
+      });
+    }
+  });
+export type PageIrEditorIdentityEntryV1 = z.infer<
+  typeof PageIrEditorIdentityEntryV1Schema
+>;
+
+export const PageIrEditorSourceMapV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    pageIrSha256: Sha256Schema,
+    bindingSetSha256: Sha256Schema,
+    lineage: PageIrLineageV1Schema,
+    entries: z
+      .array(PageIrEditorIdentityEntryV1Schema)
+      .min(1)
+      .max(PAGE_IR_BOUNDS.maxNodes),
+  })
+  .strict()
+  .superRefine((sourceMap, context) => {
+    const editIds = new Set<string>();
+    const nodeIds = new Set<string>();
+    for (const [index, entry] of sourceMap.entries.entries()) {
+      if (editIds.has(entry.editId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["entries", index, "editId"],
+          message: "Page IR editor IDs must be unique",
+        });
+      }
+      if (nodeIds.has(entry.nodeId)) {
+        context.addIssue({
+          code: "custom",
+          path: ["entries", index, "nodeId"],
+          message: "Page IR source node IDs must be unique",
+        });
+      }
+      if (index > 0 && sourceMap.entries[index - 1].editId >= entry.editId) {
+        context.addIssue({
+          code: "custom",
+          path: ["entries", index, "editId"],
+          message: "Page IR editor source-map entries must be sorted by edit ID",
+        });
+      }
+      editIds.add(entry.editId);
+      nodeIds.add(entry.nodeId);
+    }
+  });
+export type PageIrEditorSourceMapV1 = z.infer<
+  typeof PageIrEditorSourceMapV1Schema
+>;
+
 export const PAGE_IR_SOURCE_BUNDLE_UPSTREAM_KINDS = [
   "evidence",
   "design-contract",
@@ -3001,6 +3068,7 @@ export const CandidateProvenanceV1Schema = z
     layoutAuthority: z.enum(["page-ir-v1", "template-v1"]),
     compilerVersion: z.string().min(1).max(200),
     pageIrSha256: Sha256Schema.optional(),
+    editorSourceMap: PageIrEditorSourceMapV1Schema.optional(),
     candidateManifestSha256: Sha256Schema.optional(),
     buildSha256: Sha256Schema.optional(),
     gateReportSha256: Sha256Schema.optional(),
@@ -3079,6 +3147,43 @@ export const CandidateProvenanceV1Schema = z
         path: ["pageIrSha256"],
         message: "template-v1 authority rejects a Page IR SHA-256",
       });
+    }
+    if (
+      provenance.layoutAuthority === "page-ir-v1" &&
+      provenance.compilerVersion === "page-ir-static@3" &&
+      !provenance.editorSourceMap
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["editorSourceMap"],
+        message: "page-ir-static@3 provenance requires an editor source map",
+      });
+    }
+    if (provenance.layoutAuthority === "template-v1" && provenance.editorSourceMap) {
+      context.addIssue({
+        code: "custom",
+        path: ["editorSourceMap"],
+        message: "template-v1 authority rejects an editor source map",
+      });
+    }
+    if (
+      provenance.layoutAuthority === "page-ir-v1" &&
+      provenance.editorSourceMap
+    ) {
+      if (provenance.editorSourceMap.pageIrSha256 !== provenance.pageIrSha256) {
+        context.addIssue({
+          code: "custom",
+          path: ["editorSourceMap", "pageIrSha256"],
+          message: "editor source map must match the provenance Page IR SHA-256",
+        });
+      }
+      if (provenance.editorSourceMap.lineage.runId !== provenance.runId) {
+        context.addIssue({
+          code: "custom",
+          path: ["editorSourceMap", "lineage", "runId"],
+          message: "editor source map lineage must match the provenance run",
+        });
+      }
     }
     const manifestBound = Boolean(provenance.candidateManifestSha256);
     const buildBound = Boolean(provenance.buildSha256);

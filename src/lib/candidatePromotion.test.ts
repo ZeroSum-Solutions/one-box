@@ -9,6 +9,7 @@ import {
   CandidateGateReceiptV1Schema,
   CandidateProvenanceV1Schema,
   DesignTokensSchema,
+  PAGE_IR_DERIVATION_KINDS,
   type CandidateGateReceiptV1,
 } from "./contracts";
 import * as candidateModule from "./candidate";
@@ -351,6 +352,25 @@ async function fixture(
   const receiptBytes = Buffer.from(JSON.stringify(receipt, null, 2));
   await fs.writeFile(candidate.gates, receiptBytes);
   const gateReportSha256 = sha256(receiptBytes);
+  const editorSourceMap = options.pageIr
+    ? {
+        schemaVersion: 1 as const,
+        pageIrSha256: "e".repeat(64),
+        bindingSetSha256: "d".repeat(64),
+        lineage: {
+          schemaVersion: 1 as const,
+          runId,
+          purpose: "brochure-local-service" as const,
+          sources: PAGE_IR_DERIVATION_KINDS.map((kind, index) => ({
+            kind,
+            version: index + 1,
+            sha256: index.toString(16).repeat(64),
+          })),
+          referenceTrace: { mode: "explicit-none" as const, sources: [] },
+        },
+        entries: [{ editId: "document", nodeId: "document" }],
+      }
+    : undefined;
   const provenance = CandidateProvenanceV1Schema.parse({
     schemaVersion: 1,
     candidateId: `${runId}-candidate`,
@@ -364,8 +384,9 @@ async function fixture(
     ],
     inputArtifactHashes: [{ path: "intake.json", sha256: intakeSha256 }],
     layoutAuthority: options.pageIr ? "page-ir-v1" : "template-v1",
-    compilerVersion: "fixture-v1",
+    compilerVersion: options.pageIr ? "page-ir-static@3" : "fixture-v1",
     ...(options.pageIr ? { pageIrSha256: "e".repeat(64) } : {}),
+    ...(editorSourceMap ? { editorSourceMap } : {}),
     candidateManifestSha256,
     buildSha256: manifest.buildSha256,
     gateReportSha256,
@@ -378,6 +399,7 @@ async function fixture(
     candidate,
     manifest,
     receipt,
+    editorSourceMap,
     oldRootReport,
   };
 }
@@ -416,6 +438,14 @@ describe("candidate promotion", () => {
   it("lawfully replaces the promoted PageIR pending QA placeholder once", async () => {
     const prepared = await fixture({ pageIr: true });
     await promoteCandidate(prepared.runId);
+    expect(
+      JSON.parse(
+        await fs.readFile(
+          path.join(prepared.roots.site, ".one-box", "provenance.json"),
+          "utf8",
+        ),
+      ).editorSourceMap,
+    ).toEqual(prepared.editorSourceMap);
     let captures = 0;
     const stageVisualQa = async (
       _siteDirectory: string,

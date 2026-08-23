@@ -141,7 +141,7 @@ async function createCompiledPageIrCandidate(runId: string) {
     { kind: "content", version: 1, sha256: "6".repeat(64) },
     { kind: "assets", version: 1, sha256: "7".repeat(64) },
   ];
-  const pageIrBytes = await writeJson(path.join(runRoot, "page-ir.json"), {
+  const envelope = {
     schemaVersion: 1,
     runId,
     revision: 1,
@@ -163,7 +163,8 @@ async function createCompiledPageIrCandidate(runId: string) {
         }],
       },
     },
-  });
+  };
+  const pageIrBytes = await writeJson(path.join(runRoot, "page-ir.json"), envelope);
   const uploadBytes = Buffer.from(request.assets[0].bytes);
   const uploadPath = path.join(runRoot, "uploads", "hero.webp");
   await fs.mkdir(path.dirname(uploadPath), { recursive: true });
@@ -190,6 +191,13 @@ async function createCompiledPageIrCandidate(runId: string) {
     layoutAuthority: "page-ir-v1",
     compilerVersion: compilation.compilerVersion,
     pageIrSha256: compilation.pageIrSha256,
+    editorSourceMap: {
+      schemaVersion: 1,
+      pageIrSha256: envelope.pageIrSha256,
+      bindingSetSha256: envelope.bindingSetSha256,
+      lineage: envelope.lineage,
+      entries: compilation.editorIdentityEntries,
+    },
   });
   const ready = transitionCandidateProvenance(
     preparing,

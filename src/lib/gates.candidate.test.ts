@@ -421,6 +421,13 @@ async function createReadyPageIrCandidate(
     layoutAuthority: "page-ir-v1",
     compilerVersion: compilation.compilerVersion,
     pageIrSha256: envelope.pageIrSha256,
+    editorSourceMap: {
+      schemaVersion: 1,
+      pageIrSha256: envelope.pageIrSha256,
+      bindingSetSha256: envelope.bindingSetSha256,
+      lineage: envelope.lineage,
+      entries: compilation.editorIdentityEntries,
+    },
   });
   const ready = transitionCandidateProvenance(
     preparing,

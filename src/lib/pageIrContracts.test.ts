@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  CandidateProvenanceV1Schema,
   LayoutProgramV1Schema,
+  PAGE_IR_DERIVATION_KINDS,
   PAGE_IR_BOUNDS,
+  PageIrEditorIdSchema,
+  PageIrEditorSourceMapV1Schema,
   PageIRV1Schema,
   ReferenceContractV1Schema,
 } from "./contracts";
@@ -150,6 +154,172 @@ function validPageIr() {
 }
 
 const clone = <T>(value: T): T => structuredClone(value);
+
+function validEditorSourceMap() {
+  return {
+    schemaVersion: 1 as const,
+    pageIrSha256: "a".repeat(64),
+    bindingSetSha256: "b".repeat(64),
+    lineage: {
+      schemaVersion: 1 as const,
+      runId: "run1",
+      purpose: "brochure-local-service" as const,
+      sources: PAGE_IR_DERIVATION_KINDS.map((kind, index) => ({
+        kind,
+        version: index + 1,
+        sha256: index.toString(16).repeat(64),
+      })),
+      referenceTrace: { mode: "explicit-none" as const, sources: [] },
+    },
+    entries: [
+      { editId: "document", nodeId: "document" },
+      { editId: "hero-section", nodeId: "hero-section" },
+    ],
+  };
+}
+
+function pageIrCandidateProvenance(compilerVersion: string) {
+  return {
+    schemaVersion: 1 as const,
+    candidateId: "candidate-v1",
+    runId: "run1",
+    createdAt: "2026-08-23T00:00:00.000Z",
+    state: "preparing" as const,
+    history: [
+      { state: "preparing" as const, at: "2026-08-23T00:00:00.000Z" },
+    ],
+    inputArtifactHashes: [
+      { path: "page-ir.json", sha256: "c".repeat(64) },
+    ],
+    layoutAuthority: "page-ir-v1" as const,
+    compilerVersion,
+    pageIrSha256: "a".repeat(64),
+  };
+}
+
+describe("PageIrEditorIdSchema", () => {
+  it("accepts the shared safe PageIR/editor identifier grammar", () => {
+    for (const value of ["a1", "A_", "hero-section", "hero_section", `a${"b".repeat(63)}`]) {
+      expect(PageIrEditorIdSchema.parse(value)).toBe(value);
+    }
+  });
+
+  it("rejects one-character, reserved, path-bearing, dotted, numeric-leading, and oversized identifiers", () => {
+    for (const value of [
+      "a",
+      "__proto__",
+      "prototype",
+      "constructor",
+      "../hero",
+      "hero.item",
+      "1hero",
+      `a${"b".repeat(64)}`,
+    ]) {
+      expect(PageIrEditorIdSchema.safeParse(value).success).toBe(false);
+    }
+  });
+
+  it("applies the shared minimum length to PageIR layout nodes", () => {
+    const value = validLayout();
+    value.nodes.find((node) => node.id === "hero")!.id = "a";
+    expect(LayoutProgramV1Schema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("PageIrEditorSourceMapV1Schema", () => {
+  it("accepts a closed versioned map bound to exact PageIR hashes and approved lineage", () => {
+    const value = validEditorSourceMap();
+    expect(PageIrEditorSourceMapV1Schema.parse(value)).toEqual(value);
+  });
+
+  it("rejects unknown fields, versions, and malformed binding hashes", () => {
+    expect(PageIrEditorSourceMapV1Schema.safeParse({
+      ...validEditorSourceMap(),
+      generatedAt: "2026-08-23T00:00:00.000Z",
+    }).success).toBe(false);
+    expect(PageIrEditorSourceMapV1Schema.safeParse({
+      ...validEditorSourceMap(),
+      schemaVersion: 2,
+    }).success).toBe(false);
+    expect(PageIrEditorSourceMapV1Schema.safeParse({
+      ...validEditorSourceMap(),
+      bindingSetSha256: "not-a-hash",
+    }).success).toBe(false);
+  });
+
+  it("rejects unsorted, duplicate, unsafe, or non-identity entries", () => {
+    const cases = [
+      [
+        { editId: "hero-section", nodeId: "hero-section" },
+        { editId: "document", nodeId: "document" },
+      ],
+      [
+        { editId: "document", nodeId: "document" },
+        { editId: "document", nodeId: "hero-section" },
+      ],
+      [
+        { editId: "document", nodeId: "document" },
+        { editId: "hero-section", nodeId: "document" },
+      ],
+      [{ editId: "a", nodeId: "a" }],
+      [{ editId: "document", nodeId: "hero-section" }],
+    ];
+    for (const entries of cases) {
+      expect(PageIrEditorSourceMapV1Schema.safeParse({
+        ...validEditorSourceMap(),
+        entries,
+      }).success).toBe(false);
+    }
+  });
+
+  it("requires the exact editor source map on current PageIR provenance while retaining legacy @2 parsing", () => {
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        pageIrCandidateProvenance("page-ir-static@2"),
+      ).success,
+    ).toBe(true);
+    expect(
+      CandidateProvenanceV1Schema.safeParse(
+        pageIrCandidateProvenance("page-ir-static@3"),
+      ).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse({
+        ...pageIrCandidateProvenance("page-ir-static@3"),
+        editorSourceMap: validEditorSourceMap(),
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects cross-run/hash editor maps and any editor map on template provenance", () => {
+    expect(
+      CandidateProvenanceV1Schema.safeParse({
+        ...pageIrCandidateProvenance("page-ir-static@3"),
+        editorSourceMap: {
+          ...validEditorSourceMap(),
+          pageIrSha256: "d".repeat(64),
+        },
+      }).success,
+    ).toBe(false);
+    expect(
+      CandidateProvenanceV1Schema.safeParse({
+        ...pageIrCandidateProvenance("page-ir-static@3"),
+        editorSourceMap: {
+          ...validEditorSourceMap(),
+          lineage: { ...validEditorSourceMap().lineage, runId: "run2" },
+        },
+      }).success,
+    ).toBe(false);
+    const template = pageIrCandidateProvenance("template-static@1") as Record<
+      string,
+      unknown
+    >;
+    template.layoutAuthority = "template-v1";
+    delete template.pageIrSha256;
+    template.editorSourceMap = validEditorSourceMap();
+    expect(CandidateProvenanceV1Schema.safeParse(template).success).toBe(false);
+  });
+});
 
 describe("ReferenceContractV1Schema", () => {
   it("accepts selected Refero style and screen identities", () => {

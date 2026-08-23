@@ -8,11 +8,12 @@ import {
   type PageIRV1,
   type PageIrAssetMediaTypeV1,
   type PageIrCompilerAssetBindingV1,
+  type PageIrEditorIdentityEntryV1,
 } from "./contracts";
 import { pageIrSha256 } from "./pageIrHash";
 import { candidateBuildSha256 } from "./liveBundle";
 
-export const PAGE_IR_COMPILER_VERSION = "page-ir-static@2" as const;
+export const PAGE_IR_COMPILER_VERSION = "page-ir-static@3" as const;
 
 export interface PageIrCompiledFileV1 {
   path: string;
@@ -22,6 +23,7 @@ export interface PageIrCompiledFileV1 {
 export interface PageIrCompilationResultV1 {
   compilerVersion: typeof PAGE_IR_COMPILER_VERSION;
   pageIrSha256: string;
+  editorIdentityEntries: PageIrEditorIdentityEntryV1[];
   files: PageIrCompiledFileV1[];
   manifest: CandidateManifestV1;
   manifestBytes: Uint8Array;
@@ -288,6 +290,11 @@ export function compilePageIRV1(input: unknown): PageIrCompilationResultV1 {
   if (!parsed.success) fail("Invalid Page IR compiler request");
   const pageIr = parsed.data.pageIr;
   const bindings = exactAssetBindings(pageIr, parsed.data.assets);
+  const editorIdentityEntries = pageIr.layoutProgram.nodes
+    .map((node) => ({ editId: node.id, nodeId: node.id }))
+    .sort((left, right) =>
+      left.editId < right.editId ? -1 : left.editId > right.editId ? 1 : 0,
+    );
   const files = [
     ...compiledAssets(pageIr, bindings),
     textFile("index.html", renderDocument(pageIr)),
@@ -312,6 +319,7 @@ export function compilePageIRV1(input: unknown): PageIrCompilationResultV1 {
   return {
     compilerVersion: PAGE_IR_COMPILER_VERSION,
     pageIrSha256: pageIrSha256(pageIr),
+    editorIdentityEntries,
     files,
     manifest: manifest.data,
     manifestBytes: new TextEncoder().encode(JSON.stringify(manifest.data, null, 2)),

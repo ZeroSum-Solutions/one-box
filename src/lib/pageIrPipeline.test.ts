@@ -441,6 +441,26 @@ async function parkCandidateInState(
   };
 }
 
+async function candidateByteSnapshot(runId: string) {
+  const candidateRoot = path.join(sitePaths(runId).root, "candidate");
+  const manifest = JSON.parse(
+    await fs.readFile(path.join(candidateRoot, "manifest.json"), "utf8"),
+  ) as { files: Array<{ path: string }> };
+  const relativePaths = [
+    "manifest.json",
+    "provenance.json",
+    ...manifest.files.map((file) => `site/${file.path}`),
+  ];
+  return Object.fromEntries(
+    await Promise.all(
+      relativePaths.map(async (relativePath) => [
+        relativePath,
+        await fs.readFile(path.join(candidateRoot, ...relativePath.split("/"))),
+      ]),
+    ),
+  );
+}
+
 afterEach(async () => {
   await Promise.all(
     testRunIds
@@ -1220,9 +1240,18 @@ describe("Page IR candidate materialization", () => {
     const result = first.status === "created" ? first : second;
     expect(result.provenance).toMatchObject({
       layoutAuthority: "page-ir-v1",
-      compilerVersion: "page-ir-static@2",
+      compilerVersion: "page-ir-static@3",
       pageIrSha256: persisted.pageIrSha256,
       buildSha256: result.manifest.buildSha256,
+      editorSourceMap: {
+        schemaVersion: 1,
+        pageIrSha256: persisted.pageIrSha256,
+        bindingSetSha256: persisted.bindingSetSha256,
+        lineage: persisted.lineage,
+        entries: persisted.pageIr.layoutProgram.nodes
+          .map((node) => ({ editId: node.id, nodeId: node.id }))
+          .sort((left, right) => left.editId.localeCompare(right.editId)),
+      },
     });
     expect(
       result.provenance.inputArtifactHashes.map((input) => input.path),
@@ -1246,6 +1275,133 @@ describe("Page IR candidate materialization", () => {
         "utf8",
       ),
     ).toContain("<!doctype html>");
+  });
+
+  it("rejects missing or mismatched current editor source maps without changing candidate bytes", async () => {
+    const runId = await createApprovedPageIrRun();
+    const persisted = await preparePersistedPageIr(runId);
+    const request = await candidateRequest(runId);
+    await materializePageIrCandidate(request);
+    const provenancePath = path.join(
+      sitePaths(runId).root,
+      "candidate",
+      "provenance.json",
+    );
+    const original = JSON.parse(await fs.readFile(provenancePath, "utf8"));
+    const exactEntries = persisted.pageIr.layoutProgram.nodes
+      .map((node) => ({ editId: node.id, nodeId: node.id }))
+      .sort((left, right) => left.editId.localeCompare(right.editId));
+
+    for (const mutation of [
+      {
+        label: "missing",
+        apply: (provenance: Record<string, unknown>) => {
+          delete provenance.editorSourceMap;
+        },
+        error: /editorSourceMap/,
+      },
+      {
+        label: "binding mismatch",
+        apply: (provenance: Record<string, unknown>) => {
+          provenance.editorSourceMap = {
+            schemaVersion: 1,
+            pageIrSha256: persisted.pageIrSha256,
+            bindingSetSha256: "f".repeat(64),
+            lineage: persisted.lineage,
+            entries: exactEntries,
+          };
+        },
+        error: /editor source map binding-set/i,
+      },
+      {
+        label: "incomplete node coverage",
+        apply: (provenance: Record<string, unknown>) => {
+          provenance.editorSourceMap = {
+            schemaVersion: 1,
+            pageIrSha256: persisted.pageIrSha256,
+            bindingSetSha256: persisted.bindingSetSha256,
+            lineage: persisted.lineage,
+            entries: exactEntries.slice(0, -1),
+          };
+        },
+        error: /editor source map node coverage/i,
+      },
+      {
+        label: "lineage mismatch",
+        apply: (provenance: Record<string, unknown>) => {
+          provenance.editorSourceMap = {
+            schemaVersion: 1,
+            pageIrSha256: persisted.pageIrSha256,
+            bindingSetSha256: persisted.bindingSetSha256,
+            lineage: {
+              ...persisted.lineage,
+              sources: persisted.lineage.sources.map((source, index) =>
+                index === 0 ? { ...source, sha256: "e".repeat(64) } : source,
+              ),
+            },
+            entries: exactEntries,
+          };
+        },
+        error: /editor source map lineage/i,
+      },
+    ] as const) {
+      const provenance = structuredClone(original) as Record<string, unknown>;
+      provenance.compilerVersion = "page-ir-static@3";
+      mutation.apply(provenance);
+      await fs.writeFile(provenancePath, JSON.stringify(provenance, null, 2));
+      const before = await candidateByteSnapshot(runId);
+      await expect(
+        materializePageIrCandidate(request),
+        mutation.label,
+      ).rejects.toThrow(mutation.error);
+      expect(await candidateByteSnapshot(runId), mutation.label).toEqual(before);
+    }
+  });
+
+  it("leaves candidate state absent or byte-identical for duplicate and unsafe persisted PageIR IDs", async () => {
+    const duplicateRunId = await createApprovedPageIrRun();
+    await preparePersistedPageIr(duplicateRunId);
+    const duplicateRequest = await candidateRequest(duplicateRunId);
+    const duplicatePageIrPath = path.join(
+      sitePaths(duplicateRunId).root,
+      "page-ir.json",
+    );
+    const duplicateEnvelope = JSON.parse(
+      await fs.readFile(duplicatePageIrPath, "utf8"),
+    );
+    duplicateEnvelope.pageIr.layoutProgram.nodes.find(
+      (node: { id: string }) => node.id === "hero",
+    ).id = "header";
+    await fs.writeFile(
+      duplicatePageIrPath,
+      JSON.stringify(duplicateEnvelope, null, 2),
+    );
+
+    await expect(materializePageIrCandidate(duplicateRequest)).rejects.toThrow(
+      /layout node IDs must be unique/i,
+    );
+    await expect(
+      fs.stat(path.join(sitePaths(duplicateRunId).root, "candidate")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+
+    const unsafeRunId = await createApprovedPageIrRun();
+    await preparePersistedPageIr(unsafeRunId);
+    const unsafeRequest = await candidateRequest(unsafeRunId);
+    await materializePageIrCandidate(unsafeRequest);
+    const unsafePageIrPath = path.join(sitePaths(unsafeRunId).root, "page-ir.json");
+    const unsafeEnvelope = JSON.parse(
+      await fs.readFile(unsafePageIrPath, "utf8"),
+    );
+    unsafeEnvelope.pageIr.layoutProgram.nodes.find(
+      (node: { id: string }) => node.id === "hero",
+    ).id = "../hero";
+    await fs.writeFile(unsafePageIrPath, JSON.stringify(unsafeEnvelope, null, 2));
+    const before = await candidateByteSnapshot(unsafeRunId);
+
+    await expect(materializePageIrCandidate(unsafeRequest)).rejects.toThrow(
+      /invalid string|layoutProgram/i,
+    );
+    expect(await candidateByteSnapshot(unsafeRunId)).toEqual(before);
   });
 
   it("parks a matching failed candidate without repair or live/PageIR/source mutation", async () => {
@@ -1456,7 +1612,7 @@ describe("Page IR candidate materialization", () => {
     );
   });
 
-  it("replaces a valid page-ir-static@1 candidate and retries around the atomic swap", async () => {
+  it("migrates legacy page-ir-static@2 provenance once and retries around the atomic swap", async () => {
     const runId = await createApprovedPageIrRun();
     await preparePersistedPageIr(runId);
     const request = await candidateRequest(runId);
@@ -1467,7 +1623,8 @@ describe("Page IR candidate materialization", () => {
     await fs.mkdir(liveRoot, { recursive: true });
     await fs.writeFile(path.join(liveRoot, "index.html"), "last-known-good");
     const stale = JSON.parse(await fs.readFile(provenancePath, "utf8"));
-    stale.compilerVersion = "page-ir-static@1";
+    stale.compilerVersion = "page-ir-static@2";
+    delete stale.editorSourceMap;
     await fs.writeFile(provenancePath, JSON.stringify(stale, null, 2));
     const authoritativeBefore = {
       pageIr: await fs.readFile(path.join(runRoot, "page-ir.json")),
@@ -1484,7 +1641,7 @@ describe("Page IR candidate materialization", () => {
       status: "present",
       provenance: {
         state: "ready-for-gates",
-        compilerVersion: "page-ir-static@2",
+        compilerVersion: "page-ir-static@3",
         layoutAuthority: "page-ir-v1",
         pageIrSha256: persisted.pageIrSha256,
         candidateManifestSha256: candidateManifestSha256(replaced.manifest),

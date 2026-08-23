@@ -189,8 +189,9 @@
 
   function nearestEditable(node) {
     var el = node && node.nodeType === 1 ? node : node && node.parentElement;
-    while (el && el !== document.body) {
+    while (el) {
       if (el.hasAttribute && el.hasAttribute("data-edit-id")) return el;
+      if (el === document.body) break;
       el = el.parentElement;
     }
     return null;
