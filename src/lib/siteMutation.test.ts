@@ -38,6 +38,7 @@ import {
   atomicWriteGeneratedSiteFile,
   BlockingMutationError,
   runGuardedMutation,
+  type GateRunner,
   withSiteAuthorityLock,
 } from "./siteMutation";
 import {
@@ -49,8 +50,14 @@ import {
   CandidateGateReceiptV1Schema,
   CandidateProvenanceV1Schema,
 } from "./contracts";
+import {
+  knownMutationGateRequest,
+  unknownMutationGateRequest,
+  type MutationGateRequest,
+} from "./mutationGateMatrix";
 
 const tempDirectories: string[] = [];
+const contentGateRequest = knownMutationGateRequest("content");
 
 afterEach(async () => {
   mocks.invalidateApprovedVisualQaUnderSiteAuthority.mockReset();
@@ -174,6 +181,7 @@ describe("generated-site mutation write authority", () => {
 
     await runGuardedMutation({
       runId,
+      gateRequest: contentGateRequest,
       snapshotPaths: [target],
       mutate: () =>
         atomicWriteGeneratedSiteFile(runId, target, "committed"),
@@ -194,6 +202,7 @@ describe("generated-site mutation write authority", () => {
     await expect(
       runGuardedMutation({
         runId,
+        gateRequest: contentGateRequest,
         snapshotPaths: [target],
         mutate: () =>
           atomicWriteGeneratedSiteFile(runId, target, "rejected"),
@@ -225,6 +234,7 @@ describe("generated-site mutation write authority", () => {
 
     await runGuardedMutation({
       runId,
+      gateRequest: contentGateRequest,
       snapshotPaths: [],
       mutate: async () => {
         await expect(
@@ -261,6 +271,7 @@ describe("generated-site mutation write authority", () => {
 
     await runGuardedMutation({
       runId,
+      gateRequest: contentGateRequest,
       runRoot,
       snapshotPaths: [target],
       mutate: async () => {
@@ -290,6 +301,7 @@ describe("generated-site mutation write authority", () => {
 
     await runGuardedMutation({
       runId,
+      gateRequest: contentGateRequest,
       runRoot,
       snapshotPaths: [target],
       mutate: () => atomicWriteGeneratedSiteFile(runId, target, "committed"),
@@ -316,6 +328,7 @@ describe("generated-site mutation write authority", () => {
     await expect(
       runGuardedMutation({
         runId,
+        gateRequest: contentGateRequest,
         runRoot,
         snapshotPaths: [],
         mutate: async () => {
@@ -343,6 +356,7 @@ describe("generated-site mutation write authority", () => {
 
     await runGuardedMutation({
       runId,
+      gateRequest: contentGateRequest,
       runRoot,
       snapshotPaths: [committedTarget, detachedTarget],
       mutate: async () => {
@@ -379,6 +393,7 @@ describe("generated-site mutation write authority", () => {
 
     await runGuardedMutation({
       runId,
+      gateRequest: contentGateRequest,
       runRoot: aliasRunRoot,
       snapshotPaths: [targetThroughAlias],
       mutate: () =>
@@ -414,6 +429,7 @@ describe("generated-site mutation write authority", () => {
     await expect(
       runGuardedMutation({
         runId,
+        gateRequest: contentGateRequest,
         runRoot,
         snapshotPaths: [],
         mutate: () =>
@@ -451,6 +467,7 @@ describe("generated-site mutation write authority", () => {
     await expect(
       runGuardedMutation({
         runId,
+        gateRequest: contentGateRequest,
         runRoot,
         snapshotPaths: [targetThroughSymlink],
         mutate: async () => {
@@ -498,6 +515,7 @@ describe("generated-site mutation write authority", () => {
     try {
       await runGuardedMutation({
         runId,
+        gateRequest: contentGateRequest,
         runRoot,
         snapshotPaths: [target],
         mutate: async () => {
@@ -530,6 +548,156 @@ describe("generated-site mutation write authority", () => {
   });
 });
 
+describe("guarded mutation gate request forwarding", () => {
+  it("uses the identical explicit request for candidate and restorative gate runs", async () => {
+    const runId = "gate-request-identical";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const target = path.join(runRoot, "site", "index.html");
+    const request = knownMutationGateRequest("token-style");
+    const received: unknown[] = [];
+    tempDirectories.push(runRoot);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, "before");
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        gateRequest: request,
+        snapshotPaths: [target],
+        mutate: () => atomicWriteGeneratedSiteFile(runId, target, "candidate"),
+        gateRunner: async (_gateRunId, options) => {
+          received.push(options.afterEdit);
+          return received.length === 1
+            ? [{
+                gate: "token-drift",
+                pass: false,
+                blocking: true,
+                details: ["seeded defect"],
+                ranAt: "2026-08-23T00:00:00.000Z",
+              }]
+            : [];
+        },
+      }),
+    ).rejects.toBeInstanceOf(BlockingMutationError);
+
+    expect(received).toHaveLength(2);
+    expect(received[0]).toEqual(request);
+    expect(received[1]).toBe(received[0]);
+    expect(await fs.readFile(target, "utf8")).toBe("before");
+  });
+
+  it("resolves a value-derived request after mutate returns under the mutation lock", async () => {
+    const runId = "gate-request-resolver";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const target = path.join(runRoot, "site", "index.html");
+    const received: MutationGateRequest[] = [];
+    tempDirectories.push(runRoot);
+
+    const result = await runGuardedMutation({
+      runId,
+      snapshotPaths: [target],
+      mutate: async () => {
+        await atomicWriteGeneratedSiteFile(runId, target, "candidate");
+        return { capability: "asset" as const };
+      },
+      gateRequest: (value) => knownMutationGateRequest(value.capability),
+      gateRunner: async (
+        _gateRunId: string,
+        options: Parameters<GateRunner>[1],
+      ) => {
+        received.push(options.afterEdit);
+        return [];
+      },
+    });
+
+    expect(result.value).toEqual({ capability: "asset" });
+    expect(received).toEqual([knownMutationGateRequest("asset")]);
+  });
+
+  it("fails closed to unknown for restoration when request resolution throws", async () => {
+    const runId = "gate-request-resolver-error";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const target = path.join(runRoot, "site", "index.html");
+    const received: MutationGateRequest[] = [];
+    tempDirectories.push(runRoot);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, "before");
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        snapshotPaths: [target],
+        mutate: async () => {
+          await atomicWriteGeneratedSiteFile(runId, target, "candidate");
+          return "changed";
+        },
+        gateRequest: () => {
+          throw new Error("resolver failed");
+        },
+        gateRunner: async (_gateRunId, options) => {
+          received.push(options.afterEdit);
+          return [];
+        },
+      }),
+    ).rejects.toThrow("resolver failed");
+
+    expect(received).toEqual([unknownMutationGateRequest()]);
+    expect(await fs.readFile(target, "utf8")).toBe("before");
+  });
+
+  it("fails closed to unknown when mutate throws before a request can resolve", async () => {
+    const runId = "gate-request-mutate-error";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const target = path.join(runRoot, "site", "index.html");
+    const received: MutationGateRequest[] = [];
+    tempDirectories.push(runRoot);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, "before");
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        snapshotPaths: [target],
+        mutate: async () => {
+          await atomicWriteGeneratedSiteFile(runId, target, "candidate");
+          throw new Error("mutation failed");
+        },
+        gateRequest: () => knownMutationGateRequest("motion"),
+        gateRunner: async (_gateRunId, options) => {
+          received.push(options.afterEdit);
+          return [];
+        },
+      }),
+    ).rejects.toThrow("mutation failed");
+
+    expect(received).toEqual([unknownMutationGateRequest()]);
+    expect(await fs.readFile(target, "utf8")).toBe("before");
+  });
+
+  it("normalizes a missing runtime request to unknown instead of skipping gates", async () => {
+    const runId = "gate-request-runtime-missing";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const target = path.join(runRoot, "site", "index.html");
+    const received: MutationGateRequest[] = [];
+    tempDirectories.push(runRoot);
+
+    await runGuardedMutation({
+      runId,
+      snapshotPaths: [target],
+      mutate: () => atomicWriteGeneratedSiteFile(runId, target, "candidate"),
+      gateRunner: async (
+        _gateRunId: string,
+        options: Parameters<GateRunner>[1],
+      ) => {
+        received.push(options.afterEdit);
+        return [];
+      },
+    } as unknown as Parameters<typeof runGuardedMutation<void>>[0]);
+
+    expect(received).toEqual([unknownMutationGateRequest()]);
+  });
+});
+
 describe("committed site mutation visual-QA invalidation", () => {
   it("invalidates only after the candidate passes mechanical gates and commits", async () => {
     const runRoot = "/tmp/onebox-site-mutation-locks/test-run";
@@ -545,6 +713,7 @@ describe("committed site mutation visual-QA invalidation", () => {
 
     await runGuardedMutation({
       runId: "test-run",
+      gateRequest: contentGateRequest,
       snapshotPaths: [target],
       mutate: async () => {
         await fs.writeFile(target, "after");
@@ -572,6 +741,7 @@ describe("committed site mutation visual-QA invalidation", () => {
     await expect(
       runGuardedMutation({
         runId: "test-run",
+        gateRequest: contentGateRequest,
         snapshotPaths: [target],
         mutate: async () => {
           await fs.writeFile(target, "rejected");
@@ -609,6 +779,7 @@ describe("blocking-gate refusal distinguishes inherited failures", () => {
     try {
       await runGuardedMutation({
         runId,
+        gateRequest: contentGateRequest,
         snapshotPaths: [target],
         mutate: async () => fs.writeFile(target, "candidate"),
         gateRunner: async () => [

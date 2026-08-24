@@ -29,6 +29,10 @@ import {
 } from "../../../lib/imageGenerationBudget";
 import { applyElementHtmlEdit, ElementEditError } from "../../../lib/elementEditor";
 import {
+  knownMutationGateRequest,
+  unknownMutationGateRequest,
+} from "../../../lib/mutationGateMatrix";
+import {
   assertImageGenerationRequestId,
   GeneratedImageValidationError,
   IMAGE_GENERATION_STALE_MS,
@@ -561,7 +565,12 @@ export async function POST(req: Request) {
           }
           return $.html();
         },
-        { snapshotPaths: generatedImage ? [generatedImage.finalPath] : [] },
+        {
+          snapshotPaths: generatedImage ? [generatedImage.finalPath] : [],
+          gateRequest: generatedImage
+            ? knownMutationGateRequest("asset")
+            : unknownMutationGateRequest(),
+        },
       );
     } catch (error) {
       if (

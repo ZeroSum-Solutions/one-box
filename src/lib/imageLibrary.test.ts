@@ -17,6 +17,8 @@ import {
 import { readImageGenerationLedger } from "./imageGenerationBudget";
 import { RunNotFoundError } from "./runstate";
 import { BlockingMutationError, withSiteAuthorityLock } from "./siteMutation";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
+import type { MutationGateRequestV1 } from "./contracts";
 
 const roots: string[] = [];
 const execFileAsync = promisify(execFile);
@@ -139,6 +141,7 @@ describe("project image library", () => {
     let providerSawPending = false;
     let providerCouldAcquireSiteLock = false;
     let approvalInvalidations = 0;
+    const gateRequests: MutationGateRequestV1[] = [];
     const result = await generateProjectImage(
       {
         runId,
@@ -152,6 +155,10 @@ describe("project image library", () => {
       },
       {
         sitesRoot,
+        gateRunner: async (_runId, options) => {
+          gateRequests.push(options.afterEdit);
+          return [];
+        },
         now: () => new Date("2026-08-14T12:00:00.000Z"),
         estimate: async () => 2,
         invalidateApproval: async () => {
@@ -200,6 +207,7 @@ describe("project image library", () => {
       approvalInvalidatedAt: expect.any(String),
     });
     expect(approvalInvalidations).toBe(0);
+    expect(gateRequests).toEqual([knownMutationGateRequest("asset")]);
   });
 
   it("rolls back rejected publication and retries completed staging without another provider call", async () => {
@@ -1198,17 +1206,21 @@ describe("project image library", () => {
     const alternate = (await listProjectImages(runId, sitesRoot)).items.find(
       (item) => item.outputPath === "site/assets/alternate.png",
     )!;
+    const gateRequests: MutationGateRequestV1[] = [];
     const placed = await placeLibraryImage(runId, alternate.id, "hero.image", {
       sitesRoot,
-      gateRunner: async () => [
-        {
-          gate: "fixture",
-          pass: true,
-          blocking: true,
-          details: [],
-          ranAt: "2026-08-14T00:00:00.000Z",
-        },
-      ],
+      gateRunner: async (_runId, options) => {
+        gateRequests.push(options.afterEdit);
+        return [
+          {
+            gate: "fixture",
+            pass: true,
+            blocking: true,
+            details: [],
+            ranAt: "2026-08-14T00:00:00.000Z",
+          },
+        ];
+      },
     });
     expect(placed.item.usage).toEqual([
       { editId: "hero.image", src: "assets/alternate.png" },
@@ -1216,5 +1228,6 @@ describe("project image library", () => {
     expect(await fs.readFile(path.join(site, "index.html"), "utf8")).toContain(
       'src="assets/alternate.png"',
     );
+    expect(gateRequests).toEqual([knownMutationGateRequest("asset")]);
   });
 });

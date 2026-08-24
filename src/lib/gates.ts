@@ -46,6 +46,7 @@ import {
   type CandidateProvenanceV1,
   type DesignTokens,
   type GateReport,
+  type MutationGateRequestV1,
   type PageIRV1,
 } from "./contracts";
 import {
@@ -57,9 +58,12 @@ import { candidatePaths, workflowArtifactVersionPath } from "./runstate";
 import { findUnresolvedSheetRefs } from "./cssVars";
 import { gateContrast } from "./contrastGate";
 import { pageIrSha256 } from "./pageIrHash";
+import { selectMutationGateNames } from "./mutationGateMatrix";
 
 export interface RunGatesOptions {
-  afterEdit?: boolean;
+  /** Closed V1 mutation request for after-edit routing. Missing, malformed,
+   * mixed, unknown, or future input selects the complete registry. */
+  afterEdit?: MutationGateRequestV1;
   /** URL that resolves directly to the built site's index.html. When
    * omitted, gates load the file straight off disk via file://. */
   baseUrl?: string;
@@ -189,13 +193,9 @@ export async function runGates(runId: string, opts: RunGatesOptions = {}): Promi
   const target = createLiveGateTarget(runId, opts);
   const { allowed, tokens, telephoneOracle, unresolvedRefs } = await prepareGateInputs(target);
 
-  // afterEdit re-checks only the two invariants amendment B8 calls out by
-  // name (token lint + axe) — the full suite still runs on a fresh build.
-  // contrast runs afterEdit too: a token edit is exactly how a passing pair
-  // becomes a failing one, and that is the edit path's whole purpose.
-  const gateNames = opts.afterEdit
-    ? (["token-drift", "color-role-compliance", "axe", "contrast", "mobile-layout"] as const)
-    : FULL_GATE_NAMES;
+  const gateNames = opts.afterEdit === undefined
+    ? FULL_GATE_NAMES
+    : selectMutationGateNames(opts.afterEdit);
 
   const reports = await executeGateSuite(target, gateNames, {
     allowed,

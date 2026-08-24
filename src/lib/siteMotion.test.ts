@@ -9,7 +9,8 @@ import {
   mutateSiteMotion,
   revertSiteMotion,
 } from "./siteMotion";
-import type { GateReport } from "./contracts";
+import type { GateReport, MutationGateRequestV1 } from "./contracts";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
 
 const roots: string[] = [];
 const passGate = async (): Promise<GateReport[]> => [];
@@ -103,6 +104,29 @@ describe("motion schema", () => {
 });
 
 describe("motion persistence", () => {
+  it("routes apply, remove, and revert through the motion capability", async () => {
+    const { sitesRoot } = await fixture();
+    const requests: MutationGateRequestV1[] = [];
+    const gateRunner = async (_runId: string, options: { afterEdit: MutationGateRequestV1 }): Promise<GateReport[]> => {
+      requests.push(options.afterEdit);
+      return [];
+    };
+
+    await mutateSiteMotion("test-run", { action: "apply", draft }, { sitesRoot, gateRunner });
+    await mutateSiteMotion(
+      "test-run",
+      { action: "remove", editId: "hero.headline", kind: "entrance" },
+      { sitesRoot, gateRunner },
+    );
+    await revertSiteMotion("test-run", { sitesRoot, gateRunner });
+
+    expect(requests).toEqual([
+      knownMutationGateRequest("motion"),
+      knownMutationGateRequest("motion"),
+      knownMutationGateRequest("motion"),
+    ]);
+  });
+
   it("keeps an injected-root apply and revert away from the default run root", async () => {
     const runId = "motion-injected-root";
     const defaultRunRoot = path.join(process.cwd(), "sites", runId);

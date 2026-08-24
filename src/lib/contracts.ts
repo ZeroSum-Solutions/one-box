@@ -3303,6 +3303,70 @@ export const GateReportSchema = z.object({
 });
 export type GateReport = z.infer<typeof GateReportSchema>;
 
+export const MutationCapabilitySchema = z.enum([
+  "content",
+  "token-style",
+  "asset",
+  "structure",
+  "link-action",
+  "motion",
+]);
+export type MutationCapability = z.infer<typeof MutationCapabilitySchema>;
+
+const MutationModelCapabilitiesSchema = z
+  .array(MutationCapabilitySchema)
+  .min(1);
+const MutationGateMatrixVersionV1Schema = z
+  .string()
+  .regex(/^1:[a-f0-9]{64}$/);
+
+/** Closed V1 description of the deterministic mutation classification plus
+ * an optional advisory model hint. The hint may widen gate execution but can
+ * never replace the deterministic capability. */
+export const MutationGateRequestV1Schema = z.discriminatedUnion(
+  "classification",
+  [
+    z
+      .object({
+        schemaVersion: z.literal(1),
+        matrixVersion: MutationGateMatrixVersionV1Schema,
+        classification: z.literal("known"),
+        capabilities: z.array(MutationCapabilitySchema).length(1),
+        modelCapabilities: MutationModelCapabilitiesSchema.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        schemaVersion: z.literal(1),
+        matrixVersion: MutationGateMatrixVersionV1Schema,
+        classification: z.literal("mixed"),
+        capabilities: z.array(MutationCapabilitySchema).min(2),
+        modelCapabilities: MutationModelCapabilitiesSchema.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        schemaVersion: z.literal(1),
+        matrixVersion: MutationGateMatrixVersionV1Schema,
+        classification: z.literal("unknown"),
+        modelCapabilities: MutationModelCapabilitiesSchema.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        schemaVersion: z.literal(1),
+        matrixVersion: MutationGateMatrixVersionV1Schema,
+        classification: z.literal("uncertain"),
+        capabilities: z.array(MutationCapabilitySchema).min(1).optional(),
+        modelCapabilities: MutationModelCapabilitiesSchema.optional(),
+      })
+      .strict(),
+  ],
+);
+export type MutationGateRequestV1 = z.infer<
+  typeof MutationGateRequestV1Schema
+>;
+
 export const CANDIDATE_GATE_EXPECTATIONS = [
   { gate: "token-drift", blocking: true },
   { gate: "color-role-compliance", blocking: true },

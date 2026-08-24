@@ -9,6 +9,7 @@ import {
   runGuardedMutation,
   type GateRunner,
 } from "./siteMutation";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
 
 const SITES_ROOT = path.join(process.cwd(), "sites");
 const MOTION_ID_PATTERN =
@@ -263,6 +264,7 @@ export async function mutateSiteMotion(
     runRoot: files.root,
     snapshotPaths: [files.manifest, files.manifestScript, files.history, files.gates],
     gateRunner: options.gateRunner,
+    gateRequest: knownMutationGateRequest("motion"),
     mutate: async () => {
       const [manifest, history, html] = await Promise.all([
         readManifest(files.manifest),
@@ -327,6 +329,7 @@ export async function revertSiteMotion(runId: string, options: MotionSiteOptions
     runRoot: files.root,
     snapshotPaths: [files.manifest, files.manifestScript, files.history, files.gates],
     gateRunner: options.gateRunner,
+    gateRequest: knownMutationGateRequest("motion"),
     mutate: async () => {
       const history = await readHistory(files.history);
       if (history.cursor === 0) throw new MotionValidationError("no motion edit to revert");

@@ -3,6 +3,7 @@ import path from "node:path";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import { atomicWrite, assertSafeRunId, runGuardedMutation, type GateRunner } from "./siteMutation";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
 
 export const TokenCategorySchema = z.enum([
   "color",
@@ -283,6 +284,7 @@ export async function applyTokenEdit(runId: string, tokenName: string, value: st
     runRoot: files.root,
     snapshotPaths: [files.tokensCss, files.sourceTokens, files.history, files.gates],
     gateRunner: options.gateRunner,
+    gateRequest: knownMutationGateRequest("token-style"),
     mutate: async () => {
       const [currentCss, siteCss, html, history] = await Promise.all([
         fs.readFile(files.tokensCss, "utf8"),
@@ -321,6 +323,7 @@ export async function revertTokenEdit(runId: string, options: TokenSiteOptions =
     runRoot: files.root,
     snapshotPaths: [files.tokensCss, files.sourceTokens, files.history, files.gates],
     gateRunner: options.gateRunner,
+    gateRequest: knownMutationGateRequest("token-style"),
     mutate: async () => {
       const [history, currentCss] = await Promise.all([
         readHistory(files.history),

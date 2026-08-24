@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   providerCalls: 0,
   providerHeldSiteAuthority: false,
   approvalInvalidations: 0,
+  gateCalls: 0,
   estimateGate: null as Promise<void> | null,
   estimateObserved: null as ((callCount: number) => void) | null,
   publicationGate: null as Promise<void> | null,
@@ -29,6 +30,7 @@ vi.mock("../../../lib/gates", async (importOriginal) => {
   return {
     ...actual,
     runGates: async (runId: string) => {
+      state.gateCalls += 1;
       const root = path.join(process.cwd(), "sites", runId);
       const html = await fs.readFile(path.join(root, "site", "index.html"), "utf8");
       const rejected = state.rejectImage && html.includes("assets/generated/");
@@ -174,6 +176,7 @@ beforeEach(async () => {
   state.providerCalls = 0;
   state.providerHeldSiteAuthority = false;
   state.approvalInvalidations = 0;
+  state.gateCalls = 0;
   state.estimateGate = null;
   state.estimateObserved = null;
   state.publicationGate = null;
@@ -235,10 +238,12 @@ describe("inline image edit transaction", () => {
       entries: [{ editId: "hero.image", previousHtml: originalHtml }],
     });
 
+    const gateCallsAfterCommittedMutation = state.gateCalls;
     const replayed = await POST(imageRequest());
     expect(replayed.status).toBe(200);
     expect(state.estimateCalls).toBe(1);
     expect(state.providerCalls).toBe(1);
+    expect(state.gateCalls).toBe(gateCallsAfterCommittedMutation);
     expect(JSON.parse(await fs.readFile(historyPath, "utf8"))).toMatchObject({
       cursor: 1,
       entries: [{ editId: "hero.image", previousHtml: originalHtml }],

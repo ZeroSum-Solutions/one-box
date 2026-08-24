@@ -5,6 +5,7 @@ import path from "node:path";
 import * as cheerio from "cheerio";
 import { z } from "zod";
 import { applyElementHtmlEdit, ElementEditError } from "./elementEditor";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
 import {
   finishImageGeneration,
   readImageGenerationLedger,
@@ -1050,6 +1051,7 @@ async function finalizeStagedGeneration(
       staged.finalPath,
     ],
     gateRunner,
+    gateRequest: knownMutationGateRequest("asset"),
     mutate: async () => {
       const catalog = await readCatalog(files.catalog);
       const replay = matchingReplay(catalog, input);
@@ -1433,7 +1435,11 @@ export async function placeLibraryImage(
       if (!image.attr("alt") && item.prompt) image.attr("alt", item.prompt.slice(0, 100));
       return $.html();
     },
-    { sitesRoot: options.sitesRoot, gateRunner: options.gateRunner },
+    {
+      sitesRoot: options.sitesRoot,
+      gateRunner: options.gateRunner,
+      gateRequest: knownMutationGateRequest("asset"),
+    },
   );
   const refreshed = await listProjectImages(runId, options.sitesRoot);
   return { item: refreshed.items.find((candidate) => candidate.id === assetId)!, ...result };

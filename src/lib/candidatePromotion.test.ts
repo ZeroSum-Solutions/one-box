@@ -36,6 +36,7 @@ import {
 } from "./evidence";
 import { withReleaseAuthorization } from "./release";
 import { runGuardedMutation } from "./siteMutation";
+import { unknownMutationGateRequest } from "./mutationGateMatrix";
 import { materializePromotedPageIrVisualQa } from "./pageIrController";
 import { materializePageIrCandidate } from "./pageIrPipeline";
 import { compilePageIRV1 } from "./pageIrCompiler";
@@ -997,6 +998,7 @@ describe("candidate promotion", () => {
           await fs.writeFile(target, "edited");
         },
         gateRunner: async () => [],
+        gateRequest: unknownMutationGateRequest(),
       }),
     ).rejects.toThrow(/promoted live bundle metadata is missing/i);
     expect(mutated).toBe(false);
@@ -1113,6 +1115,7 @@ describe("candidate promotion", () => {
         await fs.writeFile(liveIndex, exactPromotedBytes);
       },
       gateRunner: async () => [],
+      gateRequest: unknownMutationGateRequest(),
     }).finally(() => { mutationSettled = true; });
     await new Promise((resolve) => setTimeout(resolve, 50));
 

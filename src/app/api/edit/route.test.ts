@@ -58,6 +58,10 @@ vi.mock("../../../lib/siteMutation", async (importOriginal) => ({
 
 import { POST } from "./route";
 import { ImageGenerationBudgetError } from "../../../lib/imageGenerationBudget";
+import {
+  knownMutationGateRequest,
+  unknownMutationGateRequest,
+} from "../../../lib/mutationGateMatrix";
 
 const originalToken = process.env.ONE_BOX_API_TOKEN;
 
@@ -218,6 +222,9 @@ describe("edit route authorization", () => {
     expect(await response.json()).toMatchObject({
       ok: true,
       imageCredits: { used: 7, cap: 14 },
+    });
+    expect(mocks.applyElementHtmlEdit.mock.calls[0]?.[3]).toMatchObject({
+      gateRequest: knownMutationGateRequest("asset"),
     });
   });
 
@@ -434,6 +441,9 @@ describe("edit route authorization", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toMatchObject({ ok: true, editId: "why-us", gatesClean: true });
+    expect(mocks.applyElementHtmlEdit.mock.calls[0]?.[3]).toMatchObject({
+      gateRequest: unknownMutationGateRequest(),
+    });
   });
 
   // B3: a referenceAssetId must actually reach generation and influence its

@@ -18,6 +18,11 @@ import {
   type GateReport,
 } from "./contracts";
 import { inspectPromotedLiveBundle } from "./candidate";
+import {
+  normalizeMutationGateRequest,
+  unknownMutationGateRequest,
+  type MutationGateRequest,
+} from "./mutationGateMatrix";
 
 export {
   assertSafeRunId,
@@ -27,7 +32,7 @@ export type { SiteAuthorityOptions } from "./siteAuthority";
 
 export type GateRunner = (
   runId: string,
-  options: { afterEdit: true; runRoot?: string }
+  options: { afterEdit: MutationGateRequest; runRoot?: string }
 ) => Promise<GateReport[]>;
 
 export class GeneratedSiteMutationAuthorityError extends Error {
@@ -323,6 +328,9 @@ export interface GuardedMutationOptions<T> {
   runRoot?: string;
   snapshotPaths: string[] | (() => string[]);
   mutate: () => Promise<T>;
+  gateRequest:
+    | MutationGateRequest
+    | ((value: T) => MutationGateRequest);
   commit?: (value: T) => Promise<void>;
   gateRunner?: GateRunner;
 }
@@ -371,7 +379,6 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
     const gateRunner: GateRunner = options.gateRunner ??
       ((gateRunId, gateOptions) =>
         runGates(gateRunId, { afterEdit: gateOptions.afterEdit }));
-    const gateOptions = { afterEdit: true, runRoot } as const;
     const snapshotPaths =
       typeof options.snapshotPaths === "function" ? options.snapshotPaths() : options.snapshotPaths;
     const snapshots = await snapshotFiles(
@@ -385,6 +392,7 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
       siteAuthority.canonical,
     );
     let value: T;
+    let resolvedGateRequest = unknownMutationGateRequest();
     try {
       value = await withGeneratedSiteMutationAuthority(
         runId,
@@ -393,6 +401,15 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
         siteRoot,
         options.mutate,
       );
+      resolvedGateRequest = normalizeMutationGateRequest(
+        typeof options.gateRequest === "function"
+          ? options.gateRequest(value)
+          : options.gateRequest,
+      );
+      const gateOptions = {
+        afterEdit: resolvedGateRequest,
+        runRoot,
+      } as const;
       const reports = await gateRunner(runId, gateOptions);
       if (reports.some((report) => report.blocking && !report.pass)) {
         throw new BlockingMutationError(reports, preexistingFailures);
@@ -415,7 +432,10 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
       // Restore the gate report too; a rejected candidate must not leave the
       // now-healthy site wearing the candidate's stale failure status.
       try {
-        await gateRunner(runId, gateOptions);
+        await gateRunner(runId, {
+          afterEdit: resolvedGateRequest,
+          runRoot,
+        });
       } catch {
         // A failed restorative run may have partially replaced gates.json.
         // Reapply the complete pre-mutation snapshot byte-for-byte.

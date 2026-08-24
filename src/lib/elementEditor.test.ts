@@ -12,6 +12,12 @@ import {
   moveElementHistory,
 } from "./elementEditor";
 import { BlockingMutationError, type GateRunner } from "./siteMutation";
+import {
+  knownMutationGateRequest,
+  mixedMutationGateRequest,
+  unknownMutationGateRequest,
+} from "./mutationGateMatrix";
+import type { MutationGateRequestV1 } from "./contracts";
 
 const temporaryRoots: string[] = [];
 const passGate: GateRunner = async () => [
@@ -40,7 +46,7 @@ async function fixture(runId = "test-run") {
   const siteDir = path.join(sitesRoot, runId, "site");
   await fs.mkdir(siteDir, { recursive: true });
   const html =
-    '<!doctype html><html><body><h1 data-edit-id="hero.headline">Original</h1><a data-edit-id="hero.cta" href="#contact">Call us</a><section id="contact">Contact</section></body></html>';
+    '<!doctype html><html><body><main><h1 data-edit-id="hero.headline">Original</h1><a data-edit-id="hero.cta" href="#contact">Call us</a><button data-edit-id="hero.button">More</button><section id="contact">Contact</section></main></body></html>';
   await fs.writeFile(path.join(siteDir, "index.html"), html);
   return { sitesRoot, siteDir, html };
 }
@@ -218,6 +224,91 @@ describe("structured element patch", () => {
 });
 
 describe("element persistence history", () => {
+  it("derives closed gate requests from structured patch fields and treats combined categories as mixed", async () => {
+    const { sitesRoot } = await fixture();
+    const requests: MutationGateRequestV1[] = [];
+    const gateRunner: GateRunner = async (_runId, options) => {
+      requests.push(options.afterEdit);
+      return [];
+    };
+    const options = { sitesRoot, gateRunner };
+
+    await applyStructuredElementEdit("test-run", "hero.headline", { text: "Content" }, options);
+    expect(requests.splice(0)).toEqual([knownMutationGateRequest("content")]);
+
+    await applyStructuredElementEdit(
+      "test-run",
+      "hero.headline",
+      { typography: { weight: "700" } },
+      options,
+    );
+    expect(requests.splice(0)).toEqual([knownMutationGateRequest("token-style")]);
+
+    await applyStructuredElementEdit(
+      "test-run",
+      "hero.cta",
+      { href: "https://example.com/contact" },
+      options,
+    );
+    expect(requests.splice(0)).toEqual([knownMutationGateRequest("link-action")]);
+
+    await applyStructuredElementEdit(
+      "test-run",
+      "hero.button",
+      { buttonAction: { type: "scroll", target: "#contact" } },
+      options,
+    );
+    expect(requests.splice(0)).toEqual([knownMutationGateRequest("link-action")]);
+
+    await applyStructuredElementEdit("test-run", "hero.headline", { move: "next" }, options);
+    expect(requests.splice(0)).toEqual([knownMutationGateRequest("structure")]);
+
+    await applyStructuredElementEdit(
+      "test-run",
+      "hero.headline",
+      { text: "Mixed", typography: { color: "accent" } },
+      options,
+    );
+    expect(requests.splice(0)).toEqual([
+      mixedMutationGateRequest(["content", "token-style"]),
+    ]);
+  });
+
+  it("persists gate provenance so undo and redo reuse it, while legacy history fails closed", async () => {
+    const { sitesRoot } = await fixture();
+    const requests: MutationGateRequestV1[] = [];
+    const gateRunner: GateRunner = async (_runId, options) => {
+      requests.push(options.afterEdit);
+      return [];
+    };
+    const options = { sitesRoot, gateRunner };
+    const historyPath = path.join(sitesRoot, "test-run", "element-history.json");
+
+    await applyStructuredElementEdit(
+      "test-run",
+      "hero.headline",
+      { text: "Mixed", typography: { color: "accent" } },
+      options,
+    );
+    const mixed = mixedMutationGateRequest(["content", "token-style"]);
+    expect(JSON.parse(await fs.readFile(historyPath, "utf8"))).toMatchObject({
+      entries: [{ gateRequest: mixed }],
+    });
+    requests.splice(0);
+
+    await moveElementHistory("test-run", "undo", options);
+    await moveElementHistory("test-run", "redo", options);
+    expect(requests.splice(0)).toEqual([mixed, mixed]);
+
+    const legacy = JSON.parse(await fs.readFile(historyPath, "utf8")) as {
+      entries: Array<{ gateRequest?: MutationGateRequestV1 }>;
+    };
+    delete legacy.entries[0].gateRequest;
+    await fs.writeFile(historyPath, `${JSON.stringify(legacy, null, 2)}\n`);
+    await moveElementHistory("test-run", "undo", options);
+    expect(requests.splice(0)).toEqual([unknownMutationGateRequest()]);
+  });
+
   it("keeps an injected-root apply and undo away from the default run root", async () => {
     const runId = "element-injected-root";
     const defaultRunRoot = path.join(process.cwd(), "sites", runId);
@@ -373,7 +464,9 @@ describe("element persistence history", () => {
     const orderedGate: GateRunner = async () => {
       gateCalls += 1;
       if (gateCalls === 1) await firstGate;
-      return passGate("test-run", { afterEdit: true });
+      return passGate("test-run", {
+        afterEdit: unknownMutationGateRequest(),
+      });
     };
     const options = { sitesRoot, gateRunner: orderedGate };
     const apply = applyStructuredElementEdit(
@@ -408,7 +501,7 @@ describe("element persistence history", () => {
         await transformGate;
         return html.replace("Original", "Natural");
       },
-      options,
+      { ...options, gateRequest: unknownMutationGateRequest() },
     );
     const structured = applyStructuredElementEdit(
       "test-run",
@@ -450,7 +543,11 @@ describe("element persistence history", () => {
         "test-run",
         "hero.headline",
         (source) => source.replace("Original", "Rejected natural"),
-        { sitesRoot, gateRunner: failGate },
+        {
+          sitesRoot,
+          gateRunner: failGate,
+          gateRequest: unknownMutationGateRequest(),
+        },
       ),
     ).rejects.toBeInstanceOf(BlockingMutationError);
     expect(await fs.readFile(path.join(siteDir, "index.html"), "utf8")).toBe(

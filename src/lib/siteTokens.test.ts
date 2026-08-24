@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { applyTokenEdit, inspectSiteTokens, inspectTokenSheet, revertTokenEdit, validateTokenValue } from "./siteTokens";
-import type { GateReport } from "./contracts";
+import type { GateReport, MutationGateRequestV1 } from "./contracts";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true }))));
@@ -51,6 +52,23 @@ async function expectArtifacts(root: string, expected: Map<string, Buffer | null
 }
 
 describe("semantic token inspection and persistence", () => {
+  it("routes token apply and revert through the token-style capability", async () => {
+    const { sitesRoot } = await fixture();
+    const requests: MutationGateRequestV1[] = [];
+    const gateRunner = async (_runId: string, options: { afterEdit: MutationGateRequestV1 }): Promise<GateReport[]> => {
+      requests.push(options.afterEdit);
+      return [];
+    };
+
+    await applyTokenEdit("test-run", "--color-primary", "#abcdef", { sitesRoot, gateRunner });
+    await revertTokenEdit("test-run", { sitesRoot, gateRunner });
+
+    expect(requests).toEqual([
+      knownMutationGateRequest("token-style"),
+      knownMutationGateRequest("token-style"),
+    ]);
+  });
+
   it("keeps an injected-root apply and revert away from the default run root", async () => {
     const runId = "tokens-injected-root";
     const defaultRunRoot = path.join(process.cwd(), "sites", runId);
