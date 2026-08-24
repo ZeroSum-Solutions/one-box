@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "legacy_777a6593a164dcd293bc",
+      "status": "completed",
+      "prompt": null,
+      "model": "unknown",
+      "provider": "unknown",
+      "aspectRatio": null,
+      "quality": null,
+      "dimensions": null,
+      "mimeType": "image/png",
+      "createdAt": "2026-08-14T01:39:37.631Z",
+      "updatedAt": "2026-08-14T01:39:37.631Z",
+      "credits": null,
+      "error": null,
+      "outputPath": "site/assets/hero.png",
+      "approvalInvalidatedAt": null,
+      "source": {
+        "kind": "legacy",
+        "parentAssetId": null,
+        "targetEditId": "hero.image",
+        "originalPath": "assets/hero.png"
+      },
+      "usage": [
+        {
+          "editId": "hero.image",
+          "src": "assets/hero.png"
+        }
+      ]
+    }
+  ]
+}

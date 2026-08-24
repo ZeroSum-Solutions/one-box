@@ -115,6 +115,7 @@ npm run build               # Next.js production build
 npm run test:smoke          # deterministic generated-site gates
 npm run test:e2e:intake     # rendered intake/upload acceptance
 npm run test:e2e:preview    # rendered View/Edit workbench acceptance
+npm run test:e2e:page-ir    # merge-blocking intake and workbench regressions
 npm run test:e2e:motion     # isolated GSAP lifecycle/reduced-motion matrix
 npm run test:e2e:token-motion # integrated token/motion workbench matrix
 npm run test:e2e:full-unit  # live full-run terminal-state tests
@@ -152,9 +153,10 @@ and each approval advances a persisted workflow gate. `/preview/<id>` serves a
 sandboxed generated site; structured and natural-language edits share the same
 per-run lock, history, validation, and rollback path.
 
-The intake keeps attachment, Website/Web app/iOS target, research, and paid
-fallback choices inside the composer. Failed chat and upload attempts retain
-their local context for Retry or Edit. Stable attempt and upload-batch IDs make
+The intake keeps attachment, the Phase 1 Website target, research, and paid
+fallback choices inside one composer. The prompt begins at 120px, grows to
+`min(360px, 50dvh)`, and scrolls internally without hiding Start. Failed chat
+and upload attempts retain their local context for Retry or Edit. Stable attempt and upload-batch IDs make
 those retries idempotent, so an ambiguous response cannot create a second run or
 stage the same file batch twice; completed intake retries also bypass another
 model call. The preview workbench persists exact
@@ -165,8 +167,10 @@ that run's directory; the server advertises only implemented models, requires
 explicit metered consent, keeps provider work outside the long-held site
 mutation lock, replays an ambiguous generation request without reserving credits
 or calling the provider twice, and reconciles interrupted ledger, catalog, and
-file transitions. Cross-process filesystem claims protect each of these durable
-retry boundaries.
+file transitions. A blocking placement gate names the failed gate, keeps the
+selection operable, and does not reload the preview or report a completed
+mutation. Cross-process filesystem claims protect each of these durable retry
+boundaries.
 
 Run reconnects project the append-only event audit into the current journey:
 superseded errors and earlier approval pauses remain on disk but do not render

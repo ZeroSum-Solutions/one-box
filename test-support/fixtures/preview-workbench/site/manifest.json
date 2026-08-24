@@ -1,0 +1,66 @@
+{
+  "entry": "index.html",
+  "files": [
+    "index.html",
+    "tokens.css",
+    "site.css",
+    "reveal.js",
+    "gsap.min.js",
+    "ScrollTrigger.min.js",
+    "motion-manifest.js",
+    "motion-runtime.js",
+    "motion.json",
+    "tailwind-theme.css",
+    "tailwind-utilities.css",
+    "assets/hero.png"
+  ],
+  "assets": [
+    {
+      "path": "tokens.css",
+      "kind": "css",
+      "generatedBy": "builder:tokens"
+    },
+    {
+      "path": "site.css",
+      "kind": "css"
+    },
+    {
+      "path": "reveal.js",
+      "kind": "js"
+    },
+    {
+      "path": "gsap.min.js",
+      "kind": "js"
+    },
+    {
+      "path": "ScrollTrigger.min.js",
+      "kind": "js"
+    },
+    {
+      "path": "motion-runtime.js",
+      "kind": "js"
+    },
+    {
+      "path": "motion-manifest.js",
+      "kind": "js",
+      "generatedBy": "builder:motion-manifest"
+    },
+    {
+      "path": "tailwind-theme.css",
+      "kind": "css",
+      "generatedBy": "evidence-workflow:tailwind-v4-theme"
+    },
+    {
+      "path": "tailwind-utilities.css",
+      "kind": "css",
+      "generatedBy": "evidence-workflow:tailwind-v4-compiler"
+    },
+    {
+      "path": "assets/hero.png",
+      "kind": "image",
+      "generatedBy": "intake:hero-image"
+    }
+  ],
+  "builtAt": "2026-08-15T04:53:41.497Z",
+  "complete": true
+}

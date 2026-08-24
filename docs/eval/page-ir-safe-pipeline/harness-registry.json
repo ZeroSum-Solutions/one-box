@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.1.0",
+  "registryVersion": "1.2.0",
   "status": "frozen",
   "evaluationManifest": {
     "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
@@ -14,6 +14,19 @@
     "traceabilityPath": "docs/eval/page-ir-safe-pipeline/traceability.md"
   },
   "evaluations": {
+    "EVAL-SEC-001": {
+      "testFiles": [
+        "src/lib/localApiAuth.test.ts",
+        "src/app/api/chat/route.test.ts",
+        "src/app/api/uploads/route.test.ts",
+        "src/app/api/evidence/[id]/route.test.ts",
+        "src/app/api/edit/route.test.ts",
+        "src/app/api/assets/[id]/route.test.ts",
+        "src/components/preview/previewState.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
     "EVAL-SEC-003": {
       "testFiles": [
         "src/lib/pageIrContracts.test.ts",

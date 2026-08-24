@@ -1,7 +1,72 @@
 import assert from "node:assert/strict";
+import { createHash, randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { chromium } from "playwright";
 
 const base = process.env.ONEBOX_BASE_URL ?? "http://127.0.0.1:3000";
+const attemptId = randomUUID();
+const realChatRequest = {
+  attemptId,
+  messages: [{
+    id: "real-same-origin-message",
+    role: "user",
+    parts: [{ type: "text", text: "Build the real same-origin replay" }],
+  }],
+  intakeContext: {
+    projectTarget: "website",
+    research: {
+      enabled: false,
+      businessIntelligence: false,
+      referoDesignEvidence: false,
+      allowPaidFirecrawlFallback: false,
+    },
+    uploads: [],
+    uploadSession: null,
+  },
+};
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, child]) => [key, canonicalize(child)]),
+    );
+  }
+  return value;
+}
+function assertRenderedHeight(actual, expected) {
+  assert.ok(
+    Math.abs(actual - expected) <= 0.5,
+    `expected rendered height ${expected}px, received ${actual}px`,
+  );
+}
+const requestFingerprint = createHash("sha256")
+  .update(JSON.stringify(canonicalize({
+    messages: realChatRequest.messages,
+    intakeContext: realChatRequest.intakeContext,
+  })))
+  .digest("hex");
+const attemptRecordPath = path.join(
+  process.cwd(),
+  "sites",
+  ".intake-attempts",
+  `${attemptId}.json`,
+);
+await fs.mkdir(path.dirname(attemptRecordPath), { recursive: true, mode: 0o700 });
+const attemptTimestamp = new Date().toISOString();
+await fs.writeFile(attemptRecordPath, JSON.stringify({
+  version: 2,
+  attemptId,
+  requestFingerprint,
+  state: "completed",
+  runId: "real-browser-replay",
+  createdAt: attemptTimestamp,
+  updatedAt: attemptTimestamp,
+}, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
+let stagedUploadDirectory;
 const browser = await chromium.launch();
 
 try {
@@ -14,33 +79,101 @@ try {
   page.on("pageerror", (error) => errors.push(String(error)));
   await page.goto(base, { waitUntil: "domcontentloaded" });
 
-  // These calls are deliberately unmocked. Invalid chat input and an empty
-  // multipart upload must pass the real local authorization boundary, then
-  // stop at validation before any model spend or file staging can occur.
+  // These calls are deliberately unmocked. A completed Start replay and a
+  // valid text upload must cross the real local authorization boundary and
+  // return 200 without model spend. Invalid requests then prove that auth was
+  // reached before validation.
   const localAuthorizationRegression = await page.evaluate(async () => {
-    const chat = await fetch("/api/chat", {
+    const invalidChat = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
     });
-    const upload = await fetch("/api/uploads", {
+    const invalidUpload = await fetch("/api/uploads", {
       method: "POST",
       body: new FormData(),
     });
-    return { chat: chat.status, upload: upload.status };
+    return { chat: invalidChat.status, upload: invalidUpload.status };
   });
   assert.deepEqual(localAuthorizationRegression, { chat: 400, upload: 400 });
+
+  const validLocalRegression = await page.evaluate(async ({ chatRequest, uploadRequestId }) => {
+    const chat = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(chatRequest),
+    });
+    const form = new FormData();
+    form.append("files", new File(["real upload"], "real-upload.txt", {
+      type: "text/plain",
+    }));
+    const upload = await fetch("/api/uploads", {
+      method: "POST",
+      headers: { "X-One-Box-Upload-Request-Id": uploadRequestId },
+      body: form,
+    });
+    return {
+      chat: { status: chat.status, body: await chat.json() },
+      upload: { status: upload.status, body: await upload.json() },
+    };
+  }, { chatRequest: realChatRequest, uploadRequestId: randomUUID() });
+  assert.equal(validLocalRegression.chat.status, 200);
+  assert.deepEqual(validLocalRegression.chat.body, {
+    runId: "real-browser-replay",
+    started: true,
+    replayed: true,
+  });
+  assert.equal(validLocalRegression.upload.status, 200);
+  assert.equal(validLocalRegression.upload.body.uploads.length, 1);
+  assert.equal(validLocalRegression.upload.body.uploads[0].fileName, "real-upload.txt");
+  stagedUploadDirectory = path.join(
+    os.tmpdir(),
+    `one-box-intake-${createHash("sha256")
+      .update(process.cwd())
+      .digest("hex")
+      .slice(0, 16)}`,
+    createHash("sha256")
+      .update(validLocalRegression.upload.body.uploadSession)
+      .digest("hex"),
+  );
+
+  // Keep transport pinned to the bound IPv4 loopback server while sending a
+  // hostile browser origin. This is reproducible when localhost resolves to
+  // IPv6 in CI, and the route's Host-authority variant remains covered by the
+  // focused route suite.
+  const hostileHeaders = {
+    Origin: "http://hostile.example",
+    "Sec-Fetch-Site": "cross-site",
+  };
+  const hostileChat = await page.request.post(`${new URL(base).origin}/api/chat`, {
+    headers: hostileHeaders,
+    data: {},
+  });
+  assert.equal(hostileChat.status(), 403);
+  const hostileUpload = await page.request.post(`${new URL(base).origin}/api/uploads`, {
+    headers: hostileHeaders,
+    multipart: {
+      files: {
+        name: "hostile.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("hostile"),
+      },
+    },
+  });
+  assert.equal(hostileUpload.status(), 403);
 
   const intakeComposer = page.locator(".intake-composer");
   await intakeComposer.waitFor();
   assert.equal(await page.locator(".hero-display, .intake-control").count(), 0);
   assert.equal(
-    await intakeComposer.locator("button:visible, summary:visible").count(),
-    3
+    await page.getByRole("textbox", { name: "Describe your project" }).count(),
+    1,
+    "intake must expose one prompt surface",
   );
   const persistentActionBoxes = await Promise.all([
     page.getByRole("button", { name: "Add files" }).boundingBox(),
     page.locator(".intake-target__summary").boundingBox(),
+    page.locator(".intake-research__summary").boundingBox(),
     page.locator(".intake-composer__send").boundingBox(),
   ]);
   assert.ok(
@@ -49,9 +182,9 @@ try {
     )
   );
   const composer = page.getByRole("textbox", { name: "Describe your project" });
-  assert.equal(await composer.getAttribute("rows"), "6");
+  assert.equal(await composer.getAttribute("rows"), "4");
   assert.equal(await composer.evaluate((element) => getComputedStyle(element).resize), "none");
-  assert.ok((await composer.boundingBox()).height >= 140);
+  assertRenderedHeight((await composer.boundingBox()).height, 120);
 
   const targetSelector = page.locator(".intake-target__summary");
   assert.match(await targetSelector.innerText(), /Website/);
@@ -60,28 +193,21 @@ try {
   await targetGroup.waitFor();
   assert.match(
     await targetGroup.innerText(),
-    /responsive public-facing site.*Next\.js and Tailwind CSS.*interactive browser product.*touch-first iPhone experience/is
+    /responsive public-facing site.*Next\.js and Tailwind CSS/is
   );
+  assert.equal(await targetGroup.getByRole("radio").count(), 1);
+  assert.equal(await targetGroup.getByRole("radio", { name: /Web app|iOS/i }).count(), 0);
 
   const website = page.getByRole("radio", { name: /Website/i });
   await website.focus();
   assert.equal(await website.evaluate((element) => element === document.activeElement), true);
-  await page.getByRole("radio", { name: /Web app/i }).check();
-  assert.equal(await targetGroup.isHidden(), true);
-  assert.match(
-    await page.locator(".intake-target__context").innerText(),
-    /Web app selected.*users, core workflow, important screens/i
-  );
-
-  await targetSelector.click();
-  await website.check();
+  await page.getByRole("button", { name: "Done" }).click();
   assert.equal(await targetGroup.isHidden(), true);
   assert.match(
     await page.locator(".intake-target__context").innerText(),
     /Website selected.*company, audience, pages, and action/i
   );
 
-  await targetSelector.click();
   await page.locator(".intake-research > summary").click();
   const researchGroup = page.getByRole("group", { name: "Design Research" });
   await researchGroup.waitFor();
@@ -106,11 +232,13 @@ try {
     await page.getByRole("link", { name: "Connect Refero" }).getAttribute("href"),
     "/api/refero/connect"
   );
-  assert.equal(await paidFallback.isChecked(), false);
+  assert.equal(await paidFallback.isChecked(), true);
   assert.match(
     await page.getByText(/May incur metered cost/).innerText(),
     /competitor web search.*local crawler fails.*bot wall.*required format/i
   );
+  await paidFallback.uncheck();
+  assert.equal(await paidFallback.isChecked(), false);
   await researchToggle.uncheck();
   assert.equal(await businessResearch.isDisabled(), true);
   assert.equal(await paidFallback.isDisabled(), true);
@@ -122,7 +250,8 @@ try {
     await page.locator(".intake-research__options input").nth(2).isChecked(),
     true
   );
-  await page.getByRole("button", { name: "Done" }).click();
+  await page.locator(".intake-research > summary").click();
+  assert.equal(await researchGroup.isHidden(), true);
   assert.equal(await targetGroup.isHidden(), true);
 
   let releaseUpload;
@@ -152,6 +281,52 @@ try {
   await alert.waitFor();
   assert.match(await alert.innerText(), /test upload was rejected/i);
   assert.match(await alert.innerText(), /adjust the selection/i);
+
+  // Transport failures are distinct from authorization and validation. The
+  // browser retains the File and retries the exact request identity.
+  await page.unroute("**/api/uploads");
+  const transportRequestIds = [];
+  await page.route("**/api/uploads", async (route) => {
+    transportRequestIds.push(
+      route.request().headers()["x-one-box-upload-request-id"],
+    );
+    if (transportRequestIds.length === 1) {
+      await route.abort("failed");
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        uploadSession: "z".repeat(43),
+        expiresAt: "2026-08-13T23:59:59.000Z",
+        uploads: [{
+          id: "transport-recovered-upload",
+          fileName: "transport-retry.txt",
+          kind: "copy-document",
+          mediaType: "text/plain",
+          sizeBytes: 9,
+          uploadedAt: "2026-08-13T00:00:00.000Z",
+        }],
+      }),
+    });
+  });
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles({
+    name: "transport-retry.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("transport"),
+  });
+  const transportAlert = page.locator(".intake-upload__error");
+  await transportAlert.getByText(/could not reach the local upload service/i).waitFor();
+  assert.doesNotMatch(await transportAlert.innerText(), /local request was blocked/i);
+  assert.doesNotMatch(await transportAlert.innerText(), /adjust the selection/i);
+  await transportAlert.getByRole("button", { name: "Retry upload" }).click();
+  await page.getByText("transport-retry.txt", { exact: true }).waitFor();
+  assert.equal(transportRequestIds.length, 2);
+  assert.equal(transportRequestIds[1], transportRequestIds[0]);
+  await page.locator(".intake-upload__disclosure > summary").click();
+  await page.getByRole("button", { name: "Remove transport-retry.txt" }).click();
 
   // Authorization failures retain the browser File object and expose an
   // in-place retry. The recovery must not blame a valid file selection.
@@ -184,7 +359,6 @@ try {
       }),
     });
   });
-  const fileInput = page.locator('input[type="file"]');
   await fileInput.setInputFiles({
     name: "authorization-retry.txt",
     mimeType: "text/plain",
@@ -203,12 +377,17 @@ try {
   // exact prompt and intake-context snapshot; Edit restores that snapshot to
   // the controls instead of asking the user to reconstruct it.
   const chatBodies = [];
+  let releaseFirstChat;
+  const firstChatGate = new Promise((resolve) => {
+    releaseFirstChat = resolve;
+  });
   let resolveSecondChat;
   const secondChat = new Promise((resolve) => {
     resolveSecondChat = resolve;
   });
   await page.route("**/api/chat", async (route) => {
     chatBodies.push(JSON.parse(route.request().postData() ?? "{}"));
+    if (chatBodies.length === 1) await firstChatGate;
     await route.fulfill({
       status: 403,
       contentType: "application/json",
@@ -219,8 +398,27 @@ try {
   const preservedPrompt = "Build the retained-context regression site";
   await composer.fill(preservedPrompt);
   await composer.press("Enter");
+  const pendingAttempt = page.locator(".transcript [role='status']").filter({
+    hasText: "Starting your project…",
+  });
+  await pendingAttempt.waitFor();
+  await page.waitForFunction(
+    () => document.querySelector(".transcript [role='status']") === document.activeElement,
+  );
+  assert.equal(
+    await pendingAttempt.evaluate((element) => element === document.activeElement),
+    true,
+  );
+  releaseFirstChat();
   const attemptError = page.locator(".transcript .chat-error");
   await attemptError.getByText(/local request was blocked/i).waitFor();
+  await page.waitForFunction(
+    () => document.querySelector(".transcript .chat-error") === document.activeElement,
+  );
+  assert.equal(
+    await attemptError.evaluate((element) => element === document.activeElement),
+    true,
+  );
   assert.equal(
     await page.locator(".transcript__line").filter({ hasText: preservedPrompt }).count(),
     1
@@ -459,16 +657,14 @@ try {
   await recoveryComposer.fill(recoveryPrompt);
   await recoveryComposer.press("Enter");
   await recoveryPage
-    .getByText("The build stopped at a recoverable configuration boundary.")
+    .getByRole("button", { name: "Edit prompt and settings" })
     .waitFor();
   assert.equal(
     recoveryChatBodies[0].intakeContext.research.referoDesignEvidence,
     false
   );
   assert.match(recoveryPage.url(), /[?&]run=recovery-run(?:&|$)/);
-  await recoveryPage
-    .getByRole("button", { name: "Edit prompt and settings" })
-    .click();
+  await recoveryPage.getByRole("button", { name: "Edit prompt and settings" }).click();
   assert.equal(await recoveryComposer.inputValue(), recoveryPrompt);
   assert.equal(
     await recoveryPage
@@ -497,7 +693,11 @@ try {
   await page.keyboard.press("ControlOrMeta+V");
   assert.equal(await composer.inputValue(), longPrompt);
   const tallBox = await composer.boundingBox();
-  assert.ok(tallBox.height <= 422);
+  assertRenderedHeight(tallBox.height, 360);
+  assert.equal(
+    await composer.evaluate((element) => element === document.activeElement),
+    true,
+  );
   assert.equal(
     await composer.evaluate((element) => element.scrollHeight > element.clientHeight),
     true
@@ -506,12 +706,17 @@ try {
 
   await page.setViewportSize({ width: 390, height: 360 });
   await page.waitForFunction(
-    () => document.querySelector(".composer__input")?.clientHeight <= 180
+    () => document.querySelector(".composer__input")?.clientHeight === 180
   );
   const shortComposerBox = await composer.boundingBox();
   const shortFooterBox = await page.locator(".intake-composer__footer").boundingBox();
   const shortPageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
   assert.ok(shortComposerBox.y >= 0);
+  assertRenderedHeight(shortComposerBox.height, 180);
+  assert.equal(
+    await composer.evaluate((element) => element === document.activeElement),
+    true,
+  );
   assert.ok(shortFooterBox.y + shortFooterBox.height <= 360 || shortPageHeight > 360);
   assert.equal(
     await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -560,4 +765,8 @@ try {
   console.log("intake upload browser checks passed");
 } finally {
   await browser.close();
+  await fs.rm(attemptRecordPath, { force: true });
+  if (stagedUploadDirectory) {
+    await fs.rm(stagedUploadDirectory, { recursive: true, force: true });
+  }
 }

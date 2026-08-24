@@ -53,6 +53,21 @@ interface LibraryPayload {
   library: { version: 1; items: LibraryItem[] };
 }
 
+interface PlacementGate {
+  gate: string;
+  pass: boolean;
+  blocking: boolean;
+}
+
+export function blockingPlacementFailure(
+  gates: PlacementGate[] | undefined,
+): string | null {
+  const failures = gates?.filter((gate) => gate.blocking && !gate.pass) ?? [];
+  if (failures.length === 0) return null;
+  const names = failures.map((gate) => gate.gate).join(", ");
+  return `Image placement was blocked because ${names} did not pass. The selected image was not replaced.`;
+}
+
 export interface GenerationAttemptSnapshot {
   requestId: string;
   prompt: string;
@@ -346,9 +361,11 @@ export function AssetControls({
         }),
       });
       const data = (await response.json().catch(() => null)) as
-        | { ok: true; gates?: Array<{ pass: boolean }>; item: LibraryItem }
-        | { error?: string }
+        | { ok: true; gates?: PlacementGate[]; item: LibraryItem }
+        | { error?: string; gates?: PlacementGate[] }
         | null;
+      const gateFailure = blockingPlacementFailure(data?.gates);
+      if (gateFailure) throw new Error(gateFailure);
       if (!response.ok || !data || !("ok" in data)) {
         throw new Error(
           (data && "error" in data && data.error) ||

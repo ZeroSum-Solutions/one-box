@@ -1551,6 +1551,20 @@
 }
 
 @media (max-width: 768px) {
+  .checkbox-row {
+    min-height: 44px;
+  }
+
+  .workbench-state button,
+  .workbench-state a {
+    display: inline-flex;
+    min-width: 44px;
+    min-height: 44px;
+    align-items: center;
+    align-self: flex-start;
+    justify-content: center;
+  }
+
   .ghost-action,
   .layout-controls button,
   .asset-view-switch button,

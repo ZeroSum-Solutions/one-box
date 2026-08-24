@@ -219,7 +219,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     const observer = new ResizeObserver(update);
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [iframeVersion, restored, workbench.mode]);
+  }, [iframeVersion, interactive, restored, workbench.mode]);
 
   // A build that fails a blocking gate is still served, and the workbench used
   // to arm itself over it as if nothing were wrong — every edit then refused on

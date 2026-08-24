@@ -1,0 +1,89 @@
+/**
+ * one-box / templates/local-service / tokens.css.tpl
+ *
+ * Generated at build time by src/lib/builder.ts from a DesignTokens object
+ * (src/lib/contracts.ts). Do not hand-edit the output — edit the DesignTokens
+ * input instead. This file is a flat value sheet only: every custom property
+ * holds a literal color/length/time value, never a clamp()/calc() expression.
+ * Fluid type is composed in site.css from PAIRS of these flat size tokens.
+ *
+ * CONTRACT — the L1 local-service template expects DesignTokens entries to
+ * name their cssVar fields exactly as below, because site.css (a frozen,
+ * hand-authored file) references these exact custom-property names. If a
+ * DesignTokens object supplies different cssVar names, its values still get
+ * written into this file faithfully, but site.css's rules will fall back to
+ * the browser default for any name it expected that never arrived — which
+ * the token-drift gate (src/lib/gates.ts) will catch, since the resulting
+ * computed color/font will not trace back to a token value.
+ *
+ * Colors   (DesignTokens.colors[].cssVar):
+ *   --color-bg, --color-surface, --color-surface-alt, --color-text,
+ *   --color-text-muted, --color-primary, --color-primary-contrast,
+ *   --color-border, --color-accent
+ * Fonts    (DesignTokens.fonts[].cssVar):
+ *   --font-display, --font-body
+ * Type scale (DesignTokens.typeScale[].cssVar, role must match the name):
+ *   --text-caption, --text-body-sm, --text-body, --text-body-lg,
+ *   --text-subheading, --text-heading-sm, --text-heading, --text-heading-lg,
+ *   --text-display
+ * Radii    (DesignTokens.radii keys):
+ *   --radius-sm, --radius-md, --radius-lg, --radius-pill
+ * Spacing  (DesignTokens.spacing keys):
+ *   --space-xs, --space-sm, --space-md, --space-lg, --space-xl,
+ *   --space-2xl, --space-3xl
+ * Layout   (DesignTokens.layout, fixed names — no per-entry cssVar in schema):
+ *   --layout-max-width, --layout-section-gap, --layout-card-padding
+ * Motion   (DesignTokens.motion, fixed names — no per-entry cssVar in schema):
+ *   --motion-ease, --motion-duration-micro, --motion-duration-reveal
+ *
+ * See WAVE-NOTES-buildgate.md for the full rationale.
+ */
+:root {
+  --color-bg: #14181c;
+  --color-surface: #1c2126;
+  --color-surface-alt: #20262c;
+  --color-text: #f4f6f8;
+  --color-text-muted: #9aa4ad;
+  --color-primary: #3aa0ff;
+  --color-primary-contrast: #04121f;
+  --color-border: #2b3238;
+  --color-accent: #39d98a;
+  --color-primary-text: #3aa0ff;
+  --color-on-surface-alt: #f4f6f8;
+  --color-on-surface-alt-muted: #9aa4ad;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-body: Inter, sans-serif;
+  --text-caption: 0.8125rem;
+  --text-body-sm: 0.9375rem;
+  --text-body: 1.0625rem;
+  --text-body-lg: 1.25rem;
+  --text-subheading: 1.5rem;
+  --text-heading-sm: 1.875rem;
+  --text-heading: 2.625rem;
+  --text-heading-lg: 3.75rem;
+  --text-display: 5.5rem;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  --space-xs: 8px;
+  --space-sm: 12px;
+  --space-md: 20px;
+  --space-lg: 32px;
+  --space-xl: 56px;
+  --space-2xl: 88px;
+  --space-3xl: 128px;
+  --border-subtle: 1px solid #2b3238;
+  --border-strong: 2px solid #3aa0ff;
+  --shadow-raised: 0 8px 30px rgb(0 0 0 / 0.2);
+  --shadow-overlay: 0 18px 50px rgb(0 0 0 / 0.3);
+  --layer-base: 0;
+  --layer-sticky: 20;
+  --layer-overlay: 40;
+  --layout-max-width: 1180px;
+  --layout-section-gap: 96px;
+  --layout-card-padding: 28px;
+  --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-duration-micro: 160ms;
+  --motion-duration-reveal: 600ms;
+}

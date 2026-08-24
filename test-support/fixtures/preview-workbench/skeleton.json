@@ -1,0 +1,80 @@
+{
+  "sections": [
+    {
+      "id": "nav",
+      "name": "Navigation",
+      "purpose": "wayfinding + quick call",
+      "contentNeeds": [
+        "logo",
+        "phone"
+      ]
+    },
+    {
+      "id": "hero",
+      "name": "Hero",
+      "purpose": "primary conversion",
+      "contentNeeds": [
+        "headline",
+        "sub",
+        "cta"
+      ]
+    },
+    {
+      "id": "trust-bar",
+      "name": "Trust bar",
+      "purpose": "quick credibility",
+      "contentNeeds": [
+        "stats"
+      ]
+    },
+    {
+      "id": "services",
+      "name": "Services",
+      "purpose": "service inventory",
+      "contentNeeds": [
+        "service cards"
+      ]
+    },
+    {
+      "id": "why-us",
+      "name": "Why us",
+      "purpose": "differentiation",
+      "contentNeeds": [
+        "differentiators"
+      ]
+    },
+    {
+      "id": "reviews",
+      "name": "Reviews",
+      "purpose": "social proof",
+      "contentNeeds": [
+        "testimonials"
+      ]
+    },
+    {
+      "id": "service-area",
+      "name": "Service area",
+      "purpose": "geo relevance",
+      "contentNeeds": [
+        "area list"
+      ]
+    },
+    {
+      "id": "contact",
+      "name": "Contact",
+      "purpose": "secondary conversion",
+      "contentNeeds": [
+        "cta",
+        "phone"
+      ]
+    },
+    {
+      "id": "footer",
+      "name": "Footer",
+      "purpose": "chrome",
+      "contentNeeds": [
+        "business name"
+      ]
+    }
+  ]
+}

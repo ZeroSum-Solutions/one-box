@@ -1,0 +1,203 @@
+<!--
+  one-box / templates/local-service / index.html.tpl
+
+  FROZEN L1 local-service starter skeleton. src/lib/builder.ts parameterizes
+  this file — it never invents structure. Placeholders use mustache-lite
+  double-curly section-dot-element tokens; builder.ts fills them from
+  CopyDoc fields of the same name (see WAVE-NOTES-buildgate.md for the full
+  field contract) or computes a raw-HTML block for composite placeholders
+  (the hero media block, the list placeholders, the meta and jsonLd tags).
+
+  Section visibility: each section below is wrapped in a same-line HTML
+  comment pair naming it, SECTION colon id opening it and slash-SECTION
+  colon id closing it (see the literal markers further down this file —
+  not reproduced here with their own comment delimiters, since a nested
+  "dash dash greater-than" would close THIS comment early). Nav anchor
+  links use the equivalent NAVLINK-prefixed pair. builder.ts strips a
+  marked block entirely when skeleton.sections does not include that
+  section id, and keeps only the inner content (marker comments removed)
+  when it does. nav/hero/contact/footer are always kept by the builder
+  regardless of skeleton content, so the page never loses required chrome;
+  every OTHER id is section-gated.
+
+  Every editable node carries a data-edit-id attribute shaped
+  "section.element" — the only selector the editor (edit_site) accepts.
+-->
+<!doctype html>
+<html data-project-target="website" lang="en" class="no-js">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="generator" content="one-box" />
+  <title>FiberLink Pro | fiber optic installer in Austin, TX</title>
+  <meta name="description" content="Licensed low-voltage crews serving Austin and Central Texas since 2014. Residential and business fiber installation, splicing, and troubleshooting." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23888'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="tokens.css" />
+  <link rel="stylesheet" href="tailwind-theme.css" />
+  <link rel="stylesheet" href="tailwind-utilities.css" />
+  <link rel="stylesheet" href="site.css" />
+  <script>document.documentElement.classList.replace('no-js','js');</script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"FiberLink Pro","areaServed":"Austin, Round Rock, Cedar Park, Georgetown","telephone":"(512) 555-0142","makesOffer":[{"@type":"Offer","itemOffered":{"@type":"Service","name":"Residential fiber installation"}},{"@type":"Offer","itemOffered":{"@type":"Service","name":"Business fiber installation"}},{"@type":"Offer","itemOffered":{"@type":"Service","name":"Network troubleshooting"}},{"@type":"Offer","itemOffered":{"@type":"Service","name":"Fiber splicing"}}]}</script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+
+  <header class="site-header">
+    <nav class="nav" aria-label="Primary">
+      <a class="nav__logo" href="#top" data-edit-id="nav.logo">FiberLink Pro</a>
+      <ul class="nav__links">
+
+        <li><a href="#services">Services</a></li>
+
+
+        <li><a href="#why-us">Why Us</a></li>
+
+
+        <li><a href="#reviews">Reviews</a></li>
+
+
+        <li><a href="#service-area">Service Area</a></li>
+
+
+        <li><a href="#contact">Contact</a></li>
+
+      </ul>
+      <a class="nav__cta btn btn--ghost" href="tel:5125550142" data-edit-id="nav.phone" aria-label="Call (512) 555-0142">
+        <span aria-hidden="true" class="icon icon--phone"></span>
+        (512) 555-0142
+      </a>
+    </nav>
+  </header>
+
+
+  <main id="main">
+
+
+    <section class="hero" id="top" aria-label="Introduction">
+      <div class="hero__inner">
+        <div class="hero__content" data-reveal="up">
+          <h1 class="hero__headline" data-edit-id="hero.headline">Fiber internet installed right, the first time.</h1>
+          <p class="hero__sub" data-edit-id="hero.sub">Licensed low-voltage crews serving Austin and Central Texas since 2014. Residential and business fiber installation, splicing, and troubleshooting.</p>
+          <a class="btn btn--primary hero__cta" href="tel:5125550142" data-edit-id="hero.cta">Call for same-week service</a>
+        </div>
+        <div class="hero__media" data-edit-id="hero.image"><img src="assets/hero.png" alt="FiberLink Pro technician splicing fiber optic cable" loading="eager" /></div>
+      </div>
+    </section>
+
+
+
+    <section class="trust-bar" aria-label="Trust indicators" data-reveal="up">
+      <ul class="trust-bar__list">
+        <li class="stat" data-reveal="up"><span class="stat__value" data-edit-id="trust-bar.stat-1-value">12</span><span class="stat__label" data-edit-id="trust-bar.stat-1-label">Years in Central Texas</span></li>
+<li class="stat" data-reveal="up"><span class="stat__value" data-edit-id="trust-bar.stat-2-value">1400</span><span class="stat__label" data-edit-id="trust-bar.stat-2-label">Installs completed</span></li>
+<li class="stat" data-reveal="up"><span class="stat__value" data-edit-id="trust-bar.stat-3-value">7</span><span class="stat__label" data-edit-id="trust-bar.stat-3-label">Day average turnaround</span></li>
+      </ul>
+    </section>
+
+
+
+    <section class="section services" id="services" aria-labelledby="services-heading">
+      <div class="section__inner">
+        <p class="section__eyebrow" data-reveal="up">Services</p>
+        <h2 class="section__heading" id="services-heading" data-reveal="up">What we install</h2>
+        <ul class="services__grid">
+          <li class="card" data-reveal="up"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="services.card-1-title">Residential fiber</h3><p class="card__body" data-edit-id="services.card-1-body">Whole-home fiber runs, ONT placement, and Wi-Fi handoff, done clean and fast.</p></li>
+<li class="card" data-reveal="up"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="services.card-2-title">Business fiber</h3><p class="card__body" data-edit-id="services.card-2-body">Office and warehouse fiber backbone, patch panels, and rack termination.</p></li>
+<li class="card" data-reveal="up"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="services.card-3-title">Troubleshooting</h3><p class="card__body" data-edit-id="services.card-3-body">Signal loss, splice failures, and drop repairs diagnosed on-site.</p></li>
+<li class="card" data-reveal="up"><span class="card__icon" aria-hidden="true"></span><h3 class="card__title" data-edit-id="services.card-4-title">Splicing</h3><p class="card__body" data-edit-id="services.card-4-body">Fusion splicing for new runs and repairs, tested and documented.</p></li>
+        </ul>
+      </div>
+    </section>
+
+
+
+    <section class="section why-us" id="why-us" aria-labelledby="why-us-heading">
+      <div class="section__inner">
+        <p class="section__eyebrow" data-reveal="up">Why Us</p>
+        <h2 class="section__heading" id="why-us-heading" data-reveal="up">Why Central Texas calls us first</h2>
+        <ul class="why-us__list">
+          <li class="point" data-reveal="up"><h3 class="point__title" data-edit-id="why-us.point-1-title">BICSI certified crews</h3><p class="point__body" data-edit-id="why-us.point-1-body">Every installer carries current BICSI certification.</p></li>
+<li class="point" data-reveal="up"><h3 class="point__title" data-edit-id="why-us.point-2-title">Same-week scheduling</h3><p class="point__body" data-edit-id="why-us.point-2-body">Most jobs booked within seven days of the call.</p></li>
+<li class="point" data-reveal="up"><h3 class="point__title" data-edit-id="why-us.point-3-title">Licensed low-voltage contractor</h3><p class="point__body" data-edit-id="why-us.point-3-body">Fully licensed and insured for residential and commercial work.</p></li>
+        </ul>
+      </div>
+    </section>
+
+
+
+    <section class="section reviews" id="reviews" aria-labelledby="reviews-heading">
+      <div class="section__inner">
+        <p class="section__eyebrow" data-reveal="up">Reviews</p>
+        <h2 class="section__heading" id="reviews-heading" data-reveal="up">What people say</h2>
+        <ul class="reviews__grid">
+          <li class="card review" data-reveal="up"><p class="review__quote" data-edit-id="reviews.card-1-quote">They ran fiber to our detached garage office in an afternoon. Clean work, no drywall mess.</p><p class="review__author" data-edit-id="reviews.card-1-author">Austin homeowner</p></li>
+<li class="card review" data-reveal="up"><p class="review__quote" data-edit-id="reviews.card-2-quote">Our old installer left splice loss all over the building. FiberLink re-terminated everything in a day.</p><p class="review__author" data-edit-id="reviews.card-2-author">Round Rock property manager</p></li>
+<li class="card review" data-reveal="up"><p class="review__quote" data-edit-id="reviews.card-3-quote">Booked on a Tuesday, installed by Friday. Exactly what they said on the phone.</p><p class="review__author" data-edit-id="reviews.card-3-author">Cedar Park homeowner</p></li>
+        </ul>
+      </div>
+    </section>
+
+
+
+    <section class="section service-area" id="service-area" aria-labelledby="service-area-heading">
+      <div class="section__inner service-area__inner">
+        <div class="service-area__copy" data-reveal="up">
+          <p class="section__eyebrow">Service Area</p>
+          <h2 class="section__heading" id="service-area-heading">Where we work</h2>
+          <ul class="area-list">
+            <li class="area-chip" data-edit-id="service-area.area-1">Austin</li>
+<li class="area-chip" data-edit-id="service-area.area-2">Round Rock</li>
+<li class="area-chip" data-edit-id="service-area.area-3">Cedar Park</li>
+<li class="area-chip" data-edit-id="service-area.area-4">Georgetown</li>
+          </ul>
+        </div>
+        <aside class="area-panel" data-reveal="up">
+          <p class="area-panel__value">Austin, Round Rock, Cedar Park, Georgetown</p>
+          <p class="area-panel__note">Not sure if we reach you? Call and we&#39;ll tell you straight.</p>
+          <a class="btn btn--ghost area-panel__cta" href="tel:5125550142">(512) 555-0142</a>
+        </aside>
+      </div>
+    </section>
+
+
+
+    <section class="contact-band" id="contact" aria-labelledby="contact-heading" data-reveal="up">
+      <div class="contact-band__inner">
+        <div>
+          <h2 class="contact-band__heading" id="contact-heading" data-edit-id="contact.headline">Ready to get wired up right?</h2>
+          <p class="contact-band__sub" data-edit-id="contact.sub">Call now for same-week scheduling across Central Texas.</p>
+        </div>
+        <div class="contact-band__actions">
+          <a class="btn btn--primary" href="tel:5125550142" data-edit-id="contact.cta">Call FiberLink Pro</a>
+          <a class="btn btn--ghost" href="tel:5125550142" data-edit-id="contact.phone">
+            <span aria-hidden="true" class="icon icon--phone"></span>
+            (512) 555-0142
+          </a>
+        </div>
+      </div>
+    </section>
+
+
+  </main>
+
+
+  <footer class="site-footer">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <p class="footer__business-name" data-edit-id="footer.business-name">FiberLink Pro</p>
+        <p class="footer__tagline" data-edit-id="footer.tagline">Licensed fiber optic installation for Central Texas.</p>
+      </div>
+      <a class="footer__phone" href="tel:5125550142" data-edit-id="footer.phone">(512) 555-0142</a>
+      <p class="footer__copyright">&copy; 2026 FiberLink Pro. All rights reserved.</p>
+    </div>
+  </footer>
+
+
+  <script src="reveal.js"></script>
+  <script src="gsap.min.js"></script>
+  <script src="ScrollTrigger.min.js"></script>
+  <script src="motion-manifest.js"></script>
+  <script src="motion-runtime.js"></script>
+</body>
+</html>

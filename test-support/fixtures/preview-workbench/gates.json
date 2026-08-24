@@ -1,0 +1,55 @@
+[
+  {
+    "gate": "token-drift",
+    "pass": true,
+    "blocking": true,
+    "details": [],
+    "ranAt": "2026-08-15T04:53:41.790Z"
+  },
+  {
+    "gate": "axe",
+    "pass": true,
+    "blocking": true,
+    "details": [],
+    "ranAt": "2026-08-15T04:53:42.095Z"
+  },
+  {
+    "gate": "console-errors",
+    "pass": true,
+    "blocking": true,
+    "details": [],
+    "ranAt": "2026-08-15T04:53:42.444Z"
+  },
+  {
+    "gate": "assets",
+    "pass": true,
+    "blocking": true,
+    "details": [],
+    "ranAt": "2026-08-15T04:53:42.746Z"
+  },
+  {
+    "gate": "no-js",
+    "pass": true,
+    "blocking": true,
+    "details": [],
+    "ranAt": "2026-08-15T04:53:42.796Z"
+  },
+  {
+    "gate": "mobile-layout",
+    "pass": true,
+    "blocking": true,
+    "details": [],
+    "ranAt": "2026-08-15T04:53:42.846Z"
+  },
+  {
+    "gate": "perf-budget",
+    "pass": true,
+    "blocking": false,
+    "details": [
+      "total transfer: 165KB (budget 900KB)",
+      "image bytes: 0KB (budget 500KB)",
+      "DOMContentLoaded: 76ms at 4x CPU throttle (budget 2000ms)"
+    ],
+    "ranAt": "2026-08-15T04:53:42.953Z"
+  }
+]

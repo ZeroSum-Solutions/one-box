@@ -34,12 +34,12 @@ function renderComposer(referoDesignEvidenceAvailable = true) {
 }
 
 describe("IntakeComposer", () => {
-  it("renders one prompt surface with exactly three persistent actions", () => {
+  it("renders one prompt surface with progressive upload, target, research, and start actions", () => {
     const html = renderComposer();
     expect(html).toContain('class="intake-composer"');
     expect(html).toContain('aria-label="Describe your project"');
     expect(html).toContain('maxLength="60000"');
-    expect(html).toContain('rows="6"');
+    expect(html).toContain('rows="4"');
     expect(html).toContain('aria-label="Add files"');
     expect(html).toContain('class="intake-target__summary"');
     expect(html).toContain('class="btn-primary intake-composer__send"');
@@ -83,7 +83,7 @@ describe("IntakeComposer", () => {
       "Try Research to sharpen the result.",
       "Add any files you want us to use.",
     ]);
-    expect(boundedComposerHeight(80, 900)).toEqual({ height: 144, overflow: false });
+    expect(boundedComposerHeight(80, 900)).toEqual({ height: 120, overflow: false });
     expect(boundedComposerHeight(700, 900)).toEqual({ height: 360, overflow: true });
     expect(boundedComposerHeight(700, 320)).toEqual({ height: 160, overflow: true });
   });

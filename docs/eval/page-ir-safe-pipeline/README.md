@@ -121,6 +121,30 @@ npm run eval:page-ir -- run --run-id "$RUN_ID" --runs-root "$RUNS_ROOT" --evalua
 npm run eval:page-ir -- run --run-id "$RUN_ID" --runs-root "$RUNS_ROOT" --evaluation EVAL-WEB-003
 ```
 
+OBX-042 registers `EVAL-SEC-001` as a credential-free evaluator suite. The rendered
+`EVAL-UX-001` through `EVAL-UX-006` evaluations are intentionally not registered as
+Vitest-only suites: the sealed evaluator therefore reports them `BLOCKED` instead of
+claiming rendered success from component or route tests. Their merge-blocking owner
+evidence is the CI `Rendered Page IR regressions` gate, which builds the application,
+copies the tracked deterministic preview fixture, starts the production build on
+loopback, and runs both browser journeys:
+
+```sh
+npm run test:e2e:intake
+npm run test:e2e:preview
+# or both, exactly as CI runs them
+npm run test:e2e:page-ir
+```
+
+The intake journey proves the exact composer bounds, Start/error focus, preserved
+Retry/Edit state, upload failure classes and request identity, valid same-origin
+authorization, and hostile-origin 403 response. The preview journey proves desktop,
+tablet, and the frozen 390×844 app-shell controls, including resize, presets,
+collapse/reopen, keyboard flow, mobile hit areas, image-generation consent/replay,
+provenance, placement, and blocking-gate recovery. Route tests separately exercise a
+valid same-origin Start replay and hostile Host authority without a provider call.
+Component and route PASS does not replace these rendered journeys.
+
 The evaluator reads only the sealed fixture and browser roots, executes from the bound
 Git commit with dependencies installed offline from `package-lock.json`, receives no
 provider credentials, cannot access host loopback or external networks, cannot read
@@ -147,6 +171,10 @@ resolved through `PATH`; the bound npm CLI is invoked through the bound Node exe
 - `scripts/eval/page-ir-harness-runner.mjs` owns immutable run, packet, screenshot,
   and evaluator-sandbox validation.
 - `scripts/eval/page-ir-harness.mjs` is the canonical CLI coordinator.
+- `scripts/e2e/intake-upload.mjs` and `scripts/e2e/preview-workbench.mjs` own the
+  merge-blocking rendered UX journeys.
+- `test-support/fixtures/preview-workbench/` owns the tracked, credential-free
+  workbench fixture used on clean CI checkouts.
 
 ## Frozen thresholds
 

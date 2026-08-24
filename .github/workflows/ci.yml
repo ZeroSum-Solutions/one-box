@@ -44,3 +44,14 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Rendered Page IR regressions
+        env:
+          ONEBOX_BASE_URL: http://127.0.0.1:3000
+          ONE_BOX_REFERO_OAUTH_STORE: ${{ runner.temp }}/one-box-no-refero.json
+        run: |
+          npm run start > "$RUNNER_TEMP/one-box-next.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          node -e 'let attempts=0; const poll=async()=>{try{const response=await fetch(process.env.ONEBOX_BASE_URL); if(response.ok) return;}catch{} if(++attempts>=60) process.exit(1); setTimeout(poll,500)}; poll()'
+          npm run test:e2e:page-ir

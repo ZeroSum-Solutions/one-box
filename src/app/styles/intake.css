@@ -193,7 +193,7 @@
 .intake-composer__input {
   display: block;
   width: 100%;
-  min-height: 72px;
+  min-height: 120px;
   max-height: min(360px, 50dvh);
   resize: none;
   overscroll-behavior: contain;
@@ -743,6 +743,7 @@
   .intake-composer .intake-upload--compact .intake-upload__button,
   .intake-composer__send {
     min-height: 44px;
+    min-width: 44px;
   }
 
   .intake-target__menu,

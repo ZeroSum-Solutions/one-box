@@ -1,0 +1,66 @@
+{
+  "sections": {
+    "nav": {
+      "logo": "FiberLink Pro",
+      "phone": "(512) 555-0142"
+    },
+    "hero": {
+      "headline": "Fiber internet installed right, the first time.",
+      "sub": "Licensed low-voltage crews serving Austin and Central Texas since 2014. Residential and business fiber installation, splicing, and troubleshooting.",
+      "cta": "Call for same-week service",
+      "image-alt": "FiberLink Pro technician splicing fiber optic cable"
+    },
+    "trust-bar": {
+      "stat-1-value": "12",
+      "stat-1-label": "Years in Central Texas",
+      "stat-2-value": "1400",
+      "stat-2-label": "Installs completed",
+      "stat-3-value": "7",
+      "stat-3-label": "Day average turnaround"
+    },
+    "services": {
+      "intro": "What we install",
+      "card-1-title": "Residential fiber",
+      "card-1-body": "Whole-home fiber runs, ONT placement, and Wi-Fi handoff, done clean and fast.",
+      "card-2-title": "Business fiber",
+      "card-2-body": "Office and warehouse fiber backbone, patch panels, and rack termination.",
+      "card-3-title": "Troubleshooting",
+      "card-3-body": "Signal loss, splice failures, and drop repairs diagnosed on-site.",
+      "card-4-title": "Splicing",
+      "card-4-body": "Fusion splicing for new runs and repairs, tested and documented."
+    },
+    "why-us": {
+      "intro": "Why Central Texas calls us first",
+      "point-1-title": "BICSI certified crews",
+      "point-1-body": "Every installer carries current BICSI certification.",
+      "point-2-title": "Same-week scheduling",
+      "point-2-body": "Most jobs booked within seven days of the call.",
+      "point-3-title": "Licensed low-voltage contractor",
+      "point-3-body": "Fully licensed and insured for residential and commercial work."
+    },
+    "reviews": {
+      "card-1-quote": "They ran fiber to our detached garage office in an afternoon. Clean work, no drywall mess.",
+      "card-1-author": "Austin homeowner",
+      "card-2-quote": "Our old installer left splice loss all over the building. FiberLink re-terminated everything in a day.",
+      "card-2-author": "Round Rock property manager",
+      "card-3-quote": "Booked on a Tuesday, installed by Friday. Exactly what they said on the phone.",
+      "card-3-author": "Cedar Park homeowner"
+    },
+    "service-area": {
+      "intro": "Where we work",
+      "area-1": "Austin",
+      "area-2": "Round Rock",
+      "area-3": "Cedar Park",
+      "area-4": "Georgetown"
+    },
+    "contact": {
+      "headline": "Ready to get wired up right?",
+      "sub": "Call now for same-week scheduling across Central Texas.",
+      "cta": "Call FiberLink Pro"
+    },
+    "footer": {
+      "tagline": "Licensed fiber optic installation for Central Texas."
+    }
+  },
+  "stopSlopScore": 41
+}

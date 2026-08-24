@@ -48,7 +48,7 @@ export function boundedComposerHeight(
   viewportHeight: number
 ): { height: number; overflow: boolean } {
   const maximum = Math.max(120, Math.min(360, Math.floor(viewportHeight * 0.5)));
-  const minimum = Math.min(144, maximum);
+  const minimum = 120;
   return {
     height: Math.max(minimum, Math.min(scrollHeight, maximum)),
     overflow: scrollHeight > maximum,
@@ -137,7 +137,7 @@ export function IntakeComposer({
         onKeyDown={handleKeyDown}
         placeholder={GUIDANCE_PROMPTS[guidanceIndex]}
         maxLength={INTAKE_MESSAGE_MAX_CHARS}
-        rows={6}
+        rows={4}
         disabled={disabled}
         aria-label="Describe your project"
       />

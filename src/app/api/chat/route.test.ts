@@ -87,6 +87,41 @@ describe("chat intake request", () => {
     }
   });
 
+  it("rejects a hostile same-origin Host authority before body or model work", async () => {
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new TextEncoder().encode("{}"));
+        controller.close();
+      },
+    });
+    const request = new Request("http://rebound.example/api/chat", {
+      method: "POST",
+      headers: {
+        Host: "rebound.example",
+        Origin: "http://rebound.example",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    await Promise.resolve();
+    const pullsBefore = pulls;
+    const model = vi.fn();
+
+    const response = await handleChat(request, {
+      streamText: model as unknown as NonNullable<
+        Parameters<typeof handleChat>[1]
+      >["streamText"],
+    });
+
+    expect(response.status).toBe(403);
+    expect(pulls).toBe(pullsBefore);
+    expect(model).not.toHaveBeenCalled();
+  });
+
   it("allows a valid local bearer without Origin to reach request validation", async () => {
     process.env.ONE_BOX_API_TOKEN = "test-chat-token";
     const response = await handleChat(
@@ -230,7 +265,7 @@ describe("chat intake request", () => {
     }
   );
 
-  it("replays a completed attempt even when current runtime configuration is missing", async () => {
+  it("accepts a valid same-origin Start replay even when current runtime configuration is missing", async () => {
     const model = vi.fn();
     const preflight = vi.fn();
     const response = await handleChat(

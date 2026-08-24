@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { chromium } from "playwright";
 
-const base = process.env.ONEBOX_BASE_URL ?? "http://localhost:3000";
+const base = process.env.ONEBOX_BASE_URL ?? "http://127.0.0.1:3000";
 const root = process.cwd();
 const runId = `preview-e2e-${Date.now().toString(36)}`;
 const runRoot = path.join(root, "sites", runId);
@@ -74,7 +74,7 @@ const fidelityFixture = `
   </script>
 `;
 
-await fs.cp(path.join(root, "sites", "smoke-fixture"), runRoot, {
+await fs.cp(path.join(root, "test-support", "fixtures", "preview-workbench"), runRoot, {
   recursive: true,
   errorOnExist: true,
 });
@@ -949,6 +949,7 @@ try {
   let libraryImages = [legacyImage];
   const assetMutations = [];
   let loseFirstGenerationResponse = true;
+  let rejectFirstPlacement = true;
   await page.route(`**/api/assets/${runId}`, async (route) => {
     const request = route.request();
     if (request.method() === "GET") {
@@ -998,6 +999,21 @@ try {
           action: "generate",
           item: generated,
           library: { version: 1, items: libraryImages },
+        }),
+      });
+      return;
+    }
+    if (body.action === "place" && rejectFirstPlacement) {
+      rejectFirstPlacement = false;
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({
+          error: "blocking gates rejected the change: contrast",
+          gates: [
+            { gate: "contrast", pass: false, blocking: true },
+            { gate: "perf-budget", pass: false, blocking: false },
+          ],
         }),
       });
       return;
@@ -1090,12 +1106,25 @@ try {
     "regeneration requires fresh metered consent",
   );
   await assetViews.getByRole("button", { name: "Library" }).click();
+  const frameBeforeRejectedPlacement = await page.locator("iframe").elementHandle();
   await generatedCard.getByRole("button", { name: "Replace selected" }).click();
   assert.deepEqual(assetMutations[2], {
     action: "place",
     assetId: libraryImages[0].id,
     editId: "hero.image",
   });
+  await page
+    .getByRole("alert")
+    .filter({ hasText: /placement was blocked.*contrast.*not replaced/i })
+    .waitFor();
+  assert.equal(
+    await frameBeforeRejectedPlacement.evaluate((element) => element.isConnected),
+    true,
+    "a blocking gate failure must not call mutation-complete or reload the preview",
+  );
+  await generatedCard.getByRole("button", { name: "Replace selected" }).click();
+  assert.deepEqual(assetMutations[3], assetMutations[2]);
+  await page.getByText(/Selected image replaced.*blocking gates passed/i).waitFor();
   await page.unroute(`**/api/assets/${runId}`);
 
   // Research is a saved-evidence reader, not a second business/design mixing
@@ -1217,6 +1246,74 @@ try {
   assert.deepEqual(errors, []);
   await page.close();
   await context.close();
+
+  // The frozen mobile review viewport is the app shell itself at 390x844,
+  // not merely a 390px generated-site preset inside a wider desktop shell.
+  // Exercise the two raw workbench-state actions that do not carry shared
+  // .btn-* classes, and include links in the hit-area audit as well.
+  const touchContext = await browser.newContext();
+  await touchContext.route(`**/api/tokens?runId=${runId}`, async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Fixture token failure" }),
+    });
+  });
+  await touchContext.route(`**/api/assistant/${runId}`, async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Fixture assistant failure" }),
+    });
+  });
+  const touchPage = await openFixture(touchContext, 390, 844);
+  await touchPage.locator('button[aria-label="Reopen workbench"]').click();
+
+  async function assertTouchTargets(locator, label) {
+    const controls = await locator.all();
+    assert.ok(controls.length > 0, `${label}: expected at least one control`);
+    for (const control of controls) {
+      const { box: controlBox, identity } = await control.evaluate((element) => {
+        const input = element instanceof HTMLInputElement ? element : null;
+        const hitTarget =
+          input && (input.type === "checkbox" || input.type === "radio")
+            ? input.closest("label") ?? input
+            : element;
+        const box = hitTarget.getBoundingClientRect();
+        return {
+          box: { width: box.width, height: box.height },
+          identity: `${element.tagName.toLowerCase()}[${element.getAttribute("aria-label") || element.textContent?.trim() || "unnamed"}]`,
+        };
+      });
+      assert.ok(
+        controlBox.width >= 44 && controlBox.height >= 44,
+        `${label}: ${identity} is ${controlBox.width}x${controlBox.height}, below 44x44`,
+      );
+    }
+  }
+
+  await touchPage.getByRole("button", { name: "Tokens" }).click();
+  const rawRetry = touchPage
+    .locator(".workbench-state")
+    .getByRole("button", { name: "Retry" });
+  await rawRetry.waitFor();
+  await assertTouchTargets(rawRetry, "390x844 raw Retry state");
+
+  await touchPage
+    .getByRole("button", { name: "Ask about your site" })
+    .click();
+  const rawTryAgain = touchPage
+    .locator(".workbench-state")
+    .getByRole("button", { name: "Try again" });
+  await rawTryAgain.waitFor();
+  await assertTouchTargets(rawTryAgain, "390x844 raw Try again state");
+  await assertTouchTargets(
+    touchPage.locator(
+      "main.preview-layout button:visible, main.preview-layout a:visible:not(.visually-hidden), main.preview-layout input:visible, main.preview-layout select:visible, main.preview-layout textarea:visible",
+    ),
+    "390x844 app shell",
+  );
+  await touchContext.close();
 
   // Responsive matrix: grab-tab state tracks the actual 480/768 boundaries,
   // and the iframe's CSS viewport equals the rendered iframe width.
