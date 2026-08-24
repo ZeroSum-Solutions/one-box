@@ -60,7 +60,9 @@ async function copyContractRoot(context) {
     path.join(root, "docs/eval/page-ir-safe-pipeline/harness-registry.json"),
   );
   const registeredTests = new Set(
-    Object.values(registry.evaluations).flatMap((evaluation) => evaluation.testFiles),
+    Object.values(registry.evaluations).flatMap((evaluation) =>
+      evaluation.kind === "coordinator-evidence" ? [] : evaluation.testFiles ?? []
+    ),
   );
   for (const relative of registeredTests) {
     const source = path.join(REPOSITORY_ROOT, ...relative.split("/"));
@@ -88,33 +90,39 @@ test("validates the frozen Page IR harness contract and every registered referen
   assert.equal(result.ticketCount, 22);
   assert.equal(result.credentialFreeTestCount, 10);
   assert.equal(result.contractVersion, "1.0.0");
-  assert.equal(result.registryVersion, "1.3.0");
+  assert.equal(result.registryVersion, "1.4.0");
   assert.equal(result.manifest.evaluations.length, 44);
-  assert.equal(result.registry.registryVersion, "1.3.0");
-  assert.deepEqual(Object.keys(result.registry.evaluations).sort(), [
-    "EVAL-OPS-001",
-    "EVAL-OPS-002",
-    "EVAL-OPS-003",
-    "EVAL-SEC-001",
-    "EVAL-SEC-003",
-    "EVAL-WEB-001",
-    "EVAL-WEB-002",
-    "EVAL-WEB-003",
-  ]);
-  for (const evaluationId of [
-    "EVAL-UX-001",
-    "EVAL-UX-002",
-    "EVAL-UX-003",
-    "EVAL-UX-004",
-    "EVAL-UX-005",
-    "EVAL-UX-006",
-  ]) {
-    assert.equal(result.registry.evaluations[evaluationId], undefined);
-  }
+  assert.equal(result.registry.registryVersion, "1.4.0");
+  assert.deepEqual(
+    Object.keys(result.registry.evaluations).sort(),
+    result.manifest.evaluations.map((evaluation) => evaluation.id).sort(),
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(result.registry.evaluations)
+        .filter(([, registration]) => registration.kind === "coordinator-evidence")
+        .map(([evaluationId, registration]) => [evaluationId, registration.evaluator]),
+    ),
+    {
+      "EVAL-SCOPE-001": "rendered-evidence",
+      "EVAL-COMP-002": "rendered-evidence",
+      "EVAL-UX-001": "rendered-evidence",
+      "EVAL-UX-002": "rendered-evidence",
+      "EVAL-UX-003": "rendered-evidence",
+      "EVAL-UX-004": "rendered-evidence",
+      "EVAL-UX-005": "rendered-evidence",
+      "EVAL-UX-006": "rendered-evidence",
+      "EVAL-QUAL-001": "qualification-human-review",
+      "EVAL-QUAL-002": "qualification-human-review",
+      "EVAL-QUAL-003": "qualification-human-review",
+      "EVAL-OPS-002": "rendered-evidence",
+      "EVAL-OPS-004": "qualification-contract",
+    },
+  );
   const cliContract = await validateEvaluationContract({ root: REPOSITORY_ROOT });
   assert.deepEqual(cliContract.errors, []);
   assert.equal(cliContract.manifest.evaluations.length, 44);
-  assert.equal(cliContract.registry.registryVersion, "1.3.0");
+  assert.equal(cliContract.registry.registryVersion, "1.4.0");
   assert.equal(cliContract.manifestSha256, result.manifestSha256);
   assert.equal(cliContract.registrySha256, result.registrySha256);
 });
@@ -272,17 +280,44 @@ test("rejects closed-schema drift, missing states, traceability drift, and missi
   await assert.rejects(validatePageIrHarnessContract(missingTest), /registered test.*unreadable/i);
 });
 
-test("rejects evaluator registrations outside the frozen executable set", async (context) => {
+test("rejects a registry that does not route every frozen blocking evaluation", async (context) => {
   const root = await copyContractRoot(context);
   const registryPath = path.join(root, "docs/eval/page-ir-safe-pipeline/harness-registry.json");
   const registry = await json(registryPath);
-  registry.evaluations["EVAL-IR-001"] = structuredClone(registry.evaluations["EVAL-WEB-001"]);
+  delete registry.evaluations["EVAL-IR-001"];
   await writeJson(registryPath, registry);
   await refreshLock(root, "harness-registry.lock.json", "harness-registry.json", "registryVersion");
   await assert.rejects(
     validatePageIrHarnessContract(root),
-    /registry evaluations.*unexpected key EVAL-IR-001/i,
+    /registry evaluations.*frozen contract/i,
   );
+});
+
+test("rejects unit-test substitutions for rendered, human, and qualification coordinator evidence", async (context) => {
+  for (const [evaluationId, replacement, expected] of [
+    ["EVAL-UX-001", {
+      kind: "credential-free-tests",
+      testFiles: ["src/components/IntakeComposer.test.tsx"],
+      credentialPolicy: "absent",
+      networkPolicy: "deny-all",
+    }, /rendered.*coordinator|coordinator.*rendered/i],
+    ["EVAL-QUAL-001", {
+      kind: "coordinator-evidence",
+      evaluator: "rendered-evidence",
+    }, /human.*qualification|qualification.*human/i],
+    ["EVAL-OPS-004", {
+      kind: "coordinator-evidence",
+      evaluator: "qualification-human-review",
+    }, /OPS-004.*qualification contract|qualification contract.*OPS-004/i],
+  ]) {
+    const root = await copyContractRoot(context);
+    const registryPath = path.join(root, "docs/eval/page-ir-safe-pipeline/harness-registry.json");
+    const registry = await json(registryPath);
+    registry.evaluations[evaluationId] = replacement;
+    await writeJson(registryPath, registry);
+    await refreshLock(root, "harness-registry.lock.json", "harness-registry.json", "registryVersion");
+    await assert.rejects(validatePageIrHarnessContract(root), expected);
+  }
 });
 
 test("rejects checked-in fixture drift even when the registry lock is refreshed", async (context) => {

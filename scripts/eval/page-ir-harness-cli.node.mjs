@@ -246,6 +246,112 @@ test("CLI rejects unknown options and missing values with usage exit", async () 
   assert.match(traversal.errors[0].error, /run ID/i);
 });
 
+test("render command publishes coordinator-owned production browser evidence for the exact rendered routes", async (context) => {
+  const runsRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-rendered-cli-"));
+  context.after(() => fs.rm(runsRoot, { recursive: true, force: true }));
+  const readGitState = async () => ({ head: "d".repeat(40), clean: true });
+  const preparedIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "prepare", "--run-id", "rendered-cli", "--runs-root", runsRoot,
+  ], { root: ROOT, readGitState, ...preparedIo }), 0);
+  const emptySha = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+  let invocation;
+  const renderedIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "render", "--run-id", "rendered-cli", "--runs-root", runsRoot,
+  ], {
+    root: ROOT,
+    readGitState,
+    createExecutionSnapshot: async () => ({ root: ROOT, dispose: async () => {} }),
+    executeRenderedEvidenceFn: async (options) => {
+      invocation = options;
+      return options.evaluationIds.map((evaluationId) => ({
+        schemaVersion: 1,
+        evaluationId,
+        state: "PASS",
+        commands: [{ id: "production-browser", stdout: "", stderr: "" }],
+        networkAttempts: [],
+        meteredCalls: 0,
+        providerCredentialKeysPresent: [],
+        evidence: [
+          { path: "artifacts/production-browser.stdout", sha256: emptySha },
+          { path: "artifacts/production-browser.stderr", sha256: emptySha },
+        ],
+      }));
+    },
+    ...renderedIo,
+  }), 0, JSON.stringify(renderedIo.errors));
+  assert.equal(invocation.evaluationIds.length, 9);
+  assert.ok(invocation.evaluationIds.includes("EVAL-OPS-002"));
+  assert.equal(renderedIo.out[0].status, "PASS");
+  const published = await fs.readdir(path.join(runsRoot, "rendered-cli/results"));
+  assert.deepEqual(published.sort(), [...invocation.evaluationIds].sort());
+});
+
+test("run refuses to collapse human and owner authority into untrusted CLI options", async (context) => {
+  const runsRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-coordinator-cli-"));
+  context.after(() => fs.rm(runsRoot, { recursive: true, force: true }));
+  const readGitState = async () => ({ head: "d".repeat(40), clean: true });
+  const preparedIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "prepare", "--run-id", "coordinator-cli", "--runs-root", runsRoot,
+  ], { root: ROOT, readGitState, ...preparedIo }), 0);
+  const runIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "run", "--run-id", "coordinator-cli", "--runs-root", runsRoot,
+    "--evaluation", "EVAL-QUAL-001",
+  ], {
+    root: ROOT,
+    readGitState,
+    createExecutionSnapshot: async () => assert.fail("coordinator evidence must not execute a Vitest snapshot"),
+    ...runIo,
+  }), 2);
+  assert.match(runIo.errors[0].error, /trusted host coordinator/i);
+});
+
+test("materialize command executes the frozen fixture from the bound Git snapshot", async (context) => {
+  const runsRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-materialize-cli-"));
+  context.after(() => fs.rm(runsRoot, { recursive: true, force: true }));
+  const readGitState = async () => ({ head: "d".repeat(40), clean: true });
+  const preparedIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "prepare", "--run-id", "materialize-cli", "--runs-root", runsRoot,
+  ], { root: ROOT, readGitState, ...preparedIo }), 0);
+  let invocation;
+  let assembled;
+  const captured = io();
+  assert.equal(await runPageIrHarnessCli([
+    "materialize", "--run-id", "materialize-cli", "--runs-root", runsRoot,
+    "--fixture", "campaign-landing", "--output-root", "/tmp/qualification-output",
+  ], {
+    root: ROOT,
+    readGitState,
+    createExecutionSnapshot: async () => ({ root: "/sealed/source", dispose: async () => {} }),
+    materializeQualificationFn: async (options) => {
+      invocation = options;
+      return {
+        fixtureId: options.fixtureId,
+        siteRoot: "/tmp/qualification-output/campaign-landing/site",
+        gateReportsFile: "/tmp/qualification-output/campaign-landing/gate-reports.json",
+        provenanceFile: "/tmp/qualification-output/campaign-landing/provenance.json",
+      };
+    },
+    assembleQualificationFn: async (options) => {
+      assembled = options;
+      return {
+        directory: "/sealed/pre-review/campaign-landing",
+        packetSha256: "a".repeat(64),
+        reviewedHashes: { buildSha256: "b".repeat(64) },
+      };
+    },
+    ...captured,
+  }), 0, JSON.stringify(captured.errors));
+  assert.equal(invocation.snapshotRoot, "/sealed/source");
+  assert.equal(invocation.fixtureId, "campaign-landing");
+  assert.equal(assembled.fixtureId, "campaign-landing");
+  assert.equal(captured.out[0].status, "PRE_REVIEW_READY");
+});
+
 test("prepare and execution fail closed on dirty or changed Git authority", async (context) => {
   const runsRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-git-authority-"));
   context.after(() => fs.rm(runsRoot, { recursive: true, force: true }));

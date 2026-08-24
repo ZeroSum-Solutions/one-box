@@ -14,16 +14,15 @@ const REGISTRY_LOCK_PATH = `${CONTRACT_ROOT}/harness-registry.lock.json`;
 const MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
 const MAX_REGISTERED_TEST_BYTES = 16 * 1024 * 1024;
 const RESULT_STATES = ["PASS", "FAIL", "BLOCKED", "NOT_RUN"];
-const REGISTERED_EVALUATION_IDS = [
-  "EVAL-OPS-001",
-  "EVAL-OPS-002",
-  "EVAL-OPS-003",
-  "EVAL-SEC-001",
-  "EVAL-SEC-003",
-  "EVAL-WEB-001",
-  "EVAL-WEB-002",
-  "EVAL-WEB-003",
-];
+const TEST_REGISTRATION_KINDS = new Set([
+  "credential-free-tests",
+  "browser-corpus-tests",
+]);
+const COORDINATOR_EVALUATORS = new Set([
+  "rendered-evidence",
+  "qualification-human-review",
+  "qualification-contract",
+]);
 const REQUIRED_QUALIFICATION_ARTIFACTS = [
   "run-manifest.json",
   "inputs/",
@@ -591,27 +590,43 @@ function validateRegistry(registry) {
   for (const key of ["manifestPath", "ticketDirectory", "traceabilityPath"]) {
     safeRelativePath(registry.ticketContract[key], `registry ticketContract.${key}`);
   }
-  assertClosedKeys(registry.evaluations, REGISTERED_EVALUATION_IDS, "registry evaluations");
-  for (const evaluationId of REGISTERED_EVALUATION_IDS) {
-    const registration = registry.evaluations[evaluationId];
-    assertClosedKeys(
-      registration,
-      ["testFiles", "credentialPolicy", "networkPolicy"],
-      `registry ${evaluationId}`,
-    );
-    assertUniqueStrings(registration.testFiles, `registry ${evaluationId} testFiles`);
-    for (const [index, testFile] of registration.testFiles.entries()) {
-      safeRelativePath(testFile, `registered test ${evaluationId}[${index}]`);
-      if (!testFile.endsWith(".test.ts") && !testFile.endsWith(".test.tsx")) {
-        fail(`registered test ${testFile} must be a TypeScript test file`);
+  assertObject(registry.evaluations, "registry evaluations");
+  for (const [evaluationId, registration] of Object.entries(registry.evaluations)) {
+    assertString(evaluationId, "registry evaluation id", /^EVAL-[A-Z]+-\d{3}$/);
+    assertObject(registration, `registry ${evaluationId}`);
+    if (TEST_REGISTRATION_KINDS.has(registration.kind)) {
+      assertClosedKeys(
+        registration,
+        ["kind", "testFiles", "credentialPolicy", "networkPolicy"],
+        `registry ${evaluationId}`,
+      );
+      assertUniqueStrings(registration.testFiles, `registry ${evaluationId} testFiles`);
+      for (const [index, testFile] of registration.testFiles.entries()) {
+        safeRelativePath(testFile, `registered test ${evaluationId}[${index}]`);
+        if (!testFile.endsWith(".test.ts") && !testFile.endsWith(".test.tsx")) {
+          fail(`registered test ${testFile} must be a TypeScript test file`);
+        }
       }
+      if (registration.credentialPolicy !== "absent") {
+        fail(`registry ${evaluationId} credentialPolicy must be absent`);
+      }
+      if (registration.networkPolicy !== "deny-all") {
+        fail(`registry ${evaluationId} networkPolicy must deny all traffic`);
+      }
+      continue;
     }
-    if (registration.credentialPolicy !== "absent") {
-      fail(`registry ${evaluationId} credentialPolicy must be absent`);
+    if (registration.kind === "coordinator-evidence") {
+      assertClosedKeys(
+        registration,
+        ["kind", "evaluator"],
+        `registry ${evaluationId}`,
+      );
+      if (!COORDINATOR_EVALUATORS.has(registration.evaluator)) {
+        fail(`registry ${evaluationId} coordinator evaluator is invalid`);
+      }
+      continue;
     }
-    if (registration.networkPolicy !== "deny-all") {
-      fail(`registry ${evaluationId} networkPolicy must deny all traffic`);
-    }
+    fail(`registry ${evaluationId} registration kind is invalid`);
   }
   assertUniqueStrings(
     registry.providerCredentialDenylist,
@@ -878,12 +893,45 @@ export async function validatePageIrHarnessContract(repositoryRoot) {
   ) {
     fail("EVAL-SEC-003 ownership or requirement binding is invalid");
   }
-  for (const evaluationId of REGISTERED_EVALUATION_IDS) {
-    if (!evaluationById.has(evaluationId)) {
-      fail(`registered evaluation ${evaluationId} is absent from the frozen manifest`);
+  assertExactStrings(
+    Object.keys(registry.evaluations),
+    [...evaluationById.keys()],
+    "registry evaluations",
+  );
+  for (const [evaluationId, evaluation] of evaluationById) {
+    const registration = registry.evaluations[evaluationId];
+    if (evaluation.method === "human") {
+      if (
+        registration.kind !== "coordinator-evidence" ||
+        registration.evaluator !== "qualification-human-review"
+      ) {
+        fail(`human evaluation ${evaluationId} requires the qualification human coordinator`);
+      }
+    } else if (evaluationId === "EVAL-OPS-004") {
+      if (
+        registration.kind !== "coordinator-evidence" ||
+        registration.evaluator !== "qualification-contract"
+      ) {
+        fail("EVAL-OPS-004 requires the coordinator qualification contract");
+      }
+    } else if (evaluation.method === "rendered" && evaluationId.startsWith("EVAL-WEB-")) {
+      if (registration.kind !== "browser-corpus-tests") {
+        fail(`rendered browser corpus evaluation ${evaluationId} requires browser-corpus-tests`);
+      }
+    } else if (evaluation.method === "rendered") {
+      if (
+        registration.kind !== "coordinator-evidence" ||
+        registration.evaluator !== "rendered-evidence"
+      ) {
+        fail(`rendered evaluation ${evaluationId} requires coordinator rendered evidence`);
+      }
+    } else if (registration.kind !== "credential-free-tests") {
+      fail(`${evaluation.method} evaluation ${evaluationId} requires credential-free tests`);
     }
-    for (const testFile of registry.evaluations[evaluationId].testFiles) {
-      await readRepositoryFile(root, testFile, `registered test ${testFile}`, MAX_REGISTERED_TEST_BYTES);
+    if (TEST_REGISTRATION_KINDS.has(registration.kind)) {
+      for (const testFile of registration.testFiles) {
+        await readRepositoryFile(root, testFile, `registered test ${testFile}`, MAX_REGISTERED_TEST_BYTES);
+      }
     }
   }
   await validatePointers(root, registry, manifest);

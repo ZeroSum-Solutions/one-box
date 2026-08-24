@@ -476,18 +476,26 @@ test("removes the temporary packet when capture fails", async (context) => {
   const siteRoot = await syntheticSite();
   context.after(() => fs.rm(siteRoot, { recursive: true, force: true }));
   const prefix = "one-box-page-ir-browser-evidence-";
-  const before = (await fs.readdir(os.tmpdir())).filter((entry) => entry.startsWith(prefix)).sort();
-
-  await assert.rejects(
-    adapter.capturePageIrBrowserEvidence({
-      siteRoot,
-      viewports: FROZEN_VIEWPORTS,
-      coreContentSelectors: ["["],
-      primaryActionSelectors: ["#primary-action"],
-    }),
-    /selector|Unexpected token|not a valid selector/i,
-  );
-
-  const after = (await fs.readdir(os.tmpdir())).filter((entry) => entry.startsWith(prefix)).sort();
-  assert.deepEqual(after, before);
+  const originalMkdtemp = fs.mkdtemp;
+  let failedPacketRoot;
+  fs.mkdtemp = async (candidatePrefix, ...args) => {
+    const created = await originalMkdtemp.call(fs, candidatePrefix, ...args);
+    if (candidatePrefix === path.join(os.tmpdir(), prefix)) failedPacketRoot = created;
+    return created;
+  };
+  try {
+    await assert.rejects(
+      adapter.capturePageIrBrowserEvidence({
+        siteRoot,
+        viewports: FROZEN_VIEWPORTS,
+        coreContentSelectors: ["["],
+        primaryActionSelectors: ["#primary-action"],
+      }),
+      /selector|Unexpected token|not a valid selector/i,
+    );
+  } finally {
+    fs.mkdtemp = originalMkdtemp;
+  }
+  assert.ok(failedPacketRoot);
+  await assert.rejects(fs.stat(failedPacketRoot), { code: "ENOENT" });
 });

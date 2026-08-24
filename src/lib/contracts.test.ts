@@ -11,7 +11,14 @@ import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
   HumanVisualReviewSchema,
+  PAGE_IR_PURPOSES,
+  PageIrOwnerRolloutDecisionV1Schema,
+  PageIrPromotionFindingV1Schema,
+  PageIrQualificationPacketV1Schema,
   PageIrQualificationHumanReviewV1Schema,
+  verifyPageIrOwnerRolloutEligibilityV1,
+  verifyPageIrPromotionFindingV1,
+  verifyPageIrQualificationPacketV1,
   verifyPageIrQualificationHumanReviewV1,
   IntakeSchema,
   RunStateSchema,
@@ -736,5 +743,268 @@ describe("PageIrQualificationHumanReviewV1Schema", () => {
         Object.entries(dimensions).map(([key, value]) => [key, { ...value, score: 3 }]),
       ),
     }).success).toBe(false);
+  });
+});
+
+const QUALIFICATION_HASHES = {
+  fixtureSha256: "1".repeat(64),
+  evaluatedGitSha: "2".repeat(40),
+  manifestSha256: "3".repeat(64),
+  registrySha256: "4".repeat(64),
+  buildSha256: "5".repeat(64),
+  pageIrSha256: "6".repeat(64),
+  candidateManifestSha256: "7".repeat(64),
+  mechanicalChecksSha256: "8".repeat(64),
+  browserEvidenceSha256: "9".repeat(64),
+};
+
+function qualificationPacket(
+  purpose: (typeof PAGE_IR_PURPOSES)[number],
+  overrides: Record<string, unknown> = {},
+) {
+  const reviewedHashes = {
+    buildSha256: QUALIFICATION_HASHES.buildSha256,
+    pageIrSha256: QUALIFICATION_HASHES.pageIrSha256,
+    candidateManifestSha256: QUALIFICATION_HASHES.candidateManifestSha256,
+    mechanicalChecksSha256: QUALIFICATION_HASHES.mechanicalChecksSha256,
+    browserEvidenceSha256: QUALIFICATION_HASHES.browserEvidenceSha256,
+  };
+  return {
+    schemaVersion: 1,
+    purpose,
+    hashes: QUALIFICATION_HASHES,
+    humanReview: qualificationReview({ fixtureId: purpose, reviewedHashes }),
+    ...overrides,
+  };
+}
+
+function promotionFinding(
+  disposition: "open" | "fixed" | "accepted",
+  overrides: Record<string, unknown> = {},
+) {
+  const common = {
+    schemaVersion: 1,
+    findingId: "P0-001",
+    severity: "P0",
+    summary: "The valid start path is blocked.",
+    recordedAt: "2026-08-24T12:00:00.000Z",
+  };
+  if (disposition === "open") return { ...common, disposition, ...overrides };
+  return {
+    ...common,
+    disposition,
+    resolution: "The same-origin request now succeeds and hostile variants fail.",
+    authorityName: "Named Owner",
+    authorityKind: "owner",
+    authorityAttestation: true,
+    disposedAt: "2026-08-24T13:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const CURRENT_ROLLOUT_HASHES = {
+  evaluatedGitSha: QUALIFICATION_HASHES.evaluatedGitSha,
+  manifestSha256: QUALIFICATION_HASHES.manifestSha256,
+  registrySha256: QUALIFICATION_HASHES.registrySha256,
+  aggregateSha256: "a".repeat(64),
+  findingsInventorySha256: "b".repeat(64),
+};
+
+function rolloutDecision(
+  decision: "default-on" | "opt-in" | "reject",
+  qualificationPacketHashes: Array<{ purpose: (typeof PAGE_IR_PURPOSES)[number]; sha256: string }>,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    schemaVersion: 1,
+    sequence: 1,
+    previousDecisionSha256: null,
+    decision,
+    ...CURRENT_ROLLOUT_HASHES,
+    qualificationPacketHashes,
+    ownerName: "Named Owner",
+    ownerKind: "owner",
+    ownerAttestation: true,
+    decidedAt: "2026-08-24T14:00:00.000Z",
+    rationale: "The recorded evidence supports this rollout state.",
+    ...overrides,
+  };
+}
+
+describe("Page IR production qualification contracts", () => {
+  it("accepts only a closed qualification packet bound to current hashes and named human review", () => {
+    const packet = qualificationPacket("portfolio-showcase");
+    expect(PageIrQualificationPacketV1Schema.parse(packet)).toEqual(packet);
+    expect(
+      verifyPageIrQualificationPacketV1(packet, {
+        reviewerName: "Named Human",
+        currentHashes: QUALIFICATION_HASHES,
+      }).purpose,
+    ).toBe("portfolio-showcase");
+    expect(PageIrQualificationPacketV1Schema.safeParse({ ...packet, extra: true }).success).toBe(false);
+    expect(() => verifyPageIrQualificationPacketV1(packet, {
+      reviewerName: "Named Human",
+      currentHashes: { ...QUALIFICATION_HASHES, buildSha256: "c".repeat(64) },
+    })).toThrow(/stale/i);
+  });
+
+  it("requires trusted named authority for fixed and accepted findings", () => {
+    const fixed = promotionFinding("fixed");
+    const accepted = promotionFinding("accepted");
+    expect(PageIrPromotionFindingV1Schema.parse(promotionFinding("open")).disposition).toBe("open");
+    expect(verifyPageIrPromotionFindingV1(fixed, {
+      authorityName: "Named Owner",
+      authorityKind: "owner",
+    }).disposition).toBe("fixed");
+    expect(verifyPageIrPromotionFindingV1(accepted, {
+      authorityName: "Named Owner",
+      authorityKind: "owner",
+    }).disposition).toBe("accepted");
+    expect(() => verifyPageIrPromotionFindingV1(fixed, {
+      authorityName: "Different Human",
+      authorityKind: "human",
+    })).toThrow(/authority/i);
+    expect(PageIrPromotionFindingV1Schema.safeParse({
+      ...accepted,
+      authorityKind: "human",
+    }).success).toBe(false);
+    expect(PageIrPromotionFindingV1Schema.safeParse({
+      ...promotionFinding("open"),
+      authorityName: "Untrusted",
+    }).success).toBe(false);
+  });
+
+  it("records opt-in or reject against current authority and append-only lineage without claiming eligibility", () => {
+    for (const decision of ["opt-in", "reject"] as const) {
+      const record = rolloutDecision(decision, []);
+      expect(PageIrOwnerRolloutDecisionV1Schema.parse(record)).toEqual(record);
+      expect(PageIrOwnerRolloutDecisionV1Schema.safeParse({
+        ...record,
+        mutableNote: "not part of the closed record",
+      }).success).toBe(false);
+      const result = verifyPageIrOwnerRolloutEligibilityV1({
+        decision: record,
+        authority: {
+          ownerName: "Named Owner",
+          currentHashes: CURRENT_ROLLOUT_HASHES,
+          previousDecision: null,
+          qualificationPackets: [],
+          blockingEvaluationIds: ["EVAL-OPS-004"],
+          aggregateResults: [{ evaluationId: "EVAL-OPS-004", state: "NOT_RUN" }],
+          findings: [{ record: promotionFinding("open") }],
+        },
+      });
+      expect(result.defaultOnEligible).toBe(false);
+      expect(result.record.decision).toBe(decision);
+    }
+
+    const next = rolloutDecision("opt-in", [], {
+      sequence: 2,
+      previousDecisionSha256: "c".repeat(64),
+    });
+    expect(() => verifyPageIrOwnerRolloutEligibilityV1({
+      decision: next,
+      authority: {
+        ownerName: "Named Owner",
+        currentHashes: CURRENT_ROLLOUT_HASHES,
+        previousDecision: { sequence: 1, sha256: "d".repeat(64) },
+        qualificationPackets: [],
+        blockingEvaluationIds: ["EVAL-OPS-004"],
+        aggregateResults: [{ evaluationId: "EVAL-OPS-004", state: "NOT_RUN" }],
+        findings: [],
+      },
+    })).toThrow(/previous decision/i);
+  });
+
+  it("qualifies default-on only with all six passing current packets, blocking passes, and resolved findings", () => {
+    const qualificationPackets = PAGE_IR_PURPOSES.map((purpose, index) => ({
+      sha256: `${index + 1}`.repeat(64),
+      packet: qualificationPacket(purpose),
+      reviewerName: "Named Human",
+      currentHashes: QUALIFICATION_HASHES,
+    }));
+    const record = rolloutDecision(
+      "default-on",
+      qualificationPackets.map(({ packet, sha256 }) => ({ purpose: packet.purpose, sha256 })),
+    );
+    const result = verifyPageIrOwnerRolloutEligibilityV1({
+      decision: record,
+      authority: {
+        ownerName: "Named Owner",
+        currentHashes: CURRENT_ROLLOUT_HASHES,
+        previousDecision: null,
+        qualificationPackets,
+        blockingEvaluationIds: ["EVAL-OPS-004", "EVAL-QUAL-001"],
+        aggregateResults: [
+          { evaluationId: "EVAL-OPS-004", state: "PASS" },
+          { evaluationId: "EVAL-QUAL-001", state: "PASS" },
+        ],
+        findings: [
+          {
+            record: promotionFinding("fixed"),
+            authority: { authorityName: "Named Owner", authorityKind: "owner" },
+          },
+          {
+            record: promotionFinding("accepted", { findingId: "SEC-001", severity: "high" }),
+            authority: { authorityName: "Named Owner", authorityKind: "owner" },
+          },
+        ],
+      },
+    });
+    expect(result.defaultOnEligible).toBe(true);
+    expect(result.record.decision).toBe("default-on");
+  });
+
+  it("fails default-on closed for missing packets, non-pass blocking states, stale hashes, or open findings", () => {
+    const qualificationPackets = PAGE_IR_PURPOSES.map((purpose, index) => ({
+      sha256: `${index + 1}`.repeat(64),
+      packet: qualificationPacket(purpose),
+      reviewerName: "Named Human",
+      currentHashes: QUALIFICATION_HASHES,
+    }));
+    const record = rolloutDecision(
+      "default-on",
+      qualificationPackets.map(({ packet, sha256 }) => ({ purpose: packet.purpose, sha256 })),
+    );
+    const base = {
+      decision: record,
+      authority: {
+        ownerName: "Named Owner",
+        currentHashes: CURRENT_ROLLOUT_HASHES,
+        previousDecision: null,
+        qualificationPackets,
+        blockingEvaluationIds: ["EVAL-OPS-004"],
+        aggregateResults: [{ evaluationId: "EVAL-OPS-004", state: "PASS" as const }],
+        findings: [] as Array<{ record: unknown; authority?: { authorityName: string; authorityKind: "human" | "owner" } }>,
+      },
+    };
+    expect(() => verifyPageIrOwnerRolloutEligibilityV1({
+      ...base,
+      authority: { ...base.authority, qualificationPackets: qualificationPackets.slice(0, 5) },
+    })).toThrow(/six qualification/i);
+    for (const state of ["FAIL", "BLOCKED", "NOT_RUN"] as const) {
+      expect(() => verifyPageIrOwnerRolloutEligibilityV1({
+        ...base,
+        authority: { ...base.authority, aggregateResults: [{ evaluationId: "EVAL-OPS-004", state }] },
+      })).toThrow(/blocking evaluation.*pass/i);
+    }
+    expect(() => verifyPageIrOwnerRolloutEligibilityV1({
+      ...base,
+      authority: {
+        ...base.authority,
+        qualificationPackets: qualificationPackets.map((binding, index) => index === 0 ? {
+          ...binding,
+          packet: qualificationPacket(binding.packet.purpose, {
+            hashes: { ...QUALIFICATION_HASHES, registrySha256: "f".repeat(64) },
+          }),
+        } : binding),
+      },
+    })).toThrow(/stale/i);
+    for (const severity of ["P0", "critical", "high"] as const) {
+      expect(() => verifyPageIrOwnerRolloutEligibilityV1({
+        ...base,
+        authority: { ...base.authority, findings: [{ record: promotionFinding("open", { severity }) }] },
+      })).toThrow(/unresolved/i);
+    }
   });
 });

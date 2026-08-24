@@ -169,6 +169,36 @@ The registry result is contract evidence; the production-browser command is
 the rendered evidence required by `EVAL-OPS-002`. Neither substitutes for the
 named-human promotion review.
 
+OBX-051 makes those production-browser routes coordinator-owned. After `prepare`,
+run all three committed production journeys from one clean Git snapshot and publish
+their nine immutable rendered result packets with:
+
+```sh
+npm run eval:page-ir -- render --run-id "$RUN_ID" --runs-root "$RUNS_ROOT"
+```
+
+Once every non-human pre-review evaluation passes, materialize each frozen fixture
+from the bound Git snapshot. The same coordinator operation derives the mechanical
+report and provenance from immutable run results and seals them with the browser packet:
+
+```sh
+npm run eval:page-ir -- materialize \
+  --run-id "$RUN_ID" --runs-root "$RUNS_ROOT" \
+  --fixture "$FIXTURE_ID" --output-root "$EMPTY_OUTPUT_ROOT"
+```
+
+The resulting `qualification/pre-review/<fixture>` directory is immutable and is the
+only generation the named human may review. Human-review ingestion and owner-decision
+recording are deliberately absent from the general CLI: the trusted host coordinator
+must supply authenticated identity separately from the human-authored artifact and
+current hashes. A sibling CLI argument is never accepted as identity authority.
+
+Only after all six completed packets exist may the three `EVAL-QUAL-*` routes run.
+`EVAL-OPS-004` additionally requires a closed findings ledger and every other frozen
+blocking evaluation to be `PASS`. A model or the coordinator cannot populate the
+human review, choose the owner's rollout decision, or turn `BLOCKED`/`NOT_RUN` into a
+pass.
+
 The evaluator reads only the sealed fixture and browser roots, executes from the bound
 Git commit with dependencies installed offline from `package-lock.json`, receives no
 provider credentials, cannot access host loopback or external networks, cannot read

@@ -7,6 +7,9 @@ import net from "node:net";
 import tls from "node:tls";
 
 const attemptLog = process.env.ONEBOX_EVAL_NETWORK_ATTEMPT_LOG;
+const allowLoopback = process.env.ONEBOX_EVAL_ALLOW_LOOPBACK === "1";
+const allowedLoopbackPort = Number(process.env.ONEBOX_EVAL_LOOPBACK_PORT);
+const allowLoopbackListen = process.env.ONEBOX_EVAL_ALLOW_LOOPBACK_LISTEN === "1";
 
 function record(target) {
   const text = String(target);
@@ -24,36 +27,49 @@ function authorityHost(authority) {
   return new URL(`http://${value}`).hostname;
 }
 
+function isLoopback(host) {
+  if (typeof host !== "string") return false;
+  const normalized = host.replace(/^\[|\]$/g, "").toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
+}
+
 function requestTarget(input, { allowDefaultLoopback = false } = {}) {
   try {
     if (allowDefaultLoopback && input == null) {
-      return { host: "localhost", label: "localhost" };
+      return { host: "localhost", port: undefined, label: "localhost" };
     }
     if (input instanceof URL || typeof input === "string") {
       const url = new URL(input);
-      return { host: url.hostname, label: url.href };
+      return { host: url.hostname, port: Number(url.port || (url.protocol === "https:" ? 443 : 80)), label: url.href };
     }
     if (input && typeof input === "object") {
       if (typeof input.url === "string") {
         const url = new URL(input.url);
-        return { host: url.hostname, label: url.href };
+        return { host: url.hostname, port: Number(url.port || (url.protocol === "https:" ? 443 : 80)), label: url.href };
       }
       const authority = input.hostname ?? input.host;
       if (typeof authority === "string" && authority.trim()) {
-        return { host: authorityHost(authority), label: authority };
+        return { host: authorityHost(authority), port: Number(input.port), label: authority };
       }
-      if (allowDefaultLoopback) return { host: "localhost", label: "localhost" };
+      if (allowDefaultLoopback) return { host: "localhost", port: Number(input.port), label: "localhost" };
     }
   } catch {
-    return { host: undefined, label: "invalid request target" };
+    return { host: undefined, port: undefined, label: "invalid request target" };
   }
-  return { host: undefined, label: "unresolved request target" };
+  return { host: undefined, port: undefined, label: "unresolved request target" };
+}
+
+function allowedTarget(target) {
+  return allowLoopback && isLoopback(target.host) &&
+    Number.isInteger(allowedLoopbackPort) && allowedLoopbackPort > 0 &&
+    target.port === allowedLoopbackPort;
 }
 
 const originalFetch = globalThis.fetch;
 if (typeof originalFetch === "function") {
   globalThis.fetch = async function offlineFetch(input, init) {
-    record(requestTarget(input).label);
+    const target = requestTarget(input);
+    if (!allowedTarget(target)) record(target.label);
     return originalFetch(input, init);
   };
 }
@@ -62,20 +78,25 @@ for (const protocol of [http, https]) {
   const originalRequest = protocol.request.bind(protocol);
   const originalGet = protocol.get.bind(protocol);
   protocol.request = function offlineRequest(...args) {
-    record(requestTarget(args[0], { allowDefaultLoopback: true }).label);
+    const target = requestTarget(args[0], { allowDefaultLoopback: true });
+    if (!allowedTarget(target)) record(target.label);
     return originalRequest(...args);
   };
   protocol.get = function offlineGet(...args) {
-    record(requestTarget(args[0], { allowDefaultLoopback: true }).label);
+    const target = requestTarget(args[0], { allowDefaultLoopback: true });
+    if (!allowedTarget(target)) record(target.label);
     return originalGet(...args);
   };
 }
 
-function connectHost(args) {
+function connectTarget(args) {
   const first = args[0];
-  if (typeof first === "string" && !/^\d+$/.test(first)) return undefined;
-  if (first && typeof first === "object") return first.host ?? first.hostname ?? "localhost";
-  return typeof args[1] === "string" ? args[1] : "localhost";
+  if (typeof first === "string" && !/^\d+$/.test(first)) return { host: undefined, port: undefined };
+  if (first && typeof first === "object") return {
+    host: first.host ?? first.hostname ?? "localhost",
+    port: Number(first.port),
+  };
+  return { host: typeof args[1] === "string" ? args[1] : "localhost", port: Number(first) };
 }
 
 for (const networkModule of [net, tls]) {
@@ -83,8 +104,8 @@ for (const networkModule of [net, tls]) {
     if (typeof networkModule[method] !== "function") continue;
     const original = networkModule[method].bind(networkModule);
     networkModule[method] = function offlineConnect(...args) {
-      const host = connectHost(args);
-      record(host ?? "net socket");
+      const target = connectTarget(args);
+      if (!allowedTarget(target)) record(target.host ?? "net socket");
       return original(...args);
     };
   }
@@ -92,7 +113,10 @@ for (const networkModule of [net, tls]) {
 
 const originalListen = net.Server.prototype.listen;
 net.Server.prototype.listen = function offlineListen(...args) {
-  record("net listen");
+  const options = args[0];
+  const host = typeof options === "object" && options ? options.host :
+    typeof args[1] === "string" ? args[1] : "localhost";
+  if (!(allowLoopbackListen && isLoopback(host))) record(`net listen ${host}`);
   return originalListen.apply(this, args);
 };
 

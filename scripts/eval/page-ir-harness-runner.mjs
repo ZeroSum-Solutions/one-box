@@ -1122,12 +1122,409 @@ export async function writeImmutableAggregate(runDirectory, rawAggregate) {
   return path.join(directory, "aggregate.json");
 }
 
+const QUALIFICATION_HASH_KEYS = Object.freeze([
+  "buildSha256", "pageIrSha256", "candidateManifestSha256",
+  "mechanicalChecksSha256", "browserEvidenceSha256",
+]);
+const QUALIFICATION_DIMENSIONS = Object.freeze([
+  "briefFidelity", "purposeTopology", "hierarchy", "compositionAndSpacing",
+  "typographyAndColor", "businessSpecificity", "referenceAlignment",
+  "responsiveBehavior", "interactionAndMotion", "craftAndCompleteness",
+]);
+const QUALIFICATION_REJECTIONS = new Set([
+  "invented-business-fact", "broken-blocking-gate", "missing-viewport-evidence",
+  "restyled-local-service-topology", "copied-reference-branding-or-composition",
+  "missing-provenance-or-hidden-paid-fallback", "unsupported-product-target",
+  "served-before-gates", "page-ir-authority-bypass",
+]);
+
+function parseJsonArtifact(bytes, label) {
+  let value;
+  try { value = JSON.parse(bytes?.toString("utf8") ?? ""); } catch { fail(`${label} must be valid JSON`); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail(`${label} must be one JSON object`);
+  return value;
+}
+
+async function readQualificationLock(directory, lockName, phase) {
+  const authority = await openStableDirectoryAuthority(directory, `qualification ${phase} packet authority`);
+  try {
+    const root = authority.physical;
+    const lockBytes = await readStableRegularFile(path.join(root, lockName), 5 * 1024 * 1024);
+    const lock = parseJsonArtifact(lockBytes, `qualification ${phase} lock`);
+    if (
+      !exactKeys(lock, ["schemaVersion", "phase", "runId", "fixtureId", "files"]) ||
+      lock.schemaVersion !== 1 || lock.phase !== phase ||
+      !/^[a-z0-9][a-z0-9-]{0,63}$/.test(lock.runId ?? "") ||
+      !/^[a-z0-9][a-z0-9-]{0,79}$/.test(lock.fixtureId ?? "")
+    ) fail(`qualification ${phase} lock is invalid`);
+    const verified = await verifyClosedInventory(root, lock.files, `qualification ${phase}`, { lockName });
+    await assertDirectoryAuthority(authority, `qualification ${phase} packet authority`);
+    return { root, lock, lockBytes, verified };
+  } finally {
+    await authority.handle.close();
+  }
+}
+
+async function writeVerifiedFiles(destination, files, prefix = "") {
+  for (const [relativePath, bytes] of files) {
+    const output = resolveWithin(destination, path.posix.join(prefix, relativePath));
+    await fs.mkdir(path.dirname(output), { recursive: true });
+    await writeExclusive(output, bytes);
+  }
+}
+
+async function qualificationPhaseParent(runDirectory, phase) {
+  const runAuthority = await openStableDirectoryAuthority(runDirectory, "qualification run authority");
+  try {
+    const qualificationRoot = path.join(runAuthority.physical, "qualification");
+    await fs.mkdir(qualificationRoot).catch((error) => {
+      if (error?.code !== "EEXIST") throw error;
+    });
+    const qualificationAuthority = await openStableDirectoryAuthority(qualificationRoot, "qualification root authority");
+    try {
+      const phaseRoot = path.join(qualificationAuthority.physical, phase);
+      await fs.mkdir(phaseRoot).catch((error) => {
+        if (error?.code !== "EEXIST") throw error;
+      });
+      const phaseAuthority = await openStableDirectoryAuthority(phaseRoot, `qualification ${phase} authority`);
+      try {
+        await assertDirectoryAuthority(runAuthority, "qualification run authority");
+        await assertDirectoryAuthority(qualificationAuthority, "qualification root authority");
+        await assertDirectoryAuthority(phaseAuthority, `qualification ${phase} authority`);
+        return phaseAuthority.physical;
+      } finally {
+        await phaseAuthority.handle.close();
+      }
+    } finally {
+      await qualificationAuthority.handle.close();
+    }
+  } finally {
+    await runAuthority.handle.close();
+  }
+}
+
+function qualificationReviewedHashes(manifest) {
+  return Object.fromEntries(QUALIFICATION_HASH_KEYS.map((key) => [key, manifest.hashes[key]]));
+}
+
+function validateQualificationReview(review, trustedAuthority, expectedFixtureId) {
+  if (!exactKeys(review, [
+    "schemaVersion", "reviewerName", "reviewerKind", "humanAttestation", "reviewedAt",
+    "fixtureId", "reviewedHashes", "mechanicalGatesPassed", "automaticRejections",
+    "dimensions", "findings", "decision",
+  ]) || review.schemaVersion !== 1 || review.reviewerKind !== "human" || review.humanAttestation !== true ||
+    typeof review.reviewerName !== "string" || review.reviewerName.trim() !== review.reviewerName ||
+    review.reviewerName.length < 1 || review.reviewerName.length > 120 ||
+    !Number.isFinite(Date.parse(review.reviewedAt)) || !/[zZ]|[+-]\d\d:\d\d$/.test(review.reviewedAt ?? "") ||
+    review.fixtureId !== expectedFixtureId || !exactKeys(review.reviewedHashes, QUALIFICATION_HASH_KEYS) ||
+    Object.values(review.reviewedHashes).some((value) => !/^[a-f0-9]{64}$/.test(value ?? "")) ||
+    typeof review.mechanicalGatesPassed !== "boolean" || !Array.isArray(review.automaticRejections) ||
+    review.automaticRejections.length > QUALIFICATION_REJECTIONS.size ||
+    new Set(review.automaticRejections).size !== review.automaticRejections.length ||
+    review.automaticRejections.some((entry) => !QUALIFICATION_REJECTIONS.has(entry)) ||
+    !exactKeys(review.dimensions, QUALIFICATION_DIMENSIONS) ||
+    !Array.isArray(review.findings) || review.findings.length > 50 ||
+    review.findings.some((entry) => typeof entry !== "string" || entry.trim().length < 1 || entry.length > 2_000) ||
+    !["pass", "fail"].includes(review.decision)
+  ) fail("qualification human review artifact or reviewed hashes are invalid");
+  const scores = [];
+  for (const dimension of QUALIFICATION_DIMENSIONS) {
+    const value = review.dimensions[dimension];
+    if (!exactKeys(value, ["score", "evidence"]) || !Number.isInteger(value.score) || value.score < 0 || value.score > 4 ||
+      typeof value.evidence !== "string" || value.evidence.trim().length < 1 || value.evidence.length > 2_000) {
+      fail(`qualification human review dimension is invalid: ${dimension}`);
+    }
+    scores.push(value.score);
+  }
+  if (review.decision === "pass" && (
+    !review.mechanicalGatesPassed || review.automaticRejections.length > 0 ||
+    scores.some((score) => score < 3) || scores.reduce((sum, score) => sum + score, 0) / scores.length < 3.2
+  )) fail("qualification passing human review does not meet the frozen rubric");
+  if (!exactKeys(trustedAuthority, ["reviewerName", "currentHashes"]) ||
+    trustedAuthority.reviewerName !== review.reviewerName ||
+    !exactKeys(trustedAuthority.currentHashes, QUALIFICATION_HASH_KEYS)) {
+    fail("qualification reviewer does not match trusted human authority");
+  }
+  for (const key of QUALIFICATION_HASH_KEYS) {
+    if (!/^[a-f0-9]{64}$/.test(trustedAuthority.currentHashes[key] ?? "") ||
+      review.reviewedHashes[key] !== trustedAuthority.currentHashes[key]) {
+      fail(`qualification review is stale for ${key}`);
+    }
+  }
+  return review;
+}
+
+export async function loadQualificationPreReviewPacket(packetDirectory, { expectedRunId, expectedFixtureId } = {}) {
+  const { root, lock, lockBytes, verified } = await readQualificationLock(packetDirectory, "pre-review.lock.json", "pre-review");
+  if ((expectedRunId && lock.runId !== expectedRunId) || (expectedFixtureId && lock.fixtureId !== expectedFixtureId)) {
+    fail("qualification pre-review packet authority does not match the requested run or fixture");
+  }
+  const manifestBytes = verified.get("pre-review-manifest.json");
+  const runManifestBytes = verified.get("run-manifest.json");
+  const pageIrBytes = verified.get("page-ir.json");
+  const inputPageIrBytes = verified.get("inputs/page-ir.json");
+  const candidateBytes = verified.get("candidate-manifest.json");
+  const siteCandidateBytes = verified.get("site/candidate-manifest.json");
+  const gatesBytes = verified.get("gate-reports.json");
+  const provenanceBytes = verified.get("provenance.json");
+  const evidenceBytes = verified.get("browser-evidence.json");
+  if ([manifestBytes, runManifestBytes, pageIrBytes, inputPageIrBytes, candidateBytes, siteCandidateBytes, gatesBytes, provenanceBytes, evidenceBytes].some((bytes) => !bytes)) {
+    fail("qualification pre-review packet is missing a required artifact");
+  }
+  const allowed = /^(?:pre-review-manifest\.json|run-manifest\.json|page-ir\.json|candidate-manifest\.json|gate-reports\.json|provenance\.json|browser-evidence\.json|inputs\/.+|site\/.+|screenshots\/(?:desktop|tablet|mobile|no-js|reduced-motion)\.png)$/;
+  if ([...verified.keys()].some((file) => !allowed.test(file))) fail("qualification pre-review inventory is not closed");
+  const manifest = parseJsonArtifact(manifestBytes, "qualification pre-review manifest");
+  if (!exactKeys(manifest, [
+    "schemaVersion", "phase", "runId", "fixtureId", "contractSha256", "registrySha256",
+    "sourceCommit", "evaluatedGitSha", "runManifestSha256", "hashes", "siteInventory",
+  ]) || manifest.schemaVersion !== 1 || manifest.phase !== "pre-review" ||
+    manifest.runId !== lock.runId || manifest.fixtureId !== lock.fixtureId ||
+    !/^[a-f0-9]{64}$/.test(manifest.contractSha256 ?? "") ||
+    !/^[a-f0-9]{64}$/.test(manifest.registrySha256 ?? "") ||
+    !/^[a-f0-9]{40}$/.test(manifest.sourceCommit ?? "") ||
+    !/^[a-f0-9]{40}$/.test(manifest.evaluatedGitSha ?? "") ||
+    manifest.runManifestSha256 !== sha256(runManifestBytes) ||
+    !exactKeys(manifest.hashes, [...QUALIFICATION_HASH_KEYS, "fixtureManifestSha256", "provenanceSha256"]) ||
+    Object.values(manifest.hashes).some((value) => !/^[a-f0-9]{64}$/.test(value ?? "")) ||
+    !validFileInventory(manifest.siteInventory)
+  ) fail("qualification pre-review manifest is invalid");
+  const runManifest = parseJsonArtifact(runManifestBytes, "qualification copied run manifest");
+  if (runManifest.runId !== manifest.runId || runManifest.contractSha256 !== manifest.contractSha256 ||
+    runManifest.registrySha256 !== manifest.registrySha256 || runManifest.sourceCommit !== manifest.sourceCommit ||
+    runManifest.evaluatedGitSha !== manifest.evaluatedGitSha ||
+    runManifest.fixtureManifestSha256?.[manifest.fixtureId] !== manifest.hashes.fixtureManifestSha256 ||
+    runManifest.fixtureBuildSha256?.[manifest.fixtureId] !== manifest.hashes.buildSha256) {
+    fail("qualification pre-review run authority is invalid");
+  }
+  const expectedInputInventory = runManifest.inputInventory
+    ?.filter((entry) => entry.path.startsWith(`${manifest.fixtureId}/`))
+    .map((entry) => ({ ...entry, path: entry.path.slice(manifest.fixtureId.length + 1) }))
+    .sort((left, right) => left.path.localeCompare(right.path));
+  const actualInputInventory = [...verified.entries()]
+    .filter(([file]) => file.startsWith("inputs/"))
+    .map(([file, bytes]) => ({ path: file.slice(7), sha256: sha256(bytes), sizeBytes: bytes.length }))
+    .sort((left, right) => left.path.localeCompare(right.path));
+  if (!expectedInputInventory || JSON.stringify(actualInputInventory) !== JSON.stringify(expectedInputInventory)) {
+    fail("qualification pre-review frozen input inventory is invalid");
+  }
+  const fixtureBytes = verified.get("inputs/fixture.json");
+  if (!fixtureBytes || sha256(fixtureBytes) !== manifest.hashes.fixtureManifestSha256 ||
+    !pageIrBytes.equals(inputPageIrBytes) || sha256(pageIrBytes) !== manifest.hashes.pageIrSha256 ||
+    !candidateBytes.equals(siteCandidateBytes) || sha256(candidateBytes) !== manifest.hashes.candidateManifestSha256 ||
+    sha256(gatesBytes) !== manifest.hashes.mechanicalChecksSha256 ||
+    sha256(provenanceBytes) !== manifest.hashes.provenanceSha256 ||
+    sha256(evidenceBytes) !== manifest.hashes.browserEvidenceSha256) {
+    fail("qualification pre-review artifact hash binding is invalid");
+  }
+  const siteFiles = [...verified.entries()].filter(([file]) => file.startsWith("site/")).map(([file, bytes]) => ({
+    path: file.slice(5), sizeBytes: bytes.length, sha256: sha256(bytes),
+  })).sort((left, right) => left.path.localeCompare(right.path));
+  if (JSON.stringify(siteFiles) !== JSON.stringify(manifest.siteInventory)) fail("qualification pre-review site inventory is invalid");
+  parseCandidateManifest(candidateBytes, manifest.hashes.buildSha256, manifest.siteInventory, manifest.fixtureId);
+  const evidence = parseJsonArtifact(evidenceBytes, "qualification browser evidence");
+  if (evidence.fixtureBinding?.fixtureId !== manifest.fixtureId ||
+    evidence.fixtureBinding?.fixtureManifestSha256 !== manifest.hashes.fixtureManifestSha256 ||
+    evidence.fixtureBinding?.buildSha256 !== manifest.hashes.buildSha256 ||
+    JSON.stringify(evidence.browserBinding) !== JSON.stringify(runManifest.browserAuthority)) {
+    fail("qualification browser evidence authority is invalid");
+  }
+  const browserFiles = new Map([["browser-evidence.json", evidenceBytes], ["candidate-manifest.json", candidateBytes]]);
+  for (const id of BROWSER_CAPTURE_IDS) {
+    const bytes = verified.get(`screenshots/${id}.png`);
+    if (!bytes) fail(`qualification pre-review packet is missing screenshot: ${id}`);
+    browserFiles.set(`screenshots/${id}.png`, bytes);
+  }
+  const selectors = parseFixtureSelectors(verified.get("inputs/brief.json"), manifest.fixtureId);
+  validateBrowserEvidenceContract({ evidence, verified: browserFiles, fixtureId: manifest.fixtureId, selectors });
+  return {
+    directory: root, manifest, lock, inventory: lock.files, packetSha256: sha256(lockBytes),
+    reviewedHashes: qualificationReviewedHashes(manifest),
+  };
+}
+
+export async function assembleQualificationPreReviewPacket({ runDirectory, fixtureId, siteRoot, gateReportsFile, provenanceFile }) {
+  const run = await loadPreparedEvaluationRun(runDirectory);
+  if (!run.manifest.corpus.includes(fixtureId) || !run.browserFixtureIds.includes(fixtureId)) {
+    fail(`qualification fixture is not frozen with published browser evidence: ${fixtureId}`);
+  }
+  const siteAuthority = await openStableDirectoryAuthority(siteRoot, "qualification materialized site authority");
+  let siteInventory;
+  let siteBytes;
+  try {
+    siteInventory = (await hashClosedInventory(siteAuthority.physical)).map((entry) => ({
+      path: entry.path, sizeBytes: entry.sizeBytes, sha256: entry.sha256,
+    }));
+    siteBytes = await verifyClosedInventory(siteAuthority.physical, siteInventory, "qualification materialized site");
+    await assertDirectoryAuthority(siteAuthority, "qualification materialized site authority");
+  } finally {
+    await siteAuthority.handle.close();
+  }
+  const candidateBytes = siteBytes.get("candidate-manifest.json");
+  parseCandidateManifest(candidateBytes, run.manifest.fixtureBuildSha256[fixtureId], siteInventory, fixtureId);
+  const gatesBytes = await readStableRegularFile(path.resolve(gateReportsFile));
+  const provenanceBytes = await readStableRegularFile(path.resolve(provenanceFile));
+  const gateReports = parseJsonArtifact(gatesBytes, "qualification gate reports");
+  const expectedGateIds = run.manifest.initialResults
+    .map((entry) => entry.evaluationId)
+    .filter((evaluationId) => !evaluationId.startsWith("EVAL-QUAL-") && evaluationId !== "EVAL-OPS-004");
+  if (!exactKeys(gateReports, ["schemaVersion", "runId", "fixtureId", "evaluatedGitSha", "evaluations"]) ||
+    gateReports.schemaVersion !== 1 || gateReports.runId !== run.manifest.runId ||
+    gateReports.fixtureId !== fixtureId || gateReports.evaluatedGitSha !== run.manifest.evaluatedGitSha ||
+    !Array.isArray(gateReports.evaluations) || gateReports.evaluations.length !== expectedGateIds.length ||
+    JSON.stringify(gateReports.evaluations.map((entry) => entry?.evaluationId)) !== JSON.stringify(expectedGateIds) ||
+    gateReports.evaluations.some((entry) => !exactKeys(entry, ["evaluationId", "state", "evidence"]) ||
+      entry.state !== "PASS" || !Array.isArray(entry.evidence) || entry.evidence.length === 0 ||
+      entry.evidence.some((evidence) => !exactKeys(evidence, ["path", "sha256"]) ||
+        typeof evidence.path !== "string" || path.isAbsolute(evidence.path) ||
+        evidence.path.split(/[\\/]/).includes("..") || !/^[a-f0-9]{64}$/.test(evidence.sha256 ?? "")))) {
+    fail("qualification gate reports do not bind every current pre-review PASS result");
+  }
+  const provenance = parseJsonArtifact(provenanceBytes, "qualification provenance");
+  if (!exactKeys(provenance, [
+    "schemaVersion", "runId", "fixtureId", "sourceCommit", "evaluatedGitSha",
+    "contractSha256", "registrySha256", "fixtureManifestSha256", "buildSha256",
+    "mechanicalChecksSha256", "providerCalls",
+  ]) || provenance.schemaVersion !== 1 || provenance.runId !== run.manifest.runId ||
+    provenance.fixtureId !== fixtureId || provenance.sourceCommit !== run.manifest.sourceCommit ||
+    provenance.evaluatedGitSha !== run.manifest.evaluatedGitSha ||
+    provenance.contractSha256 !== run.manifest.contractSha256 ||
+    provenance.registrySha256 !== run.manifest.registrySha256 ||
+    provenance.fixtureManifestSha256 !== run.manifest.fixtureManifestSha256[fixtureId] ||
+    provenance.buildSha256 !== run.manifest.fixtureBuildSha256[fixtureId] ||
+    provenance.mechanicalChecksSha256 !== sha256(gatesBytes) || provenance.providerCalls !== 0) {
+    fail("qualification provenance does not bind the current run and mechanical evidence");
+  }
+  const inputPrefix = `${fixtureId}/`;
+  const fixtureInventory = run.manifest.inputInventory.filter((entry) => entry.path.startsWith(inputPrefix));
+  const inputBytes = await verifyClosedInventory(path.join(run.directory, "inputs", fixtureId), fixtureInventory.map((entry) => ({ ...entry, path: entry.path.slice(inputPrefix.length) })), "qualification frozen fixture input");
+  const pageIrBytes = inputBytes.get("page-ir.json");
+  if (!pageIrBytes) fail(`qualification fixture is missing page-ir.json: ${fixtureId}`);
+  const browserRoot = path.join(run.directory, "browser", fixtureId);
+  const browserAuthority = await openStableDirectoryAuthority(browserRoot, "qualification browser packet authority");
+  let browserBytes;
+  try {
+    const browserLock = parseJsonArtifact(await readStableRegularFile(path.join(browserAuthority.physical, "packet.lock.json")), "qualification browser packet lock");
+    browserBytes = await verifyClosedInventory(browserAuthority.physical, browserLock.files, "qualification browser packet", { lockName: "packet.lock.json" });
+    await assertDirectoryAuthority(browserAuthority, "qualification browser packet authority");
+  } finally {
+    await browserAuthority.handle.close();
+  }
+  const evidenceBytes = browserBytes.get("browser-evidence.json");
+  if (!evidenceBytes || !browserBytes.get("candidate-manifest.json")?.equals(candidateBytes)) fail("qualification browser and materialized candidate manifests differ");
+  const runManifestBytes = await readStableRegularFile(path.join(run.directory, "run-manifest.json"));
+  const hashes = {
+    fixtureManifestSha256: run.manifest.fixtureManifestSha256[fixtureId],
+    buildSha256: run.manifest.fixtureBuildSha256[fixtureId], pageIrSha256: sha256(pageIrBytes),
+    candidateManifestSha256: sha256(candidateBytes), mechanicalChecksSha256: sha256(gatesBytes),
+    provenanceSha256: sha256(provenanceBytes), browserEvidenceSha256: sha256(evidenceBytes),
+  };
+  const manifest = {
+    schemaVersion: 1, phase: "pre-review", runId: run.manifest.runId, fixtureId,
+    contractSha256: run.manifest.contractSha256, registrySha256: run.manifest.registrySha256,
+    sourceCommit: run.manifest.sourceCommit, evaluatedGitSha: run.manifest.evaluatedGitSha,
+    runManifestSha256: sha256(runManifestBytes), hashes, siteInventory,
+  };
+  const parent = await qualificationPhaseParent(run.directory, "pre-review");
+  const directory = await publishDirectory(parent, fixtureId, async (temporary) => {
+    await writeExclusive(path.join(temporary, "run-manifest.json"), runManifestBytes);
+    await writeVerifiedFiles(path.join(temporary, "inputs"), inputBytes);
+    await writeExclusive(path.join(temporary, "page-ir.json"), pageIrBytes);
+    await writeExclusive(path.join(temporary, "candidate-manifest.json"), candidateBytes);
+    await writeExclusive(path.join(temporary, "gate-reports.json"), gatesBytes);
+    await writeExclusive(path.join(temporary, "provenance.json"), provenanceBytes);
+    await writeVerifiedFiles(path.join(temporary, "site"), siteBytes);
+    await writeExclusive(path.join(temporary, "browser-evidence.json"), evidenceBytes);
+    for (const id of BROWSER_CAPTURE_IDS) {
+      const bytes = browserBytes.get(`screenshots/${id}.png`);
+      if (!bytes) fail(`qualification browser packet is missing screenshot: ${id}`);
+      await fs.mkdir(path.join(temporary, "screenshots"), { recursive: true });
+      await writeExclusive(path.join(temporary, `screenshots/${id}.png`), bytes);
+    }
+    await writeExclusive(path.join(temporary, "pre-review-manifest.json"), jsonBytes(manifest));
+    const files = await hashClosedInventory(temporary);
+    await writeExclusive(path.join(temporary, "pre-review.lock.json"), jsonBytes({
+      schemaVersion: 1, phase: "pre-review", runId: run.manifest.runId, fixtureId, files,
+    }));
+    await sealDirectoryTree(temporary);
+  }, "qualification pre-review packet");
+  return loadQualificationPreReviewPacket(directory, { expectedRunId: run.manifest.runId, expectedFixtureId: fixtureId });
+}
+
+export async function loadQualificationCompletedPacket(packetDirectory, { trustedAuthority } = {}) {
+  if (!trustedAuthority) fail("qualification completed packet requires trusted human authority");
+  const { root, lock, lockBytes, verified } = await readQualificationLock(packetDirectory, "completed.lock.json", "completed");
+  const manifestBytes = verified.get("completed-manifest.json");
+  const reviewBytes = verified.get("human-visual-review.json");
+  if (!manifestBytes || !reviewBytes || [...verified.keys()].some((file) => !/^(?:completed-manifest\.json|human-visual-review\.json|pre-review\/.+)$/.test(file))) {
+    fail("qualification completed packet inventory is not closed");
+  }
+  const manifest = parseJsonArtifact(manifestBytes, "qualification completed manifest");
+  if (!exactKeys(manifest, [
+    "schemaVersion", "phase", "runId", "fixtureId", "preReviewPacketSha256",
+    "humanReviewSha256", "reviewerName", "reviewedHashes", "decision",
+  ]) || manifest.schemaVersion !== 1 || manifest.phase !== "completed" || manifest.runId !== lock.runId ||
+    manifest.fixtureId !== lock.fixtureId || !/^[a-f0-9]{64}$/.test(manifest.preReviewPacketSha256 ?? "") ||
+    manifest.humanReviewSha256 !== sha256(reviewBytes) || !exactKeys(manifest.reviewedHashes, QUALIFICATION_HASH_KEYS)) {
+    fail("qualification completed manifest is invalid");
+  }
+  const pre = await loadQualificationPreReviewPacket(path.join(root, "pre-review"), {
+    expectedRunId: manifest.runId, expectedFixtureId: manifest.fixtureId,
+  });
+  if (pre.packetSha256 !== manifest.preReviewPacketSha256 ||
+    JSON.stringify(pre.reviewedHashes) !== JSON.stringify(manifest.reviewedHashes)) {
+    fail("qualification completed packet does not preserve its sealed pre-review generation");
+  }
+  const review = validateQualificationReview(
+    parseJsonArtifact(reviewBytes, "qualification human review"),
+    trustedAuthority,
+    manifest.fixtureId,
+  );
+  if (manifest.reviewerName !== review.reviewerName || manifest.decision !== review.decision) fail("qualification completed review authority is invalid");
+  return {
+    directory: root, manifest, lock, inventory: lock.files, packetSha256: sha256(lockBytes),
+    preReview: pre, review,
+  };
+}
+
+export async function ingestQualificationCompletedPacket({
+  runDirectory, fixtureId, preReviewPacketDirectory, humanReviewFile, trustedAuthority,
+}) {
+  const expectedPre = path.join(path.resolve(runDirectory), "qualification", "pre-review", fixtureId);
+  if (path.resolve(preReviewPacketDirectory) !== expectedPre) fail("qualification pre-review source is not the prepared run authority");
+  const pre = await loadQualificationPreReviewPacket(expectedPre, { expectedFixtureId: fixtureId });
+  if (pre.manifest.runId !== path.basename(path.resolve(runDirectory))) fail("qualification pre-review run authority is invalid");
+  const reviewBytes = await readStableRegularFile(path.resolve(humanReviewFile), 1024 * 1024);
+  const review = validateQualificationReview(parseJsonArtifact(reviewBytes, "qualification human review"), trustedAuthority, fixtureId);
+  if (JSON.stringify(review.reviewedHashes) !== JSON.stringify(pre.reviewedHashes)) fail("qualification review is stale for the sealed pre-review packet");
+  const manifest = {
+    schemaVersion: 1, phase: "completed", runId: pre.manifest.runId, fixtureId,
+    preReviewPacketSha256: pre.packetSha256, humanReviewSha256: sha256(reviewBytes),
+    reviewerName: review.reviewerName, reviewedHashes: pre.reviewedHashes, decision: review.decision,
+  };
+  const preFiles = await verifyClosedInventory(pre.directory, [
+    ...pre.inventory,
+    { path: "pre-review.lock.json", sizeBytes: (await readStableRegularFile(path.join(pre.directory, "pre-review.lock.json"))).length, sha256: pre.packetSha256 },
+  ].sort((left, right) => left.path.localeCompare(right.path)), "qualification sealed pre-review copy");
+  const parent = await qualificationPhaseParent(path.resolve(runDirectory), "completed");
+  const directory = await publishDirectory(parent, fixtureId, async (temporary) => {
+    await writeVerifiedFiles(path.join(temporary, "pre-review"), preFiles);
+    await writeExclusive(path.join(temporary, "human-visual-review.json"), reviewBytes);
+    await writeExclusive(path.join(temporary, "completed-manifest.json"), jsonBytes(manifest));
+    const files = await hashClosedInventory(temporary);
+    await writeExclusive(path.join(temporary, "completed.lock.json"), jsonBytes({
+      schemaVersion: 1, phase: "completed", runId: pre.manifest.runId, fixtureId, files,
+    }));
+    await sealDirectoryTree(temporary);
+  }, "qualification completed packet");
+  return loadQualificationCompletedPacket(directory, { trustedAuthority });
+}
+
 export async function loadPreparedEvaluationRun(runDirectory) {
   const directory = path.resolve(runDirectory);
   const runDirectoryStat = await fs.lstat(directory);
   if (runDirectoryStat.isSymbolicLink() || !runDirectoryStat.isDirectory()) fail("evaluation run must be a physical directory");
   const required = new Set(["inputs", "results", "run-manifest.json", "run-manifest.lock.json"]);
-  const optional = new Set(["aggregate", "browser"]);
+  const optional = new Set(["aggregate", "browser", "qualification"]);
   const entries = await fs.readdir(directory, { withFileTypes: true });
   const entryNames = entries.map((entry) => {
     if (entry.isSymbolicLink()) fail(`evaluation run entry must not be a symlink: ${entry.name}`);
@@ -1262,6 +1659,42 @@ export async function loadPreparedEvaluationRun(runDirectory) {
       fail("evaluation aggregate is invalid JSON");
     }
     validateAggregate(aggregate);
+  }
+  if (entryNames.includes("qualification")) {
+    const qualificationRoot = path.join(directory, "qualification");
+    const rootStat = await fs.lstat(qualificationRoot);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) fail("evaluation qualification must be a physical directory");
+    const phases = await fs.readdir(qualificationRoot, { withFileTypes: true });
+    for (const phase of phases) {
+      if (phase.isSymbolicLink() || !phase.isDirectory() || !["pre-review", "completed"].includes(phase.name)) {
+        fail(`evaluation qualification contains an unsafe phase: ${phase.name}`);
+      }
+      const phaseRoot = path.join(qualificationRoot, phase.name);
+      const packets = await fs.readdir(phaseRoot, { withFileTypes: true });
+      for (const packet of packets) {
+        if (packet.isSymbolicLink() || !packet.isDirectory() || !manifest.corpus.includes(packet.name)) {
+          fail(`evaluation qualification contains an unsafe packet: ${packet.name}`);
+        }
+        if (phase.name === "pre-review") {
+          await loadQualificationPreReviewPacket(path.join(phaseRoot, packet.name), {
+            expectedRunId: manifest.runId, expectedFixtureId: packet.name,
+          });
+        } else {
+          const completed = await readQualificationLock(
+            path.join(phaseRoot, packet.name), "completed.lock.json", "completed",
+          );
+          if (completed.lock.runId !== manifest.runId || completed.lock.fixtureId !== packet.name ||
+            !completed.verified.has("completed-manifest.json") ||
+            !completed.verified.has("human-visual-review.json") ||
+            !completed.verified.has("pre-review/pre-review.lock.json")) {
+            fail(`evaluation qualification completed packet is invalid: ${packet.name}`);
+          }
+          await loadQualificationPreReviewPacket(path.join(phaseRoot, packet.name, "pre-review"), {
+            expectedRunId: manifest.runId, expectedFixtureId: packet.name,
+          });
+        }
+      }
+    }
   }
   return { directory, manifest, lock, browserFixtureIds };
 }

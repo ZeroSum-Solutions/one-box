@@ -2479,6 +2479,368 @@ export function verifyPageIrQualificationHumanReviewV1(
   return review;
 }
 
+const EvaluatedGitShaSchema = z.string().regex(/^[a-f0-9]{40}$|^[a-f0-9]{64}$/);
+
+export const PageIrQualificationPacketHashesV1Schema = z
+  .object({
+    fixtureSha256: Sha256Schema,
+    evaluatedGitSha: EvaluatedGitShaSchema,
+    manifestSha256: Sha256Schema,
+    registrySha256: Sha256Schema,
+    buildSha256: Sha256Schema,
+    pageIrSha256: Sha256Schema,
+    candidateManifestSha256: Sha256Schema,
+    mechanicalChecksSha256: Sha256Schema,
+    browserEvidenceSha256: Sha256Schema,
+  })
+  .strict();
+export type PageIrQualificationPacketHashesV1 = z.infer<
+  typeof PageIrQualificationPacketHashesV1Schema
+>;
+
+export const PageIrQualificationPacketV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    purpose: PagePurposeV1Schema,
+    hashes: PageIrQualificationPacketHashesV1Schema,
+    humanReview: PageIrQualificationHumanReviewV1Schema,
+  })
+  .strict()
+  .superRefine((packet, context) => {
+    if (packet.humanReview.fixtureId !== packet.purpose) {
+      context.addIssue({
+        code: "custom",
+        path: ["humanReview", "fixtureId"],
+        message: "qualification review must bind the packet purpose",
+      });
+    }
+    const reviewedHashKeys = [
+      "buildSha256",
+      "pageIrSha256",
+      "candidateManifestSha256",
+      "mechanicalChecksSha256",
+      "browserEvidenceSha256",
+    ] as const;
+    for (const key of reviewedHashKeys) {
+      if (packet.humanReview.reviewedHashes[key] !== packet.hashes[key]) {
+        context.addIssue({
+          code: "custom",
+          path: ["humanReview", "reviewedHashes", key],
+          message: `qualification review does not bind packet ${key}`,
+        });
+      }
+    }
+  });
+export type PageIrQualificationPacketV1 = z.infer<
+  typeof PageIrQualificationPacketV1Schema
+>;
+
+export interface PageIrQualificationPacketAuthorityV1 {
+  reviewerName: string;
+  currentHashes: PageIrQualificationPacketHashesV1;
+}
+
+export function verifyPageIrQualificationPacketV1(
+  input: unknown,
+  authority: PageIrQualificationPacketAuthorityV1,
+): PageIrQualificationPacketV1 {
+  const packet = PageIrQualificationPacketV1Schema.parse(input);
+  const currentHashes = PageIrQualificationPacketHashesV1Schema.parse(
+    authority.currentHashes,
+  );
+  for (const key of Object.keys(currentHashes) as Array<keyof typeof currentHashes>) {
+    if (packet.hashes[key] !== currentHashes[key]) {
+      throw new Error(`qualification packet is stale for ${key}`);
+    }
+  }
+  verifyPageIrQualificationHumanReviewV1(packet.humanReview, {
+    reviewerName: authority.reviewerName,
+    currentHashes: {
+      buildSha256: currentHashes.buildSha256,
+      pageIrSha256: currentHashes.pageIrSha256,
+      candidateManifestSha256: currentHashes.candidateManifestSha256,
+      mechanicalChecksSha256: currentHashes.mechanicalChecksSha256,
+      browserEvidenceSha256: currentHashes.browserEvidenceSha256,
+    },
+  });
+  return packet;
+}
+
+const PromotionFindingCommonV1Fields = {
+  schemaVersion: z.literal(1),
+  findingId: z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/),
+  severity: z.enum(["P0", "critical", "high"]),
+  summary: z.string().trim().min(1).max(2_000),
+  recordedAt: z.string().datetime({ offset: true }),
+};
+
+const PageIrOpenPromotionFindingV1Schema = z
+  .object({
+    ...PromotionFindingCommonV1Fields,
+    disposition: z.literal("open"),
+  })
+  .strict();
+
+const FixedFindingAuthorityV1Fields = {
+  resolution: z.string().trim().min(1).max(4_000),
+  authorityName: z.string().trim().min(1).max(120),
+  authorityKind: z.enum(["human", "owner"]),
+  authorityAttestation: z.literal(true),
+  disposedAt: z.string().datetime({ offset: true }),
+};
+
+const PageIrFixedPromotionFindingV1Schema = z
+  .object({
+    ...PromotionFindingCommonV1Fields,
+    disposition: z.literal("fixed"),
+    ...FixedFindingAuthorityV1Fields,
+  })
+  .strict();
+
+const PageIrAcceptedPromotionFindingV1Schema = z
+  .object({
+    ...PromotionFindingCommonV1Fields,
+    disposition: z.literal("accepted"),
+    ...FixedFindingAuthorityV1Fields,
+    authorityKind: z.literal("owner"),
+  })
+  .strict();
+
+export const PageIrPromotionFindingV1Schema = z.discriminatedUnion(
+  "disposition",
+  [
+    PageIrOpenPromotionFindingV1Schema,
+    PageIrFixedPromotionFindingV1Schema,
+    PageIrAcceptedPromotionFindingV1Schema,
+  ],
+);
+export type PageIrPromotionFindingV1 = z.infer<
+  typeof PageIrPromotionFindingV1Schema
+>;
+
+export interface PageIrPromotionFindingAuthorityV1 {
+  authorityName: string;
+  authorityKind: "human" | "owner";
+}
+
+export function verifyPageIrPromotionFindingV1(
+  input: unknown,
+  authority?: PageIrPromotionFindingAuthorityV1,
+): PageIrPromotionFindingV1 {
+  const finding = PageIrPromotionFindingV1Schema.parse(input);
+  if (finding.disposition === "open") return finding;
+  if (
+    !authority ||
+    finding.authorityName !== authority.authorityName ||
+    finding.authorityKind !== authority.authorityKind
+  ) {
+    throw new Error("finding disposition does not match trusted authority");
+  }
+  return finding;
+}
+
+const PageIrRolloutAuthorityHashesV1Schema = z
+  .object({
+    evaluatedGitSha: EvaluatedGitShaSchema,
+    manifestSha256: Sha256Schema,
+    registrySha256: Sha256Schema,
+    aggregateSha256: Sha256Schema,
+    findingsInventorySha256: Sha256Schema,
+  })
+  .strict();
+
+const PageIrQualificationPacketHashV1Schema = z
+  .object({
+    purpose: PagePurposeV1Schema,
+    sha256: Sha256Schema,
+  })
+  .strict();
+
+export const PageIrOwnerRolloutDecisionV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    sequence: z.number().int().positive(),
+    previousDecisionSha256: Sha256Schema.nullable(),
+    decision: z.enum(["default-on", "opt-in", "reject"]),
+    evaluatedGitSha: EvaluatedGitShaSchema,
+    manifestSha256: Sha256Schema,
+    registrySha256: Sha256Schema,
+    aggregateSha256: Sha256Schema,
+    findingsInventorySha256: Sha256Schema,
+    qualificationPacketHashes: z.array(PageIrQualificationPacketHashV1Schema).max(6),
+    ownerName: z.string().trim().min(1).max(120),
+    ownerKind: z.literal("owner"),
+    ownerAttestation: z.literal(true),
+    decidedAt: z.string().datetime({ offset: true }),
+    rationale: z.string().trim().min(1).max(4_000),
+  })
+  .strict()
+  .superRefine((record, context) => {
+    if ((record.sequence === 1) !== (record.previousDecisionSha256 === null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["previousDecisionSha256"],
+        message: "only the first rollout decision may omit its predecessor hash",
+      });
+    }
+    const purposes = record.qualificationPacketHashes.map((entry) => entry.purpose);
+    const hashes = record.qualificationPacketHashes.map((entry) => entry.sha256);
+    if (new Set(purposes).size !== purposes.length || new Set(hashes).size !== hashes.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["qualificationPacketHashes"],
+        message: "qualification packet bindings must be unique",
+      });
+    }
+    for (const [index, entry] of record.qualificationPacketHashes.entries()) {
+      if (PAGE_IR_PURPOSES.indexOf(entry.purpose) <= PAGE_IR_PURPOSES.indexOf(purposes[index - 1])) {
+        context.addIssue({
+          code: "custom",
+          path: ["qualificationPacketHashes", index, "purpose"],
+          message: "qualification packet bindings must use canonical purpose order",
+        });
+      }
+    }
+  });
+export type PageIrOwnerRolloutDecisionV1 = z.infer<
+  typeof PageIrOwnerRolloutDecisionV1Schema
+>;
+
+const PageIrAggregateResultV1Schema = z
+  .object({
+    evaluationId: z.string().regex(/^EVAL-[A-Z]+-\d{3}$/),
+    state: z.enum(["PASS", "FAIL", "BLOCKED", "NOT_RUN"]),
+  })
+  .strict();
+
+export interface PageIrOwnerRolloutEligibilityAuthorityV1 {
+  ownerName: string;
+  currentHashes: z.infer<typeof PageIrRolloutAuthorityHashesV1Schema>;
+  previousDecision: null | { sequence: number; sha256: string };
+  qualificationPackets: ReadonlyArray<{
+    sha256: string;
+    packet: unknown;
+    reviewerName: string;
+    currentHashes: PageIrQualificationPacketHashesV1;
+  }>;
+  blockingEvaluationIds: readonly string[];
+  aggregateResults: readonly unknown[];
+  findings: ReadonlyArray<{
+    record: unknown;
+    authority?: PageIrPromotionFindingAuthorityV1;
+  }>;
+}
+
+export interface PageIrOwnerRolloutEligibilityInputV1 {
+  decision: unknown;
+  /** Authenticated host authority assembled from sealed packet, aggregate,
+   * findings, and frozen-manifest loaders. None of these values may come from
+   * sibling decision payload fields or general CLI arguments. */
+  authority: PageIrOwnerRolloutEligibilityAuthorityV1;
+}
+
+export function verifyPageIrOwnerRolloutEligibilityV1(
+  input: PageIrOwnerRolloutEligibilityInputV1,
+): { record: PageIrOwnerRolloutDecisionV1; defaultOnEligible: boolean } {
+  const record = PageIrOwnerRolloutDecisionV1Schema.parse(input.decision);
+  const currentHashes = PageIrRolloutAuthorityHashesV1Schema.parse(
+    input.authority.currentHashes,
+  );
+  const ownerName = z.string().trim().min(1).max(120).parse(input.authority.ownerName);
+  if (record.ownerName !== ownerName) {
+    throw new Error("rollout decision does not match trusted owner authority");
+  }
+  for (const key of Object.keys(currentHashes) as Array<keyof typeof currentHashes>) {
+    if (record[key] !== currentHashes[key]) {
+      throw new Error(`rollout decision is stale for ${key}`);
+    }
+  }
+  const previousDecision = input.authority.previousDecision;
+  if (previousDecision === null) {
+    if (record.sequence !== 1 || record.previousDecisionSha256 !== null) {
+      throw new Error("rollout decision does not begin the append-only history");
+    }
+  } else {
+    const previousSequence = z.number().int().positive().parse(previousDecision.sequence);
+    const previousSha256 = Sha256Schema.parse(previousDecision.sha256);
+    if (
+      record.sequence !== previousSequence + 1 ||
+      record.previousDecisionSha256 !== previousSha256
+    ) {
+      throw new Error("rollout decision does not bind the previous decision");
+    }
+  }
+
+  const packetBindings = input.authority.qualificationPackets.map((binding) => {
+    const sha256 = Sha256Schema.parse(binding.sha256);
+    const packet = verifyPageIrQualificationPacketV1(binding.packet, {
+      reviewerName: binding.reviewerName,
+      currentHashes: binding.currentHashes,
+    });
+    if (
+      packet.hashes.evaluatedGitSha !== currentHashes.evaluatedGitSha ||
+      packet.hashes.manifestSha256 !== currentHashes.manifestSha256 ||
+      packet.hashes.registrySha256 !== currentHashes.registrySha256
+    ) {
+      throw new Error(`qualification packet is stale for ${packet.purpose}`);
+    }
+    return { purpose: packet.purpose, sha256, packet };
+  });
+  const expectedPacketHashes = packetBindings.map(({ purpose, sha256 }) => ({
+    purpose,
+    sha256,
+  }));
+  if (
+    record.decision === "default-on" &&
+    (packetBindings.length !== PAGE_IR_PURPOSES.length ||
+      packetBindings.some((binding, index) => binding.purpose !== PAGE_IR_PURPOSES[index]))
+  ) {
+    throw new Error("default-on requires exactly six qualification purposes");
+  }
+  if (JSON.stringify(record.qualificationPacketHashes) !== JSON.stringify(expectedPacketHashes)) {
+    throw new Error("rollout decision does not bind the current qualification packet inventory");
+  }
+
+  const aggregateResults = input.authority.aggregateResults.map((result) =>
+    PageIrAggregateResultV1Schema.parse(result),
+  );
+  if (new Set(aggregateResults.map((result) => result.evaluationId)).size !== aggregateResults.length) {
+    throw new Error("aggregate evaluation result IDs must be unique");
+  }
+  const blockingEvaluationIds = z
+    .array(z.string().regex(/^EVAL-[A-Z]+-\d{3}$/))
+    .min(1)
+    .parse([...input.authority.blockingEvaluationIds]);
+  if (new Set(blockingEvaluationIds).size !== blockingEvaluationIds.length) {
+    throw new Error("blocking evaluation IDs must be unique");
+  }
+  const findings = input.authority.findings.map((binding) =>
+    verifyPageIrPromotionFindingV1(binding.record, binding.authority),
+  );
+  if (new Set(findings.map((finding) => finding.findingId)).size !== findings.length) {
+    throw new Error("promotion finding IDs must be unique");
+  }
+
+  if (record.decision !== "default-on") {
+    return { record, defaultOnEligible: false };
+  }
+  if (packetBindings.some(({ packet }) => packet.humanReview.decision !== "pass")) {
+    throw new Error("default-on requires all named human reviews to PASS");
+  }
+  const resultsById = new Map(
+    aggregateResults.map((result) => [result.evaluationId, result.state]),
+  );
+  for (const evaluationId of blockingEvaluationIds) {
+    if (resultsById.get(evaluationId) !== "PASS") {
+      throw new Error(`blocking evaluation ${evaluationId} must PASS for default-on`);
+    }
+  }
+  if (findings.some((finding) => finding.disposition === "open")) {
+    throw new Error("default-on cannot contain an unresolved P0, critical, or high finding");
+  }
+  return { record, defaultOnEligible: true };
+}
+
 const PageIrQualityViewportV1Schema = z
   .object({
     id: z.enum(["desktop", "tablet", "mobile"]),

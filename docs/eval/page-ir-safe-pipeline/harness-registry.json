@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.3.0",
+  "registryVersion": "1.4.0",
   "status": "frozen",
   "evaluationManifest": {
     "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
@@ -14,7 +14,258 @@
     "traceabilityPath": "docs/eval/page-ir-safe-pipeline/traceability.md"
   },
   "evaluations": {
+    "EVAL-SCOPE-001": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-SCOPE-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/app/api/chat/route.test.ts",
+        "src/app/api/run/route.test.ts",
+        "src/lib/contracts.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-SCOPE-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/app/api/legacyCompatibility.test.ts",
+        "src/lib/productionFixtureBoundary.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-001": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pageIrContracts.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrContracts.test.ts",
+        "src/lib/pageIrCompiler.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-003": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pageIrContracts.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-004": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pageIrDerivation.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-COMP-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrCompiler.test.ts",
+        "src/lib/pageIrQualityCorpus.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-COMP-002": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-LAY-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/layoutAuthority.test.ts",
+        "src/lib/layoutAuthorityRunstate.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-LAY-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/layoutAuthorityRunstate.test.ts",
+        "src/app/api/runs/[id]/fallback/route.test.ts",
+        "src/lib/uploadsFallback.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/gates.candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-004": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/candidatePromotion.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-005": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/candidate.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-006": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/candidateRecovery.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-007": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/siteAuthority.test.ts",
+        "src/lib/runstate.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-008": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidatePromotion.test.ts",
+        "src/lib/pipelineStaleVisualQa.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-EDIT-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/mutationGateMatrix.test.ts",
+        "src/lib/gates.afterEdit.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-EDIT-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/siteMutation.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-EDIT-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/pipelineStaleVisualQa.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-EDIT-004": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/pageIrPipeline.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-REPLAY-001": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pipelineReplay.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-REPLAY-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/intakeAttempts.test.ts",
+        "src/lib/pipelineReplay.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-001": {
+      "kind": "browser-corpus-tests",
+      "testFiles": ["src/lib/pageIrQualityCorpus.web001.integration.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-002": {
+      "kind": "browser-corpus-tests",
+      "testFiles": ["src/lib/pageIrQualityCorpus.web002.integration.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-003": {
+      "kind": "browser-corpus-tests",
+      "testFiles": ["src/lib/pageIrQualityCorpus.web003.integration.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-UX-001": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-002": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-003": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-004": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-005": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-006": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-QUAL-001": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-human-review"
+    },
+    "EVAL-QUAL-002": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-human-review"
+    },
+    "EVAL-QUAL-003": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-human-review"
+    },
     "EVAL-OPS-001": {
+      "kind": "credential-free-tests",
       "testFiles": [
         "src/lib/rolloutObservability.test.ts",
         "src/lib/pageIrController.test.ts",
@@ -24,15 +275,11 @@
       "networkPolicy": "deny-all"
     },
     "EVAL-OPS-002": {
-      "testFiles": [
-        "src/components/RunTimeline.test.tsx",
-        "src/lib/pageIrController.test.ts",
-        "src/lib/pipelineReplay.test.ts"
-      ],
-      "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
     },
     "EVAL-OPS-003": {
+      "kind": "credential-free-tests",
       "testFiles": [
         "src/lib/rolloutObservability.test.ts",
         "src/lib/layoutAuthorityRunstate.test.ts",
@@ -41,7 +288,12 @@
       "credentialPolicy": "absent",
       "networkPolicy": "deny-all"
     },
+    "EVAL-OPS-004": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-contract"
+    },
     "EVAL-SEC-001": {
+      "kind": "credential-free-tests",
       "testFiles": [
         "src/lib/localApiAuth.test.ts",
         "src/app/api/chat/route.test.ts",
@@ -54,7 +306,18 @@
       "credentialPolicy": "absent",
       "networkPolicy": "deny-all"
     },
+    "EVAL-SEC-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidate.test.ts",
+        "src/lib/candidatePromotion.test.ts",
+        "src/lib/siteAuthority.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
     "EVAL-SEC-003": {
+      "kind": "credential-free-tests",
       "testFiles": [
         "src/lib/pageIrContracts.test.ts",
         "src/lib/pageIrCompiler.test.ts",
@@ -66,27 +329,6 @@
         "src/lib/pipelineReplay.test.ts",
         "src/lib/localApiAuth.test.ts",
         "src/lib/siteAuthority.test.ts"
-      ],
-      "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
-    },
-    "EVAL-WEB-001": {
-      "testFiles": [
-        "src/lib/pageIrQualityCorpus.web001.integration.test.ts"
-      ],
-      "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
-    },
-    "EVAL-WEB-002": {
-      "testFiles": [
-        "src/lib/pageIrQualityCorpus.web002.integration.test.ts"
-      ],
-      "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
-    },
-    "EVAL-WEB-003": {
-      "testFiles": [
-        "src/lib/pageIrQualityCorpus.web003.integration.test.ts"
       ],
       "credentialPolicy": "absent",
       "networkPolicy": "deny-all"

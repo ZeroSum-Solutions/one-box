@@ -13,6 +13,7 @@ import {
 } from "./page-ir-harness-contract.mjs";
 import {
   aggregateEvaluationResults,
+  assembleQualificationPreReviewPacket,
   executeEvaluation,
   loadPreparedEvaluationRun,
   prepareEvaluationRun,
@@ -23,6 +24,11 @@ import {
   validateCommandId,
   validateRunId,
 } from "./page-ir-harness-runner.mjs";
+import {
+  executeProductionRenderedEvidence,
+  renderedEvaluationIds,
+} from "./page-ir-harness-rendered.mjs";
+import { materializeQualificationFixture } from "./page-ir-harness-qualification.mjs";
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_ROOT = path.resolve(import.meta.dirname, "../..");
@@ -44,8 +50,8 @@ function parseArgs(argv) {
     options[name] = value;
     index += 1;
   }
-  if (!new Set(["verify", "prepare", "run", "status", "aggregate", "capture", "lock"]).has(command)) {
-    fail("usage: page-ir-harness.mjs verify|prepare|run|status|aggregate|capture|lock [options]");
+  if (!new Set(["verify", "prepare", "run", "render", "status", "aggregate", "capture", "materialize", "lock"]).has(command)) {
+    fail("usage: page-ir-harness.mjs verify|prepare|run|render|status|aggregate|capture|materialize|lock [options]");
   }
   return { command, options };
 }
@@ -311,6 +317,9 @@ export async function runPageIrHarnessCli(
     readGitState = readRepositoryGitState,
     createExecutionSnapshot = createGitExecutionSnapshot,
     executeEvaluationFn = executeEvaluation,
+    executeRenderedEvidenceFn = executeProductionRenderedEvidence,
+    materializeQualificationFn = materializeQualificationFixture,
+    assembleQualificationFn = assembleQualificationPreReviewPacket,
   } = {},
 ) {
   try {
@@ -369,15 +378,102 @@ export async function runPageIrHarnessCli(
     const run = await loadRun(runsRoot, runId);
     assertRunFrozenAuthority(run.manifest, verification);
 
+    if (command === "render") {
+      onlyOptions(options, ["run-id", "runs-root"]);
+      await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
+      const evaluationIds = renderedEvaluationIds();
+      const registeredRenderedIds = Object.entries(verification.registry.evaluations)
+        .filter(([, registration]) => registration.kind === "coordinator-evidence" && registration.evaluator === "rendered-evidence")
+        .map(([evaluationId]) => evaluationId);
+      if (!isDeepStrictEqual([...registeredRenderedIds].sort(), [...evaluationIds].sort())) {
+        fail("rendered evidence routes do not match the frozen registry");
+      }
+      const snapshot = await createExecutionSnapshot(
+        root,
+        run.manifest.evaluatedGitSha,
+        verification.registry.runtimeContract,
+      );
+      let results;
+      try {
+        results = await executeRenderedEvidenceFn({
+          snapshotRoot: snapshot.root,
+          runtimeContract: verification.registry.runtimeContract,
+          browserAuthority: verification.registry.browserContract,
+          evaluationIds,
+          environment,
+        });
+      } finally {
+        await snapshot.dispose();
+      }
+      if (
+        !Array.isArray(results) ||
+        results.length !== evaluationIds.length ||
+        !isDeepStrictEqual(results.map((result) => result?.evaluationId).sort(), [...evaluationIds].sort())
+      ) fail("rendered evidence results do not match the frozen coordinator routes");
+      await loadPreparedEvaluationRun(run.directory);
+      await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
+      for (const result of results) {
+        await publishExecutionResult(path.join(run.directory, "results"), result);
+      }
+      const state = results.every((result) => result.state === "PASS") ? "PASS" : "FAIL";
+      writeOut({ status: state, evaluationIds, meteredCalls: 0 });
+      return state === "PASS" ? 0 : 1;
+    }
+
+    if (command === "materialize") {
+      onlyOptions(options, ["run-id", "runs-root", "fixture", "output-root"]);
+      await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
+      const fixtureId = requireOption(options, "fixture");
+      if (!verification.manifest.corpus.includes(fixtureId)) fail("fixture is not in the frozen corpus");
+      const snapshot = await createExecutionSnapshot(
+        root,
+        run.manifest.evaluatedGitSha,
+        verification.registry.runtimeContract,
+      );
+      let materialized;
+      try {
+        materialized = await materializeQualificationFn({
+          snapshotRoot: snapshot.root,
+          runtimeContract: verification.registry.runtimeContract,
+          run,
+          fixtureId,
+          outputRoot: path.resolve(requireOption(options, "output-root")),
+          environment,
+        });
+      } finally {
+        await snapshot.dispose();
+      }
+      await loadPreparedEvaluationRun(run.directory);
+      await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
+      const packet = await assembleQualificationFn({
+        runDirectory: run.directory,
+        fixtureId,
+        siteRoot: materialized.siteRoot,
+        gateReportsFile: materialized.gateReportsFile,
+        provenanceFile: materialized.provenanceFile,
+      });
+      writeOut({
+        status: "PRE_REVIEW_READY",
+        fixtureId,
+        directory: packet.directory,
+        packetSha256: packet.packetSha256,
+        reviewedHashes: packet.reviewedHashes,
+      });
+      return 0;
+    }
+
     if (command === "run") {
       onlyOptions(options, ["run-id", "runs-root", "evaluation"]);
       await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
       const evaluationId = requireOption(options, "evaluation");
       const registration = verification.registry.evaluations[evaluationId];
+      if (!registration) fail(`evaluation is not registered: ${evaluationId}`);
+      if (registration.kind === "coordinator-evidence") {
+        fail(`${registration.evaluator} requires the trusted host coordinator and cannot be supplied by CLI arguments`);
+      }
       const blockers = blockersFor(run, evaluationId);
       if (
-        registration &&
-        evaluationId.startsWith("EVAL-WEB-") &&
+        registration.kind === "browser-corpus-tests" &&
         blockers.length === 0
       ) {
         for (const fixtureId of run.manifest.corpus) {
@@ -386,17 +482,16 @@ export async function runPageIrHarnessCli(
           }
         }
       }
-      if (!registration && blockers.length === 0) blockers.push({ code: "EVALUATOR_NOT_REGISTERED", detail: evaluationId });
       let snapshot;
       let result;
       try {
-        if (registration && blockers.length === 0) snapshot = await createExecutionSnapshot(
+        if (blockers.length === 0) snapshot = await createExecutionSnapshot(
           root,
           run.manifest.evaluatedGitSha,
           verification.registry.runtimeContract,
         );
         const executionRoot = snapshot?.root ?? root;
-        const commands = registration ? [{
+        const commands = [{
           id: "credential-free-suite",
           argv: [
             process.execPath,
@@ -406,17 +501,17 @@ export async function runPageIrHarnessCli(
             "--maxWorkers=1",
             "--reporter=default",
           ],
-        }] : [];
+        }];
         result = await executeEvaluationFn({
           root: executionRoot,
           evaluationId,
           commands,
           blockers,
           environment,
-          inputsRoot: registration && evaluationId.startsWith("EVAL-WEB-")
+          inputsRoot: registration.kind === "browser-corpus-tests"
             ? path.join(run.directory, "inputs")
             : undefined,
-          browserRoot: registration && evaluationId.startsWith("EVAL-WEB-")
+          browserRoot: registration.kind === "browser-corpus-tests"
             ? path.join(run.directory, "browser")
             : undefined,
           timeoutMs: 180_000,

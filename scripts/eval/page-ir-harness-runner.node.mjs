@@ -8,9 +8,14 @@ import test from "node:test";
 import { deflateSync } from "node:zlib";
 import {
   aggregateEvaluationResults,
+  assembleQualificationPreReviewPacket,
   executeEvaluation,
+  ingestQualificationCompletedPacket,
+  loadQualificationCompletedPacket,
+  loadQualificationPreReviewPacket,
   loadPreparedEvaluationRun,
   prepareEvaluationRun,
+  publishImmutableEvidencePacket,
   sanitizeEvaluationEnvironment,
   validateBrowserEvidencePng,
   writeImmutableAggregate,
@@ -828,4 +833,243 @@ test("execution loads the offline guard only from its isolated execution root", 
     timeoutMs: 10_000,
   });
   assert.equal(result.state, "PASS", result.commands[0]?.stderr);
+});
+
+function qualificationPng(width, height) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const row = Buffer.alloc(width * 4 + 1);
+  const decoded = Buffer.alloc(row.length * height);
+  for (let index = 0; index < height; index += 1) row.copy(decoded, index * row.length);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr), pngChunk("IDAT", deflateSync(decoded)), pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+function qualificationHash(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+async function qualificationCase(context) {
+  const root = await temporaryRoot(context);
+  const fixtureId = "brochure-local-service";
+  const fixturesRoot = path.join(root, "fixtures");
+  const fixtureRoot = path.join(fixturesRoot, fixtureId);
+  await fs.mkdir(fixtureRoot, { recursive: true });
+  const briefBytes = Buffer.from(JSON.stringify({ expectedCoreSelectors: ["main"], expectedActionSelectors: ["#cta"] }));
+  const pageIrBytes = Buffer.from(JSON.stringify({ schemaVersion: 1, purpose: fixtureId }));
+  const fixture = {
+    schemaVersion: 1, id: fixtureId, purpose: fixtureId, providerMode: "recorded-or-stubbed",
+    inputs: [
+      { path: "brief.json", sha256: qualificationHash(briefBytes) },
+      { path: "page-ir.json", sha256: qualificationHash(pageIrBytes) },
+    ],
+  };
+  const fixtureBytes = Buffer.from(JSON.stringify(fixture));
+  await fs.writeFile(path.join(fixtureRoot, "brief.json"), briefBytes);
+  await fs.writeFile(path.join(fixtureRoot, "page-ir.json"), pageIrBytes);
+  await fs.writeFile(path.join(fixtureRoot, "fixture.json"), fixtureBytes);
+
+  const siteRoot = path.join(root, "site");
+  await fs.mkdir(siteRoot);
+  const htmlBytes = Buffer.from("<!doctype html><main><a id=\"cta\">Go</a></main>");
+  await fs.writeFile(path.join(siteRoot, "index.html"), htmlBytes);
+  const siteFiles = [{ path: "index.html", sizeBytes: htmlBytes.length, sha256: qualificationHash(htmlBytes) }];
+  const buildHash = qualificationHash(Buffer.from(`index.html\0${htmlBytes.length}\0${qualificationHash(htmlBytes)}\0`));
+  const candidateManifest = {
+    schemaVersion: 1, entry: "index.html", files: siteFiles,
+    totalBytes: htmlBytes.length, buildSha256: buildHash,
+  };
+  const candidateBytes = Buffer.from(`${JSON.stringify(candidateManifest, null, 2)}\n`);
+  await fs.writeFile(path.join(siteRoot, "candidate-manifest.json"), candidateBytes);
+  const siteInventory = [...siteFiles, {
+    path: "candidate-manifest.json", sizeBytes: candidateBytes.length, sha256: qualificationHash(candidateBytes),
+  }].sort((left, right) => left.path.localeCompare(right.path));
+  const contract = {
+    contractVersion: "1.0.0", contractSha256: "a".repeat(64), registrySha256: "b".repeat(64),
+    sourceCommit: "c".repeat(40), corpus: [fixtureId],
+    fixtureManifestSha256: { [fixtureId]: qualificationHash(fixtureBytes) },
+    fixtureBuildSha256: { [fixtureId]: buildHash }, browserAuthority: TEST_BROWSER_AUTHORITY,
+    runtimeAuthority: TEST_RUNTIME_AUTHORITY, evaluations: [{ id: "EVAL-QUAL-001" }],
+  };
+  const prepared = await prepareEvaluationRun({
+    root, runsRoot: path.join(root, "runs"), runId: "qualification-test", contract,
+    fixturesRoot, evaluatedGitSha: "d".repeat(40), createdAt: "2026-08-24T00:00:00.000Z",
+  });
+
+  const browserSource = path.join(root, "browser-source");
+  await fs.mkdir(path.join(browserSource, "screenshots"), { recursive: true });
+  await fs.writeFile(path.join(browserSource, "candidate-manifest.json"), candidateBytes);
+  const dimensions = new Map([["desktop", [1440, 900]], ["tablet", [768, 1024]], ["mobile", [390, 844]], ["no-js", [1440, 900]], ["reduced-motion", [1440, 900]]]);
+  const screenshots = [];
+  for (const [id, [width, height]] of dimensions) {
+    const bytes = qualificationPng(width, height);
+    await fs.writeFile(path.join(browserSource, `screenshots/${id}.png`), bytes);
+    screenshots.push({ path: `screenshots/${id}.png`, sizeBytes: bytes.length, sha256: qualificationHash(bytes) });
+  }
+  screenshots.sort((left, right) => left.path.localeCompare(right.path));
+  const captures = [...dimensions].map(([id, [width, height]]) => {
+    const capture = {
+      id, viewport: { id: ["desktop", "tablet", "mobile"].includes(id) ? id : "desktop", width, height },
+      javascriptEnabled: id !== "no-js", reducedMotion: id === "reduced-motion" ? "reduce" : "no-preference",
+      navigation: { path: "/", status: 200, links: [] },
+      coreContent: [{ selector: "main", present: true, visible: true, text: "Go" }],
+      primaryActions: [{ selector: "#cta", present: true, visible: true, href: null, text: "Go" }],
+      javascriptMarker: null, reducedMotionMatches: id === "reduced-motion", motionObservations: [],
+      serviceWorkerRegistrations: 0, consoleErrors: [], pageErrors: [], localResourceFailures: [], blockedRequests: [],
+      metrics: { domContentLoadedMs: 1, totalTransferBytes: 1, imageTransferBytes: 0, cpuThrottleRate: 4 },
+      screenshot: screenshots.find((entry) => entry.path === `screenshots/${id}.png`),
+    };
+    if (id === "reduced-motion") capture.qualification = { reducedMotion: { matches: true, allMotionDisabled: true, activeMotion: [] } };
+    else if (id !== "no-js") capture.qualification = {
+      horizontalOverflow: false, overflowingElements: [],
+      keyboard: { reachedSelectors: [], unreachedSelectors: ["#cta"], focusSequence: [] },
+      accessibility: { seriousOrCritical: [], colorContrast: [] },
+    };
+    return capture;
+  });
+  const evidence = {
+    schemaVersion: 1,
+    fixtureBinding: { fixtureId, fixtureManifestSha256: qualificationHash(fixtureBytes), buildSha256: buildHash },
+    browserBinding: TEST_BROWSER_AUTHORITY, qualificationChecks: true, providerCalls: 0,
+    networkIsolation: "darwin-sandbox-exec-loopback-only", viewports: [
+      { id: "desktop", width: 1440, height: 900 }, { id: "tablet", width: 768, height: 1024 }, { id: "mobile", width: 390, height: 844 },
+    ], attemptedExternalUrls: [], rejectedStaticRequests: [], siteInventory, captures, inventory: screenshots,
+  };
+  await fs.writeFile(path.join(browserSource, "browser-evidence.json"), `${JSON.stringify(evidence, null, 2)}\n`);
+  await publishImmutableEvidencePacket(path.join(prepared.directory, "browser"), fixtureId, browserSource);
+  const gateReportsFile = path.join(root, "gate-reports.json");
+  const provenanceFile = path.join(root, "provenance.json");
+  const gateReportsBytes = Buffer.from(JSON.stringify({
+    schemaVersion: 1,
+    runId: "qualification-test",
+    fixtureId,
+    evaluatedGitSha: "d".repeat(40),
+    evaluations: [],
+  }));
+  await fs.writeFile(gateReportsFile, gateReportsBytes);
+  await fs.writeFile(provenanceFile, JSON.stringify({
+    schemaVersion: 1,
+    runId: "qualification-test",
+    fixtureId,
+    sourceCommit: contract.sourceCommit,
+    evaluatedGitSha: "d".repeat(40),
+    contractSha256: contract.contractSha256,
+    registrySha256: contract.registrySha256,
+    fixtureManifestSha256: contract.fixtureManifestSha256[fixtureId],
+    buildSha256: buildHash,
+    mechanicalChecksSha256: qualificationHash(gateReportsBytes),
+    providerCalls: 0,
+  }));
+  return { root, fixtureId, prepared, siteRoot, gateReportsFile, provenanceFile };
+}
+
+function passingReview(fixtureId, hashes) {
+  const score = { score: 4, evidence: "Named human inspected the sealed rendered evidence." };
+  return {
+    schemaVersion: 1, reviewerName: "Devin", reviewerKind: "human", humanAttestation: true,
+    reviewedAt: "2026-08-24T01:00:00.000Z", fixtureId, reviewedHashes: hashes,
+    mechanicalGatesPassed: true, automaticRejections: [], dimensions: {
+      briefFidelity: score, purposeTopology: score, hierarchy: score, compositionAndSpacing: score,
+      typographyAndColor: score, businessSpecificity: score, referenceAlignment: score,
+      responsiveBehavior: score, interactionAndMotion: score, craftAndCompleteness: score,
+    }, findings: [], decision: "pass",
+  };
+}
+
+test("qualification packets publish immutable pre-review evidence then ingest one trusted human review", async (context) => {
+  const fixture = await qualificationCase(context);
+  const pre = await assembleQualificationPreReviewPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId, siteRoot: fixture.siteRoot,
+    gateReportsFile: fixture.gateReportsFile, provenanceFile: fixture.provenanceFile,
+  });
+  const loadedPre = await loadQualificationPreReviewPacket(pre.directory, { expectedFixtureId: fixture.fixtureId });
+  assert.equal(loadedPre.manifest.phase, "pre-review");
+  const before = await fs.readFile(path.join(pre.directory, "pre-review.lock.json"));
+  const reviewFile = path.join(fixture.root, "human-review.json");
+  await fs.writeFile(reviewFile, JSON.stringify(passingReview(fixture.fixtureId, loadedPre.reviewedHashes)));
+  const completed = await ingestQualificationCompletedPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId,
+    preReviewPacketDirectory: pre.directory, humanReviewFile: reviewFile,
+    trustedAuthority: { reviewerName: "Devin", currentHashes: loadedPre.reviewedHashes },
+  });
+  const loaded = await loadQualificationCompletedPacket(completed.directory, {
+    trustedAuthority: { reviewerName: "Devin", currentHashes: loadedPre.reviewedHashes },
+  });
+  assert.equal(loaded.review.decision, "pass");
+  assert.deepEqual(await fs.readFile(path.join(pre.directory, "pre-review.lock.json")), before);
+  await assert.rejects(assembleQualificationPreReviewPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId, siteRoot: fixture.siteRoot,
+    gateReportsFile: fixture.gateReportsFile, provenanceFile: fixture.provenanceFile,
+  }), /already exists and is immutable/i);
+  await assert.rejects(ingestQualificationCompletedPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId,
+    preReviewPacketDirectory: pre.directory, humanReviewFile: reviewFile,
+    trustedAuthority: { reviewerName: "Devin", currentHashes: loadedPre.reviewedHashes },
+  }), /already exists and is immutable/i);
+});
+
+test("qualification packets reject symlinks, missing artifacts, stale or incomplete review hashes, and open inventories", async (context) => {
+  const fixture = await qualificationCase(context);
+  const linkedSite = path.join(fixture.root, "linked-site");
+  await fs.mkdir(linkedSite);
+  await fs.symlink(path.join(fixture.siteRoot, "index.html"), path.join(linkedSite, "index.html"));
+  await assert.rejects(assembleQualificationPreReviewPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId, siteRoot: linkedSite,
+    gateReportsFile: fixture.gateReportsFile, provenanceFile: fixture.provenanceFile,
+  }), /symlink/i);
+  await assert.rejects(assembleQualificationPreReviewPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId, siteRoot: fixture.siteRoot,
+    gateReportsFile: path.join(fixture.root, "missing.json"), provenanceFile: fixture.provenanceFile,
+  }), /gate|ENOENT|regular file/i);
+  const validGates = await fs.readFile(fixture.gateReportsFile);
+  await fs.writeFile(fixture.gateReportsFile, "{}\n");
+  await assert.rejects(assembleQualificationPreReviewPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId, siteRoot: fixture.siteRoot,
+    gateReportsFile: fixture.gateReportsFile, provenanceFile: fixture.provenanceFile,
+  }), /gate reports.*PASS/i);
+  await fs.writeFile(fixture.gateReportsFile, validGates);
+  const validProvenance = await fs.readFile(fixture.provenanceFile);
+  await fs.writeFile(fixture.provenanceFile, "{}\n");
+  await assert.rejects(assembleQualificationPreReviewPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId, siteRoot: fixture.siteRoot,
+    gateReportsFile: fixture.gateReportsFile, provenanceFile: fixture.provenanceFile,
+  }), /provenance.*current run/i);
+  await fs.writeFile(fixture.provenanceFile, validProvenance);
+  const pre = await assembleQualificationPreReviewPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId, siteRoot: fixture.siteRoot,
+    gateReportsFile: fixture.gateReportsFile, provenanceFile: fixture.provenanceFile,
+  });
+  const loaded = await loadQualificationPreReviewPacket(pre.directory);
+  const badReview = passingReview(fixture.fixtureId, { ...loaded.reviewedHashes, buildSha256: "f".repeat(64) });
+  const reviewFile = path.join(fixture.root, "bad-review.json");
+  await fs.writeFile(reviewFile, JSON.stringify(badReview));
+  await assert.rejects(ingestQualificationCompletedPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId,
+    preReviewPacketDirectory: pre.directory, humanReviewFile: reviewFile,
+    trustedAuthority: { reviewerName: "Devin", currentHashes: loaded.reviewedHashes },
+  }), /stale/i);
+  delete badReview.reviewedHashes.pageIrSha256;
+  await fs.writeFile(reviewFile, JSON.stringify(badReview));
+  await assert.rejects(ingestQualificationCompletedPacket({
+    runDirectory: fixture.prepared.directory, fixtureId: fixture.fixtureId,
+    preReviewPacketDirectory: pre.directory, humanReviewFile: reviewFile,
+    trustedAuthority: { reviewerName: "Devin", currentHashes: loaded.reviewedHashes },
+  }), /hash/i);
+  const copy = path.join(fixture.root, "open-packet");
+  await fs.cp(pre.directory, copy, { recursive: true });
+  await fs.chmod(copy, 0o700);
+  await fs.writeFile(path.join(copy, "unexpected.json"), "{}\n");
+  await assert.rejects(loadQualificationPreReviewPacket(copy), /inventory is not closed/i);
+  await fs.rm(path.join(copy, "unexpected.json"));
+  const lockPath = path.join(copy, "pre-review.lock.json");
+  await fs.chmod(lockPath, 0o600);
+  const lock = JSON.parse(await fs.readFile(lockPath, "utf8"));
+  lock.files.push(lock.files[0]);
+  await fs.writeFile(lockPath, JSON.stringify(lock));
+  await assert.rejects(loadQualificationPreReviewPacket(copy), /inventory is not closed/i);
 });
