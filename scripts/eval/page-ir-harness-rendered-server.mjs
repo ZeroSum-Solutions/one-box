@@ -7,7 +7,12 @@ if (!/^[a-f0-9]{64}$/.test(nonce ?? "")) throw new Error("rendered server nonce 
 const running = await startTrustedRenderedServer({
   nonce,
   publishAuthority: (authority) => process.stdout.write(`${JSON.stringify(authority)}\n`),
-  createApp: () => next({ dev: false, dir: process.cwd() }),
+  createApp: ({ hostname, port }) => next({
+    dev: false,
+    dir: process.cwd(),
+    hostname,
+    port,
+  }),
 });
 
 async function shutdown() {

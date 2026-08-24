@@ -33,7 +33,7 @@ export async function startTrustedRenderedServer({ nonce, publishAuthority, crea
 
   let app;
   try {
-    app = createApp();
+    app = createApp({ hostname: "127.0.0.1", port: address.port });
     await app.prepare();
     requestHandler = app.getRequestHandler();
     if (typeof requestHandler !== "function") throw new Error("rendered server request handler is invalid");

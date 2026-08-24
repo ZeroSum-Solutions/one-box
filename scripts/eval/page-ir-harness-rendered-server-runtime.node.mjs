@@ -16,7 +16,11 @@ test("binds and publishes trusted authority before evaluated app loading and gat
       events.push("published");
       publish();
     },
-    createApp() {
+    createApp(authorityInput) {
+      assert.deepEqual(authorityInput, {
+        hostname: "127.0.0.1",
+        port: authority.port,
+      });
       events.push("created-app");
       return {
         async prepare() {
