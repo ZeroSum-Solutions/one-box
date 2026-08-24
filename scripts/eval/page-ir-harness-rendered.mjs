@@ -132,6 +132,12 @@ export function renderedSandboxProfile({
       throw new Error("rendered sandbox authority is invalid");
     }
   }
+  if (
+    networkMode === "journey" &&
+    (!Number.isInteger(port) || port < 1 || port > 65535)
+  ) {
+    throw new Error("rendered sandbox loopback authority is invalid");
+  }
   const readRoots = [snapshotRoot, temporaryRoot, browserBundleRoot];
   const ancestors = new Set();
   for (const root of readRoots) {
@@ -148,9 +154,7 @@ export function renderedSandboxProfile({
     "(deny file-read* (subpath \"/Users\"))", "(deny file-read* (subpath \"/Volumes\"))",
     "(deny file-read* (subpath \"/private/tmp\"))", "(deny file-read* (subpath \"/private/var/folders\"))",
     "(deny network*)",
-    ...(networkMode === "server" || networkMode === "build"
-      ? ["(allow network-inbound (local tcp \"localhost:*\"))"]
-      : []),
+    ...(networkMode === "server" ? ["(allow network-inbound (local tcp \"localhost:*\"))"] : []),
     ...(networkMode === "journey" ? [`(allow network-outbound (remote tcp \"localhost:${port}\"))`] : []),
     ...[...ancestors].map((directory) => `(allow file-read-metadata (literal "${directory}"))`),
     ...readRoots.flatMap((directory) => [
@@ -241,6 +245,8 @@ export function renderedProductionBuildArgv(runtimeContract) {
     npmCli,
     "run",
     "build",
+    "--",
+    "--webpack",
   ];
 }
 
@@ -289,7 +295,7 @@ export async function executeProductionRenderedEvidence({
   env.NODE_OPTIONS = `--import=${path.join(snapshotRoot, "scripts/eval/page-ir-offline-guard.mjs")}`;
   const build = await runCaptured("production-build", renderedProductionBuildArgv(runtimeContract), {
     cwd: snapshotRoot,
-    env: { ...env, ONEBOX_EVAL_ALLOW_LOOPBACK_LISTEN: "1" },
+    env,
     timeoutMs: 300_000,
     sandboxProfile: buildSandboxProfile,
   });

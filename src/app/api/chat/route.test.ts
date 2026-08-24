@@ -7,7 +7,7 @@ import {
   handleChat,
   startPipelineFromIntake,
   type StartPipelineResult,
-} from "./route";
+} from "./route-runtime";
 import {
   assertPromptOmitsUploadMetadata,
   copyFactsForPrompt,

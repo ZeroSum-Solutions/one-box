@@ -15,10 +15,12 @@ test("rendered production evidence uses the canonical build path", () => {
     "/runtime/npm/bin/npm-cli.js",
     "run",
     "build",
+    "--",
+    "--webpack",
   ]);
 });
 
-test("rendered build permits loopback listen without outbound network", () => {
+test("rendered build denies all network", () => {
   const profile = renderedSandboxProfile({
     snapshotRoot: "/snapshot",
     temporaryRoot: "/temporary",
@@ -28,8 +30,7 @@ test("rendered build permits loopback listen without outbound network", () => {
   });
 
   assert.match(profile, /\(deny network\*\)/);
-  assert.match(profile, /\(allow network-inbound \(local tcp "localhost:\*"\)\)/);
-  assert.doesNotMatch(profile, /allow network-outbound/);
+  assert.doesNotMatch(profile, /allow network/);
 });
 
 test("rendered workers may signal only descendants in the same sandbox", () => {

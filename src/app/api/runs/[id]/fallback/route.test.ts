@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { RunNotFoundError } from "../../../../../lib/runstate";
-import { handleFallbackRequest } from "./route";
+import { handleFallbackRequest } from "./route-runtime";
 
 function localRequest(body?: ReadableStream<Uint8Array>) {
   return new Request("http://localhost:3000/api/runs/page-ir-run/fallback", {
