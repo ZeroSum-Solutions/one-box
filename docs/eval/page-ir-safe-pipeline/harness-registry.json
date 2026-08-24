@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.2.0",
+  "registryVersion": "1.3.0",
   "status": "frozen",
   "evaluationManifest": {
     "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
@@ -14,6 +14,33 @@
     "traceabilityPath": "docs/eval/page-ir-safe-pipeline/traceability.md"
   },
   "evaluations": {
+    "EVAL-OPS-001": {
+      "testFiles": [
+        "src/lib/rolloutObservability.test.ts",
+        "src/lib/pageIrController.test.ts",
+        "src/app/api/runs/[id]/fallback/route.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-OPS-002": {
+      "testFiles": [
+        "src/components/RunTimeline.test.tsx",
+        "src/lib/pageIrController.test.ts",
+        "src/lib/pipelineReplay.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-OPS-003": {
+      "testFiles": [
+        "src/lib/rolloutObservability.test.ts",
+        "src/lib/layoutAuthorityRunstate.test.ts",
+        "src/app/api/chat/route.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
     "EVAL-SEC-001": {
       "testFiles": [
         "src/lib/localApiAuth.test.ts",

@@ -40,6 +40,7 @@ import {
   type HumanVisualReview,
   type LayoutAuthority,
   type PipelineEvent,
+  type PageIrRolloutDecisionV1,
   type RunState,
   type Stage,
   type TemplateFallbackReason,
@@ -54,6 +55,7 @@ import {
   buildVisualQa,
 } from "./evidence";
 import { withFileLock } from "./fileLock";
+import { fallbackCreatedEvent } from "./rolloutObservability";
 
 // Statically scoped subfolder (Turbopack fs-tracing requirement).
 const SITES_ROOT = path.join(process.cwd(), "sites");
@@ -231,6 +233,9 @@ export interface CreateRunOptions {
   /** Required only when creating a new page-ir-v1 run. Existing runs resume
    * from persisted authority without consulting a future rollout decision. */
   pageIrRolloutPermitted?: boolean;
+  /** Optional creation-time rollout evidence. Production intake supplies it
+   * through ensureRun.newRunRolloutDecision; direct fixtures may omit it. */
+  rolloutDecision?: PageIrRolloutDecisionV1;
   /** defaults to the pinned MODELS from contracts.ts (audit #3: record the
    * exact slugs a run used in its own manifest). */
   modelSlugs?: Record<string, string>;
@@ -274,6 +279,7 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
     referenceMode: opts.referenceMode,
     referencePickerEnabled: opts.referencePickerEnabled,
     layoutAuthority,
+    rolloutDecision: opts.rolloutDecision,
   });
 
   await persistNewRun(state);
@@ -283,9 +289,15 @@ export async function createRun(opts: CreateRunOptions = {}): Promise<string> {
 /** Create a pre-reserved run exactly once, or resume its existing state.
  * Options apply only on first creation — an existing run's persisted flags
  * are authoritative and never rewritten here. */
+export interface EnsureRunOptions extends Omit<CreateRunOptions, "id"> {
+  /** Consulted only if this call creates the run. If the run already exists,
+   * its persisted authority and decision win even when process flags changed. */
+  newRunRolloutDecision?: PageIrRolloutDecisionV1;
+}
+
 export async function ensureRun(
   runId: string,
-  opts: Omit<CreateRunOptions, "id"> = {}
+  opts: EnsureRunOptions = {}
 ): Promise<string> {
   assertPublicCreateRunOptions(opts);
   try {
@@ -301,7 +313,19 @@ export async function ensureRun(
     if (!(error instanceof RunNotFoundError)) throw error;
   }
   try {
-    return await createRun({ ...opts, id: runId });
+    const { newRunRolloutDecision, ...createOptions } = opts;
+    return await createRun({
+      ...createOptions,
+      id: runId,
+      ...(newRunRolloutDecision
+        ? {
+            layoutAuthority: newRunRolloutDecision.layoutAuthority,
+            pageIrRolloutPermitted:
+              newRunRolloutDecision.layoutAuthority === "page-ir-v1",
+            rolloutDecision: newRunRolloutDecision,
+          }
+        : {}),
+    });
   } catch (error) {
     if (!(error instanceof RunAlreadyExistsError)) throw error;
     return ensureRun(runId, opts);
@@ -375,6 +399,9 @@ function assertStoredRunMutation(existing: RunState, next: RunState): void {
   if (existing.id !== next.id) throw new Error("run ID is immutable");
   if (existing.layoutAuthority !== next.layoutAuthority) {
     throw new Error("run layout authority is immutable");
+  }
+  if (!equalPersistedValue(existing.rolloutDecision, next.rolloutDecision)) {
+    throw new Error("run rollout decision is immutable");
   }
   if (!equalPersistedValue(existing.fallbackOrigin, next.fallbackOrigin)) {
     throw new Error("run fallback origin is immutable");
@@ -784,6 +811,7 @@ export async function createTemplateFallbackRun(
       };
       const child = await loadRun(source.templateFallback.childRunId);
       assertFallbackChildOrigin(child, origin);
+      await ensureTemplateFallbackEvent(source);
       await removeFallbackClaim(sourceRunId);
       return source.templateFallback.childRunId;
     }
@@ -831,9 +859,26 @@ export async function createTemplateFallbackRun(
     };
     await saveRunUnlocked(source);
     await hooks.afterSourceLink?.();
+    await ensureTemplateFallbackEvent(source);
     await removeFallbackClaim(sourceRunId);
     return claim.childRunId;
   });
+}
+
+async function ensureTemplateFallbackEvent(source: RunState): Promise<void> {
+  const link = source.templateFallback;
+  if (!link) throw new Error("template fallback event requires a source link");
+  const events = await readEvents(source.id);
+  const alreadyRecorded = events.some(
+    (event) =>
+      event.type === "fallback-created" &&
+      event.sourceRunId === source.id &&
+      event.fallbackRunId === link.childRunId &&
+      event.reason === link.reason &&
+      event.failedStage === link.failure.stage,
+  );
+  if (alreadyRecorded) return;
+  await appendEvent(source.id, fallbackCreatedEvent(source));
 }
 
 // ---------- artifacts ----------

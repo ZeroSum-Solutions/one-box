@@ -127,6 +127,67 @@ export function timelineNode(item: TimelineItem, runId: string, dropMap = false)
           }]}
         />
       );
+    case "lifecycle":
+      return (
+        <StageCard
+          key={key}
+          stage="built"
+          title={event.message}
+          body={`Class: ${event.outcomeClass}\nNext action: ${event.nextAction}`}
+          tone={event.status === "failed" ? "error" : undefined}
+        />
+      );
+    case "provenance": {
+      const provenance = event.provenance;
+      const lines = [
+        `Authority: ${provenance.layoutAuthority}`,
+        `Compiler: ${provenance.compilerVersion}`,
+        `Inputs: ${provenance.inputArtifactHashes.map((input) => `${input.path}=${input.sha256.slice(0, 12)}`).join(", ")}`,
+        provenance.pageIrSha256
+          ? `Page IR: ${provenance.pageIrSha256.slice(0, 12)}`
+          : undefined,
+        provenance.candidateManifestSha256
+          ? `Candidate manifest: ${provenance.candidateManifestSha256.slice(0, 12)}`
+          : undefined,
+        provenance.candidateBuildSha256
+          ? `Candidate build: ${provenance.candidateBuildSha256.slice(0, 12)}`
+          : undefined,
+        provenance.gateReportSha256
+          ? `Gate report: ${provenance.gateReportSha256.slice(0, 12)}`
+          : undefined,
+        provenance.promotedBuildSha256
+          ? `Promoted build: ${provenance.promotedBuildSha256.slice(0, 12)}`
+          : undefined,
+        provenance.reviewSha256
+          ? `Human review: ${provenance.reviewSha256.slice(0, 12)}`
+          : "Human review: pending",
+        provenance.fallback
+          ? `Fallback ${provenance.fallback.relationship}: ${provenance.fallback.linkedRunId} (${provenance.fallback.reason})`
+          : undefined,
+      ].filter((line): line is string => Boolean(line));
+      return (
+        <StageCard
+          key={key}
+          stage="built"
+          title="Build provenance"
+          body={lines.join("\n")}
+        />
+      );
+    }
+    case "fallback-created":
+      return (
+        <StageCard
+          key={key}
+          stage="built"
+          title="Template fallback created"
+          body={`Source run: ${event.sourceRunId}\nFailed stage: ${event.failedStage}\nReason: ${event.reason}\nThe failed Page IR run and its artifacts remain unchanged.`}
+          links={[{
+            kind: "artifact",
+            label: "Open template fallback run",
+            href: `/?run=${event.fallbackRunId}`,
+          }]}
+        />
+      );
     default:
       return null; // "cost"/"complete" drive the cost chip and the preview link, not a card
   }
@@ -160,7 +221,10 @@ function groupTimelineByStage(timeline: TimelineItem[]): StageGroup[] {
     if (
       event.type === "stage" ||
       event.type === "card" ||
-      event.type === "page-ir-source-paused"
+      event.type === "page-ir-source-paused" ||
+      event.type === "lifecycle" ||
+      event.type === "provenance" ||
+      event.type === "fallback-created"
     ) lastStage = event.stage;
 
     let group = byStage.get(lastStage);
@@ -226,7 +290,9 @@ function eventTimestamp(event: PipelineEvent): string | undefined {
     event.type === "stage" ||
     event.type === "paused" ||
     event.type === "reference-paused" ||
-    event.type === "page-ir-source-paused"
+    event.type === "page-ir-source-paused" ||
+    event.type === "lifecycle" ||
+    event.type === "fallback-created"
   ) {
     return event.at;
   }

@@ -20,6 +20,8 @@ const ATTEMPT_ID = "018f3f39-d1e2-7c3a-9b4d-5e6f708192a3";
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.ONE_BOX_API_TOKEN;
+  delete process.env.ONE_BOX_PAGE_IR_ROLLOUT;
+  delete process.env.ONE_BOX_PAGE_IR_KILL_SWITCH;
 });
 
 const context = {
@@ -543,6 +545,88 @@ describe("chat intake request", () => {
 
     expect(ensureRun).toHaveBeenCalledOnce();
     expect(claimUploadSession).toHaveBeenCalledOnce();
+  });
+
+  it("captures the current rollout decision independently for each new production run", async () => {
+    process.env.ONE_BOX_PAGE_IR_ROLLOUT = "1";
+    const ensureRun = vi.fn().mockResolvedValue("page-ir-run");
+    const dependencies = {
+      ensureRun,
+      claimUploadSession: vi.fn().mockResolvedValue([]),
+      removeRun: vi.fn(),
+      runIntakeAttempt: async (
+        attemptId: string,
+        _fingerprint: string,
+        operation: (runId: string) => Promise<StartPipelineResult>,
+      ) => operation(
+        attemptId === ATTEMPT_ID ? "page-ir-run" : "template-run",
+      ),
+      startStage: vi.fn(),
+      saveArtifact: vi.fn(),
+      finishStage: vi.fn(),
+    };
+
+    await startPipelineFromIntake(
+      {
+        businessName: "Acme",
+        category: "fiber installer",
+        location: "Reno, NV",
+        services: ["Installation"],
+        primaryAction: "quote",
+        certifications: [],
+        claims: [],
+        vibeWords: [],
+        projectTarget: "website",
+        research: context.research,
+        uploads: [],
+      },
+      context,
+      ATTEMPT_ID,
+      "a".repeat(64),
+      dependencies,
+    );
+
+    expect(ensureRun).toHaveBeenNthCalledWith(1, "page-ir-run", {
+      referencePickerEnabled: false,
+      newRunRolloutDecision: {
+        schemaVersion: 1,
+        rolloutEnabled: true,
+        killSwitchEngaged: false,
+        layoutAuthority: "page-ir-v1",
+        reason: "rollout-enabled",
+      },
+    });
+
+    process.env.ONE_BOX_PAGE_IR_KILL_SWITCH = "1";
+    await startPipelineFromIntake(
+      {
+        businessName: "Beta",
+        category: "fiber installer",
+        location: "Reno, NV",
+        services: ["Installation"],
+        primaryAction: "quote",
+        certifications: [],
+        claims: [],
+        vibeWords: [],
+        projectTarget: "website",
+        research: context.research,
+        uploads: [],
+      },
+      context,
+      "018f3f39-d1e2-7c3a-9b4d-5e6f708192a4",
+      "b".repeat(64),
+      dependencies,
+    );
+    expect(ensureRun).toHaveBeenNthCalledWith(2, "template-run", {
+      referencePickerEnabled: false,
+      newRunRolloutDecision: {
+        schemaVersion: 1,
+        rolloutEnabled: true,
+        killSwitchEngaged: true,
+        layoutAuthority: "template-v1",
+        reason: "kill-switch",
+      },
+    });
   });
 
   it.each(["web-app", "ios-app"] as const)(

@@ -563,7 +563,63 @@ export interface CandidateRecoveryResult {
   action: CandidateRecoveryAction;
   state?: CandidateState;
   reason?: string;
+  /** Closed list of mutations or blocking outcomes performed by this recovery
+   * invocation. Absent steady-state inspections must not create UI events. */
+  performedActions?: CandidateRecoveryPerformedAction[];
 }
+
+export type CandidateRecoveryPerformedAction =
+  | "page-ir-edit-rolled-back"
+  | "page-ir-edit-finalized"
+  | "candidate-reconciled"
+  | "promotion-reconciled"
+  | "temporary-files-cleaned"
+  | "candidate-abandoned"
+  | "recovery-blocked";
+
+class CandidateRecoveryMutationError extends Error {
+  constructor(
+    readonly recoveryCause: unknown,
+    readonly performedActions: CandidateRecoveryPerformedAction[],
+    readonly phase: "mutation" | "validation",
+  ) {
+    super(
+      recoveryCause instanceof Error
+        ? recoveryCause.message
+        : "candidate recovery validation failed after mutation",
+    );
+    this.name = "CandidateRecoveryMutationError";
+  }
+}
+
+const CandidateRecoveryRecordSchema = z.object({
+  schemaVersion: z.literal(1),
+  action: z.enum([
+    "absent",
+    "resume-gates",
+    "retain-failed",
+    "retain-promotable",
+    "completed",
+    "retain-abandoned",
+    "abandoned",
+    "blocked",
+  ]),
+  state: CandidateStateSchema.optional(),
+  reason: z.string().max(240).optional(),
+  performedActions: z.array(z.enum([
+    "page-ir-edit-rolled-back",
+    "page-ir-edit-finalized",
+    "candidate-reconciled",
+    "promotion-reconciled",
+    "temporary-files-cleaned",
+    "candidate-abandoned",
+    "recovery-blocked",
+  ])).min(1).optional(),
+  at: z.string().datetime(),
+}).strict();
+export type CandidateRecoveryRecord = z.infer<
+  typeof CandidateRecoveryRecordSchema
+>;
 
 const RECOVERY_REASON_MAX = 240;
 
@@ -575,16 +631,40 @@ async function recordRecovery(
   runId: string,
   result: CandidateRecoveryResult,
 ): Promise<CandidateRecoveryResult> {
-  const record = {
+  const existing = await loadCandidateRecoveryRecord(runId);
+  if (
+    !result.performedActions?.length &&
+    existing?.performedActions?.length
+  ) {
+    return result;
+  }
+  const record = CandidateRecoveryRecordSchema.parse({
     schemaVersion: 1,
     ...result,
     at: new Date().toISOString(),
-  };
+  });
   await durableAtomicWrite(
     path.join(sitePaths(runId).root, "candidate-recovery.json"),
     `${JSON.stringify(record, null, 2)}\n`,
   );
   return result;
+}
+
+/** Last durable recovery observation. A meaningful performedActions record is
+ * retained across later no-op inspections until its matching lifecycle event
+ * can be reprojected into the append-only run log. */
+export async function loadCandidateRecoveryRecord(
+  runId: string,
+): Promise<CandidateRecoveryRecord | undefined> {
+  try {
+    return CandidateRecoveryRecordSchema.parse(JSON.parse(await fs.readFile(
+      path.join(sitePaths(runId).root, "candidate-recovery.json"),
+      "utf8",
+    )));
+  } catch (error) {
+    if (isEnoent(error)) return undefined;
+    throw error;
+  }
 }
 
 const PAGE_IR_EDIT_JOURNAL_DIRECTORY = ".page-ir-edit-transaction";
@@ -1039,12 +1119,22 @@ async function recoverCanonicalCandidate(
     ...leftovers.repairBackups,
     ...leftovers.retiredCandidates,
   ];
+  let reconciled = false;
   if (await lstatMaybe(canonical.root)) {
     const inspection = await inspectCandidateAtRoot(runId, canonical);
-    await Promise.all(resumable.map((root) =>
-      fs.rm(root, { recursive: true, force: true }),
-    ));
-    if (resumable.length > 0) await syncDirectory(sitePaths(runId).root);
+    try {
+      for (const root of resumable) {
+        await fs.rm(root, { recursive: true, force: true });
+        reconciled = true;
+      }
+      if (resumable.length > 0) await syncDirectory(sitePaths(runId).root);
+    } catch (error) {
+      throw new CandidateRecoveryMutationError(
+        error,
+        reconciled ? ["candidate-reconciled"] : [],
+        "mutation",
+      );
+    }
     return inspection;
   }
 
@@ -1057,24 +1147,52 @@ async function recoverCanonicalCandidate(
       // Invalid unserved leftovers are never promoted or selected.
     }
   }
-  if (valid.length === 1) {
-    await fs.rename(valid[0].root, canonical.root);
-    await syncDirectory(sitePaths(runId).root);
-  } else if (valid.length > 1) {
+  if (valid.length > 1) {
     throw new Error("ambiguous candidate recovery: multiple valid leftovers");
-  } else if (resumable.length > 0) {
+  }
+  if (valid.length === 0 && resumable.length > 0) {
     throw new Error("candidate recovery blocked: no valid transaction leftover");
   }
-  await Promise.all(resumable.filter((root) => root !== valid[0]?.root).map((root) =>
-    fs.rm(root, { recursive: true, force: true }),
-  ));
-  if (resumable.length > valid.length) await syncDirectory(sitePaths(runId).root);
-  return inspectCandidateAtRoot(runId, canonical);
+  const discarded = resumable.filter((root) => root !== valid[0]?.root);
+  try {
+    if (valid.length === 1) {
+      await fs.rename(valid[0].root, canonical.root);
+      reconciled = true;
+      await syncDirectory(sitePaths(runId).root);
+    }
+    for (const root of discarded) {
+      await fs.rm(root, { recursive: true, force: true });
+      reconciled = true;
+    }
+    if (discarded.length > 0) await syncDirectory(sitePaths(runId).root);
+  } catch (error) {
+    if (reconciled) {
+      throw new CandidateRecoveryMutationError(
+        error,
+        ["candidate-reconciled"],
+        "mutation",
+      );
+    }
+    throw error;
+  }
+  try {
+    return await inspectCandidateAtRoot(runId, canonical);
+  } catch (error) {
+    if (reconciled) {
+      throw new CandidateRecoveryMutationError(
+        error,
+        ["candidate-reconciled"],
+        "validation",
+      );
+    }
+    throw error;
+  }
 }
 
 async function abandonInvalidCanonicalCandidate(
   runId: string,
   reason: string,
+  priorActions: CandidateRecoveryPerformedAction[] = [],
 ): Promise<CandidateRecoveryResult | undefined> {
   const paths = candidatePaths(runId);
   try {
@@ -1092,6 +1210,7 @@ async function abandonInvalidCanonicalCandidate(
       action: "abandoned",
       state: "abandoned",
       reason: boundedRecoveryReason(reason),
+      performedActions: [...priorActions, "candidate-abandoned"],
     });
   } catch {
     return undefined;
@@ -1103,40 +1222,93 @@ async function abandonInvalidCanonicalCandidate(
  * and reports the next already-authorized lifecycle action. */
 export function recoverCandidateState(runId: string): Promise<CandidateRecoveryResult> {
   return withSiteAuthorityLock(runId, async () => {
+    const performedActions: CandidateRecoveryPerformedAction[] = [];
     try {
-      await recoverPageIrEditTransactionUnderSiteAuthority(runId);
+      const editRecovery = await recoverPageIrEditTransactionUnderSiteAuthority(runId);
+      if (editRecovery === "rolled-back") {
+        performedActions.push("page-ir-edit-rolled-back");
+      } else if (editRecovery === "finalized") {
+        performedActions.push("page-ir-edit-finalized");
+      }
     } catch (error) {
       return recordRecovery(runId, {
         action: "blocked",
         reason: boundedRecoveryReason(error instanceof Error ? error.message : "Page IR edit transaction recovery failed"),
+        performedActions: ["recovery-blocked"],
       });
     }
     const leftovers = await candidateLeftovers(runId);
+    const candidateLeftoverCount =
+      leftovers.building.length +
+      leftovers.repairing.length +
+      leftovers.repairBackups.length +
+      leftovers.retiredCandidates.length;
+    const promotionLeftoverCount =
+      leftovers.promotionStages.length + leftovers.promotionRetired.length;
+    const temporaryFileCount = leftovers.temporaryFiles.length;
     let inspection: CandidateInspection;
     try {
       inspection = await recoverCanonicalCandidate(runId, leftovers);
+      if (candidateLeftoverCount > 0) {
+        performedActions.push("candidate-reconciled");
+      }
     } catch (error) {
-      const reason = error instanceof Error ? error.message : "candidate validation failed";
-      if (error instanceof LayoutAuthorityMismatchError) {
-        return {
+      const mutationError = error instanceof CandidateRecoveryMutationError
+        ? error
+        : undefined;
+      const recoveryCause = mutationError?.recoveryCause ?? error;
+      const completedActions = [
+        ...performedActions,
+        ...(mutationError?.performedActions ?? []),
+      ];
+      const reason = recoveryCause instanceof Error
+        ? recoveryCause.message
+        : "candidate validation failed";
+      if (mutationError?.phase === "mutation") {
+        return recordRecovery(runId, {
           action: "blocked",
           reason: boundedRecoveryReason(reason),
-        };
+          performedActions: [...completedActions, "recovery-blocked"],
+        });
       }
-      const abandoned = await abandonInvalidCanonicalCandidate(runId, reason);
+      if (recoveryCause instanceof LayoutAuthorityMismatchError) {
+        const blocked: CandidateRecoveryResult = {
+          action: "blocked",
+          reason: boundedRecoveryReason(reason),
+          performedActions: [...completedActions, "recovery-blocked"],
+        };
+        return completedActions.length > 0
+          ? recordRecovery(runId, blocked)
+          : blocked;
+      }
+      const abandoned = await abandonInvalidCanonicalCandidate(
+        runId,
+        reason,
+        completedActions,
+      );
       if (abandoned) return abandoned;
       return recordRecovery(runId, {
         action: "blocked",
         reason: boundedRecoveryReason(reason),
+        performedActions: [...completedActions, "recovery-blocked"],
       });
     }
     try {
       await restorePromotionFootprint(runId, leftovers, inspection);
+      if (promotionLeftoverCount > 0) {
+        performedActions.push("promotion-reconciled");
+      }
       await Promise.all(leftovers.temporaryFiles.map((entry) =>
         fs.rm(entry, { force: true }),
       ));
+      if (temporaryFileCount > 0) {
+        performedActions.push("temporary-files-cleaned");
+      }
       if (inspection.status === "absent") {
-        return recordRecovery(runId, { action: "absent" });
+        return recordRecovery(runId, {
+          action: "absent",
+          ...(performedActions.length > 0 ? { performedActions } : {}),
+        });
       }
       if (inspection.provenance.state === "preparing") {
         const reason = boundedRecoveryReason(
@@ -1156,6 +1328,7 @@ export function recoverCandidateState(runId: string): Promise<CandidateRecoveryR
           action: "abandoned",
           state: inspection.status === "present" ? inspection.provenance.state : "abandoned",
           reason,
+          performedActions: [...performedActions, "candidate-abandoned"],
         });
       }
       if (["ready-for-gates", "failed", "promotable"].includes(
@@ -1183,6 +1356,7 @@ export function recoverCandidateState(runId: string): Promise<CandidateRecoveryR
             action: "abandoned",
             state: "abandoned",
             reason,
+            performedActions: [...performedActions, "candidate-abandoned"],
           });
         }
       }
@@ -1215,18 +1389,27 @@ export function recoverCandidateState(runId: string): Promise<CandidateRecoveryR
       return recordRecovery(runId, {
         action: action[inspection.provenance.state],
         state: inspection.provenance.state,
+        ...(performedActions.length > 0 ? { performedActions } : {}),
       });
     } catch (error) {
       if (error instanceof LayoutAuthorityMismatchError) {
-        return {
+        const blocked: CandidateRecoveryResult = {
           action: "blocked",
           reason: boundedRecoveryReason(error.message),
+          performedActions: [...performedActions, "recovery-blocked"],
         };
+        return performedActions.length > 0
+          ? recordRecovery(runId, blocked)
+          : blocked;
       }
       const reason = boundedRecoveryReason(
         error instanceof Error ? error.message : "candidate recovery failed",
       );
-      return recordRecovery(runId, { action: "blocked", reason });
+      return recordRecovery(runId, {
+        action: "blocked",
+        reason,
+        performedActions: [...performedActions, "recovery-blocked"],
+      });
     }
   });
 }

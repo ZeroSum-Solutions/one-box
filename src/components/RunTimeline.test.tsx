@@ -120,4 +120,79 @@ describe("RunTimeline PageIR truth", () => {
     expect(html).toContain("{ complete }");
     expect(html).toContain("Open preview");
   });
+
+  it("renders five distinct structured lifecycle outcomes with actionable next steps", () => {
+    const cases = [
+      ["candidate-failure", "Candidate creation failed", "Retry candidate creation"],
+      ["repair-failure", "Candidate repair failed", "Inspect repair diagnostics"],
+      ["gate-failure", "Quality gates blocked promotion", "Review blocking gate details"],
+      ["promotion-failure", "Atomic promotion failed", "Retry promotion"],
+      ["recovery-action", "Recovery restored a candidate", "Resume from the reported boundary"],
+    ] as const;
+
+    for (const [outcomeClass, message, nextAction] of cases) {
+      const html = renderToStaticMarkup(<>{timelineNode({
+        key: outcomeClass,
+        event: {
+          type: "lifecycle",
+          stage: "built",
+          outcomeClass,
+          status: outcomeClass === "recovery-action" ? "action" : "failed",
+          message,
+          nextAction,
+          at: "2026-08-24T12:00:00.000Z",
+        },
+      }, "run-review")}</>);
+      expect(html).toContain(message);
+      expect(html).toContain(nextAction);
+      expect(html).toContain(outcomeClass);
+    }
+  });
+
+  it("renders a durable linked template fallback with its server-owned reason", () => {
+    const html = renderTimeline([{
+      type: "fallback-created",
+      stage: "built",
+      sourceRunId: "run-review",
+      fallbackRunId: "template-child",
+      reason: "operator-requested-after-failure",
+      failedStage: "built",
+      at: "2026-08-24T12:00:00.000Z",
+    }]);
+
+    expect(html).toContain("Template fallback created");
+    expect(html).toContain("operator-requested-after-failure");
+    expect(html).toContain('href="/?run=template-child"');
+    expect(html).not.toContain("Open preview");
+  });
+
+  it("renders the validated build provenance chain without calling a candidate live", () => {
+    const html = renderToStaticMarkup(<>{timelineNode({
+      key: "provenance",
+      event: {
+        type: "provenance",
+        stage: "built",
+        provenance: {
+          schemaVersion: 1,
+          runId: "run-review",
+          layoutAuthority: "page-ir-v1",
+          inputArtifactHashes: [{ path: "page-ir.json", sha256: "a".repeat(64) }],
+          pageIrSha256: "a".repeat(64),
+          compilerVersion: "page-ir-static@3",
+          candidateManifestSha256: "b".repeat(64),
+          candidateBuildSha256: "c".repeat(64),
+          gateReportSha256: "d".repeat(64),
+          promotedBuildSha256: "c".repeat(64),
+          reviewSha256: "e".repeat(64),
+          reviewBuildSha256: "c".repeat(64),
+        },
+      },
+    }, "run-review")}</>);
+    expect(html).toContain("Build provenance");
+    expect(html).toContain("page-ir-static@3");
+    expect(html).toContain("aaaaaaaaaaaa");
+    expect(html).toContain("Candidate build: cccccccccccc");
+    expect(html).toContain("eeeeeeeeeeee");
+    expect(html).not.toContain("Open preview");
+  });
 });

@@ -405,6 +405,57 @@ layout, candidate, live site, gate, evidence, and visual artifacts are never
 copied. OBX-024 still owns Page IR persistence/routing; OBX-050 owns any
 operator/API surface.
 
+`startPipelineFromIntake` reads the rollout environment exactly once when it
+creates a run and persists a closed `rolloutDecision` beside the selected
+authority. `ONE_BOX_PAGE_IR_ROLLOUT=1` opts new runs into `page-ir-v1`;
+`ONE_BOX_PAGE_IR_KILL_SWITCH=1` takes precedence and selects `template-v1` for
+new runs. Resume and replay ignore later environment changes and use the stored
+authority. Run-state mutation rejects attempts to change either the authority
+or its rollout decision.
+
+`POST /api/runs/[id]/fallback` is the explicit local operator boundary. It
+accepts only the path run ID and supplies the server-owned
+`operator-requested-after-failure` reason to `createTemplateFallbackRun`.
+Authorization is checked before validation or mutation. The resulting child is
+a linked `template-v1` run; the failed Page IR source remains independently
+inspectable.
+
+The append-only pipeline event stream has three operational records. A closed
+`lifecycle` event distinguishes candidate, repair, gate, promotion, and actual
+recovery actions and carries a bounded next step. Candidate and gate guidance
+is authority-aware, so only a failed Page IR run offers template fallback;
+blocked recovery is a failure that requires inspection, and promotion failure
+copy makes no claim about potentially ambiguous live state. A strict `provenance` event
+links the run decision and input hashes through Page IR, compiler, candidate,
+gates, promotion, named-human review, and any fallback relationship. A
+`fallback-created` event records the durable source/child relationship after
+the fallback transaction commits; retries deduplicate that exact relationship
+and the timeline links to the separate template run. Because event append is a
+projection rather than transaction authority, reconnect reconstructs a missing
+fallback record and its provenance from the immutable source link and child
+run. Meaningful candidate recovery is likewise retained in the strict
+`candidate-recovery.json` record and reprojected if its first event append was
+interrupted; no-op inspections do not replace that record. Supplemental
+Pure authority mismatch deliberately writes no recovery record: the mismatch
+is stable, is re-detected on every reconnect, and the stronger fail-closed
+invariant forbids candidate/live/report mutation. If recovery completed a
+one-time cleanup before discovering a later mismatch, only then is that action
+plus the block recorded so reconnect cannot lose the completed outcome. A
+post-rename validation failure carries the completed reconciliation action
+through the error boundary for the same reason. A
+currently blocked recovery is an early replay boundary: the pipeline delivers
+the failed recovery event plus a terminal error and does not re-enter candidate
+inspection or controller execution. A retained historical blocked record may
+restore a missing event, but cannot stop execution after the current recovery
+inspection reports the condition resolved.
+Other supplemental lifecycle, provenance, fallback, and cost records after a terminal event keep
+the run terminal, while later real stage or card progress deliberately resumes
+projection. Recovery emits an action only when `recoverCandidateState` reports
+work it actually performed. None of these events grants live authority: the
+Page IR controller emits provenance only after atomic promotion, adds review
+hashes only after the matching named-human approval passes the build-binding
+assertion, and exposes preview only after the terminal live event.
+
 The frozen generated-site structure is
 `templates/local-service/index.html.tpl`, `site.css`, `tokens.css.tpl`, and the
 supporting runtime files. The builder and contracts define what can be emitted;

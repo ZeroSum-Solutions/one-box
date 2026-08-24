@@ -145,6 +145,30 @@ provenance, placement, and blocking-gate recovery. Route tests separately exerci
 valid same-origin Start replay and hostile Host authority without a provider call.
 Component and route PASS does not replace these rendered journeys.
 
+OBX-050 registers the credential-free `EVAL-OPS-001`, `EVAL-OPS-002`, and
+`EVAL-OPS-003` suites in harness registry `1.3.0`. The sealed suites verify the
+closed provenance/event contracts, failure-class projection, immutable
+creation-time rollout decision, kill-switch precedence, and separate linked
+fallback. Producer-level regressions exercise the real build/gate failure seam,
+durable recovery reprojection after an interrupted event append, and fallback
+event/provenance reconstruction from persisted run authority. `EVAL-OPS-002`
+has an additional merge-blocking rendered owner gate:
+`scripts/e2e/rollout-observability.mjs` streams all five lifecycle classes and a
+full provenance chain into the production application and verifies their exact
+operator copy, the durable fallback relationship/link, terminal failure state,
+and absence of an Open preview action.
+It runs as part of:
+
+```sh
+npm run build
+# start that production build on ONEBOX_BASE_URL, then:
+npm run test:e2e:page-ir
+```
+
+The registry result is contract evidence; the production-browser command is
+the rendered evidence required by `EVAL-OPS-002`. Neither substitutes for the
+named-human promotion review.
+
 The evaluator reads only the sealed fixture and browser roots, executes from the bound
 Git commit with dependencies installed offline from `package-lock.json`, receives no
 provider credentials, cannot access host loopback or external networks, cannot read

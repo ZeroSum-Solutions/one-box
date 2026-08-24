@@ -917,12 +917,27 @@ export function gateAndRepairBuiltCandidate(
     if (initial.state === "promotable") {
       return { disposition: initial, repairCompleted: false };
     }
-    const repaired = await repairFailedCandidate(runId, provider);
+    let repaired;
+    try {
+      repaired = await repairFailedCandidate(runId, provider);
+    } catch (error) {
+      throw new CandidateRepairError(
+        error instanceof Error ? error.message : String(error),
+        { cause: error },
+      );
+    }
     return {
       disposition: repaired ?? initial,
       repairCompleted: repaired !== undefined,
     };
   })();
+}
+
+export class CandidateRepairError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "CandidateRepairError";
+  }
 }
 
 async function compileSiteToDirectory(

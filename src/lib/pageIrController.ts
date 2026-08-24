@@ -10,6 +10,7 @@ import {
   ReferenceLockSchema,
   VisualQaSchema,
   workflowArtifactApprovalState,
+  type HumanVisualReview,
   type PipelineEvent,
   type PageIrGeneratedSourcesV1,
   type PageIrSourceBundleV1,
@@ -49,6 +50,10 @@ import {
   withRunTransaction,
   assertVisualQaApprovedForBuild,
 } from "./runstate";
+import {
+  buildRunProvenance,
+  lifecycleEvent,
+} from "./rolloutObservability";
 
 const MAX_FACT_TEXT = 500;
 const MAX_FACT_ITEMS = 24;
@@ -375,6 +380,7 @@ type PageIrBuildControllerDependencies = {
   finishStage: typeof finishStage;
   failStage: typeof failStage;
   assertVisualQaApprovedForBuild: typeof assertVisualQaApprovedForBuild;
+  buildRunProvenance: typeof buildRunProvenance;
 };
 
 const defaultPageIrBuildControllerDependencies: PageIrBuildControllerDependencies = {
@@ -392,6 +398,7 @@ const defaultPageIrBuildControllerDependencies: PageIrBuildControllerDependencie
   finishStage,
   failStage,
   assertVisualQaApprovedForBuild,
+  buildRunProvenance,
 };
 
 async function loadOrDerivePersistedPageIr(
@@ -474,10 +481,22 @@ export async function executePageIrBuildController(
 
   let inspection = await dependencies.inspectCandidate(runId);
   if (inspection.status === "absent") {
-    const materialized = await dependencies.materializePageIrCandidate(
-      runId,
-      persisted,
-    );
+    let materialized;
+    try {
+      materialized = await dependencies.materializePageIrCandidate(
+        runId,
+        persisted,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await dependencies.failStage(runId, "built", message);
+      emit(lifecycleEvent(
+        "candidate-failure",
+        message,
+        { layoutAuthority: "page-ir-v1" },
+      ));
+      throw error;
+    }
     emitBuildCard(
       emit,
       "PageIR candidate materialized",
@@ -498,13 +517,28 @@ export async function executePageIrBuildController(
     if (run.stages.built.status !== "failed") {
       await dependencies.failStage(runId, "built", message);
     }
+    emit(lifecycleEvent("gate-failure", message, {
+      layoutAuthority: "page-ir-v1",
+    }));
     emitBuildCard(emit, "PageIR candidate parked", message);
     emit({ type: "error", message });
     return { status: "parked-failed" };
   }
 
   if (inspection.provenance.state === "ready-for-gates") {
-    const disposition = await dependencies.gateBuiltCandidate(runId);
+    let disposition;
+    try {
+      disposition = await dependencies.gateBuiltCandidate(runId);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await dependencies.failStage(runId, "built", message);
+      emit(lifecycleEvent(
+        "gate-failure",
+        message,
+        { layoutAuthority: "page-ir-v1" },
+      ));
+      throw error;
+    }
     emitBuildCard(
       emit,
       disposition.state === "promotable"
@@ -516,17 +550,37 @@ export async function executePageIrBuildController(
     if (disposition.state === "failed") {
       const message = `PageIR candidate is parked after blocking gates (gateReportSha256=${disposition.gateReportSha256})`;
       await dependencies.failStage(runId, "built", message);
+      emit(lifecycleEvent("gate-failure", message, {
+        layoutAuthority: "page-ir-v1",
+      }));
       emit({ type: "error", message });
       return { status: "parked-failed" };
     }
-    await dependencies.promoteCandidate(runId);
+    try {
+      await dependencies.promoteCandidate(runId);
+    } catch (error) {
+      emit(lifecycleEvent(
+        "promotion-failure",
+        error instanceof Error ? error.message : String(error),
+      ));
+      throw error;
+    }
     emitBuildCard(
       emit,
       "PageIR candidate promoted",
       `buildSha256=${inspection.provenance.buildSha256}\ncandidateManifestSha256=${inspection.provenance.candidateManifestSha256}\ngateReportSha256=${disposition.gateReportSha256}`,
     );
   } else if (inspection.provenance.state === "promotable") {
-    const promotion = await dependencies.promoteCandidate(runId);
+    let promotion;
+    try {
+      promotion = await dependencies.promoteCandidate(runId);
+    } catch (error) {
+      emit(lifecycleEvent(
+        "promotion-failure",
+        error instanceof Error ? error.message : String(error),
+      ));
+      throw error;
+    }
     emitBuildCard(
       emit,
       "PageIR candidate promoted",
@@ -566,12 +620,26 @@ export async function executePageIrBuildController(
     "Promoted PageIR visual QA ready",
     `buildSha256=${visualQa.artifact.buildSha256}\nvisualQaVersion=${visualQa.version}`,
   );
-
-  if (workflowArtifactApprovalState(visualQa) === "approved") {
+  const approvalState = workflowArtifactApprovalState(visualQa);
+  let visualReview: HumanVisualReview | undefined;
+  if (approvalState === "approved") {
     dependencies.assertVisualQaApprovedForBuild(
       await dependencies.loadRun(runId),
       live.manifest.buildSha256,
     );
+    visualReview = visualQa.approvalTransitions.at(-1)?.humanVisualReview;
+  }
+  emit({
+    type: "provenance",
+    stage: "built",
+    provenance: dependencies.buildRunProvenance(
+      runAfterQa,
+      live.provenance,
+      visualReview,
+    ),
+  });
+
+  if (approvalState === "approved") {
     emit({ type: "cost", usd: (await dependencies.loadRun(runId)).costUsd });
     emit({
       type: "complete",

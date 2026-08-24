@@ -20,7 +20,7 @@
     "test:smoke": "node scripts/smoke/gates-smoke.mjs && node scripts/smoke/scan-filter-smoke.mjs",
     "test:e2e:intake": "node scripts/e2e/intake-upload.mjs",
     "test:e2e:preview": "node scripts/e2e/preview-workbench.mjs",
-    "test:e2e:page-ir": "npm run test:e2e:intake && npm run test:e2e:preview",
+    "test:e2e:page-ir": "npm run test:e2e:intake && npm run test:e2e:preview && node scripts/e2e/rollout-observability.mjs",
     "test:e2e:canvas": "node scripts/e2e/canvas-coverage.mjs",
     "test:e2e:canvas-contract": "node scripts/e2e/canvas-contract.mjs",
     "test:e2e:canvas-contract:axe": "node scripts/e2e/canvas-contract.mjs --axe",

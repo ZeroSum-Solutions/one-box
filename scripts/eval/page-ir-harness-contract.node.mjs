@@ -88,10 +88,13 @@ test("validates the frozen Page IR harness contract and every registered referen
   assert.equal(result.ticketCount, 22);
   assert.equal(result.credentialFreeTestCount, 10);
   assert.equal(result.contractVersion, "1.0.0");
-  assert.equal(result.registryVersion, "1.2.0");
+  assert.equal(result.registryVersion, "1.3.0");
   assert.equal(result.manifest.evaluations.length, 44);
-  assert.equal(result.registry.registryVersion, "1.2.0");
+  assert.equal(result.registry.registryVersion, "1.3.0");
   assert.deepEqual(Object.keys(result.registry.evaluations).sort(), [
+    "EVAL-OPS-001",
+    "EVAL-OPS-002",
+    "EVAL-OPS-003",
     "EVAL-SEC-001",
     "EVAL-SEC-003",
     "EVAL-WEB-001",
@@ -111,7 +114,7 @@ test("validates the frozen Page IR harness contract and every registered referen
   const cliContract = await validateEvaluationContract({ root: REPOSITORY_ROOT });
   assert.deepEqual(cliContract.errors, []);
   assert.equal(cliContract.manifest.evaluations.length, 44);
-  assert.equal(cliContract.registry.registryVersion, "1.2.0");
+  assert.equal(cliContract.registry.registryVersion, "1.3.0");
   assert.equal(cliContract.manifestSha256, result.manifestSha256);
   assert.equal(cliContract.registrySha256, result.registrySha256);
 });

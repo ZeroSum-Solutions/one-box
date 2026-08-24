@@ -41,6 +41,7 @@ import {
   websiteOnlyProductionResponse,
 } from "../../../lib/productionTarget";
 import { INTAKE_MESSAGE_MAX_CHARS } from "../../../lib/intakeLimits";
+import { selectPageIrRolloutDecision } from "../../../lib/rolloutObservability";
 
 export const maxDuration = 120;
 
@@ -164,10 +165,12 @@ export async function startPipelineFromIntake(
 ): Promise<StartPipelineResult> {
   assertWebsiteProductionTarget(intakeContext.projectTarget);
   return dependencies.runIntakeAttempt(attemptId, requestFingerprint, async (runId) => {
+    const rolloutDecision = selectPageIrRolloutDecision(process.env);
     await dependencies.ensureRun(runId, {
       // Captured once here; the persisted run is authoritative from then on,
       // so flipping the env var mid-run can never change resume semantics.
       referencePickerEnabled: process.env.ONE_BOX_REFERENCE_PICKER === "1",
+      newRunRolloutDecision: rolloutDecision,
     });
     let authoritativeUploads: UploadMetadata[];
     try {

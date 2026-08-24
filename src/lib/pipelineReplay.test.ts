@@ -28,8 +28,10 @@ import {
   replayedConfigurationErrorIsCurrent,
   replayedPauseIsCurrent,
   runPipeline,
+  stageBuild,
 } from "./pipeline";
 import * as pipelineModule from "./pipeline";
+import { CandidateRepairError } from "./builder";
 
 function pendingRun(id: string): RunState {
   return {
@@ -71,6 +73,71 @@ function visualQaChecks(status: "pending" | "pass") {
       : {}),
   }));
 }
+
+describe("template build lifecycle producer", () => {
+  it("classifies a real repair-boundary exception as repair-failure", async () => {
+    const events: PipelineEvent[] = [];
+    const repairError = new CandidateRepairError("repair response was invalid");
+
+    await expect(stageBuild(
+      "repair-failure-run",
+      {} as Intake,
+      { tokens: {}, skeleton: {}, copy: {} } as never,
+      (event) => events.push(event),
+      undefined,
+      undefined,
+      {
+        buildSite: vi.fn().mockResolvedValue(undefined),
+        gateAndRepairBuiltCandidate: vi.fn().mockRejectedValue(repairError),
+      },
+    )).rejects.toBe(repairError);
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass: "repair-failure",
+      status: "failed",
+      message: "repair response was invalid",
+    }));
+  });
+
+  it("classifies a resolved blocking gate disposition as gate-failure", async () => {
+    const events: PipelineEvent[] = [];
+
+    await expect(stageBuild(
+      "gate-failure-run",
+      {} as Intake,
+      { tokens: {}, skeleton: {}, copy: {} } as never,
+      (event) => events.push(event),
+      undefined,
+      undefined,
+      {
+        buildSite: vi.fn().mockResolvedValue(undefined),
+        gateAndRepairBuiltCandidate: vi.fn().mockResolvedValue({
+          repairCompleted: true,
+          disposition: {
+            state: "failed",
+            receipt: {
+              reports: [{
+                gate: "axe",
+                pass: false,
+                blocking: true,
+                details: ["critical accessibility violation"],
+                ranAt: "2026-08-24T12:00:00.000Z",
+              }],
+            },
+          },
+        }),
+      },
+    )).rejects.toThrow(/blocking candidate gates failed: axe/);
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass: "gate-failure",
+      status: "failed",
+      message: expect.stringContaining("axe"),
+    }));
+  });
+});
 
 const disabledResearchIntake = {
   businessName: "Acme",
@@ -233,6 +300,223 @@ describe("pipeline replay", () => {
     expect(executePipeline).toHaveBeenCalledOnce();
     expect(dependencies.readEvents).toHaveBeenCalledOnce();
     expect(dependencies.appendEvent).not.toHaveBeenCalled();
+  });
+
+  it("persists and renders a meaningful recovery action once", async () => {
+    const run = pendingRun("recovered-run");
+    const recovery = {
+      action: "resume-gates" as const,
+      state: "ready-for-gates" as const,
+      performedActions: ["candidate-reconciled" as const],
+    };
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+    await runPipeline("recovered-run", emit, {
+      readEvents: vi.fn().mockResolvedValue([]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      recoverCandidateState: vi.fn().mockResolvedValue(recovery),
+      inspectCandidate: vi.fn().mockResolvedValue({ status: "absent" }),
+      executePipeline,
+    } as never);
+
+    expect(appendEvent).toHaveBeenCalledWith(
+      "recovered-run",
+      expect.objectContaining({
+        type: "lifecycle",
+        outcomeClass: "recovery-action",
+        status: "action",
+        message: expect.stringContaining("candidate-reconciled"),
+      }),
+    );
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass: "recovery-action",
+    }));
+  });
+
+  it("reprojects a durable recovery record when its event append was lost", async () => {
+    const run = pendingRun("durable-recovery-run");
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+
+    await runPipeline(run.id, emit, {
+      readEvents: vi.fn().mockResolvedValue([]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      loadCandidateRecoveryRecord: vi.fn().mockResolvedValue({
+        schemaVersion: 1,
+        action: "resume-gates",
+        state: "ready-for-gates",
+        performedActions: ["candidate-reconciled"],
+        at: "2026-08-24T12:00:00.000Z",
+      }),
+      recoverCandidateState: vi.fn().mockResolvedValue({
+        action: "resume-gates",
+        state: "ready-for-gates",
+      }),
+      inspectCandidate: vi.fn().mockResolvedValue({ status: "absent" }),
+      executePipeline: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    expect(appendEvent).toHaveBeenCalledWith(
+      run.id,
+      expect.objectContaining({
+        type: "lifecycle",
+        outcomeClass: "recovery-action",
+        message: expect.stringContaining("candidate-reconciled"),
+      }),
+    );
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass: "recovery-action",
+    }));
+  });
+
+  it("does not let a stale durable block stop a now-healthy recovery", async () => {
+    const run = pendingRun("resolved-recovery-run");
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+    const inspectCandidate = vi.fn().mockResolvedValue({ status: "absent" });
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+
+    await runPipeline(run.id, vi.fn(), {
+      readEvents: vi.fn().mockResolvedValue([]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      loadCandidateRecoveryRecord: vi.fn().mockResolvedValue({
+        schemaVersion: 1,
+        action: "blocked",
+        reason: "previous recovery block",
+        performedActions: ["recovery-blocked"],
+        at: "2026-08-24T12:00:00.000Z",
+      }),
+      recoverCandidateState: vi.fn().mockResolvedValue({ action: "absent" }),
+      inspectCandidate,
+      executePipeline,
+    } as never);
+
+    expect(appendEvent).not.toHaveBeenCalledWith(
+      run.id,
+      expect.objectContaining({
+        type: "lifecycle",
+        outcomeClass: "recovery-action",
+        status: "failed",
+      }),
+    );
+    expect(inspectCandidate).toHaveBeenCalledOnce();
+    expect(executePipeline).toHaveBeenCalledOnce();
+  });
+
+  it("renders a blocked recovery as a failure with no resume instruction", async () => {
+    const run = pendingRun("blocked-recovery-run");
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+    const inspectCandidate = vi.fn().mockRejectedValue(
+      new Error("blocked recovery must not re-enter candidate inspection"),
+    );
+    const executePipeline = vi.fn();
+    const staleComplete: PipelineEvent = {
+      type: "complete",
+      runId: run.id,
+      previewUrl: `/preview/${run.id}`,
+    };
+    const earlierSameBlock: PipelineEvent = {
+      type: "error",
+      message: "Candidate recovery is blocked: promotion recovery is ambiguous",
+    };
+
+    await runPipeline(run.id, emit, {
+      readEvents: vi.fn().mockResolvedValue([earlierSameBlock, staleComplete]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      recoverCandidateState: vi.fn().mockResolvedValue({
+        action: "blocked",
+        reason: "promotion recovery is ambiguous",
+        performedActions: ["recovery-blocked"],
+      }),
+      inspectCandidate,
+      executePipeline,
+    } as never);
+
+    expect(appendEvent).toHaveBeenCalledWith(
+      run.id,
+      expect.objectContaining({
+        type: "lifecycle",
+        outcomeClass: "recovery-action",
+        status: "failed",
+        nextAction: "Inspect the blocked recovery evidence before any retry or promotion.",
+      }),
+    );
+    expect(appendEvent).toHaveBeenCalledWith(run.id, {
+      type: "error",
+      message: "Candidate recovery is blocked: promotion recovery is ambiguous",
+    });
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass: "recovery-action",
+      status: "failed",
+    }));
+    expect(emit).toHaveBeenCalledWith({
+      type: "error",
+      message: "Candidate recovery is blocked: promotion recovery is ambiguous",
+    });
+    expect(emit).not.toHaveBeenCalledWith(expect.objectContaining({
+      type: "complete",
+    }));
+    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: run.costUsd });
+    expect(inspectCandidate).not.toHaveBeenCalled();
+    expect(executePipeline).not.toHaveBeenCalled();
+  });
+
+  it("reconstructs a durable fallback link before blocked recovery returns", async () => {
+    const run = pendingRun("blocked-linked-fallback-run");
+    run.layoutAuthority = "page-ir-v1";
+    run.stages.built.status = "failed";
+    run.stages.built.error = "candidate gates failed";
+    run.templateFallback = {
+      childRunId: "template-child",
+      reason: "operator-requested-after-failure",
+      failure: {
+        stage: "built",
+        message: "candidate gates failed",
+      },
+    };
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+    const inspectCandidate = vi.fn();
+    const executePipeline = vi.fn();
+
+    await runPipeline(run.id, emit, {
+      readEvents: vi.fn().mockResolvedValue([]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      loadCandidateRecoveryRecord: vi.fn().mockResolvedValue(undefined),
+      recoverCandidateState: vi.fn().mockResolvedValue({
+        action: "blocked",
+        reason: "promotion recovery is ambiguous",
+        performedActions: ["recovery-blocked"],
+      }),
+      inspectCandidate,
+      executePipeline,
+    } as never);
+
+    expect(appendEvent).toHaveBeenCalledWith(run.id, expect.objectContaining({
+      type: "fallback-created",
+      sourceRunId: run.id,
+      fallbackRunId: "template-child",
+    }));
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "fallback-created",
+      fallbackRunId: "template-child",
+    }));
+    expect(inspectCandidate).not.toHaveBeenCalled();
+    expect(executePipeline).not.toHaveBeenCalled();
   });
 
   it("reconnects a PageIR approval pause from real disk without model cost or durable writes", async () => {
@@ -822,6 +1106,192 @@ describe("pipeline replay", () => {
     };
 
     expect(projectPipelineReplayEvents([error, progress])).toEqual([progress]);
+  });
+
+  it("keeps the current terminal when later records only supplement observability", () => {
+    const error: PipelineEvent = { type: "error", message: "candidate gates failed" };
+    const fallback: PipelineEvent = {
+      type: "fallback-created",
+      stage: "built",
+      sourceRunId: "source-run",
+      fallbackRunId: "template-child",
+      reason: "operator-requested-after-failure",
+      failedStage: "built",
+      at: "2026-08-24T12:00:00.000Z",
+    };
+    const recovery: PipelineEvent = {
+      type: "lifecycle",
+      stage: "built",
+      outcomeClass: "recovery-action",
+      status: "action",
+      message: "Recovery reconciled a failed candidate.",
+      nextAction: "Review the recorded recovery result.",
+      at: "2026-08-24T12:01:00.000Z",
+    };
+
+    expect(projectPipelineReplayEvents([error, fallback, recovery]))
+      .toEqual([error, fallback, recovery]);
+  });
+
+  it("reconnects a linked failed Page IR source without duplicating its terminal", async () => {
+    const run = pendingRun("linked-failed-source");
+    run.layoutAuthority = "page-ir-v1";
+    run.stages.built.status = "failed";
+    run.templateFallback = {
+      childRunId: "template-child",
+      reason: "operator-requested-after-failure",
+      failure: {
+        stage: "built",
+        message: "candidate gates failed",
+        messageSha256: "a".repeat(64),
+      },
+    };
+    const error: PipelineEvent = { type: "error", message: "candidate gates failed" };
+    const fallback: PipelineEvent = {
+      type: "fallback-created",
+      stage: "built",
+      sourceRunId: run.id,
+      fallbackRunId: "template-child",
+      reason: "operator-requested-after-failure",
+      failedStage: "built",
+      at: "2026-08-24T12:00:00.000Z",
+    };
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+    await runPipeline(run.id, emit, {
+      readEvents: vi.fn().mockResolvedValue([error, fallback]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      inspectCandidate: vi.fn().mockResolvedValue({
+        status: "present",
+        provenance: {
+          runId: run.id,
+          layoutAuthority: "page-ir-v1",
+          state: "failed",
+          inputArtifactHashes: [{ path: "page-ir.json", sha256: "b".repeat(64) }],
+          pageIrSha256: "b".repeat(64),
+          compilerVersion: "page-ir-static@3",
+          candidateManifestSha256: "c".repeat(64),
+          buildSha256: "d".repeat(64),
+          gateReportSha256: "e".repeat(64),
+        },
+      }),
+      executePipeline,
+    } as never);
+
+    expect(appendEvent).not.toHaveBeenCalledWith(
+      run.id,
+      expect.objectContaining({ type: "error" }),
+    );
+    expect(emit).toHaveBeenCalledWith(error);
+    expect(emit).toHaveBeenCalledWith(fallback);
+    expect(executePipeline).not.toHaveBeenCalled();
+  });
+
+  it("parks a linked Page IR source whose failed candidate is absent", async () => {
+    const run = pendingRun("linked-absent-candidate-source");
+    run.layoutAuthority = "page-ir-v1";
+    run.stages.built.status = "failed";
+    run.stages.built.error = "candidate creation failed";
+    run.templateFallback = {
+      childRunId: "template-child",
+      reason: "operator-requested-after-failure",
+      failure: {
+        stage: "built",
+        message: "candidate creation failed",
+      },
+    };
+    const error: PipelineEvent = {
+      type: "error",
+      message: "candidate creation failed",
+    };
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+    const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+    await runPipeline(run.id, emit, {
+      readEvents: vi.fn().mockResolvedValue([error]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      recoverCandidateState: vi.fn().mockResolvedValue({ action: "absent" }),
+      inspectCandidate: vi.fn().mockResolvedValue({ status: "absent" }),
+      executePipeline,
+    } as never);
+
+    expect(appendEvent).toHaveBeenCalledWith(run.id, expect.objectContaining({
+      type: "fallback-created",
+      fallbackRunId: "template-child",
+    }));
+    expect(emit).toHaveBeenCalledWith(error);
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "fallback-created",
+      fallbackRunId: "template-child",
+    }));
+    expect(executePipeline).not.toHaveBeenCalled();
+  });
+
+  it("reconstructs missing fallback and linked provenance events from durable state", async () => {
+    const run = pendingRun("linked-provenance-source");
+    run.layoutAuthority = "page-ir-v1";
+    run.stages.built.status = "failed";
+    run.templateFallback = {
+      childRunId: "template-child",
+      reason: "operator-requested-after-failure",
+      failure: {
+        stage: "built",
+        message: "candidate gates failed",
+        messageSha256: "a".repeat(64),
+      },
+    };
+    const error: PipelineEvent = { type: "error", message: "candidate gates failed" };
+    const appendEvent = vi.fn().mockResolvedValue(undefined);
+    const emit = vi.fn();
+
+    await runPipeline(run.id, emit, {
+      readEvents: vi.fn().mockResolvedValue([error]),
+      loadRun: vi.fn().mockResolvedValue(run),
+      loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+      appendEvent,
+      inspectCandidate: vi.fn().mockResolvedValue({
+        status: "present",
+        provenance: {
+          runId: run.id,
+          layoutAuthority: "page-ir-v1",
+          state: "failed",
+          inputArtifactHashes: [{ path: "page-ir.json", sha256: "b".repeat(64) }],
+          pageIrSha256: "b".repeat(64),
+          compilerVersion: "page-ir-static@3",
+          candidateManifestSha256: "c".repeat(64),
+          buildSha256: "d".repeat(64),
+          gateReportSha256: "e".repeat(64),
+        },
+      }),
+      executePipeline: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    expect(appendEvent).toHaveBeenCalledWith(run.id, expect.objectContaining({
+      type: "fallback-created",
+      fallbackRunId: "template-child",
+    }));
+    expect(appendEvent).toHaveBeenCalledWith(run.id, expect.objectContaining({
+      type: "provenance",
+      provenance: expect.objectContaining({
+        fallback: expect.objectContaining({
+          relationship: "source",
+          linkedRunId: "template-child",
+        }),
+      }),
+    }));
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "fallback-created",
+    }));
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "provenance",
+    }));
   });
 
   it("attaches simultaneous callers to one pipeline execution", async () => {

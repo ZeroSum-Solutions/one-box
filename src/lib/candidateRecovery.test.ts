@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   candidateManifestSha256,
   createCandidateManifest,
@@ -494,6 +494,10 @@ describe("candidate crash recovery", () => {
     expect(finalizeResult).toEqual({
       action: "completed",
       state: "promoted",
+      performedActions: [
+        "page-ir-edit-finalized",
+        "promotion-reconciled",
+      ],
     });
     expect(await fs.readFile(path.join(roots.root, "page-ir.json"))).toEqual(afterPageIr);
     expect(await fs.readFile(canonical.provenance)).toEqual(promotedBytes);
@@ -543,6 +547,128 @@ describe("candidate crash recovery", () => {
     });
     expect(JSON.parse(await fs.readFile(path.join(sitePaths(runId).root, "candidate-recovery.json"), "utf8")))
       .toMatchObject({ action: "abandoned", reason: result.reason });
+  });
+
+  it("retains a restored-leftover action when post-rename authority validation blocks", async () => {
+    const runId = await createTestRun("recover-restore-mismatch");
+    const canonical = candidatePaths(runId);
+    await writeCandidateBundle(runId, canonical.root, "ready-for-gates");
+    const leftover = `${canonical.root}.building-interrupted`;
+    await fs.rename(canonical.root, leftover);
+    const realRename = fs.rename.bind(fs);
+    const renameSpy = vi.spyOn(fs, "rename").mockImplementation(async (
+      source,
+      destination,
+    ) => {
+      await realRename(source, destination);
+      if (source === leftover && destination === canonical.root) {
+        const provenance = JSON.parse(await fs.readFile(canonical.provenance, "utf8"));
+        provenance.layoutAuthority = "page-ir-v1";
+        provenance.pageIrSha256 = "a".repeat(64);
+        await fs.writeFile(canonical.provenance, JSON.stringify(provenance, null, 2));
+      }
+    });
+
+    try {
+      await expect(recoverCandidateState(runId)).resolves.toMatchObject({
+        action: "blocked",
+        performedActions: ["candidate-reconciled", "recovery-blocked"],
+      });
+    } finally {
+      renameSpy.mockRestore();
+    }
+    expect(JSON.parse(await fs.readFile(
+      path.join(sitePaths(runId).root, "candidate-recovery.json"),
+      "utf8",
+    ))).toMatchObject({
+      action: "blocked",
+      performedActions: ["candidate-reconciled", "recovery-blocked"],
+    });
+  });
+
+  it("retains a successful leftover restore when its directory sync fails", async () => {
+    const runId = await createTestRun("recover-restore-sync");
+    const canonical = candidatePaths(runId);
+    await writeCandidateBundle(runId, canonical.root, "ready-for-gates");
+    const leftover = `${canonical.root}.building-interrupted`;
+    await fs.rename(canonical.root, leftover);
+    const probe = await fs.open(sitePaths(runId).root, "r");
+    const syncSpy = vi.spyOn(Object.getPrototypeOf(probe), "sync")
+      .mockRejectedValueOnce(new Error("injected directory sync failure"));
+    await probe.close();
+
+    try {
+      await expect(recoverCandidateState(runId)).resolves.toMatchObject({
+        action: "blocked",
+        performedActions: ["candidate-reconciled", "recovery-blocked"],
+      });
+    } finally {
+      syncSpy.mockRestore();
+    }
+    expect(JSON.parse(await fs.readFile(canonical.provenance, "utf8")))
+      .toMatchObject({ state: "ready-for-gates" });
+    expect(JSON.parse(await fs.readFile(
+      path.join(sitePaths(runId).root, "candidate-recovery.json"),
+      "utf8",
+    ))).toMatchObject({
+      action: "blocked",
+      performedActions: ["candidate-reconciled", "recovery-blocked"],
+    });
+  });
+
+  it("retains the canonical candidate when leftover cleanup sync fails", async () => {
+    const runId = await createTestRun("recover-cleanup-sync");
+    const canonical = candidatePaths(runId);
+    await writeCandidateBundle(runId, canonical.root, "ready-for-gates");
+    const leftover = `${canonical.root}.building-orphan`;
+    await fs.mkdir(leftover, { recursive: true });
+    await fs.writeFile(path.join(leftover, "partial.txt"), "partial");
+    const probe = await fs.open(sitePaths(runId).root, "r");
+    const syncSpy = vi.spyOn(Object.getPrototypeOf(probe), "sync")
+      .mockRejectedValueOnce(new Error("injected cleanup sync failure"));
+    await probe.close();
+
+    try {
+      await expect(recoverCandidateState(runId)).resolves.toMatchObject({
+        action: "blocked",
+        performedActions: ["candidate-reconciled", "recovery-blocked"],
+      });
+    } finally {
+      syncSpy.mockRestore();
+    }
+    expect(JSON.parse(await fs.readFile(canonical.provenance, "utf8")))
+      .toMatchObject({ state: "ready-for-gates" });
+    await expect(fs.stat(leftover)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(JSON.parse(await fs.readFile(
+      path.join(sitePaths(runId).root, "candidate-recovery.json"),
+      "utf8",
+    ))).toMatchObject({
+      action: "blocked",
+      performedActions: ["candidate-reconciled", "recovery-blocked"],
+    });
+  });
+
+  it("retains the canonical candidate when the first leftover deletion fails", async () => {
+    const runId = await createTestRun("recover-cleanup-delete");
+    const canonical = candidatePaths(runId);
+    await writeCandidateBundle(runId, canonical.root, "ready-for-gates");
+    const leftover = `${canonical.root}.building-orphan`;
+    await fs.mkdir(leftover, { recursive: true });
+    await fs.writeFile(path.join(leftover, "partial.txt"), "partial");
+    const rmSpy = vi.spyOn(fs, "rm")
+      .mockRejectedValueOnce(new Error("injected leftover deletion failure"));
+
+    try {
+      await expect(recoverCandidateState(runId)).resolves.toMatchObject({
+        action: "blocked",
+        performedActions: ["recovery-blocked"],
+      });
+    } finally {
+      rmSpy.mockRestore();
+    }
+    expect(JSON.parse(await fs.readFile(canonical.provenance, "utf8")))
+      .toMatchObject({ state: "ready-for-gates" });
+    await expect(fs.stat(leftover)).resolves.toBeDefined();
   });
 
   it("abandons a hash-invalid resumable candidate without changing the live site", async () => {

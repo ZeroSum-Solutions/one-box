@@ -756,6 +756,38 @@ describe("candidate promotion", () => {
     ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("durably records completed cleanup before a later live-authority block", async () => {
+    const prepared = await fixture();
+    await promoteCandidate(prepared.runId);
+    const leftover = `${candidatePaths(prepared.runId).root}.building-interrupted`;
+    await fs.mkdir(leftover, { recursive: true });
+    await fs.writeFile(path.join(leftover, "partial.txt"), "discarded partial");
+    const liveProvenancePath = path.join(
+      prepared.roots.site,
+      ".one-box",
+      "provenance.json",
+    );
+    const liveProvenance = JSON.parse(
+      await fs.readFile(liveProvenancePath, "utf8"),
+    );
+    liveProvenance.layoutAuthority = "page-ir-v1";
+    liveProvenance.pageIrSha256 = "c".repeat(64);
+    await fs.writeFile(liveProvenancePath, JSON.stringify(liveProvenance, null, 2));
+
+    await expect(recoverCandidateState(prepared.runId)).resolves.toMatchObject({
+      action: "blocked",
+      performedActions: ["candidate-reconciled", "recovery-blocked"],
+    });
+    await expect(fs.stat(leftover)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(JSON.parse(await fs.readFile(
+      path.join(prepared.roots.root, "candidate-recovery.json"),
+      "utf8",
+    ))).toMatchObject({
+      action: "blocked",
+      performedActions: ["candidate-reconciled", "recovery-blocked"],
+    });
+  });
+
   it.each(PROMOTION_FAULT_STEPS)(
     "recovers idempotently after a fresh process exits at %s",
     async (faultStep) => {

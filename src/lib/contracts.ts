@@ -1593,6 +1593,40 @@ export const StageStatusSchema = z.object({
 export const LayoutAuthoritySchema = z.enum(["template-v1", "page-ir-v1"]);
 export type LayoutAuthority = z.infer<typeof LayoutAuthoritySchema>;
 
+export const PageIrRolloutDecisionV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    rolloutEnabled: z.boolean(),
+    killSwitchEngaged: z.boolean(),
+    layoutAuthority: LayoutAuthoritySchema,
+    reason: z.enum(["default-off", "rollout-enabled", "kill-switch"]),
+  })
+  .strict()
+  .superRefine((decision, context) => {
+    const expected = decision.killSwitchEngaged
+      ? { authority: "template-v1", reason: "kill-switch" }
+      : decision.rolloutEnabled
+        ? { authority: "page-ir-v1", reason: "rollout-enabled" }
+        : { authority: "template-v1", reason: "default-off" };
+    if (decision.layoutAuthority !== expected.authority) {
+      context.addIssue({
+        code: "custom",
+        path: ["layoutAuthority"],
+        message: "rollout controls do not select this layout authority",
+      });
+    }
+    if (decision.reason !== expected.reason) {
+      context.addIssue({
+        code: "custom",
+        path: ["reason"],
+        message: "rollout reason does not match the selected controls",
+      });
+    }
+  });
+export type PageIrRolloutDecisionV1 = z.infer<
+  typeof PageIrRolloutDecisionV1Schema
+>;
+
 export const TemplateFallbackReasonSchema = z.enum([
   "page-ir-derivation-failed",
   "page-ir-compilation-failed",
@@ -1860,6 +1894,9 @@ export const RunStateSchema = z.object({
   /** Frozen per-run layout authority. Missing legacy values parse as the
    * current template path without rewriting their persisted bytes. */
   layoutAuthority: LayoutAuthoritySchema.default("template-v1"),
+  /** Creation-time rollout decision. Missing legacy values remain readable;
+   * once present, runstate enforces it as immutable alongside authority. */
+  rolloutDecision: PageIrRolloutDecisionV1Schema.optional(),
   /** Append-only terminal link from a failed PageIR run to its one template
    * fallback child. */
   templateFallback: TemplateFallbackLinkSchema.optional(),
@@ -1871,6 +1908,16 @@ export const RunStateSchema = z.object({
       code: "custom",
       path: ["fallbackOrigin"],
       message: "a run cannot be both a fallback source and fallback child",
+    });
+  }
+  if (
+    state.rolloutDecision &&
+    state.rolloutDecision.layoutAuthority !== state.layoutAuthority
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["rolloutDecision"],
+      message: "run rollout decision must match its immutable layout authority",
     });
   }
   if (state.templateFallback) {
@@ -3507,6 +3554,97 @@ export type CandidateProvenanceV1 = z.infer<
   typeof CandidateProvenanceV1Schema
 >;
 
+export const BuildProvenanceV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    runId: RunIdSchema,
+    layoutAuthority: LayoutAuthoritySchema,
+    rolloutDecision: PageIrRolloutDecisionV1Schema.optional(),
+    inputArtifactHashes: z.array(CandidateInputArtifactHashSchema).min(1),
+    pageIrSha256: Sha256Schema.optional(),
+    compilerVersion: z.string().min(1).max(200),
+    candidateManifestSha256: Sha256Schema.optional(),
+    candidateBuildSha256: Sha256Schema.optional(),
+    gateReportSha256: Sha256Schema.optional(),
+    promotedBuildSha256: Sha256Schema.optional(),
+    reviewSha256: Sha256Schema.optional(),
+    reviewBuildSha256: Sha256Schema.optional(),
+    fallback: z
+      .object({
+        relationship: z.enum(["source", "child"]),
+        linkedRunId: RunIdSchema,
+        reason: TemplateFallbackReasonSchema,
+        failedStage: z.enum(STAGES),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine((provenance, context) => {
+    if (
+      provenance.rolloutDecision &&
+      provenance.rolloutDecision.layoutAuthority !== provenance.layoutAuthority
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["rolloutDecision"],
+        message: "rollout decision must match run layout authority",
+      });
+    }
+    if (provenance.layoutAuthority === "page-ir-v1" && !provenance.pageIrSha256) {
+      context.addIssue({
+        code: "custom",
+        path: ["pageIrSha256"],
+        message: "Page IR provenance requires the persisted Page IR hash",
+      });
+    }
+    if (provenance.layoutAuthority === "template-v1" && provenance.pageIrSha256) {
+      context.addIssue({
+        code: "custom",
+        path: ["pageIrSha256"],
+        message: "template provenance cannot carry a Page IR hash",
+      });
+    }
+    if (
+      Boolean(provenance.candidateManifestSha256) !==
+      Boolean(provenance.candidateBuildSha256)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["candidateBuildSha256"],
+        message: "candidate manifest and build hashes must be linked together",
+      });
+    }
+    if (
+      provenance.promotedBuildSha256 &&
+      provenance.promotedBuildSha256 !== provenance.candidateBuildSha256
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["promotedBuildSha256"],
+        message: "promoted build must match the candidate build",
+      });
+    }
+    if (Boolean(provenance.reviewSha256) !== Boolean(provenance.reviewBuildSha256)) {
+      context.addIssue({
+        code: "custom",
+        path: ["reviewSha256"],
+        message: "review hash and reviewed build hash must be linked together",
+      });
+    }
+    if (
+      provenance.reviewBuildSha256 &&
+      provenance.reviewBuildSha256 !== provenance.promotedBuildSha256
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["reviewBuildSha256"],
+        message: "review must bind the exact promoted build",
+      });
+    }
+  });
+export type BuildProvenanceV1 = z.infer<typeof BuildProvenanceV1Schema>;
+
 export const SiteManifestSchema = z.object({
   entry: z.string(), // "index.html"
   files: z.array(z.string()), // relative paths only, no ".." — validated
@@ -3831,6 +3969,34 @@ export type PipelineEvent =
       workspaceUrl: string;
       note: string;
       at?: string;
+    }
+  | {
+      type: "lifecycle";
+      stage: "built";
+      outcomeClass:
+        | "candidate-failure"
+        | "repair-failure"
+        | "gate-failure"
+        | "promotion-failure"
+        | "recovery-action";
+      status: "failed" | "action";
+      message: string;
+      nextAction: string;
+      at: string;
+    }
+  | {
+      type: "provenance";
+      stage: "built";
+      provenance: BuildProvenanceV1;
+    }
+  | {
+      type: "fallback-created";
+      stage: "built";
+      sourceRunId: string;
+      fallbackRunId: string;
+      reason: TemplateFallbackReason;
+      failedStage: Stage;
+      at: string;
     }
   | { type: "error"; message: string };
 

@@ -10,6 +10,7 @@ import {
   failStage,
   LayoutAuthorityMismatchError,
   loadRun,
+  readEvents,
   saveArtifact,
   saveRun,
   sitePaths,
@@ -77,6 +78,63 @@ describe("persisted layout authority", () => {
     await expect(
       ensureRun(runId, { layoutAuthority: "template-v1" }),
     ).rejects.toThrow("layout authority does not match");
+  });
+
+  it("captures a new-run rollout decision and ignores later flag changes on resume", async () => {
+    const runId = `rollout-capture-${process.pid}`;
+    runIds.push(runId);
+    const enabled = {
+      schemaVersion: 1 as const,
+      rolloutEnabled: true,
+      killSwitchEngaged: false,
+      layoutAuthority: "page-ir-v1" as const,
+      reason: "rollout-enabled" as const,
+    };
+    await ensureRun(runId, { newRunRolloutDecision: enabled });
+    const runPath = path.join(sitePaths(runId).root, RUN_FILE);
+    const before = await fs.readFile(runPath);
+
+    await expect(ensureRun(runId, {
+      newRunRolloutDecision: {
+        schemaVersion: 1,
+        rolloutEnabled: true,
+        killSwitchEngaged: true,
+        layoutAuthority: "template-v1",
+        reason: "kill-switch",
+      },
+    })).resolves.toBe(runId);
+
+    expect(await fs.readFile(runPath)).toEqual(before);
+    expect(await loadRun(runId)).toMatchObject({
+      layoutAuthority: "page-ir-v1",
+      rolloutDecision: enabled,
+    });
+  });
+
+  it("rejects rollout-decision mutation and authority-decision mismatch", async () => {
+    const runId = await makeRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+      rolloutDecision: {
+        schemaVersion: 1,
+        rolloutEnabled: true,
+        killSwitchEngaged: false,
+        layoutAuthority: "page-ir-v1",
+        reason: "rollout-enabled",
+      },
+    });
+    const run = await loadRun(runId);
+    await expect(saveRun({
+      ...run,
+      rolloutDecision: {
+        schemaVersion: 1,
+        rolloutEnabled: true,
+        killSwitchEngaged: true,
+        layoutAuthority: "template-v1",
+        reason: "kill-switch",
+      },
+    })).rejects.toThrow(/rollout decision|layout authority/i);
+    expect((await loadRun(runId)).rolloutDecision).toEqual(run.rolloutDecision);
   });
 
   it("rejects authority and fallback-origin changes at the storage boundary", async () => {
@@ -285,6 +343,16 @@ describe("template fallback transaction", () => {
     });
     expect(child.stages.intake.status).toBe("done");
     expect(child.stages.built.status).toBe("pending");
+    expect(await readEvents(sourceRunId)).toContainEqual(
+      expect.objectContaining({
+        type: "fallback-created",
+        stage: "built",
+        sourceRunId,
+        fallbackRunId: childRunId,
+        reason: "page-ir-compilation-failed",
+        failedStage: "built",
+      }),
+    );
     expect(await fs.readFile(path.join(sitePaths(childRunId).root, ARTIFACTS.intake), "utf8"))
       .toContain("Authority Electric");
     await expect(fs.stat(path.join(sitePaths(childRunId).root, ARTIFACTS.pageIr)))
@@ -303,6 +371,9 @@ describe("template fallback transaction", () => {
     await expect(
       createTemplateFallbackRun(sourceRunId, "page-ir-compilation-failed"),
     ).resolves.toBe(childRunId);
+    expect((await readEvents(sourceRunId)).filter(
+      (event) => event.type === "fallback-created",
+    )).toHaveLength(1);
     await expect(
       createTemplateFallbackRun(sourceRunId, "candidate-gates-failed"),
     ).rejects.toThrow("reason conflicts");

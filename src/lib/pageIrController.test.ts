@@ -80,6 +80,18 @@ function dependenciesFor(
     failStage: vi.fn().mockResolvedValue(undefined),
     startStage: vi.fn().mockResolvedValue(undefined),
     assertVisualQaApprovedForBuild: vi.fn().mockReturnValue(undefined),
+    buildRunProvenance: vi.fn().mockReturnValue({
+      schemaVersion: 1,
+      runId: "run-page-ir",
+      layoutAuthority: "page-ir-v1",
+      inputArtifactHashes: [{ path: "page-ir.json", sha256: OTHER_HASH }],
+      pageIrSha256: OTHER_HASH,
+      compilerVersion: "page-ir-static@3",
+      candidateManifestSha256: "c".repeat(64),
+      candidateBuildSha256: HASH,
+      gateReportSha256: "d".repeat(64),
+      promotedBuildSha256: HASH,
+    }),
   };
 }
 
@@ -207,6 +219,75 @@ describe("PageIR build controller", () => {
     expect(dependencies.materializePromotedPageIrVisualQa).not.toHaveBeenCalled();
     expect(built.gateRepairAttempts).toBe(0);
     expect(events.at(-1)).toMatchObject({ type: "error" });
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass: "gate-failure",
+      status: "failed",
+    }));
+  });
+
+  it.each([
+    ["candidate-failure", "materializePageIrCandidate"],
+    ["promotion-failure", "promoteCandidate"],
+  ] as const)("emits a structured %s before propagating an operation failure", async (
+    outcomeClass,
+    dependency,
+  ) => {
+    const dependencies = dependenciesFor(
+      dependency === "materializePageIrCandidate" ? "ready-for-gates" : "promotable",
+    );
+    if (dependency === "materializePageIrCandidate") {
+      dependencies.inspectCandidate.mockResolvedValueOnce({ status: "absent" });
+    }
+    dependencies[dependency].mockRejectedValue(new Error(`${outcomeClass} injected`));
+    const events: PipelineEvent[] = [];
+
+    await expect(executePageIrBuildController(
+      "run-page-ir",
+      (event) => events.push(event),
+      dependencies,
+    )).rejects.toThrow(`${outcomeClass} injected`);
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass,
+      status: "failed",
+      nextAction: expect.any(String),
+    }));
+    if (dependency === "materializePageIrCandidate") {
+      expect(dependencies.failStage).toHaveBeenCalledWith(
+        "run-page-ir",
+        "built",
+        "candidate-failure injected",
+      );
+    } else {
+      expect(dependencies.failStage).not.toHaveBeenCalled();
+    }
+  });
+
+  it("fails the build stage when the candidate gate operation throws", async () => {
+    const dependencies = dependenciesFor("ready-for-gates");
+    dependencies.gateBuiltCandidate.mockRejectedValue(
+      new Error("gate-failure injected"),
+    );
+    const events: PipelineEvent[] = [];
+
+    await expect(executePageIrBuildController(
+      "run-page-ir",
+      (event) => events.push(event),
+      dependencies,
+    )).rejects.toThrow("gate-failure injected");
+
+    expect(dependencies.failStage).toHaveBeenCalledWith(
+      "run-page-ir",
+      "built",
+      "gate-failure injected",
+    );
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "lifecycle",
+      outcomeClass: "gate-failure",
+      status: "failed",
+      nextAction: expect.stringContaining("explicit template fallback"),
+    }));
   });
 
   it("emits ordered hash-bearing checkpoints before the human visual pause", async () => {
@@ -294,6 +375,16 @@ describe("PageIR build controller", () => {
       expect.anything(),
       HASH,
     );
+    expect(events).toContainEqual({
+      type: "provenance",
+      stage: "built",
+      provenance: expect.objectContaining({
+        runId: "run-page-ir",
+        promotedBuildSha256: HASH,
+      }),
+    });
+    expect(events.findIndex((event) => event.type === "provenance"))
+      .toBeLessThan(events.findIndex((event) => event.type === "complete"));
     expect(events.slice(-2)).toEqual([
       { type: "cost", usd: 1.25 },
       {
@@ -302,5 +393,43 @@ describe("PageIR build controller", () => {
         previewUrl: "/preview/run-page-ir",
       },
     ]);
+  });
+
+  it("does not hash a human review until the workflow is approved and asserted", async () => {
+    const dependencies = dependenciesFor("promoted");
+    dependencies.materializePromotedPageIrVisualQa.mockResolvedValue({
+      artifactType: "visual-qa",
+      version: 2,
+      artifact: { buildSha256: HASH },
+      approvalTransitions: [{
+        state: "in-review",
+        humanVisualReview: {
+          reviewerName: "Named Human",
+          reviewerKind: "human",
+          humanAttestation: true,
+          buildSha256: HASH,
+          criteria: {
+            briefFidelity: { status: "pass" },
+            visualHierarchy: { status: "pass" },
+            spacingAndComposition: { status: "pass" },
+            businessSpecificity: { status: "pass" },
+            designAndReferenceAlignment: { status: "pass" },
+          },
+        },
+      }],
+    });
+
+    await expect(executePageIrBuildController(
+      "run-page-ir",
+      vi.fn(),
+      dependencies,
+    )).resolves.toEqual({ status: "visual-review" });
+
+    expect(dependencies.assertVisualQaApprovedForBuild).not.toHaveBeenCalled();
+    expect(dependencies.buildRunProvenance).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      undefined,
+    );
   });
 });
