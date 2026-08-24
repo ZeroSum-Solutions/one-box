@@ -14,6 +14,7 @@ import {
   assertSiteAuthorityHeld,
   resolveSiteAuthorityWriteTarget,
 } from "./siteAuthority";
+import { readOptionalBoundedAuthorityFile } from "./authorityFile";
 
 const EXTENSION_BY_MEDIA_TYPE = {
   "image/jpeg": "jpg",
@@ -45,11 +46,6 @@ function sha256(bytes: string | Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function isCode(error: unknown, code: string): boolean {
-  return typeof error === "object" && error !== null && "code" in error &&
-    (error as { code?: unknown }).code === code;
-}
-
 async function syncDirectory(directory: string): Promise<void> {
   const handle = await fs.open(directory, "r");
   try {
@@ -64,24 +60,23 @@ async function readVerifiedRegularFile(
   expectedSha256: string,
   expectedSize: number,
 ): Promise<Buffer> {
-  const target = await resolveSiteAuthorityWriteTarget(filePath);
-  const stat = await fs.lstat(target).catch((error: unknown) => {
-    if (isCode(error, "ENOENT")) return undefined;
-    throw error;
-  });
   if (
-    !stat ||
-    stat.isSymbolicLink() ||
-    !stat.isFile() ||
-    stat.nlink > 1 ||
-    stat.size !== expectedSize ||
-    stat.size > PAGE_IR_BOUNDS.maxAssetBytes
+    !Number.isSafeInteger(expectedSize) ||
+    expectedSize < 0 ||
+    expectedSize > PAGE_IR_BOUNDS.maxAssetBytes
   ) {
-    throw new Error(`Page IR compiler asset is not one bounded regular file: ${path.basename(target)}`);
+    throw new Error(`Page IR compiler asset has an invalid byte bound: ${path.basename(filePath)}`);
   }
-  const bytes = await fs.readFile(target);
+  const bytes = await readOptionalBoundedAuthorityFile(
+    filePath,
+    expectedSize,
+    "Page IR compiler asset",
+  );
+  if (bytes === undefined || bytes.length !== expectedSize) {
+    throw new Error(`Page IR compiler asset is not one bounded regular file: ${path.basename(filePath)}`);
+  }
   if (sha256(bytes) !== expectedSha256) {
-    throw new Error(`Page IR compiler asset does not match its authoritative binding: ${path.basename(target)}`);
+    throw new Error(`Page IR compiler asset does not match its authoritative binding: ${path.basename(filePath)}`);
   }
   return bytes;
 }
@@ -196,15 +191,12 @@ export async function writePageIrFallbackAssetsUnderSiteAuthority(
     validated.push({ fallback, target });
   }
   for (const { fallback, target } of validated) {
-    const current = await fs.lstat(target).catch((error: unknown) => {
-      if (isCode(error, "ENOENT")) return undefined;
-      throw error;
-    });
-    if (current) {
-      if (current.isSymbolicLink() || !current.isFile() || current.nlink > 1) {
-        throw new Error("Page IR fallback asset must be one regular file");
-      }
-      const bytes = await fs.readFile(target);
+    const bytes = await readOptionalBoundedAuthorityFile(
+      target,
+      fallback.bytes.byteLength,
+      "Page IR fallback asset",
+    );
+    if (bytes !== undefined) {
       if (!bytes.equals(fallback.bytes)) {
         throw new Error("Page IR fallback asset conflicts with its validated projection");
       }

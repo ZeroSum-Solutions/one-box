@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PageIrEditRequestV1Schema,
   PageIrMutationUnsupportedError,
@@ -58,6 +58,10 @@ function sourceMapFor(envelope: PersistedPageIrV1): PageIrEditorSourceMapV1 {
 }
 
 describe("typed Page IR editor mutations", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("rejects arbitrary and duplicate fallback asset authority targets", async () => {
     const runId = `asset-path-${process.pid}`;
     await createRun({ id: runId, pipelineVersion: "legacy-v1" });
@@ -78,6 +82,39 @@ describe("typed Page IR editor mutations", () => {
       )).rejects.toThrow(/unique/i);
       await expect(fs.stat(path.join(root, "page-ir.json"))).rejects.toMatchObject({ code: "ENOENT" });
       await expect(fs.stat(valid)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a fallback asset replaced by a symlink before its current bytes are read", async () => {
+    const runId = `asset-read-race-${process.pid}`;
+    await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+    const root = sitePaths(runId).root;
+    const target = path.join(root, "uploads", "page-ir-edit-assets", "hero-aaaaaaaaaaaa.png");
+    const external = path.join(root, "external.png");
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, "same");
+    await fs.writeFile(external, "external-must-survive");
+    const originalOpen = fs.open.bind(fs);
+    let replaced = false;
+    vi.spyOn(fs, "open").mockImplementation(async (filePath, flags, mode) => {
+      if (!replaced && path.resolve(String(filePath)) === path.resolve(target)) {
+        replaced = true;
+        await fs.rm(target);
+        await fs.symlink(external, target);
+      }
+      return originalOpen(filePath, flags, mode);
+    });
+
+    try {
+      await expect(withSiteAuthorityLock(runId, () =>
+        writePageIrFallbackAssetsUnderSiteAuthority(runId, [{
+          path: target,
+          bytes: Buffer.from("same"),
+        }])
+      )).rejects.toThrow(/changed before read/i);
+      expect(await fs.readFile(external, "utf8")).toBe("external-must-survive");
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

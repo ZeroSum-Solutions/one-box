@@ -47,6 +47,7 @@ import {
   resolveSiteAuthorityWriteTarget,
   withSiteAuthorityLock,
 } from "./siteAuthority";
+import { readOptionalBoundedAuthorityFile } from "./authorityFile";
 
 const ReplaceTextMutationV1Schema = z
   .object({
@@ -399,11 +400,6 @@ function jsonBytes(value: unknown): Buffer {
   return Buffer.from(`${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
-function isCode(error: unknown, code: string): boolean {
-  return typeof error === "object" && error !== null && "code" in error &&
-    (error as { code?: unknown }).code === code;
-}
-
 async function syncDirectory(directory: string): Promise<void> {
   const handle = await fs.open(directory, "r");
   try {
@@ -417,19 +413,12 @@ async function readOptionalRegularFile(
   filePath: string,
   maxBytes = 5 * 1024 * 1024,
 ): Promise<OptionalFileSnapshot> {
-  const target = await resolveSiteAuthorityWriteTarget(filePath);
-  const stat = await fs.lstat(target).catch((error: unknown) => {
-    if (isCode(error, "ENOENT")) return undefined;
-    throw error;
-  });
-  if (!stat) return { present: false };
-  if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink > 1) {
-    throw new Error(`Page IR transaction input must be one regular file: ${path.basename(target)}`);
-  }
-  if (stat.size > maxBytes) {
-    throw new Error(`Page IR transaction input exceeds its byte bound: ${path.basename(target)}`);
-  }
-  return { present: true, bytes: await fs.readFile(target) };
+  const bytes = await readOptionalBoundedAuthorityFile(
+    filePath,
+    maxBytes,
+    "Page IR transaction input",
+  );
+  return bytes === undefined ? { present: false } : { present: true, bytes };
 }
 
 async function atomicWriteUnderAuthority(
