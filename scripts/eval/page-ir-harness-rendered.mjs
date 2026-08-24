@@ -118,7 +118,7 @@ function resultFor(evaluationId, commands) {
   };
 }
 
-function renderedSandboxProfile({ snapshotRoot, temporaryRoot, browserBundleRoot, writeRoots, networkMode = "deny", port }) {
+export function renderedSandboxProfile({ snapshotRoot, temporaryRoot, browserBundleRoot, writeRoots, networkMode = "deny", port }) {
   for (const directory of [snapshotRoot, temporaryRoot, browserBundleRoot, ...writeRoots]) {
     if (!path.isAbsolute(directory) || /["\0\r\n]/.test(directory)) {
       throw new Error("rendered sandbox authority is invalid");
@@ -134,7 +134,8 @@ function renderedSandboxProfile({ snapshotRoot, temporaryRoot, browserBundleRoot
     }
   }
   return [
-    "(version 1)", "(deny default)", "(allow process*)", "(allow sysctl-read)",
+    "(version 1)", "(deny default)", "(allow process*)",
+    "(allow signal (target same-sandbox))", "(allow sysctl-read)",
     "(allow mach-lookup)", "(allow file-read*)",
     "(deny file-read* (subpath \"/Users\"))", "(deny file-read* (subpath \"/Volumes\"))",
     "(deny file-read* (subpath \"/private/tmp\"))", "(deny file-read* (subpath \"/private/var/folders\"))",

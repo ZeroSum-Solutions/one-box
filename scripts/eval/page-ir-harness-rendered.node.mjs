@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { renderedProductionBuildArgv } from "./page-ir-harness-rendered.mjs";
+import {
+  renderedProductionBuildArgv,
+  renderedSandboxProfile,
+} from "./page-ir-harness-rendered.mjs";
 
 test("rendered production evidence uses the network-free webpack build path", () => {
   assert.deepEqual(renderedProductionBuildArgv({
@@ -15,4 +18,15 @@ test("rendered production evidence uses the network-free webpack build path", ()
     "--",
     "--webpack",
   ]);
+});
+
+test("rendered workers may signal only descendants in the same sandbox", () => {
+  const profile = renderedSandboxProfile({
+    snapshotRoot: "/snapshot",
+    temporaryRoot: "/temporary",
+    browserBundleRoot: "/browser",
+    writeRoots: ["/snapshot/.next"],
+  });
+
+  assert.match(profile, /\(allow signal \(target same-sandbox\)\)/);
 });
