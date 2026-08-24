@@ -232,6 +232,7 @@ export async function materializeQualificationFixture({
   const inputsRoot = await fs.realpath(path.join(run.directory, "inputs"));
   const safeEnvironment = Object.fromEntries([
     "PATH", "TMPDIR", "TMP", "TEMP", "SHELL", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "CI",
+    "ONEBOX_EVAL_NETWORK_ATTEMPT_LOG",
   ].flatMap((key) => typeof environment[key] === "string" ? [[key, environment[key]]] : []));
   safeEnvironment.CI = "1";
   safeEnvironment.HOME = temporaryHome;

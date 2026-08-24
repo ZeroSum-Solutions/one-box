@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import {
   evaluateQualificationCoordinatorEvidence,
+  materializeQualificationFixture,
   readFindingsLedger,
   runDetachedQualificationWorker,
 } from "./page-ir-harness-qualification.mjs";
+import { writeImmutableEvaluationPacket } from "./page-ir-harness-runner.mjs";
 
 const CORPUS = [
   "brochure-local-service",
@@ -175,6 +178,98 @@ test("qualification worker treats EPERM group probes as still existing", async (
   } finally {
     process.kill = originalKill;
   }
+});
+
+test("qualification materializer requires immutable PASS evidence before sandboxed offline materialization", async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-qualification-materializer-"));
+  const repositoryRoot = process.cwd();
+  const fixtureId = "brochure-local-service";
+  const runDirectory = path.join(root, "run");
+  const inputsRoot = path.join(runDirectory, "inputs");
+  const outputRoot = path.join(root, "materialized");
+  const sealedFixtureRoot = path.join(repositoryRoot, ".qualification-output", fixtureId);
+  const attemptLog = path.join(sealedFixtureRoot, "network-attempts.log");
+  let ownsSealedParent = false;
+  let ownsSealedFixtureRoot = false;
+  context.after(async () => {
+    await fs.rm(root, { recursive: true, force: true });
+    if (ownsSealedFixtureRoot) {
+      await fs.rm(sealedFixtureRoot, { recursive: true, force: true });
+    }
+    if (ownsSealedParent) {
+      await fs.rmdir(path.dirname(sealedFixtureRoot)).catch((error) => {
+        if (error?.code !== "ENOENT" && error?.code !== "ENOTEMPTY") throw error;
+      });
+    }
+  });
+  await fs.mkdir(runDirectory);
+  await fs.cp(
+    path.join(repositoryRoot, "docs/eval/page-ir-safe-pipeline/fixtures"),
+    inputsRoot,
+    { recursive: true },
+  );
+  try {
+    await fs.mkdir(path.dirname(sealedFixtureRoot));
+    ownsSealedParent = true;
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+  }
+  await fs.mkdir(sealedFixtureRoot);
+  ownsSealedFixtureRoot = true;
+  const expectedBuildSha256 = "bca0bcc73b11bad7059c3c67ac0e8861a4d5974c1946a7afa55ac9c85c19dc0f";
+  const run = {
+    directory: runDirectory,
+    manifest: {
+      runId: "qualification-materializer-sandbox-test",
+      corpus: [fixtureId],
+      initialResults: [{ evaluationId: "EVAL-SCOPE-001" }],
+      fixtureBuildSha256: { [fixtureId]: expectedBuildSha256 },
+      sourceCommit: "1".repeat(40),
+      evaluatedGitSha: "2".repeat(40),
+      contractSha256: "3".repeat(64),
+      registrySha256: "4".repeat(64),
+      fixtureManifestSha256: { [fixtureId]: "5".repeat(64) },
+    },
+  };
+
+  const materialize = () => materializeQualificationFixture({
+    snapshotRoot: repositoryRoot,
+    runtimeContract: { nodeExecutable: process.execPath },
+    run,
+    fixtureId,
+    outputRoot,
+    environment: { ...process.env, ONEBOX_EVAL_NETWORK_ATTEMPT_LOG: attemptLog },
+    // An exported caller must not be able to replace immutable result aggregation.
+    aggregateResultsFn: async () => ({
+      results: [{ evaluationId: "EVAL-SCOPE-001", state: "PASS", evidence: [] }],
+    }),
+  });
+  await assert.rejects(materialize(), /EVAL-SCOPE-001=NOT_RUN/);
+
+  const packetRoot = path.join(root, "pass-packet");
+  const evidenceBytes = Buffer.from("qualification materializer prerequisite passed\n");
+  await fs.mkdir(packetRoot);
+  await fs.writeFile(path.join(packetRoot, "evidence.txt"), evidenceBytes);
+  await writeImmutableEvaluationPacket(path.join(runDirectory, "results"), packetRoot, {
+    schemaVersion: 1,
+    evaluationId: "EVAL-SCOPE-001",
+    state: "PASS",
+    evidence: [{
+      path: "artifacts/evidence.txt",
+      sha256: crypto.createHash("sha256").update(evidenceBytes).digest("hex"),
+    }],
+    meteredCalls: 0,
+    networkAttempts: [],
+    providerCredentialKeysPresent: [],
+  });
+
+  const materialized = await materialize();
+
+  assert.equal((await fs.stat(path.join(materialized.siteRoot, "index.html"))).isFile(), true);
+  const provenance = JSON.parse(await fs.readFile(materialized.provenanceFile, "utf8"));
+  assert.equal(provenance.buildSha256, expectedBuildSha256);
+  assert.equal(provenance.providerCalls, 0);
+  await assert.rejects(fs.stat(attemptLog), (error) => error?.code === "ENOENT");
 });
 
 test("qualification worker fails closed and reaps descendants after a successful direct exit", async (context) => {
