@@ -774,6 +774,38 @@ describe("project image library", () => {
     );
   });
 
+  it("leaves a fresh catalogless inline reservation in flight", async () => {
+    const { sitesRoot, runId } = await fixture();
+    const root = path.join(sitesRoot, runId);
+    const requestId = "00000000-0000-4000-8000-000000000148";
+    await fs.writeFile(
+      path.join(root, "image-generation-ledger.json"),
+      JSON.stringify({
+        version: 1,
+        capCredits: 14,
+        entries: [
+          {
+            requestId,
+            editId: "hero.image",
+            instructionSha256: "e".repeat(64),
+            model: "gpt_image_2",
+            credits: 2,
+            status: "reserved",
+            reservedAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    );
+
+    await listProjectImages(runId, sitesRoot);
+
+    expect(
+      (await readImageGenerationLedger(
+        path.join(root, "image-generation-ledger.json"),
+      )).entries[0],
+    ).toMatchObject({ status: "reserved" });
+  });
+
   it("never promotes valid or partial staging from the image-library read path", async () => {
     const { sitesRoot, runId, site } = await fixture();
     const root = path.join(sitesRoot, runId);
@@ -981,7 +1013,9 @@ describe("project image library", () => {
     const library = await listProjectImages(runId, sitesRoot);
     const completedId = "00000000-0000-4000-8000-000000000129";
     const orphanId = "00000000-0000-4000-8000-000000000130";
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date(
+      Date.now() - IMAGE_GENERATION_STALE_MS - 1_000,
+    ).toISOString();
     await fs.writeFile(
       catalogPath,
       JSON.stringify({

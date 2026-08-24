@@ -11,6 +11,7 @@ import {
 import {
   assertSafeRunId,
   assertSiteAuthorityHeld,
+  resolveSiteAuthorityWriteTarget,
   withSiteAuthorityLock,
 } from "./siteAuthority";
 import {
@@ -26,7 +27,7 @@ export type { SiteAuthorityOptions } from "./siteAuthority";
 
 export type GateRunner = (
   runId: string,
-  options: { afterEdit: true }
+  options: { afterEdit: true; runRoot?: string }
 ) => Promise<GateReport[]>;
 
 export class GeneratedSiteMutationAuthorityError extends Error {
@@ -36,11 +37,131 @@ export class GeneratedSiteMutationAuthorityError extends Error {
   }
 }
 
-const activeGeneratedSiteMutation = new AsyncLocalStorage<{
-  active: boolean;
-  runId: string;
-  siteRoot: string;
-}>();
+interface GeneratedSiteMutationToken {
+  readonly runId: string;
+  readonly runRoot: string;
+  readonly requestedSiteRoot: string;
+  readonly siteRoot: string;
+}
+
+const activeGeneratedSiteMutation =
+  new AsyncLocalStorage<GeneratedSiteMutationToken>();
+const liveGeneratedSiteMutations = new WeakSet<GeneratedSiteMutationToken>();
+
+function isCode(error: unknown, code: string): boolean {
+  return typeof error === "object" && error !== null && "code" in error &&
+    (error as { code?: unknown }).code === code;
+}
+
+function containedRelativePath(root: string, target: string): string | undefined {
+  const relativeTarget = path.relative(root, target);
+  if (
+    relativeTarget === "" ||
+    relativeTarget === ".." ||
+    relativeTarget.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    return undefined;
+  }
+  return relativeTarget;
+}
+
+async function assertDirectoryWithoutSymlink(directory: string): Promise<void> {
+  let stat: Awaited<ReturnType<typeof fs.lstat>>;
+  try {
+    stat = await fs.lstat(directory);
+  } catch (error) {
+    if (!isCode(error, "ENOENT")) throw error;
+    try {
+      await fs.mkdir(directory);
+    } catch (mkdirError) {
+      if (!isCode(mkdirError, "EEXIST")) throw mkdirError;
+    }
+    stat = await fs.lstat(directory);
+  }
+  if (stat.isSymbolicLink()) {
+    throw new GeneratedSiteMutationAuthorityError(
+      "generated-site live write target uses a symbolic link",
+    );
+  }
+  if (!stat.isDirectory()) {
+    throw new GeneratedSiteMutationAuthorityError(
+      "generated-site live write target has a non-directory parent",
+    );
+  }
+}
+
+async function resolveGeneratedSiteWriteTarget(
+  authority: GeneratedSiteMutationToken,
+  filePath: string,
+): Promise<string> {
+  const requestedTarget = path.resolve(filePath);
+  const relativeTarget =
+    containedRelativePath(authority.requestedSiteRoot, requestedTarget) ??
+    containedRelativePath(authority.siteRoot, requestedTarget);
+  if (!relativeTarget) {
+    throw new GeneratedSiteMutationAuthorityError(
+      "generated-site live write target is outside the guarded site root",
+    );
+  }
+
+  const segments = relativeTarget.split(path.sep);
+  let parent = authority.siteRoot;
+  for (const segment of segments.slice(0, -1)) {
+    parent = path.join(parent, segment);
+    await assertDirectoryWithoutSymlink(parent);
+  }
+  const target = path.join(authority.siteRoot, ...segments);
+  const targetStat = await fs.lstat(target).catch((error: unknown) => {
+    if (isCode(error, "ENOENT")) return undefined;
+    throw error;
+  });
+  if (targetStat?.isSymbolicLink()) {
+    throw new GeneratedSiteMutationAuthorityError(
+      "generated-site live write target uses a symbolic link",
+    );
+  }
+  return target;
+}
+
+async function resolveGuardedMutationPath(
+  requestedRunRoot: string,
+  runRoot: string,
+  filePath: string,
+  label: "snapshot" | "rollback",
+): Promise<string> {
+  const requestedTarget = path.resolve(filePath);
+  const relativeTarget =
+    containedRelativePath(requestedRunRoot, requestedTarget) ??
+    containedRelativePath(runRoot, requestedTarget);
+  if (!relativeTarget) {
+    throw new GeneratedSiteMutationAuthorityError(
+      `guarded mutation ${label} path is outside the guarded run root`,
+    );
+  }
+
+  const segments = relativeTarget.split(path.sep);
+  let current = runRoot;
+  for (const [index, segment] of segments.entries()) {
+    current = path.join(current, segment);
+    const stat = await fs.lstat(current).catch((error: unknown) => {
+      if (isCode(error, "ENOENT")) return undefined;
+      throw error;
+    });
+    if (!stat) return path.join(runRoot, ...segments);
+    if (stat.isSymbolicLink()) {
+      throw new GeneratedSiteMutationAuthorityError(
+        `guarded mutation ${label} path uses a symbolic link`,
+      );
+    }
+    if (index < segments.length - 1 && !stat.isDirectory()) {
+      throw new GeneratedSiteMutationAuthorityError(
+        `guarded mutation ${label} path has a non-directory parent`,
+      );
+    }
+  }
+  return path.join(runRoot, ...segments);
+}
 
 export async function atomicWriteGeneratedSiteFile(
   runId: string,
@@ -49,22 +170,15 @@ export async function atomicWriteGeneratedSiteFile(
 ): Promise<void> {
   const safeRunId = assertSafeRunId(runId);
   const authority = activeGeneratedSiteMutation.getStore();
-  if (!authority?.active || authority.runId !== safeRunId) {
+  if (
+    !authority ||
+    !liveGeneratedSiteMutations.has(authority) ||
+    authority.runId !== safeRunId
+  ) {
     throw new GeneratedSiteMutationAuthorityError();
   }
-  assertSiteAuthorityHeld(safeRunId);
-  const target = path.resolve(filePath);
-  const relativeTarget = path.relative(authority.siteRoot, target);
-  if (
-    relativeTarget === "" ||
-    relativeTarget === ".." ||
-    relativeTarget.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativeTarget)
-  ) {
-    throw new GeneratedSiteMutationAuthorityError(
-      "generated-site live write target is outside the guarded site root",
-    );
-  }
+  assertSiteAuthorityHeld(safeRunId, { runRoot: authority.runRoot });
+  const target = await resolveGeneratedSiteWriteTarget(authority, filePath);
   await atomicWrite(target, content);
 }
 
@@ -118,8 +232,9 @@ async function promotedGateReports(
 async function failingBlockingGates(
   runId: string,
   runRoot: string,
+  canonical: boolean,
 ): Promise<Set<string>> {
-  if (path.resolve(runRoot) === path.resolve(sitePaths(runId).root)) {
+  if (canonical) {
     const promoted = await promotedGateReports(runId);
     if (promoted) {
       return new Set(
@@ -145,18 +260,33 @@ async function failingBlockingGates(
 }
 
 export async function atomicWrite(filePath: string, content: string | Buffer): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  const target = await resolveSiteAuthorityWriteTarget(filePath);
+  await fs.mkdir(path.dirname(target), { recursive: true });
   const temporary = path.join(
-    path.dirname(filePath),
-    `.${path.basename(filePath)}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`
+    path.dirname(target),
+    `.${path.basename(target)}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`
   );
   await fs.writeFile(temporary, content);
-  await fs.rename(temporary, filePath);
+  await fs.rename(temporary, target);
 }
 
-async function snapshotFiles(filePaths: string[]): Promise<Map<string, Buffer | null>> {
+async function snapshotFiles(
+  filePaths: string[],
+  requestedRunRoot: string,
+  runRoot: string,
+): Promise<Map<string, Buffer | null>> {
   const snapshots = new Map<string, Buffer | null>();
-  for (const filePath of filePaths) {
+  const guardedPaths = await Promise.all(
+    filePaths.map((filePath) =>
+      resolveGuardedMutationPath(
+        requestedRunRoot,
+        runRoot,
+        filePath,
+        "snapshot",
+      ),
+    ),
+  );
+  for (const filePath of new Set(guardedPaths)) {
     try {
       snapshots.set(filePath, await fs.readFile(filePath));
     } catch (error) {
@@ -167,8 +297,17 @@ async function snapshotFiles(filePaths: string[]): Promise<Map<string, Buffer | 
   return snapshots;
 }
 
-async function restoreFiles(snapshots: Map<string, Buffer | null>): Promise<void> {
-  for (const [filePath, content] of snapshots) {
+async function restoreFiles(
+  snapshots: Map<string, Buffer | null>,
+  runRoot: string,
+): Promise<void> {
+  for (const [snapshotPath, content] of snapshots) {
+    const filePath = await resolveGuardedMutationPath(
+      runRoot,
+      runRoot,
+      snapshotPath,
+      "rollback",
+    );
     if (content === null) {
       await fs.unlink(filePath).catch((error: NodeJS.ErrnoException) => {
         if (error.code !== "ENOENT") throw error;
@@ -190,19 +329,26 @@ export interface GuardedMutationOptions<T> {
 
 async function withGeneratedSiteMutationAuthority<T>(
   runId: string,
+  runRoot: string,
+  requestedSiteRoot: string,
   siteRoot: string,
   operation: () => Promise<T>,
 ): Promise<T> {
-  const authority = {
-    active: true,
+  await assertDirectoryWithoutSymlink(siteRoot);
+  const authority = Object.freeze({
     runId,
+    runRoot,
+    requestedSiteRoot: path.resolve(requestedSiteRoot),
     siteRoot: path.resolve(siteRoot),
-  };
-  try {
-    return await activeGeneratedSiteMutation.run(authority, operation);
-  } finally {
-    authority.active = false;
-  }
+  });
+  return activeGeneratedSiteMutation.run(authority, async () => {
+    liveGeneratedSiteMutations.add(authority);
+    try {
+      return await operation();
+    } finally {
+      liveGeneratedSiteMutations.delete(authority);
+    }
+  });
 }
 
 /** Tentatively mutates generated-site files, preserving them only after all blocking gates pass. */
@@ -212,29 +358,47 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
 }> {
   const runId = assertSafeRunId(options.runId);
   const defaultRunRoot = sitePaths(runId).root;
-  const runRoot = options.runRoot ?? defaultRunRoot;
-  const siteRoot = path.join(runRoot, "site");
-  const usesDefaultRunRoot =
-    path.resolve(runRoot) === path.resolve(defaultRunRoot);
-  const gateRunner = options.gateRunner ?? runGates;
-  return withSiteAuthorityLock(runId, async () => {
+  const requestedRunRoot = path.resolve(options.runRoot ?? defaultRunRoot);
+  return withSiteAuthorityLock(runId, async (siteAuthority) => {
+    const runRoot = siteAuthority.runRoot;
+    const requestedSiteRoot = path.join(requestedRunRoot, "site");
+    const siteRoot = path.join(runRoot, "site");
+    if (!siteAuthority.canonical && !options.gateRunner) {
+      throw new GeneratedSiteMutationAuthorityError(
+        "custom run roots require a root-aware gate runner",
+      );
+    }
+    const gateRunner: GateRunner = options.gateRunner ??
+      ((gateRunId, gateOptions) =>
+        runGates(gateRunId, { afterEdit: gateOptions.afterEdit }));
+    const gateOptions = { afterEdit: true, runRoot } as const;
     const snapshotPaths =
       typeof options.snapshotPaths === "function" ? options.snapshotPaths() : options.snapshotPaths;
-    const snapshots = await snapshotFiles([...new Set(snapshotPaths)]);
-    const preexistingFailures = await failingBlockingGates(runId, runRoot);
+    const snapshots = await snapshotFiles(
+      [...new Set(snapshotPaths)],
+      requestedRunRoot,
+      runRoot,
+    );
+    const preexistingFailures = await failingBlockingGates(
+      runId,
+      runRoot,
+      siteAuthority.canonical,
+    );
     let value: T;
     try {
       value = await withGeneratedSiteMutationAuthority(
         runId,
+        runRoot,
+        requestedSiteRoot,
         siteRoot,
         options.mutate,
       );
-      const reports = await gateRunner(runId, { afterEdit: true });
+      const reports = await gateRunner(runId, gateOptions);
       if (reports.some((report) => report.blocking && !report.pass)) {
         throw new BlockingMutationError(reports, preexistingFailures);
       }
       await options.commit?.(value);
-      if (usesDefaultRunRoot) {
+      if (siteAuthority.canonical) {
         try {
           // Lock order is site filesystem authority -> run-state transaction.
           // This internal invalidator must never reacquire site authority.
@@ -247,17 +411,17 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
       }
       return { value, reports };
     } catch (error) {
-      await restoreFiles(snapshots);
+      await restoreFiles(snapshots, runRoot);
       // Restore the gate report too; a rejected candidate must not leave the
       // now-healthy site wearing the candidate's stale failure status.
       try {
-        await gateRunner(runId, { afterEdit: true });
+        await gateRunner(runId, gateOptions);
       } catch {
         // A failed restorative run may have partially replaced gates.json.
         // Reapply the complete pre-mutation snapshot byte-for-byte.
-        await restoreFiles(snapshots);
+        await restoreFiles(snapshots, runRoot);
       }
       throw error;
     }
-  }, { runRoot });
+  }, { runRoot: requestedRunRoot });
 }

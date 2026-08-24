@@ -149,6 +149,22 @@ export class ImageLibraryError extends Error {
   }
 }
 
+export function assertImageGenerationRequestId(requestId: string): void {
+  if (!GENERATION_REQUEST_ID.test(requestId)) {
+    throw new ImageLibraryError("invalid image request id");
+  }
+}
+
+export class GeneratedImageValidationError extends ImageLibraryError {
+  constructor(
+    message: string,
+    readonly reason: "missing" | "invalid",
+  ) {
+    super(message, 502);
+    this.name = "GeneratedImageValidationError";
+  }
+}
+
 interface LibraryPaths {
   root: string;
   site: string;
@@ -556,6 +572,13 @@ async function synchronizeUnlocked(
   const catalogIds = new Set(catalog.items.map((item) => item.id));
   for (const entry of ledger.entries) {
     if (entry.status !== "reserved" || catalogIds.has(entry.requestId)) continue;
+    const reservedAt = Date.parse(entry.reservedAt);
+    if (
+      Number.isFinite(reservedAt) &&
+      currentTime - reservedAt < IMAGE_GENERATION_STALE_MS
+    ) {
+      continue;
+    }
     await finishImageGeneration(
       files.ledger,
       entry.requestId,
@@ -740,12 +763,169 @@ export interface ImageLibraryDependencies {
   ) => Promise<GenerateImageResult | { error: string }>;
 }
 
-export interface ValidatedGeneratedImageStaging {
+export interface ValidatedGeneratedImageFile {
   buffer: Buffer;
   metadata: NonNullable<ReturnType<typeof detectGeneratedImage>>;
-  stagingPath: string;
   relativePath: string;
   finalPath: string;
+}
+
+export interface ValidatedGeneratedImageStaging
+  extends ValidatedGeneratedImageFile {
+  stagingPath: string;
+}
+
+function isFileSystemCode(error: unknown, code: string): boolean {
+  return typeof error === "object" && error !== null && "code" in error &&
+    (error as NodeJS.ErrnoException).code === code;
+}
+
+async function resolveGeneratedImageFilePath(
+  runRoot: string,
+  requestedFilePath: string,
+  label: string,
+  createParents = false,
+): Promise<string> {
+  const requestedRoot = path.resolve(runRoot);
+  const requestedTarget = path.resolve(requestedFilePath);
+  const relativeTarget = path.relative(requestedRoot, requestedTarget);
+  if (
+    relativeTarget === "" ||
+    relativeTarget === ".." ||
+    relativeTarget.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeTarget)
+  ) {
+    throw new GeneratedImageValidationError(
+      `${label} is outside the physical run root`,
+      "invalid",
+    );
+  }
+
+  let rootStat: Awaited<ReturnType<typeof fs.lstat>>;
+  try {
+    rootStat = await fs.lstat(requestedRoot);
+  } catch (error) {
+    if (isFileSystemCode(error, "ENOENT")) {
+      throw new GeneratedImageValidationError(`${label} is missing`, "missing");
+    }
+    throw error;
+  }
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new GeneratedImageValidationError(
+      `${label} parent chain must not use a symbolic link`,
+      "invalid",
+    );
+  }
+
+  const physicalRoot = await fs.realpath(requestedRoot);
+  const segments = relativeTarget.split(path.sep);
+  let physicalParent = physicalRoot;
+  for (const segment of segments.slice(0, -1)) {
+    physicalParent = path.join(physicalParent, segment);
+    let stat = await fs.lstat(physicalParent).catch((error: unknown) => {
+      if (isFileSystemCode(error, "ENOENT")) return undefined;
+      throw error;
+    });
+    if (!stat && createParents) {
+      await fs.mkdir(physicalParent).catch((error: unknown) => {
+        if (!isFileSystemCode(error, "EEXIST")) throw error;
+      });
+      stat = await fs.lstat(physicalParent);
+    }
+    if (!stat) {
+      throw new GeneratedImageValidationError(`${label} is missing`, "missing");
+    }
+    if (stat.isSymbolicLink()) {
+      throw new GeneratedImageValidationError(
+        `${label} parent chain must not use a symbolic link`,
+        "invalid",
+      );
+    }
+    if (!stat.isDirectory()) {
+      throw new GeneratedImageValidationError(
+        `${label} parent chain must contain only directories`,
+        "invalid",
+      );
+    }
+  }
+
+  const resolvedParent = await fs.realpath(physicalParent);
+  const relativeParent = path.relative(physicalRoot, resolvedParent);
+  if (
+    relativeParent === ".." ||
+    relativeParent.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeParent)
+  ) {
+    throw new GeneratedImageValidationError(
+      `${label} is outside the physical run root`,
+      "invalid",
+    );
+  }
+  return path.join(resolvedParent, segments.at(-1)!);
+}
+
+export async function prepareGeneratedImageStagingPath(
+  runRoot: string,
+  requestId: string,
+): Promise<string> {
+  assertImageGenerationRequestId(requestId);
+  return resolveGeneratedImageFilePath(
+    runRoot,
+    path.join(runRoot, "image-staging", `${requestId}.download`),
+    "staged image",
+    true,
+  );
+}
+
+async function readValidatedGeneratedImageFile(
+  runRoot: string,
+  filePath: string,
+  label: string,
+) {
+  const validatedPath = await resolveGeneratedImageFilePath(
+    runRoot,
+    filePath,
+    label,
+  );
+  let handle: Awaited<ReturnType<typeof fs.open>>;
+  try {
+    handle = await fs.open(
+      validatedPath,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") {
+      throw new GeneratedImageValidationError(`${label} is missing`, "missing");
+    }
+    if (code === "ELOOP") {
+      throw new GeneratedImageValidationError(
+        `${label} must be a regular file`,
+        "invalid",
+      );
+    }
+    throw error;
+  }
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile()) {
+      throw new GeneratedImageValidationError(
+        `${label} must be a regular file`,
+        "invalid",
+      );
+    }
+    const buffer = await handle.readFile();
+    const metadata = detectGeneratedImage(buffer);
+    if (!metadata) {
+      throw new GeneratedImageValidationError(
+        "provider returned an unsupported image format",
+        "invalid",
+      );
+    }
+    return { buffer, metadata, validatedPath };
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function readValidatedGeneratedImageStaging(
@@ -754,50 +934,69 @@ export async function readValidatedGeneratedImageStaging(
   sitesRoot?: string,
 ): Promise<ValidatedGeneratedImageStaging> {
   const files = libraryPaths(runId, sitesRoot);
-  if (!GENERATION_REQUEST_ID.test(requestId)) {
-    throw new ImageLibraryError("invalid image request id");
-  }
+  assertImageGenerationRequestId(requestId);
   const stagingPath = path.join(files.staging, `${requestId}.download`);
-  let handle: Awaited<ReturnType<typeof fs.open>>;
-  try {
-    handle = await fs.open(
-      stagingPath,
-      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
-    );
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") {
-      throw new ImageLibraryError("staged image is missing", 502);
-    }
-    if (code === "ELOOP") {
-      throw new ImageLibraryError("staged image must be a regular file", 502);
-    }
-    throw error;
-  }
-  try {
-    const stat = await handle.stat();
-    if (!stat.isFile()) {
-      throw new ImageLibraryError("staged image must be a regular file", 502);
-    }
-    const buffer = await handle.readFile();
-    const metadata = detectGeneratedImage(buffer);
-    if (!metadata) {
-      throw new ImageLibraryError(
-        "provider returned an unsupported image format",
-        502,
+  const { buffer, metadata, validatedPath } = await readValidatedGeneratedImageFile(
+    files.root,
+    stagingPath,
+    "staged image",
+  );
+  const relativePath = `assets/generated/${requestId}.${metadata.extension}`;
+  return {
+    buffer,
+    metadata,
+    stagingPath: validatedPath,
+    relativePath,
+    finalPath: path.join(files.site, relativePath),
+  };
+}
+
+export async function readValidatedGeneratedLiveImage(
+  runId: string,
+  requestId: string,
+  sitesRoot?: string,
+): Promise<ValidatedGeneratedImageFile> {
+  const files = libraryPaths(runId, sitesRoot);
+  assertImageGenerationRequestId(requestId);
+  let recovered: ValidatedGeneratedImageFile | null = null;
+  for (const extension of ["png", "jpg", "webp"] as const) {
+    const relativePath = `assets/generated/${requestId}.${extension}`;
+    const finalPath = path.join(files.site, relativePath);
+    try {
+      const { buffer, metadata, validatedPath } = await readValidatedGeneratedImageFile(
+        files.root,
+        finalPath,
+        "generated live image",
       );
+      if (metadata.extension !== extension || recovered) {
+        throw new GeneratedImageValidationError(
+          "generated live image is ambiguous or has mismatched bytes",
+          "invalid",
+        );
+      }
+      recovered = {
+        buffer,
+        metadata,
+        relativePath,
+        finalPath: validatedPath,
+      };
+    } catch (error) {
+      if (
+        error instanceof GeneratedImageValidationError &&
+        error.reason === "missing"
+      ) {
+        continue;
+      }
+      throw error;
     }
-    const relativePath = `assets/generated/${requestId}.${metadata.extension}`;
-    return {
-      buffer,
-      metadata,
-      stagingPath,
-      relativePath,
-      finalPath: path.join(files.site, relativePath),
-    };
-  } finally {
-    await handle.close();
   }
+  if (!recovered) {
+    throw new GeneratedImageValidationError(
+      "generated live image is missing",
+      "missing",
+    );
+  }
+  return recovered;
 }
 
 async function readStagedOutput(
@@ -976,9 +1175,7 @@ export async function generateProjectImage(
   dependencies: ImageLibraryDependencies = {},
 ): Promise<{ item: ImageLibraryItem; library: ImageLibrary }> {
   assertSafeRunId(input.runId);
-  if (!GENERATION_REQUEST_ID.test(input.requestId)) {
-    throw new ImageLibraryError("invalid image request id");
-  }
+  assertImageGenerationRequestId(input.requestId);
   if (input.meteredConsent !== true) {
     throw new ImageLibraryError("explicit metered consent is required");
   }

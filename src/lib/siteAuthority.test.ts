@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  assertSiteAuthorityHeld,
+  withSiteAuthorityLock,
+} from "./siteAuthority";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -15,6 +19,53 @@ afterEach(async () => {
 });
 
 describe("site authority", () => {
+  it("binds custom authority to its exact root without granting canonical authority", async () => {
+    const runRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), "one-box-site-authority-custom-root-"),
+    );
+    roots.push(runRoot);
+
+    await withSiteAuthorityLock(
+      "custom-root-site",
+      async () => {
+        expect(() =>
+          assertSiteAuthorityHeld("custom-root-site", { runRoot }),
+        ).not.toThrow();
+        expect(() => assertSiteAuthorityHeld("custom-root-site")).toThrow(
+          "site authority lock is not held for run",
+        );
+      },
+      { runRoot },
+    );
+  });
+
+  it("retires authority when the operation settles before filesystem lock cleanup", async () => {
+    const runRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), "one-box-site-authority-lifetime-"),
+    );
+    roots.push(runRoot);
+    let detachedAssertion: Promise<boolean> | undefined;
+
+    await withSiteAuthorityLock(
+      "authority-lifetime",
+      async () => {
+        detachedAssertion = new Promise<boolean>((resolve) => {
+          setTimeout(() => {
+            try {
+              assertSiteAuthorityHeld("authority-lifetime", { runRoot });
+              resolve(false);
+            } catch {
+              resolve(true);
+            }
+          }, 0);
+        });
+      },
+      { runRoot },
+    );
+
+    expect(await detachedAssertion).toBe(true);
+  });
+
   it("serializes critical sections from separate processes without deadlock", async () => {
     const runRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-site-authority-"));
     roots.push(runRoot);

@@ -9,16 +9,26 @@ they cannot change the generated projection.
 
 The machine-readable block is verified by
 `scripts/eval/generated-site-writer-inventory.node.mjs`. That verifier discovers
-filesystem mutations independently from the TypeScript AST. Test and fixture files
-are recognized structurally by their filename suffix and are the only automatic
-`test-only` authority; no production module receives that classification.
+filesystem mutations independently from the TypeScript AST. Every scanner key names
+one operation endpoint, enclosing function, target class, and same-kind occurrence;
+rename source removal and destination creation are inventoried separately. Importing a
+candidate helper no longer grants authority to the rest of its module. The verifier
+resolves local path aliases, imported sink aliases, file-handle writes, helper-mediated
+writes, and higher-order guarded callbacks. Test and fixture files are recognized
+structurally by their filename suffix and are the only automatic `test-only` authority;
+no production module receives that classification. Guarded classification additionally
+requires the target path to be associated with the guard's run/root binding. Helper
+calls propagate their concrete target expression through parameterized callsites;
+being called only under some authority callback is not sufficient. Each
+discovered operation resolves to one artifact declared as rollback, intentional
+non-rollback, or atomic transaction state.
 
 An `unclassified-write-around` row is recorded so the inventory stays complete,
 but it fails verification and is not an allowed production authority.
 
 ```json inventory
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "permittedAuthorities": [
     "candidate-compiler",
     "guarded-mutation",
@@ -43,17 +53,18 @@ but it fails verification and is not an allowed production authority.
       ],
       "filesWritten": [
         "site/index.html",
-        "site/assets/edit-*.jpg",
         "element-history.json",
         "gates.json"
       ],
       "authority": "guarded-mutation",
       "snapshotSet": [
         "site/index.html",
-        "site/assets/edit-*.jpg when generated",
         "element-history.json",
         "gates.json"
       ],
+      "rollbackArtifacts": ["site/index.html", "element-history.json", "gates.json"],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": [],
       "owningTests": [
         "src/lib/elementEditor.test.ts",
         "src/app/api/edit/route.test.ts",
@@ -61,9 +72,10 @@ but it fails verification and is not an allowed production authority.
         "src/lib/imageLibrary.test.ts#places a completed library image through guarded site mutation"
       ],
       "scannerKeys": [
-        "guarded:src/lib/elementEditor.ts#applyElementHtmlEdit",
-        "guarded:src/lib/elementEditor.ts#moveElementHistory",
-        "live:src/app/api/edit/route.ts#POST"
+        "write:src/lib/elementEditor.ts#applyElementHtmlEdit:atomicWrite:live:1",
+        "write:src/lib/elementEditor.ts#applyElementHtmlEdit:atomicWrite:live:2",
+        "write:src/lib/elementEditor.ts#moveElementHistory:atomicWrite:live:1",
+        "write:src/lib/elementEditor.ts#moveElementHistory:atomicWrite:live:2"
       ],
       "status": "compliant"
     },
@@ -88,13 +100,20 @@ but it fails verification and is not an allowed production authority.
         "token-history.json",
         "gates.json"
       ],
+      "rollbackArtifacts": ["site/tokens.css", "tokens.json", "token-history.json", "gates.json"],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": [],
       "owningTests": [
         "src/lib/siteTokens.test.ts",
         "src/app/api/tokens/route.test.ts"
       ],
       "scannerKeys": [
-        "guarded:src/lib/siteTokens.ts#applyTokenEdit",
-        "guarded:src/lib/siteTokens.ts#revertTokenEdit"
+        "write:src/lib/siteTokens.ts#applyTokenEdit:atomicWrite:live:1",
+        "write:src/lib/siteTokens.ts#applyTokenEdit:updateSourceTokens:live:1",
+        "write:src/lib/siteTokens.ts#applyTokenEdit:atomicWrite:live:2",
+        "write:src/lib/siteTokens.ts#revertTokenEdit:atomicWrite:live:1",
+        "write:src/lib/siteTokens.ts#revertTokenEdit:updateSourceTokens:live:1",
+        "write:src/lib/siteTokens.ts#revertTokenEdit:atomicWrite:live:2"
       ],
       "status": "compliant"
     },
@@ -119,13 +138,67 @@ but it fails verification and is not an allowed production authority.
         "motion-history.json",
         "gates.json"
       ],
+      "rollbackArtifacts": ["site/motion.json", "site/motion-manifest.js", "motion-history.json", "gates.json"],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": [],
       "owningTests": [
         "src/lib/siteMotion.test.ts",
         "src/app/api/motion/route.test.ts"
       ],
       "scannerKeys": [
-        "guarded:src/lib/siteMotion.ts#mutateSiteMotion",
-        "guarded:src/lib/siteMotion.ts#revertSiteMotion"
+        "write:src/lib/siteMotion.ts#mutateSiteMotion:atomicWrite:live:1",
+        "write:src/lib/siteMotion.ts#mutateSiteMotion:atomicWrite:live:2",
+        "write:src/lib/siteMotion.ts#mutateSiteMotion:atomicWrite:live:3",
+        "write:src/lib/siteMotion.ts#revertSiteMotion:atomicWrite:live:1",
+        "write:src/lib/siteMotion.ts#revertSiteMotion:atomicWrite:live:2",
+        "write:src/lib/siteMotion.ts#revertSiteMotion:atomicWrite:live:3"
+      ],
+      "status": "compliant"
+    },
+    {
+      "id": "inline-image-edits",
+      "endpoints": ["POST /api/edit with image generation or replay"],
+      "modules": [
+        "src/app/api/edit/route.ts",
+        "src/lib/elementEditor.ts#applyElementHtmlEdit",
+        "src/lib/imageGenerationBudget.ts",
+        "src/lib/siteMutation.ts#runGuardedMutation",
+        "src/lib/siteMutation.ts#atomicWriteGeneratedSiteFile"
+      ],
+      "filesWritten": [
+        "site/assets/generated/<requestId>.<ext>",
+        "site/index.html",
+        "element-history.json",
+        "gates.json",
+        "image-generation-ledger.json",
+        "image-staging/<requestId>.download"
+      ],
+      "authority": "guarded-mutation",
+      "snapshotSet": [
+        "site/assets/generated/<requestId>.<ext> when generated",
+        "site/index.html",
+        "element-history.json",
+        "gates.json"
+      ],
+      "nonRollbackState": [
+        "image-generation-ledger.json is the paid-cost and idempotency journal updated under site authority",
+        "image-staging/<requestId>.download is provider staging outside the live site and is removed after commit or terminal failure"
+      ],
+      "rollbackArtifacts": ["site/assets/generated/**", "site/index.html", "element-history.json", "gates.json"],
+      "nonRollbackArtifacts": ["image-generation-ledger.json", "image-staging/**"],
+      "transactionArtifacts": [],
+      "owningTests": [
+        "src/app/api/edit/route.image.integration.test.ts",
+        "src/app/api/edit/route.test.ts",
+        "src/lib/siteMutation.test.ts#generated-site mutation write authority"
+      ],
+      "scannerKeys": [
+        "write:src/app/api/edit/route.ts#POST:reserveImageGeneration:live:1",
+        "write:src/app/api/edit/route.ts#POST:finishInlineImageGeneration:live:1",
+        "write:src/app/api/edit/route.ts#POST:finishInlineImageGeneration:live:2",
+        "write:src/app/api/edit/route.ts#POST:finishImageGeneration:live:1",
+        "write:src/app/api/edit/route.ts#POST:finishImageGeneration:live:2",
+        "write:src/app/api/edit/route.ts#POST:atomicWriteGeneratedSiteFile:live:1"
       ],
       "status": "compliant"
     },
@@ -140,6 +213,7 @@ but it fails verification and is not an allowed production authority.
         "src/lib/imageLibrary.ts#executeClaimedGeneration",
         "src/lib/imageLibrary.ts#recoverClaimedOrphan",
         "src/lib/imageLibrary.ts#finalizeStagedGeneration",
+        "src/lib/imageGenerationBudget.ts",
         "src/lib/siteMutation.ts#runGuardedMutation",
         "src/lib/siteMutation.ts#atomicWriteGeneratedSiteFile"
       ],
@@ -162,6 +236,9 @@ but it fails verification and is not an allowed production authority.
         "image-staging/<requestId>.download is retained until guarded publication commits",
         "image-generation-claims/** is coordination-only and released after the attempt"
       ],
+      "rollbackArtifacts": ["site/assets/generated/**", "image-library.json", "gates.json"],
+      "nonRollbackArtifacts": ["image-generation-ledger.json", "image-staging/**", "image-generation-claims/**"],
+      "transactionArtifacts": [],
       "owningTests": [
         "src/lib/imageLibrary.test.ts#rolls back rejected publication and retries completed staging without another provider call",
         "src/lib/imageLibrary.test.ts#never promotes valid or partial staging from the image-library read path",
@@ -169,8 +246,58 @@ but it fails verification and is not an allowed production authority.
         "src/app/api/assets/[id]/route.test.ts"
       ],
       "scannerKeys": [
-        "guarded:src/lib/imageLibrary.ts#finalizeStagedGeneration",
-        "live:src/lib/imageLibrary.ts#finalizeStagedGeneration"
+        "write:src/lib/imageLibrary.ts#finishPaidGeneration:finishImageGeneration:live:1",
+        "write:src/lib/imageLibrary.ts#finalizeStagedGeneration:atomicWriteGeneratedSiteFile:live:1",
+        "write:src/lib/imageLibrary.ts#finalizeStagedGeneration:writeCatalog:live:1",
+        "write:src/lib/imageLibrary.ts#recoverClaimedOrphan:writeCatalog:live:1",
+        "write:src/lib/imageLibrary.ts#recoverClaimedOrphan:finishImageGeneration:live:1",
+        "write:src/lib/imageLibrary.ts#executeClaimedGeneration:reserveImageGeneration:live:1",
+        "write:src/lib/imageLibrary.ts#executeClaimedGeneration:writeCatalog:live:1",
+        "write:src/lib/imageLibrary.ts#failGeneration:writeCatalog:live:1",
+        "write:src/lib/imageLibrary.ts#failGeneration:finishImageGeneration:live:1"
+      ],
+      "status": "compliant"
+    },
+    {
+      "id": "image-library-reconciliation",
+      "endpoints": [
+        "GET /api/assets/[id] via listProjectImages",
+        "POST /api/assets/[id] preflight via listProjectImages",
+        "POST /api/edit reference-image preflight via listProjectImages"
+      ],
+      "modules": [
+        "src/lib/imageLibrary.ts#listProjectImages",
+        "src/lib/imageLibrary.ts#synchronizeUnlocked",
+        "src/lib/imageGenerationBudget.ts#finishImageGeneration",
+        "src/lib/runstate.ts#invalidateApprovedVisualQaUnderSiteAuthority"
+      ],
+      "filesWritten": [
+        "image-library.json",
+        "image-generation-ledger.json",
+        "approved visual-QA state when a recovered generated image lacks invalidation provenance"
+      ],
+      "authority": "guarded-mutation",
+      "snapshotSet": [
+        "none: reconciliation is an idempotent site-authority repair transaction, not a rejectable editor mutation"
+      ],
+      "nonRollbackState": [
+        "image-library.json is rewritten to the reconciled catalog under site authority",
+        "image-generation-ledger.json terminalizes stale or recovered paid requests under the same authority",
+        "visual-QA approval invalidation is monotonic and is not rolled back"
+      ],
+      "rollbackArtifacts": [],
+      "nonRollbackArtifacts": ["image-library.json", "image-generation-ledger.json", "approved visual-QA state"],
+      "transactionArtifacts": [],
+      "owningTests": [
+        "src/lib/imageLibrary.test.ts#never promotes valid or partial staging from the image-library read path",
+        "src/lib/imageLibrary.test.ts"
+      ],
+      "scannerKeys": [
+        "write:src/lib/imageLibrary.ts#synchronizeUnlocked:finishImageGeneration:live:1",
+        "write:src/lib/imageLibrary.ts#synchronizeUnlocked:finishImageGeneration:live:2",
+        "write:src/lib/imageLibrary.ts#synchronizeUnlocked:finishImageGeneration:live:3",
+        "write:src/lib/imageLibrary.ts#synchronizeUnlocked:finishImageGeneration:live:4",
+        "write:src/lib/imageLibrary.ts#synchronizeUnlocked:writeCatalog:live:1"
       ],
       "status": "compliant"
     },
@@ -193,11 +320,26 @@ but it fails verification and is not an allowed production authority.
       "snapshotSet": [
         "unserved candidate transaction; prior candidate is retired and restored atomically"
       ],
+      "rollbackArtifacts": [],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": ["candidate/**"],
       "owningTests": [
         "src/lib/builder.test.ts",
         "src/lib/builderAuthority.test.ts"
       ],
-      "scannerKeys": ["candidate-module:src/lib/builder.ts"],
+      "scannerKeys": [
+        "write:src/lib/builder.ts#buildSiteUnderAuthority:rm:candidate:1",
+        "write:src/lib/builder.ts#buildSiteUnderAuthority:compileSiteToDirectory:candidate:1",
+        "write:src/lib/builder.ts#buildSiteUnderAuthority:writeFile:candidate:1",
+        "write:src/lib/builder.ts#buildSiteUnderAuthority:writeFile:candidate:2",
+        "write:src/lib/builder.ts#buildSiteUnderAuthority:replaceDirectory:candidate:1",
+        "write:src/lib/builder.ts#buildSiteUnderAuthority:rm:candidate:2",
+        "write:src/lib/builder.ts#commitCandidateRepairUnderAuthority:rm:candidate:1",
+        "write:src/lib/builder.ts#commitCandidateRepairUnderAuthority:stageCandidateRepairBundle:candidate:1",
+        "write:src/lib/builder.ts#commitCandidateRepairUnderAuthority:commitCandidateRepairBundle:candidate:1",
+        "write:src/lib/builder.ts#commitCandidateRepairUnderAuthority:rm:candidate:2",
+        "write:src/lib/builder.ts#commitCandidateRepairUnderAuthority:rm:candidate:3"
+      ],
       "status": "compliant"
     },
     {
@@ -217,11 +359,21 @@ but it fails verification and is not an allowed production authority.
       "snapshotSet": [
         "unserved candidate transaction; prior replaceable candidate is restored atomically"
       ],
+      "rollbackArtifacts": [],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": ["candidate/**"],
       "owningTests": [
         "src/lib/pageIrPipeline.test.ts#Page IR candidate materialization",
         "src/lib/pageIrController.test.ts"
       ],
-      "scannerKeys": ["candidate-module:src/lib/pageIrPipeline.ts"],
+      "scannerKeys": [
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:mkdir:candidate:1",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:mkdir:candidate:2",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:writeExclusive:candidate:1",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:writeExclusive:candidate:2",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:writeExclusive:candidate:3",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:rm:candidate:1"
+      ],
       "status": "compliant"
     },
     {
@@ -233,19 +385,58 @@ but it fails verification and is not an allowed production authority.
       ],
       "filesWritten": [
         "candidate/gates.json",
-        "candidate/provenance.json",
-        "gates.json compatibility copy"
+        "candidate/provenance.json"
       ],
       "authority": "candidate-compiler",
       "snapshotSet": [
         "candidate receipt/provenance prior bytes; candidate site inventory revalidated before commit"
       ],
+      "rollbackArtifacts": [],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": ["candidate/**"],
       "owningTests": [
         "src/lib/gates.candidate.test.ts",
         "src/lib/gates.candidate.integration.test.ts",
         "src/lib/builder.test.ts"
       ],
-      "scannerKeys": ["candidate-module:src/lib/gates.ts"],
+      "scannerKeys": [
+        "write:src/lib/gates.ts#runCandidateGates:atomicWriteCandidateReceipt:candidate:1"
+      ],
+      "status": "compliant"
+    },
+    {
+      "id": "live-gate-reports",
+      "endpoints": [
+        "guarded edits through runGuardedMutation after-edit gates",
+        "POST /api/evidence/[id] action=record-human-visual-review"
+      ],
+      "modules": [
+        "src/lib/gates.ts#runGates",
+        "src/lib/siteMutation.ts#runGuardedMutation",
+        "src/app/api/evidence/[id]/route.ts"
+      ],
+      "filesWritten": ["gates.json"],
+      "authority": "guarded-mutation",
+      "snapshotSet": [
+        "guarded edits include gates.json in their mutation snapshot",
+        "human visual review writes the current canonical report under site authority and has no rejectable mutation snapshot"
+      ],
+      "nonRollbackState": [
+        "a successful human-review preflight replaces gates.json with the current full-suite report under site authority"
+      ],
+      "rollbackArtifacts": ["gates.json"],
+      "nonRollbackArtifacts": ["gates.json"],
+      "transactionArtifacts": ["gates.json temporary sibling"],
+      "owningTests": [
+        "src/lib/siteMutation.test.ts",
+        "src/lib/gates.candidate.test.ts",
+        "src/app/api/evidence/[id]/route.test.ts"
+      ],
+      "scannerKeys": [
+        "write:src/lib/gates.ts#writeGates:writeFile:live:1",
+        "write:src/lib/gates.ts#writeGates:rename-source-removal:live:1",
+        "write:src/lib/gates.ts#writeGates:rename-destination-creation:live:1"
+      ],
       "status": "compliant"
     },
     {
@@ -274,15 +465,42 @@ but it fails verification and is not an allowed production authority.
         "prior candidate provenance bytes",
         "prior visual-QA approval state"
       ],
+      "rollbackArtifacts": [],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": ["site/**", "candidate/**", ".site-promotion-*/**", "gates.json"],
       "owningTests": [
         "src/lib/candidatePromotion.test.ts",
         "src/lib/candidateRecovery.test.ts",
         "src/lib/siteMutation.test.ts#does not interleave promotion and guarded mutation"
       ],
       "scannerKeys": [
-        "candidate-module:src/lib/candidate.ts",
-        "live:src/lib/candidate.ts#promoteCandidate",
-        "live:src/lib/candidate.ts#restorePromotionFootprint"
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-source-removal:promotion:1",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-destination-creation:live:1",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-source-removal:live:1",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-destination-creation:promotion:1",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-source-removal:promotion:2",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-destination-creation:live:2",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-source-removal:promotion:3",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rename-destination-creation:live:3",
+        "write:src/lib/candidate.ts#restorePromotionFootprint:rm:promotion:1",
+        "write:src/lib/candidate.ts#recoverCanonicalCandidate:rename-source-removal:candidate:1",
+        "write:src/lib/candidate.ts#recoverCanonicalCandidate:rename-destination-creation:candidate:1",
+        "write:src/lib/candidate.ts#abandonInvalidCanonicalCandidate:durableAtomicWrite:candidate:1",
+        "write:src/lib/candidate.ts#cleanupCandidateDiagnosticsUnderAuthority:rm:candidate:1",
+        "write:src/lib/candidate.ts#promoteCandidate:stageLiveBundle:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:live:1",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:live:1",
+        "write:src/lib/candidate.ts#promoteCandidate:durableAtomicWrite:candidate:1",
+        "write:src/lib/candidate.ts#promoteCandidate:durableAtomicWrite:live:1",
+        "write:src/lib/candidate.ts#promoteCandidate:rm:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidate:durableAtomicWrite:candidate:2",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:live:2",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:promotion:2",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:promotion:2",
+        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:live:2",
+        "write:src/lib/candidate.ts#promoteCandidate:rm:promotion:2"
       ],
       "status": "compliant"
     }
@@ -292,15 +510,23 @@ but it fails verification and is not an allowed production authority.
 
 ## Current disposition
 
-Image generation and orphan recovery stage provider bytes outside the live tree,
-then publish them only through `atomicWriteGeneratedSiteFile` inside
-`runGuardedMutation`. The verifier treats that primitive as a live writer regardless
-of how its path argument is aliased and separately proves that its callsite remains
-inside the guarded mutation callback. Moving publication outside that callback makes
-the authority test fail even if the same function still calls `runGuardedMutation`.
+Image generation and orphan recovery stage provider bytes outside the live tree, then
+publish them only through `atomicWriteGeneratedSiteFile` inside
+`runGuardedMutation`. The inline edit path publishes
+`site/assets/generated/<requestId>.<ext>` and snapshots that exact target with the HTML,
+element history, and live gate report; its paid-cost ledger and staging file are
+explicit non-rollback state.
 
-The edit route supplies its generated-image publication as the transform callback to
-`applyElementHtmlEdit`. The verifier derives this higher-order boundary from source:
-the wrapper's callback parameter must have value uses, and every use must be a direct
-invocation inside `runGuardedMutation`. Moving the route write outside that callback,
-or moving any wrapper invocation outside the guard, makes the authority test fail.
+`listProjectImages()` is also a writer: `synchronizeUnlocked()` may reconcile the
+catalog, terminalize ledger reservations, and invalidate stale visual approval while
+holding site authority. `runGates()` is a mixed live/candidate module: its live
+`gates.json` writer is allowed only when every production call path holds site
+authority, while `runCandidateGates()` receives a separate candidate-only callsite.
+
+Seeded scanner fixtures move token, motion, history, catalog, ledger, and gate writes
+outside their authorities; redirect a candidate writer to `site/**`; invent an
+unapproved promotion callsite; rename a live source into an unclassified destination;
+bind direct and helper-mediated raw writes to a different run root; omit one discovered
+artifact from the inventory disposition; and exercise aliased imports plus file-handle writes. Each
+remains visible as an individual operation. A function-level guard token, unrelated
+run/root binding, or candidate-capable import cannot make an escaped write compliant.

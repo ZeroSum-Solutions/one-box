@@ -24,6 +24,38 @@ async function fixture(runId = "test-run") {
   return { sitesRoot, root };
 }
 
+async function readOptional(filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function snapshotArtifacts(root: string) {
+  const relativePaths = [
+    "site/motion.json",
+    "site/motion-manifest.js",
+    "motion-history.json",
+    "gates.json",
+  ];
+  return new Map(
+    await Promise.all(
+      relativePaths.map(async (relativePath) => [
+        relativePath,
+        await readOptional(path.join(root, relativePath)),
+      ] as const),
+    ),
+  );
+}
+
+async function expectArtifacts(root: string, expected: Map<string, Buffer | null>) {
+  for (const [relativePath, bytes] of expected) {
+    expect(await readOptional(path.join(root, relativePath))).toEqual(bytes);
+  }
+}
+
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => fs.rm(root, { recursive: true, force: true })));
 });
@@ -143,18 +175,45 @@ describe("motion persistence", () => {
     await expect(mutateSiteMotion("test-run", { action: "apply", draft: { ...draft, editId: "hero.webgl" } }, { sitesRoot, gateRunner: passGate })).rejects.toThrow(/WebGL/);
   });
 
-  it("rolls back manifest/history/gates when blocking gates fail", async () => {
+  it("restores exact motion artifacts and absent-before state after rejected gates", async () => {
     const { sitesRoot, root } = await fixture();
+    await fs.writeFile(path.join(root, "site", "motion.json"), '{ "version": 1, "entries": [] }\n');
+    await fs.writeFile(
+      path.join(root, "site", "motion-manifest.js"),
+      'window.__ONEBOX_MOTION_MANIFEST__={"version":1,"entries":[]};\n',
+    );
+    await fs.writeFile(
+      path.join(root, "motion-history.json"),
+      '{ "version": 1, "entries": [], "cursor": 0 }\n',
+    );
+    const presentBefore = await snapshotArtifacts(root);
     let gateCalls = 0;
-    const failGate = async () => {
+    const failGate = async (): Promise<GateReport[]> => {
       gateCalls += 1;
-      await fs.writeFile(path.join(root, "gates.json"), "candidate gates");
+      await fs.writeFile(path.join(root, "gates.json"), `candidate gates ${gateCalls}`);
       if (gateCalls > 1) throw new Error("restorative gate failed");
       return [{ gate: "motion-qa", pass: false, blocking: true, details: ["blocked"], ranAt: new Date().toISOString() }];
     };
     await expect(mutateSiteMotion("test-run", { action: "apply", draft }, { sitesRoot, gateRunner: failGate })).rejects.toThrow(/blocking gates/);
-    expect((await inspectSiteMotion("test-run", undefined, { sitesRoot })).entries).toEqual([]);
-    expect(await fs.readFile(path.join(root, "gates.json"), "utf8")).toBe("original gates");
+    await expectArtifacts(root, presentBefore);
+
+    const absent = await fixture("motion-rejected-absent");
+    const absentBefore = await snapshotArtifacts(absent.root);
+    let absentGateCalls = 0;
+    const rejectAbsent = async (): Promise<GateReport[]> => {
+      absentGateCalls += 1;
+      await fs.writeFile(path.join(absent.root, "gates.json"), `candidate gates ${absentGateCalls}`);
+      if (absentGateCalls > 1) throw new Error("restorative gate failed");
+      return [{ gate: "motion-qa", pass: false, blocking: true, details: ["blocked"], ranAt: new Date().toISOString() }];
+    };
+    await expect(
+      mutateSiteMotion(
+        "motion-rejected-absent",
+        { action: "apply", draft },
+        { sitesRoot: absent.sitesRoot, gateRunner: rejectAbsent },
+      ),
+    ).rejects.toThrow(/blocking gates/);
+    await expectArtifacts(absent.root, absentBefore);
   });
 
   it("serializes concurrent apply operations without stale history", async () => {

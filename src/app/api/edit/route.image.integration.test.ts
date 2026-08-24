@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +10,10 @@ const state = vi.hoisted(() => ({
   providerCalls: 0,
   providerHeldSiteAuthority: false,
   approvalInvalidations: 0,
+  estimateGate: null as Promise<void> | null,
+  estimateObserved: null as ((callCount: number) => void) | null,
+  publicationGate: null as Promise<void> | null,
+  publicationObserved: null as (() => void) | null,
 }));
 
 const passReport = {
@@ -44,6 +49,8 @@ vi.mock("../../../lib/gates", async (importOriginal) => {
 vi.mock("../../../lib/tools/higgsfield", () => ({
   estimateImageCredits: vi.fn(async () => {
     state.estimateCalls += 1;
+    state.estimateObserved?.(state.estimateCalls);
+    await state.estimateGate;
     return 2;
   }),
   generateImage: vi.fn(async (options: { outPath: string }) => {
@@ -66,6 +73,24 @@ vi.mock("../../../lib/tools/higgsfield", () => ({
     return { path: options.outPath, url: "https://provider.example/result.png" };
   }),
 }));
+
+vi.mock("../../../lib/elementEditor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../lib/elementEditor")>();
+  return {
+    ...actual,
+    applyElementHtmlEdit: async (
+      ...args: Parameters<typeof actual.applyElementHtmlEdit>
+    ) => {
+      const gate = state.publicationGate;
+      if (gate) {
+        state.publicationGate = null;
+        state.publicationObserved?.();
+        await gate;
+      }
+      return actual.applyElementHtmlEdit(...args);
+    },
+  };
+});
 
 vi.mock("../../../lib/runstate", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../lib/runstate")>();
@@ -121,8 +146,9 @@ const originalHistory = `${JSON.stringify(
   2,
 )}\n`;
 const originalGates = `${JSON.stringify([passReport], null, 2)}\n`;
+const externalRoots: string[] = [];
 
-function imageRequest() {
+function imageRequest(overrides: Record<string, unknown> = {}) {
   return new Request("http://localhost:3000/api/edit", {
     method: "POST",
     headers: {
@@ -137,6 +163,7 @@ function imageRequest() {
       instruction: "Replace the hero with field work",
       imageIntent: true,
       requestId,
+      ...overrides,
     }),
   });
 }
@@ -147,6 +174,10 @@ beforeEach(async () => {
   state.providerCalls = 0;
   state.providerHeldSiteAuthority = false;
   state.approvalInvalidations = 0;
+  state.estimateGate = null;
+  state.estimateObserved = null;
+  state.publicationGate = null;
+  state.publicationObserved = null;
   await fs.rm(root, { recursive: true, force: true });
   await fs.mkdir(path.join(site, "assets"), { recursive: true });
   await Promise.all([
@@ -159,6 +190,11 @@ beforeEach(async () => {
 
 afterEach(async () => {
   await fs.rm(root, { recursive: true, force: true });
+  await Promise.all(
+    externalRoots.splice(0).map((externalRoot) =>
+      fs.rm(externalRoot, { recursive: true, force: true }),
+    ),
+  );
 });
 
 describe("inline image edit transaction", () => {
@@ -194,6 +230,84 @@ describe("inline image edit transaction", () => {
     expect(await fs.readFile(indexPath, "utf8")).toContain(
       `src="assets/generated/${requestId}.png"`,
     );
+    expect(JSON.parse(await fs.readFile(historyPath, "utf8"))).toMatchObject({
+      cursor: 1,
+      entries: [{ editId: "hero.image", previousHtml: originalHtml }],
+    });
+
+    const replayed = await POST(imageRequest());
+    expect(replayed.status).toBe(200);
+    expect(state.estimateCalls).toBe(1);
+    expect(state.providerCalls).toBe(1);
+    expect(JSON.parse(await fs.readFile(historyPath, "utf8"))).toMatchObject({
+      cursor: 1,
+      entries: [{ editId: "hero.image", previousHtml: originalHtml }],
+    });
+  });
+
+  it("rejects request ids outside the generation allowlist before provider work", async () => {
+    const invalidRequestId = "00000000-0000-0000-0000-000000000000";
+    const response = await POST(imageRequest({ requestId: invalidRequestId }));
+
+    expect(response.status).toBe(400);
+    expect(state.estimateCalls).toBe(0);
+    expect(state.providerCalls).toBe(0);
+    await expect(
+      fs.readFile(
+        path.join(root, "image-staging", `${invalidRequestId}.download`),
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.readFile(ledgerPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("lets only the first concurrent caller reach paid-provider preflight", async () => {
+    state.rejectImage = false;
+    let releaseEstimate!: () => void;
+    state.estimateGate = new Promise<void>((resolve) => {
+      releaseEstimate = resolve;
+    });
+    let firstEstimateObserved!: () => void;
+    const firstEstimate = new Promise<void>((resolve) => {
+      firstEstimateObserved = resolve;
+    });
+    state.estimateObserved = (callCount) => {
+      if (callCount === 1) firstEstimateObserved();
+    };
+
+    const first = POST(imageRequest());
+    await firstEstimate;
+    const second = POST(imageRequest());
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(state.estimateCalls).toBe(1);
+    releaseEstimate();
+    const responses = await Promise.all([first, second]);
+
+    expect(state.estimateCalls).toBe(1);
+    expect(state.providerCalls).toBe(1);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+  });
+
+  it("converges completed-before-publication callers without duplicate history", async () => {
+    state.rejectImage = false;
+    let releaseFirstPublication!: () => void;
+    state.publicationGate = new Promise<void>((resolve) => {
+      releaseFirstPublication = resolve;
+    });
+    let firstPublicationObserved!: () => void;
+    const firstPublication = new Promise<void>((resolve) => {
+      firstPublicationObserved = resolve;
+    });
+    state.publicationObserved = firstPublicationObserved;
+
+    const first = POST(imageRequest());
+    await firstPublication;
+    const second = await POST(imageRequest());
+    releaseFirstPublication();
+    const firstResponse = await first;
+
+    expect([firstResponse.status, second.status]).toEqual([200, 200]);
+    expect(state.estimateCalls).toBe(1);
+    expect(state.providerCalls).toBe(1);
     expect(JSON.parse(await fs.readFile(historyPath, "utf8"))).toMatchObject({
       cursor: 1,
       entries: [{ editId: "hero.image", previousHtml: originalHtml }],
@@ -256,6 +370,161 @@ describe("inline image edit transaction", () => {
     expect(state.providerCalls).toBe(0);
     expect(state.approvalInvalidations).toBe(0);
     expect(await fs.readFile(indexPath, "utf8")).toBe(originalHtml);
+    await expect(fs.readFile(finalPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a symlinked staging parent before provider work", async () => {
+    state.rejectImage = false;
+    const externalRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-inline-staging-parent-"),
+    );
+    externalRoots.push(externalRoot);
+    await fs.symlink(externalRoot, path.dirname(stagingPath), "dir");
+
+    const response = await POST(imageRequest());
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/symbolic link|outside.*run root/i),
+    });
+    expect(state.estimateCalls).toBe(0);
+    expect(state.providerCalls).toBe(0);
+    expect(await fs.readdir(externalRoot)).toEqual([]);
+    expect(await fs.readFile(indexPath, "utf8")).toBe(originalHtml);
+  });
+
+  it("rejects live recovery through a symlinked generated-assets parent", async () => {
+    const instruction = "Replace the hero with field work";
+    await fs.writeFile(
+      ledgerPath,
+      `${JSON.stringify({
+        version: 1,
+        capCredits: 14,
+        entries: [
+          {
+            requestId,
+            editId: "hero.image",
+            instructionSha256: createHash("sha256").update(instruction).digest("hex"),
+            model: "gpt_image_2",
+            credits: 2,
+            status: "completed",
+            reservedAt: "2026-08-23T12:00:00.000Z",
+            finishedAt: "2026-08-23T12:01:00.000Z",
+          },
+        ],
+      })}\n`,
+    );
+    await fs.writeFile(
+      indexPath,
+      originalHtml.replace(
+        "assets/old.jpg",
+        `assets/generated/${requestId}.png`,
+      ),
+    );
+    const externalRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-inline-live-parent-"),
+    );
+    externalRoots.push(externalRoot);
+    await fs.writeFile(
+      path.join(externalRoot, `${requestId}.png`),
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+    await fs.symlink(
+      externalRoot,
+      path.join(site, "assets", "generated"),
+      "dir",
+    );
+
+    const response = await POST(imageRequest());
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toMatchObject({
+      error: expect.stringMatching(/symbolic link|outside.*run root/i),
+    });
+    expect(state.estimateCalls).toBe(0);
+    expect(state.providerCalls).toBe(0);
+    expect(await fs.readFile(historyPath, "utf8")).toBe(originalHistory);
+  });
+
+  it("recovers valid staging left by a stale reserved inline request", async () => {
+    state.rejectImage = false;
+    const instruction = "Replace the hero with field work";
+    const old = new Date(Date.now() - 15 * 60 * 1_000 - 1_000);
+    await fs.writeFile(
+      ledgerPath,
+      `${JSON.stringify({
+        version: 1,
+        capCredits: 14,
+        entries: [
+          {
+            requestId,
+            editId: "hero.image",
+            instructionSha256: createHash("sha256").update(instruction).digest("hex"),
+            model: "gpt_image_2",
+            credits: 2,
+            status: "reserved",
+            reservedAt: old.toISOString(),
+          },
+        ],
+      })}\n`,
+    );
+    await fs.mkdir(path.dirname(stagingPath), { recursive: true });
+    await fs.writeFile(
+      stagingPath,
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+
+    const recovered = await POST(imageRequest());
+
+    expect(recovered.status).toBe(200);
+    expect(state.estimateCalls).toBe(0);
+    expect(state.providerCalls).toBe(0);
+    expect((await readImageGenerationLedger(ledgerPath)).entries[0]).toMatchObject({
+      status: "completed",
+      credits: 2,
+    });
+    expect(await fs.readFile(finalPath)).toHaveLength(68);
+    await expect(fs.readFile(stagingPath)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("terminalizes a stale reservation when no paid output can be recovered", async () => {
+    const instruction = "Replace the hero with field work";
+    const old = new Date(Date.now() - 15 * 60 * 1_000 - 1_000);
+    await fs.writeFile(
+      ledgerPath,
+      `${JSON.stringify({
+        version: 1,
+        capCredits: 14,
+        entries: [
+          {
+            requestId,
+            editId: "hero.image",
+            instructionSha256: createHash("sha256").update(instruction).digest("hex"),
+            model: "gpt_image_2",
+            credits: 2,
+            status: "reserved",
+            reservedAt: old.toISOString(),
+          },
+        ],
+      })}\n`,
+    );
+    const recovered = await POST(imageRequest());
+
+    expect(recovered.status).toBe(502);
+    expect(state.estimateCalls).toBe(0);
+    expect(state.providerCalls).toBe(0);
+    expect((await readImageGenerationLedger(ledgerPath)).entries).toHaveLength(1);
+    expect((await readImageGenerationLedger(ledgerPath)).entries[0]).toMatchObject({
+      status: "failed",
+      credits: 2,
+      error: expect.stringMatching(/interrupted/i),
+    });
     await expect(fs.readFile(finalPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 });

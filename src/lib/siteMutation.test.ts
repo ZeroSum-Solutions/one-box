@@ -34,6 +34,7 @@ vi.mock("./runstate", () => ({
 }));
 
 import {
+  atomicWrite,
   atomicWriteGeneratedSiteFile,
   BlockingMutationError,
   runGuardedMutation,
@@ -61,6 +62,60 @@ afterEach(async () => {
 });
 
 describe("generated-site mutation write authority", () => {
+  it("rejects a direct canonical live atomic write without authority", async () => {
+    const runId = "authority-atomic-no-context";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const liveTarget = path.join(runRoot, "site", "index.html");
+    tempDirectories.push(runRoot);
+
+    await expect(
+      atomicWrite(liveTarget, "blocked"),
+    ).rejects.toThrow("site authority lock does not cover write target");
+    await expect(fs.stat(liveTarget)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a no-context live atomic write through an outside canonical-root alias", async () => {
+    const runId = "authority-atomic-alias-no-context";
+    const canonicalSitesRoot = "/tmp/onebox-site-mutation-locks";
+    const runRoot = path.join(canonicalSitesRoot, runId);
+    const canonicalTarget = path.join(runRoot, "site", "index.html");
+    const aliasParent = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-sites-alias-"),
+    );
+    const aliasRoot = path.join(aliasParent, "sites-alias");
+    const aliasTarget = path.join(aliasRoot, runId, "site", "index.html");
+    tempDirectories.push(aliasParent, runRoot);
+    await fs.mkdir(canonicalSitesRoot, { recursive: true });
+    await fs.symlink(canonicalSitesRoot, aliasRoot, "dir");
+
+    await expect(
+      atomicWrite(aliasTarget, "blocked"),
+    ).rejects.toThrow("site authority lock does not cover write target");
+    await expect(fs.stat(canonicalTarget)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("binds generic atomic writes to the held run root", async () => {
+    const lockedRunId = "authority-atomic-root-a";
+    const otherRunId = "authority-atomic-root-b";
+    const lockedRunRoot = `/tmp/onebox-site-mutation-locks/${lockedRunId}`;
+    const otherRunRoot = `/tmp/onebox-site-mutation-locks/${otherRunId}`;
+    const allowedTarget = path.join(lockedRunRoot, "metadata.json");
+    const crossRunTarget = path.join(otherRunRoot, "site", "index.html");
+    tempDirectories.push(lockedRunRoot, otherRunRoot);
+
+    await withSiteAuthorityLock(lockedRunId, async () => {
+      await expect(
+        atomicWrite(crossRunTarget, "blocked"),
+      ).rejects.toThrow("site authority lock does not cover write target");
+      await atomicWrite(allowedTarget, "allowed");
+    });
+
+    await expect(fs.stat(crossRunTarget)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(allowedTarget, "utf8")).toBe("allowed");
+  });
+
   it("fails closed before a live write attempted outside runGuardedMutation", async () => {
     const siteRoot = await fs.mkdtemp(
       path.join(os.tmpdir(), "onebox-live-write-authority-"),
@@ -203,6 +258,198 @@ describe("generated-site mutation write authority", () => {
     ).not.toHaveBeenCalled();
   });
 
+  it("passes the guarded custom root to every gate run", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-root-aware-gates-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-root-aware-gates";
+    const runRoot = path.join(container, runId);
+    const target = path.join(runRoot, "site", "index.html");
+    const observedRoots: Array<string | undefined> = [];
+
+    await runGuardedMutation({
+      runId,
+      runRoot,
+      snapshotPaths: [target],
+      mutate: () => atomicWriteGeneratedSiteFile(runId, target, "committed"),
+      gateRunner: async (_gateRunId, gateOptions) => {
+        observedRoots.push(
+          (gateOptions as { runRoot?: string }).runRoot,
+        );
+        return [];
+      },
+    });
+
+    expect(observedRoots).toEqual([await fs.realpath(runRoot)]);
+  });
+
+  it("refuses a custom root before mutation without a root-aware gate runner", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-custom-root-default-gates-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-custom-default-gates";
+    const runRoot = path.join(container, runId);
+    let mutated = false;
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        runRoot,
+        snapshotPaths: [],
+        mutate: async () => {
+          mutated = true;
+        },
+      }),
+    ).rejects.toThrow("custom run roots require a root-aware gate runner");
+    expect(mutated).toBe(false);
+  });
+
+  it("retires mutation authority before a detached continuation reaches gates", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-mutation-authority-lifetime-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-mutation-lifetime";
+    const runRoot = path.join(container, runId);
+    const committedTarget = path.join(runRoot, "site", "index.html");
+    const detachedTarget = path.join(runRoot, "site", "detached.html");
+    let releaseDetached: () => void = () => undefined;
+    const detachedSignal = new Promise<void>((resolve) => {
+      releaseDetached = resolve;
+    });
+    let detachedWrite: Promise<void> | undefined;
+
+    await runGuardedMutation({
+      runId,
+      runRoot,
+      snapshotPaths: [committedTarget, detachedTarget],
+      mutate: async () => {
+        await atomicWriteGeneratedSiteFile(runId, committedTarget, "committed");
+        detachedWrite = detachedSignal.then(() =>
+          atomicWriteGeneratedSiteFile(runId, detachedTarget, "blocked"),
+        );
+      },
+      gateRunner: async () => {
+        releaseDetached();
+        await expect(detachedWrite).rejects.toThrow(
+          "generated-site live writes require an active guarded mutation",
+        );
+        return [];
+      },
+    });
+
+    expect(await fs.readFile(committedTarget, "utf8")).toBe("committed");
+    await expect(fs.stat(detachedTarget)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("treats a custom path alias of the canonical root as canonical", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-canonical-root-alias-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-canonical-alias";
+    const canonicalRunRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    tempDirectories.push(canonicalRunRoot);
+    await fs.mkdir(path.join(canonicalRunRoot, "site"), { recursive: true });
+    const aliasRunRoot = path.join(container, "run-root-alias");
+    await fs.symlink(canonicalRunRoot, aliasRunRoot);
+    const targetThroughAlias = path.join(aliasRunRoot, "site", "index.html");
+
+    await runGuardedMutation({
+      runId,
+      runRoot: aliasRunRoot,
+      snapshotPaths: [targetThroughAlias],
+      mutate: () =>
+        atomicWriteGeneratedSiteFile(runId, targetThroughAlias, "committed"),
+      gateRunner: async () => [],
+    });
+
+    expect(await fs.readFile(
+      path.join(canonicalRunRoot, "site", "index.html"),
+      "utf8",
+    )).toBe("committed");
+    expect(
+      mocks.invalidateApprovedVisualQaUnderSiteAuthority,
+    ).toHaveBeenCalledWith(runId);
+  });
+
+  it("rejects a generated-site write through a symlink that escapes the guarded root", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-mutation-symlink-escape-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-symlink-escape";
+    const runRoot = path.join(container, runId);
+    const siteRoot = path.join(runRoot, "site");
+    const outsideRoot = path.join(container, "outside");
+    await Promise.all([
+      fs.mkdir(siteRoot, { recursive: true }),
+      fs.mkdir(outsideRoot, { recursive: true }),
+    ]);
+    await fs.symlink(outsideRoot, path.join(siteRoot, "escape"));
+    const escapedTarget = path.join(siteRoot, "escape", "escaped.txt");
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        runRoot,
+        snapshotPaths: [],
+        mutate: () =>
+          atomicWriteGeneratedSiteFile(runId, escapedTarget, "blocked"),
+        gateRunner: async () => [],
+      }),
+    ).rejects.toThrow(
+      "generated-site live write target uses a symbolic link",
+    );
+    await expect(
+      fs.stat(path.join(outsideRoot, "escaped.txt")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("rejects a symlinked snapshot path before mutation or outside rollback writes", async () => {
+    const container = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-snapshot-symlink-escape-"),
+    );
+    tempDirectories.push(container);
+    const runId = "authority-snapshot-symlink";
+    const runRoot = path.join(container, runId);
+    const siteRoot = path.join(runRoot, "site");
+    const outsideRoot = path.join(container, "outside");
+    const outsideTarget = path.join(outsideRoot, "preserved.txt");
+    await Promise.all([
+      fs.mkdir(siteRoot, { recursive: true }),
+      fs.mkdir(outsideRoot, { recursive: true }),
+    ]);
+    await fs.writeFile(outsideTarget, "preserved");
+    const originalOutsideInode = (await fs.stat(outsideTarget)).ino;
+    await fs.symlink(outsideRoot, path.join(siteRoot, "escape"));
+    const targetThroughSymlink = path.join(siteRoot, "escape", "preserved.txt");
+    let mutated = false;
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        runRoot,
+        snapshotPaths: [targetThroughSymlink],
+        mutate: async () => {
+          mutated = true;
+          await atomicWriteGeneratedSiteFile(
+            runId,
+            targetThroughSymlink,
+            "blocked",
+          );
+        },
+        gateRunner: async () => [],
+      }),
+    ).rejects.toThrow("guarded mutation snapshot path uses a symbolic link");
+
+    expect(mutated).toBe(false);
+    expect(await fs.readFile(outsideTarget, "utf8")).toBe("preserved");
+    expect((await fs.stat(outsideTarget)).ino).toBe(originalOutsideInode);
+  });
+
   it("rejects a sibling of the injected site root and reads its preexisting gates", async () => {
     const container = await fs.mkdtemp(
       path.join(os.tmpdir(), "onebox-injected-mutation-root-"),
@@ -265,9 +512,10 @@ describe("generated-site mutation write authority", () => {
 
 describe("committed site mutation visual-QA invalidation", () => {
   it("invalidates only after the candidate passes mechanical gates and commits", async () => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-mutation-"));
-    tempDirectories.push(directory);
-    const target = path.join(directory, "index.html");
+    const runRoot = "/tmp/onebox-site-mutation-locks/test-run";
+    tempDirectories.push(runRoot);
+    const target = path.join(runRoot, "site", "index.html");
+    await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, "before");
     const order: string[] = [];
     mocks.invalidateApprovedVisualQaUnderSiteAuthority.mockImplementation(async () => {
@@ -295,9 +543,10 @@ describe("committed site mutation visual-QA invalidation", () => {
   });
 
   it("does not invalidate a rejected candidate", async () => {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-mutation-"));
-    tempDirectories.push(directory);
-    const target = path.join(directory, "index.html");
+    const runRoot = "/tmp/onebox-site-mutation-locks/test-run";
+    tempDirectories.push(runRoot);
+    const target = path.join(runRoot, "site", "index.html");
+    await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, "before");
 
     await expect(
@@ -334,9 +583,8 @@ describe("blocking-gate refusal distinguishes inherited failures", () => {
   const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
 
   async function attempt(failingGate: string): Promise<BlockingMutationError> {
-    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-mutation-"));
-    tempDirectories.push(directory);
-    const target = path.join(directory, "index.html");
+    const target = path.join(runRoot, "mutation-fixture.json");
+    await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, "before");
     try {
       await runGuardedMutation({

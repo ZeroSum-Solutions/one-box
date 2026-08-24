@@ -18,6 +18,38 @@ async function fixture(runId = "test-run") {
   return { sitesRoot, root };
 }
 
+async function readOptional(filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function snapshotArtifacts(root: string) {
+  const relativePaths = [
+    "site/tokens.css",
+    "tokens.json",
+    "token-history.json",
+    "gates.json",
+  ];
+  return new Map(
+    await Promise.all(
+      relativePaths.map(async (relativePath) => [
+        relativePath,
+        await readOptional(path.join(root, relativePath)),
+      ] as const),
+    ),
+  );
+}
+
+async function expectArtifacts(root: string, expected: Map<string, Buffer | null>) {
+  for (const [relativePath, bytes] of expected) {
+    expect(await readOptional(path.join(root, relativePath))).toEqual(bytes);
+  }
+}
+
 describe("semantic token inspection and persistence", () => {
   it("keeps an injected-root apply and revert away from the default run root", async () => {
     const runId = "tokens-injected-root";
@@ -53,6 +85,49 @@ describe("semantic token inspection and persistence", () => {
     expect((await inspectSiteTokens("test-run", { sitesRoot })).tokens.find((token) => token.name === "--color-primary")?.value).toBe("#abcdef");
     await revertTokenEdit("test-run", { sitesRoot, gateRunner });
     expect((await inspectSiteTokens("test-run", { sitesRoot })).tokens.find((token) => token.name === "--color-primary")?.value).toBe("#112233");
+  });
+  it("restores exact token artifacts and absent-before state after rejected gates", async () => {
+    const present = await fixture("tokens-rejected-present");
+    await fs.writeFile(
+      path.join(present.root, "tokens.json"),
+      '{\n  "colors": [{ "cssVar": "--color-primary", "value": "#112233" }]\n}\n',
+    );
+    await fs.writeFile(
+      path.join(present.root, "token-history.json"),
+      '{ "version": 1, "entries": [], "cursor": 0 }\n',
+    );
+    const presentBefore = await snapshotArtifacts(present.root);
+    let presentGateCalls = 0;
+    const rejectPresent = async (): Promise<GateReport[]> => {
+      presentGateCalls += 1;
+      await fs.writeFile(path.join(present.root, "gates.json"), `candidate gates ${presentGateCalls}`);
+      if (presentGateCalls > 1) throw new Error("restorative gate failed");
+      return [{ gate: "token-qa", pass: false, blocking: true, details: ["blocked"], ranAt: new Date().toISOString() }];
+    };
+    await expect(
+      applyTokenEdit("tokens-rejected-present", "--color-primary", "#abcdef", {
+        sitesRoot: present.sitesRoot,
+        gateRunner: rejectPresent,
+      }),
+    ).rejects.toThrow(/blocking gates/);
+    await expectArtifacts(present.root, presentBefore);
+
+    const absent = await fixture("tokens-rejected-absent");
+    const absentBefore = await snapshotArtifacts(absent.root);
+    let absentGateCalls = 0;
+    const rejectAbsent = async (): Promise<GateReport[]> => {
+      absentGateCalls += 1;
+      await fs.writeFile(path.join(absent.root, "gates.json"), `candidate gates ${absentGateCalls}`);
+      if (absentGateCalls > 1) throw new Error("restorative gate failed");
+      return [{ gate: "token-qa", pass: false, blocking: true, details: ["blocked"], ranAt: new Date().toISOString() }];
+    };
+    await expect(
+      applyTokenEdit("tokens-rejected-absent", "--color-primary", "#abcdef", {
+        sitesRoot: absent.sitesRoot,
+        gateRunner: rejectAbsent,
+      }),
+    ).rejects.toThrow(/blocking gates/);
+    await expectArtifacts(absent.root, absentBefore);
   });
   it("serializes concurrent edits so revert history keeps exact chronology", async () => {
     const { sitesRoot } = await fixture();
