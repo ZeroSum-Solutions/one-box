@@ -20,6 +20,7 @@ const DARWIN_SANDBOX_PROFILE_PREFIX = [
   "(version 1)",
   "(deny default)",
   "(allow process*)",
+  "(allow signal (target same-sandbox))",
   "(allow sysctl-read)",
   "(allow mach-lookup)",
   "(allow file-read*)",
@@ -245,6 +246,7 @@ function darwinSandboxProfile(environment, executionRoot) {
   }
   const sealedInputsRoot = environment.ONEBOX_EVAL_INPUTS_ROOT;
   const sealedBrowserRoot = environment.ONEBOX_EVAL_BROWSER_ROOT;
+  const workspaceRoot = environment.ONEBOX_EVAL_WORKSPACE_ROOT;
   for (const [label, authority] of [
     ["sealed input", sealedInputsRoot],
     ["sealed browser", sealedBrowserRoot],
@@ -255,6 +257,9 @@ function darwinSandboxProfile(environment, executionRoot) {
         !path.isAbsolute(authority) ||
         /["\\\0\r\n]/.test(authority))
     ) fail(`${label} sandbox authority is invalid`);
+  }
+  if (workspaceRoot !== undefined && workspaceRoot !== path.join(executionRoot, "sites")) {
+    fail("evaluation writable workspace authority is invalid");
   }
   const readRoots = new Set([
     executionRoot,
@@ -281,6 +286,10 @@ function darwinSandboxProfile(environment, executionRoot) {
     ]),
     `(allow file-write* (literal "${temporary}"))`,
     `(allow file-write* (subpath "${temporary}"))`,
+    ...(workspaceRoot ? [
+      `(allow file-write* (literal "${workspaceRoot}"))`,
+      `(allow file-write* (subpath "${workspaceRoot}"))`,
+    ] : []),
     "(allow file-write* (literal \"/dev/null\"))",
   ].join(" ");
 }
@@ -1761,6 +1770,7 @@ export async function executeEvaluation({
   environment = process.env,
   inputsRoot,
   browserRoot,
+  workspaceRoot,
   timeoutMs = 120_000,
 }) {
   validateEvaluationId(evaluationId);
@@ -1782,6 +1792,7 @@ export async function executeEvaluation({
   const temporary = await fs.mkdtemp(path.join(temporaryBase, "one-box-eval-"));
   const physicalTemporary = await fs.realpath(temporary);
   const attemptLog = path.join(physicalTemporary, "tmp", "attempts.log");
+  let workspaceAuthority;
   try {
     const executionRoot = await fs.realpath(path.resolve(root));
     const offlineGuard = path.join(
@@ -1799,6 +1810,29 @@ export async function executeEvaluation({
     childEnv.GIT_CONFIG_GLOBAL = path.join(isolatedHome, ".gitconfig");
     await fs.mkdir(childEnv.TMPDIR, { mode: 0o700 });
     childEnv.TMPDIR = await fs.realpath(childEnv.TMPDIR);
+    if (workspaceRoot !== undefined) {
+      const requestedWorkspace = path.resolve(workspaceRoot);
+      const physicalWorkspace = path.join(
+        await fs.realpath(path.dirname(requestedWorkspace)),
+        path.basename(requestedWorkspace),
+      );
+      const expectedWorkspace = path.join(executionRoot, "sites");
+      if (physicalWorkspace !== expectedWorkspace) fail("evaluation writable workspace authority is invalid");
+      try {
+        await fs.mkdir(physicalWorkspace, { mode: 0o700 });
+      } catch (error) {
+        if (error?.code === "EEXIST") fail("evaluation writable workspace must not already exist");
+        throw error;
+      }
+      workspaceAuthority = await openStableDirectoryAuthority(
+        physicalWorkspace,
+        "evaluation writable workspace authority",
+      );
+      if ((await fs.readdir(workspaceAuthority.physical)).length !== 0) {
+        fail("evaluation writable workspace must begin empty");
+      }
+      childEnv.ONEBOX_EVAL_WORKSPACE_ROOT = workspaceAuthority.physical;
+    }
     childEnv.NODE_OPTIONS = `--import=${offlineGuard}`;
     childEnv.ONEBOX_EVAL_NETWORK_ATTEMPT_LOG = attemptLog;
     childEnv.ONEBOX_EVAL_OS_SANDBOX = "darwin-sandbox-exec-network-and-user-storage-denied";
@@ -1810,7 +1844,13 @@ export async function executeEvaluation({
         fail("evaluation command registration is invalid");
       }
       validateCommandId(command.id);
+      if (workspaceAuthority) {
+        await assertDirectoryAuthority(workspaceAuthority, "evaluation writable workspace authority");
+      }
       const result = await spawnCommand(command.argv, { cwd: executionRoot, env: childEnv, timeoutMs });
+      if (workspaceAuthority) {
+        await assertDirectoryAuthority(workspaceAuthority, "evaluation writable workspace authority");
+      }
       records.push({ id: command.id, argv: command.argv, ...result });
       if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) break;
     }
@@ -1834,6 +1874,7 @@ export async function executeEvaluation({
       ]),
     };
   } finally {
+    await workspaceAuthority?.handle.close();
     await fs.rm(temporary, { recursive: true, force: true });
   }
 }

@@ -514,6 +514,7 @@ export async function runPageIrHarnessCli(
           browserRoot: registration.kind === "browser-corpus-tests"
             ? path.join(run.directory, "browser")
             : undefined,
+          workspaceRoot: snapshot ? path.join(snapshot.root, "sites") : undefined,
           timeoutMs: 180_000,
         });
       } finally {

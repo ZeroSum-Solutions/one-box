@@ -122,6 +122,90 @@ test("credential-free child environments retain runtime basics and remove secret
   assert.equal(sanitized.ONEBOX_EVAL_OS_SANDBOX, undefined);
 });
 
+async function isolatedEvaluationRoot(context) {
+  const root = await temporaryRoot(context);
+  await fs.mkdir(path.join(root, "scripts/eval"), { recursive: true });
+  await fs.copyFile(
+    path.join(ROOT, "scripts/eval/page-ir-offline-guard.mjs"),
+    path.join(root, "scripts/eval/page-ir-offline-guard.mjs"),
+  );
+  return root;
+}
+
+test("credential-free tests may write only their disposable sites workspace", async (context) => {
+  const root = await isolatedEvaluationRoot(context);
+  const result = await executeEvaluation({
+    root,
+    workspaceRoot: path.join(root, "sites"),
+    evaluationId: "EVAL-SCOPE-002",
+    commands: [{
+      id: "sites-workspace",
+      argv: [process.execPath, "-e", "require('node:fs').mkdirSync('sites/probe',{recursive:true})"],
+    }],
+    timeoutMs: 5_000,
+  });
+  assert.equal(result.state, "PASS", result.commands[0]?.stderr);
+  assert.equal((await fs.stat(path.join(root, "sites/probe"))).isDirectory(), true);
+});
+
+test("credential-free test workers may signal descendants in the same sandbox", async (context) => {
+  const root = await isolatedEvaluationRoot(context);
+  const source = [
+    "const { spawn } = require('node:child_process');",
+    "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+    "setTimeout(() => child.kill('SIGTERM'), 50);",
+    "child.once('close', () => process.exit(0));",
+  ].join("");
+  const result = await executeEvaluation({
+    root,
+    evaluationId: "EVAL-SCOPE-002",
+    commands: [{ id: "same-sandbox-signal", argv: [process.execPath, "-e", source] }],
+    timeoutMs: 5_000,
+  });
+  assert.equal(result.state, "PASS", result.commands[0]?.stderr);
+});
+
+test("credential-free sites workspace cannot follow a symlink outside its authority", async (context) => {
+  const root = await isolatedEvaluationRoot(context);
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-eval-workspace-escape-"));
+  context.after(() => fs.rm(outside, { recursive: true, force: true }));
+  await fs.mkdir(path.join(root, "sites"));
+  await fs.symlink(outside, path.join(root, "sites/escape"));
+  const escapedFile = path.join(outside, "forbidden.txt");
+  await assert.rejects(executeEvaluation({
+    root,
+    workspaceRoot: path.join(root, "sites"),
+    evaluationId: "EVAL-SEC-003",
+    commands: [{
+      id: "sites-symlink-escape",
+      argv: [process.execPath, "-e", "require('node:fs').writeFileSync('sites/escape/forbidden.txt','forbidden')"],
+    }],
+    timeoutMs: 5_000,
+  }), /workspace.*must not already exist/i);
+  await assert.rejects(fs.stat(escapedFile), { code: "ENOENT" });
+});
+
+test("credential-free sites workspace rejects a pre-seeded hardlink", async (context) => {
+  const root = await isolatedEvaluationRoot(context);
+  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-eval-workspace-hardlink-"));
+  context.after(() => fs.rm(outside, { recursive: true, force: true }));
+  await fs.mkdir(path.join(root, "sites"));
+  const outsideFile = path.join(outside, "authority.txt");
+  await fs.writeFile(outsideFile, "unchanged");
+  await fs.link(outsideFile, path.join(root, "sites/linked.txt"));
+  await assert.rejects(executeEvaluation({
+    root,
+    workspaceRoot: path.join(root, "sites"),
+    evaluationId: "EVAL-SEC-003",
+    commands: [{
+      id: "sites-hardlink-escape",
+      argv: [process.execPath, "-e", "require('node:fs').writeFileSync('sites/linked.txt','changed')"],
+    }],
+    timeoutMs: 5_000,
+  }), /workspace.*must not already exist/i);
+  assert.equal(await fs.readFile(outsideFile, "utf8"), "unchanged");
+});
+
 test("preparation publishes one immutable closed input run and rejects bad fixtures", async (context) => {
   const root = await temporaryRoot(context);
   const fixtures = path.join(root, "fixtures");
