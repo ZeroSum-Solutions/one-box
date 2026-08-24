@@ -71,7 +71,10 @@ function assertIdentityBijection(renderedIds, expectedEntries, context) {
 test("EVAL-COMP-002: PageIR editor identity survives clean compiles and responsive rendering", {
   timeout: 120_000,
 }, async (t) => {
-  const browser = await chromium.launch();
+  const wsEndpoint = process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT;
+  const browser = wsEndpoint
+    ? await chromium.connect(wsEndpoint)
+    : await chromium.launch();
   t.after(() => browser.close());
   const page = await browser.newPage();
 

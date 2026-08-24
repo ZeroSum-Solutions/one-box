@@ -17,6 +17,7 @@ import {
   renderedBrowserEnvironment,
   renderedEvidenceFailure,
   renderedEditorIdentityArgv,
+  renderedEditorIdentityEnvironment,
   renderedProductionBuildArgv,
   renderedSandboxProfile,
   releaseFrozenRenderedAuthorities,
@@ -72,9 +73,23 @@ test("EVAL-COMP-002 runs the responsive six-purpose editor-identity oracle", () 
     snapshotRoot: "/snapshot",
   }), [
     "/runtime/node",
-    "--test",
     "/snapshot/scripts/e2e/page-ir-editor-identity.node.mjs",
   ]);
+  assert.deepEqual(renderedEditorIdentityEnvironment(
+    { CI: "1" },
+    "ws://127.0.0.1:43124/verified-token",
+  ), {
+    CI: "1",
+    ONEBOX_EVAL_ALLOW_LOOPBACK: "1",
+    ONEBOX_EVAL_BROWSER_WS_ENDPOINT: "ws://127.0.0.1:43124/verified-token",
+    ONEBOX_EVAL_LOOPBACK_HOST: "127.0.0.1",
+    ONEBOX_EVAL_LOOPBACK_PORT: "43124",
+    ONEBOX_EVAL_OS_SANDBOX: "darwin-sandbox-exec-network-and-user-storage-denied",
+  });
+  assert.throws(
+    () => renderedEditorIdentityEnvironment({}, "wss://example.com/browser"),
+    /endpoint is invalid/,
+  );
 });
 
 test("rendered build denies all network", () => {

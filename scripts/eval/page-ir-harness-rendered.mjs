@@ -391,9 +391,15 @@ export function renderedProductionBuildArgv(runtimeContract) {
 export function renderedEditorIdentityArgv({ nodeExecutable, snapshotRoot }) {
   return [
     nodeExecutable,
-    "--test",
     path.join(snapshotRoot, "scripts/e2e/page-ir-editor-identity.node.mjs"),
   ];
+}
+
+export function renderedEditorIdentityEnvironment(environment, wsEndpoint) {
+  return renderedBrowserEnvironment({
+    ...environment,
+    ONEBOX_EVAL_ALLOW_LOOPBACK: "1",
+  }, wsEndpoint);
 }
 
 export function renderedBrowserEnvironment(environment, wsEndpoint) {
@@ -576,12 +582,9 @@ export async function executeProductionRenderedEvidence({
       snapshotRoot,
     }), {
       cwd: snapshotRoot,
-      env,
+      env: renderedEditorIdentityEnvironment(env, delegatedBrowser.wsEndpoint),
       timeoutMs: 180_000,
-      sandboxProfile: renderedSandboxProfile({
-        snapshotRoot, temporaryRoot: await fs.realpath(temporaryRoot), browserBundleRoot: browser.bundleRoot,
-        writeRoots: [], networkMode: "deny",
-      }),
+      sandboxProfile: journeySandboxProfile,
     });
     if (server.exitCode !== null || server.signalCode !== null) throw new Error("production server exited during rendered evidence collection");
     renderedResults = RENDERED_GROUPS.flatMap((group) => group.evaluationIds.map((evaluationId) =>
