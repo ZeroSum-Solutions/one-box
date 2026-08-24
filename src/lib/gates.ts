@@ -26,7 +26,7 @@ import { constants, type BigIntStats } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { chromium, type Page } from "playwright";
+import type { Page } from "playwright";
 import { AxeBuilder } from "@axe-core/playwright";
 import {
   SITES_DIR,
@@ -59,6 +59,7 @@ import { findUnresolvedSheetRefs } from "./cssVars";
 import { gateContrast } from "./contrastGate";
 import { pageIrSha256 } from "./pageIrHash";
 import { selectMutationGateNames } from "./mutationGateMatrix";
+import { launchEvaluationAwareBrowser } from "./evaluationBrowser";
 
 export interface RunGatesOptions {
   /** Closed V1 mutation request for after-edit routing. Missing, malformed,
@@ -790,30 +791,7 @@ async function executeGateSuite(
     unresolvedRefs: string[];
   },
 ): Promise<GateReport[]> {
-  const evaluationEndpoint = process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT;
-  const evaluationPort = Number(process.env.ONEBOX_EVAL_LOOPBACK_PORT);
-  if (
-    evaluationEndpoint !== undefined &&
-    (process.env.ONEBOX_EVAL_OS_SANDBOX !==
-      "darwin-sandbox-exec-network-and-user-storage-denied" ||
-      (() => {
-        try {
-          const endpoint = new URL(evaluationEndpoint);
-          return endpoint.protocol !== "ws:" ||
-            !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname) ||
-            !Number.isInteger(evaluationPort) ||
-            evaluationPort < 1 ||
-            Number(endpoint.port) !== evaluationPort;
-        } catch {
-          return true;
-        }
-      })())
-  ) {
-    throw new Error("invalid credential-free evaluation browser capability");
-  }
-  const browser = evaluationEndpoint
-    ? await chromium.connect(evaluationEndpoint)
-    : await chromium.launch();
+  const browser = await launchEvaluationAwareBrowser();
   const reports: GateReport[] = [];
   try {
     for (const name of gateNames) {

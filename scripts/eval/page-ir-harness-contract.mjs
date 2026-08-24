@@ -19,6 +19,7 @@ const TEST_REGISTRATION_KINDS = new Set([
   "browser-corpus-tests",
 ]);
 const FROZEN_BROWSER_TEST_FILES = new Set([
+  "src/app/api/evidence/[id]/route.test.ts",
   "src/lib/gates.afterEdit.integration.test.ts",
   "src/lib/gates.candidate.integration.test.ts",
   "src/lib/pageIrPipeline.test.ts",

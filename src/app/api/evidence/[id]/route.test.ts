@@ -4,10 +4,22 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const gateMocks = vi.hoisted(() => ({ runGates: vi.fn() }));
+const evidenceMocks = vi.hoisted(() => ({
+  materializeDesignContractArtifacts: vi.fn(),
+}));
 
 vi.mock("../../../../lib/gates", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../../lib/gates")>();
   return { ...actual, runGates: gateMocks.runGates };
+});
+
+vi.mock("../../../../lib/evidence", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../lib/evidence")>();
+  return {
+    ...actual,
+    materializeDesignContractArtifacts:
+      evidenceMocks.materializeDesignContractArtifacts,
+  };
 });
 
 import { GET, POST } from "./route";
@@ -43,6 +55,7 @@ import {
   buildTailwindPlan,
   buildTokenInventory,
   computeSiteBuildSha256,
+  renderDesignContract,
 } from "../../../../lib/evidence";
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
 import { compilerPageIr } from "../../../../lib/test-fixtures/pageIrCompilerFixtures";
@@ -451,6 +464,25 @@ afterEach(async () => {
 beforeEach(() => {
   gateMocks.runGates.mockReset();
   gateMocks.runGates.mockResolvedValue(passingGateReports);
+  evidenceMocks.materializeDesignContractArtifacts.mockReset();
+  evidenceMocks.materializeDesignContractArtifacts.mockImplementation(
+    async (intake, tokens, lock) => {
+      const contractBytes = Buffer.from(
+        renderDesignContract(intake, tokens, lock),
+        "utf8",
+      );
+      const exportBytes = Buffer.from(
+        "@theme { --color-primary: #123456; }\n",
+        "utf8",
+      );
+      return {
+        contractBytes,
+        exportBytes,
+        contractSha256: sha256(contractBytes),
+        exportSha256: sha256(exportBytes),
+      };
+    },
+  );
 });
 
 describe("evidence workspace routes", () => {

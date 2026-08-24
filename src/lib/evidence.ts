@@ -4,8 +4,9 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { chromium, type Page } from "playwright";
+import type { Page } from "playwright";
 import { withSiteAuthorityLock } from "./siteMutation";
+import { launchEvaluationAwareBrowser } from "./evaluationBrowser";
 import {
   candidateBuildSha256,
   LIVE_BUNDLE_METADATA_DIR,
@@ -590,7 +591,7 @@ async function runThreeWidthVisualQaUnlocked(
   await fs.mkdir(qaDirectory, { recursive: true });
   const url = `file://${path.join(siteDirectory, "index.html")}`;
   const buildSha256 = await computeSiteBuildSha256(siteDirectory);
-  const browser = await chromium.launch();
+  const browser = await launchEvaluationAwareBrowser();
   const checks: VisualQa["checks"] = [];
   try {
     for (const viewport of [
