@@ -21,6 +21,7 @@ const TEST_REGISTRATION_KINDS = new Set([
 const FROZEN_BROWSER_TEST_FILES = new Set([
   "src/lib/gates.afterEdit.integration.test.ts",
   "src/lib/gates.candidate.integration.test.ts",
+  "src/lib/pageIrPipeline.test.ts",
 ]);
 const COORDINATOR_EVALUATORS = new Set([
   "rendered-evidence",

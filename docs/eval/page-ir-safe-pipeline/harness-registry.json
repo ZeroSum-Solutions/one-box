@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.6.0",
+  "registryVersion": "1.7.0",
   "status": "frozen",
   "evaluationManifest": {
     "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
@@ -197,7 +197,8 @@
         "src/lib/pageIrPipeline.test.ts"
       ],
       "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
     },
     "EVAL-REPLAY-001": {
       "kind": "credential-free-tests",
