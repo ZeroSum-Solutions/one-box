@@ -32,7 +32,11 @@ static safe relative value or trace to a bounded producer; an unknown dynamic se
 fails closed. Dynamic conditionals preserve every branch, explicit parent traversal is
 rejected, and visible direct or object-API mutation of a `finalPath` carrier fails
 closed. A later spread, computed property, or duplicate property that could replace a
-traced carrier property also invalidates its provenance. Each
+traced carrier property also invalidates its provenance. Authority options use the
+same last-write rule: a later spread, computed property, or duplicate `runId` or
+`runRoot` invalidates the binding. An explicit `withSiteAuthorityLock` options object
+whose `runRoot` is replaceable cannot fall back to canonical-run authority, including
+through the default gate-runner call flow. Each
 discovered operation resolves to one artifact declared as rollback, intentional
 non-rollback, or atomic transaction state.
 
@@ -549,8 +553,12 @@ parameter `finalPath` properties inside guarded callbacks; mutate `finalPath` th
 shadow a real Node path import with a parameter; mutate a nested `finalPath` carrier;
 shadow it through a destructured binding; mutate a computed carrier path; overwrite
 custom roots through a spread; supply an unknown later path segment; replace a traced
-`finalPath` through a later spread; shadow the canonical `sitePaths` import; escape
-through parent traversal; preserve a foreign dynamic-conditional branch; and exercise
-aliased imports plus file-handle writes. Each
+`finalPath` through a later spread; replace `runGuardedMutation` authority through a
+later spread or duplicate `runId` or `runRoot`; propagate replaceable authority through
+a guarded callback wrapper; replace `withSiteAuthorityLock` options `runRoot` through a
+later spread, computed property, or duplicate, including through the default gate
+runner; shadow the canonical `sitePaths` import; escape through parent traversal;
+preserve a foreign dynamic-conditional branch; and exercise aliased imports plus
+file-handle writes. Each
 remains visible as an individual operation. A function-level guard token, unrelated
 run/root binding, or candidate-capable import cannot make an escaped write compliant.

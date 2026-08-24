@@ -514,11 +514,14 @@ function directAuthorityBinding(node, expandedTarget) {
       if (name === "withSiteAuthorityLock" && argumentIndex === 1) {
         const runId = call.arguments[0];
         const options = call.arguments[2];
-        const runRoot = options && propertyInitializer(options, "runRoot");
-        if (runRoot) {
-          return targetMatchesRoot(
-            expandedTarget,
-            expandedExpression(runRoot, declarations),
+        if (options) {
+          const runRoot = stablePropertyInitializer(options, "runRoot");
+          return Boolean(
+            runRoot &&
+              targetMatchesRoot(
+                expandedTarget,
+                expandedExpression(runRoot, declarations),
+              ),
           );
         }
         return Boolean(
@@ -552,7 +555,7 @@ function directAuthorityBinding(node, expandedTarget) {
     ) {
       continue;
     }
-    const runRoot = propertyInitializer(object, "runRoot");
+    const runRoot = stablePropertyInitializer(object, "runRoot");
     return Boolean(
       runRoot &&
         targetMatchesRoot(
@@ -597,7 +600,7 @@ function directAuthorityRunBinding(node, expandedRunId) {
     ) {
       continue;
     }
-    const authorityRun = propertyInitializer(object, "runId");
+    const authorityRun = stablePropertyInitializer(object, "runId");
     if (
       authorityRun &&
       normalizedExpression(expandedRunId) ===
@@ -617,18 +620,24 @@ function directCanonicalRunBinding(node, expandedTarget) {
     if (!ts.isCallExpression(call)) continue;
     const localName = calleeName(call.expression);
     const name = importedNames(current.getSourceFile()).get(localName) ?? localName;
-    const runId = call.arguments[0];
     if (
-      name === "withSiteAuthorityLock" &&
-      call.arguments.indexOf(current) === 1 &&
-      runId &&
-      targetMatchesCanonicalRun(
-        expandedTarget,
-        expandedExpression(runId, declarations),
-      )
+      name !== "withSiteAuthorityLock" ||
+      call.arguments.indexOf(current) !== 1
     ) {
-      return true;
+      continue;
     }
+    const options = call.arguments[2];
+    if (options && !stablePropertyInitializer(options, "runRoot")) {
+      return false;
+    }
+    const runId = call.arguments[0];
+    return Boolean(
+      runId &&
+        targetMatchesCanonicalRun(
+          expandedTarget,
+          expandedExpression(runId, declarations),
+        ),
+    );
   }
   return false;
 }
@@ -770,8 +779,8 @@ function guardedCallbackWrappers(sources) {
             current.arguments[0] &&
             ts.isObjectLiteralExpression(current.arguments[0])
           ) {
-            const runId = propertyInitializer(current.arguments[0], "runId");
-            const runRoot = propertyInitializer(current.arguments[0], "runRoot");
+            const runId = stablePropertyInitializer(current.arguments[0], "runId");
+            const runRoot = stablePropertyInitializer(current.arguments[0], "runRoot");
             if (runRoot) authorityRoots.push(runRoot);
             if (runId) {
               const expandedRunId = expandedExpression(
@@ -2323,7 +2332,7 @@ function directPrimitiveProvenanceBinding(node, targetNode, analysis) {
       ts.isCallExpression(call) &&
       calleeName(call.expression) === "runGuardedMutation"
     ) {
-      runRoot = propertyInitializer(object, "runRoot");
+      runRoot = stablePropertyInitializer(object, "runRoot");
       break;
     }
   }
@@ -3107,6 +3116,231 @@ test("guarded authority requires the write target to share the lock run and root
   assert.equal(authorityAllows(findings.get("matchingRoot"), "guarded-mutation"), true);
   assert.equal(authorityAllows(findings.get("mismatchedRoot"), "guarded-mutation"), false);
 });
+
+test("runGuardedMutation authority rejects a later options spread", () => {
+  const fixtureSources = [
+    fixtureSource(
+      "fixtures/guarded-authority-spread.ts",
+      `
+        export async function replaceableAuthority() {
+          const runId = "authorized-run";
+          const files = sitePaths(runId);
+          return runGuardedMutation({
+            runId,
+            runRoot: files.root,
+            ...getRuntimeAuthorityOverride(),
+            mutate: async () => {
+              await atomicWriteGeneratedSiteFile(runId, files.index, "escape");
+            },
+          });
+        }
+      `,
+    ),
+  ];
+  const [finding] = directLiveSiteWrites(fixtureSources);
+  assert.equal(finding.guarded, true);
+  assert.equal(
+    authorityAllows(finding, "guarded-mutation"),
+    false,
+    "a later spread can replace both authority bindings at runtime",
+  );
+});
+
+test("runGuardedMutation authority rejects a later duplicate runId", () => {
+  const fixtureSources = [
+    fixtureSource(
+      "fixtures/guarded-authority-duplicate-run.ts",
+      `
+        export async function replaceableRunId() {
+          const runId = "authorized-run";
+          const files = sitePaths(runId);
+          return runGuardedMutation({
+            runId,
+            runRoot: files.root,
+            runId: "foreign-run",
+            mutate: async () => {
+              await atomicWriteGeneratedSiteFile(runId, files.index, "escape");
+            },
+          });
+        }
+      `,
+    ),
+  ];
+  const [finding] = directLiveSiteWrites(fixtureSources);
+  assert.equal(finding.guarded, true);
+  assert.equal(
+    authorityAllows(finding, "guarded-mutation"),
+    false,
+    "a later runId property replaces the traced run binding at runtime",
+  );
+});
+
+test("runGuardedMutation authority rejects a later duplicate runRoot", () => {
+  const fixtureSources = [
+    fixtureSource(
+      "fixtures/guarded-authority-duplicate-root.ts",
+      `
+        export async function replaceableRunRoot() {
+          const runId = "authorized-run";
+          const files = sitePaths(runId);
+          return runGuardedMutation({
+            runId,
+            runRoot: files.root,
+            runRoot: sitePaths("foreign-run").root,
+            mutate: async () => {
+              await atomicWriteGeneratedSiteFile(runId, files.index, "escape");
+            },
+          });
+        }
+      `,
+    ),
+  ];
+  const [finding] = directLiveSiteWrites(fixtureSources);
+  assert.equal(finding.guarded, true);
+  assert.equal(
+    authorityAllows(finding, "guarded-mutation"),
+    false,
+    "a later runRoot property replaces the traced root binding at runtime",
+  );
+});
+
+test("guarded callback wrappers reject a later authority spread", () => {
+  const fixtureSources = [
+    fixtureSource(
+      "src/app/api/edit/route.ts",
+      `
+        import { sitePaths } from "../../../lib/runstate";
+        async function guardedWrite(runId, runRoot, callback) {
+          return runGuardedMutation({
+            runId,
+            runRoot,
+            ...getRuntimeAuthorityOverride(),
+            mutate: async () => callback(),
+          });
+        }
+        export async function writeThroughReplaceableWrapper() {
+          const runId = "authorized-run";
+          const files = sitePaths(runId);
+          return guardedWrite(runId, files.root, async () => {
+            await atomicWriteGeneratedSiteFile(runId, files.index, "escape");
+          });
+        }
+      `,
+    ),
+  ];
+  const [finding] = directLiveSiteWrites(fixtureSources);
+  assert.equal(finding.guarded, true);
+  assert.equal(
+    authorityAllows(finding, "guarded-mutation"),
+    false,
+    "a wrapper must not export run or root provenance from replaceable options",
+  );
+});
+
+test("withSiteAuthorityLock options reject a later runRoot spread", () => {
+  const fixtureSources = [
+    fixtureSource(
+      "fixtures/site-authority-options-spread.ts",
+      `
+        export async function replaceableLockRoot() {
+          const runId = "authorized-run";
+          const files = sitePaths(runId);
+          return withSiteAuthorityLock(runId, async () => {
+            await fs.writeFile(files.gates, "escape");
+          }, {
+            runRoot: files.root,
+            ...getRuntimeAuthorityOverride(),
+          });
+        }
+      `,
+    ),
+  ];
+  const [finding] = directLiveSiteWrites(fixtureSources);
+  assert.equal(finding.guarded, true);
+  assert.equal(
+    authorityAllows(finding, "guarded-mutation"),
+    false,
+    "a later spread can replace withSiteAuthorityLock's requested root",
+  );
+});
+
+test("withSiteAuthorityLock options reject a later duplicate runRoot", () => {
+  const fixtureSources = [
+    fixtureSource(
+      "fixtures/site-authority-options-duplicate-root.ts",
+      `
+        export async function replaceableLockRoot() {
+          const runId = "authorized-run";
+          const files = sitePaths(runId);
+          return withSiteAuthorityLock(runId, async () => {
+            await fs.writeFile(files.gates, "escape");
+          }, {
+            runRoot: files.root,
+            runRoot: sitePaths("foreign-run").root,
+          });
+        }
+      `,
+    ),
+  ];
+  const [finding] = directLiveSiteWrites(fixtureSources);
+  assert.equal(finding.guarded, true);
+  assert.equal(
+    authorityAllows(finding, "guarded-mutation"),
+    false,
+    "a later property can replace withSiteAuthorityLock's requested root",
+  );
+});
+
+for (const authorityOverride of [
+  {
+    name: "spread",
+    source: "...getRuntimeAuthorityOverride(),",
+  },
+  {
+    name: "computed property",
+    source: '[getRuntimeAuthorityKey()]: sitePaths("foreign-run").root,',
+  },
+  {
+    name: "duplicate runRoot",
+    source: 'runRoot: sitePaths("foreign-run").root,',
+  },
+]) {
+  test(`default gate runner rejects a later ${authorityOverride.name} lock override`, () => {
+    const fixtureSources = [
+      fixtureSource(
+        `fixtures/default-gate-runner-${authorityOverride.name.replaceAll(" ", "-")}.ts`,
+        `
+          async function runGates(runId, gateOptions) {
+            await fs.writeFile(
+              path.join(createLiveGateTarget(runId, gateOptions).runRoot, "gates.json"),
+              "reports",
+            );
+          }
+          export async function guardedMutation(options) {
+            const runId = options.runId;
+            const files = sitePaths(runId);
+            return withSiteAuthorityLock(runId, async () => {
+              const gateRunner = options.gateRunner ??
+                ((gateRunId, gateOptions) =>
+                  runGates(gateRunId, { afterEdit: gateOptions.afterEdit }));
+              await gateRunner(runId, { afterEdit: true });
+            }, {
+              runRoot: files.root,
+              ${authorityOverride.source}
+            });
+          }
+        `,
+      ),
+    ];
+    const [finding] = directLiveSiteWrites(fixtureSources);
+    assert.equal(finding.guarded, true);
+    assert.equal(
+      authorityAllows(finding, "guarded-mutation"),
+      false,
+      `the default gate runner must not recover authority after a ${authorityOverride.name} override`,
+    );
+  });
+}
 
 test("root binding rejects overlapping but distinct path identifiers", () => {
   const fixtureSources = [
