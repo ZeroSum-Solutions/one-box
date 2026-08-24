@@ -91,12 +91,31 @@ export async function resolveSiteAuthorityWriteTarget(
   if (!liveSiteAuthorities.has(authority) || !relativeTarget) {
     throw new Error("site authority lock does not cover write target");
   }
+  await assertSiteAuthorityWriteParents(authority.runRoot, relativeTarget);
   return path.join(authority.runRoot, relativeTarget);
 }
 
 function isCode(error: unknown, code: string): boolean {
   return typeof error === "object" && error !== null && "code" in error &&
     (error as { code?: unknown }).code === code;
+}
+
+async function assertSiteAuthorityWriteParents(
+  runRoot: string,
+  relativeTarget: string,
+): Promise<void> {
+  let parent = runRoot;
+  for (const segment of relativeTarget.split(path.sep).slice(0, -1)) {
+    parent = path.join(parent, segment);
+    const stat = await fs.lstat(parent).catch((error: unknown) => {
+      if (isCode(error, "ENOENT")) return undefined;
+      throw error;
+    });
+    if (!stat) return;
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error("site authority lock does not cover write target");
+    }
+  }
 }
 
 /** Resolve existing symlinks while retaining a not-yet-created path suffix. */

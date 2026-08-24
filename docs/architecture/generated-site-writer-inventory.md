@@ -19,7 +19,20 @@ structurally by their filename suffix and are the only automatic `test-only` aut
 no production module receives that classification. Guarded classification additionally
 requires the target path to be associated with the guard's run/root binding. Helper
 calls propagate their concrete target expression through parameterized callsites;
-being called only under some authority callback is not sufficient. Each
+being called only under some authority callback is not sufficient. Root families must
+match exactly or use a normalized descendant boundary; overlapping identifier text is
+not authority. `atomicWriteGeneratedSiteFile` additionally requires its run argument to
+match the enclosing authority. Its target must also resolve through every visible
+assignment and parameterized callsite to a validated image producer whose implementation
+derives `finalPath` from that same run root. Module, function, and identifier names never
+grant path authority by themselves. Canonical root/path helpers must resolve to their
+exact, unshadowed imports at the use site; local root helpers must match the complete
+safe path-construction shape. Every later `path.join`/`path.resolve` argument must be a
+static safe relative value or trace to a bounded producer; an unknown dynamic segment
+fails closed. Dynamic conditionals preserve every branch, explicit parent traversal is
+rejected, and visible direct or object-API mutation of a `finalPath` carrier fails
+closed. A later spread, computed property, or duplicate property that could replace a
+traced carrier property also invalidates its provenance. Each
 discovered operation resolves to one artifact declared as rollback, intentional
 non-rollback, or atomic transaction state.
 
@@ -527,6 +540,17 @@ Seeded scanner fixtures move token, motion, history, catalog, ledger, and gate w
 outside their authorities; redirect a candidate writer to `site/**`; invent an
 unapproved promotion callsite; rename a live source into an unclassified destination;
 bind direct and helper-mediated raw writes to a different run root; omit one discovered
-artifact from the inventory disposition; and exercise aliased imports plus file-handle writes. Each
+artifact from the inventory disposition; overlap an unrelated target identifier with an
+authorized root name; invoke the generated-site primitive with another run; reuse each
+production `finalPath` identifier shape with a matching run but a foreign target; spoof
+the validated-producer function name with a foreign-returning body; reassign local and
+parameter `finalPath` properties inside guarded callbacks; mutate `finalPath` through
+`Object.assign`; shadow the Node path helper; import a noncanonical sibling `runstate`;
+shadow a real Node path import with a parameter; mutate a nested `finalPath` carrier;
+shadow it through a destructured binding; mutate a computed carrier path; overwrite
+custom roots through a spread; supply an unknown later path segment; replace a traced
+`finalPath` through a later spread; shadow the canonical `sitePaths` import; escape
+through parent traversal; preserve a foreign dynamic-conditional branch; and exercise
+aliased imports plus file-handle writes. Each
 remains visible as an individual operation. A function-level guard token, unrelated
 run/root binding, or candidate-capable import cannot make an escaped write compliant.

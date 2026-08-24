@@ -116,6 +116,26 @@ describe("generated-site mutation write authority", () => {
     expect(await fs.readFile(allowedTarget, "utf8")).toBe("allowed");
   });
 
+  it("rejects a held-authority atomic write through a symlinked parent", async () => {
+    const runId = "authority-atomic-symlink-parent";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const outsideRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), "onebox-authority-atomic-escape-"),
+    );
+    const target = path.join(runRoot, "site", "index.html");
+    const escapedTarget = path.join(outsideRoot, "index.html");
+    tempDirectories.push(runRoot, outsideRoot);
+    await fs.mkdir(runRoot, { recursive: true });
+    await fs.symlink(outsideRoot, path.join(runRoot, "site"), "dir");
+
+    await expect(
+      withSiteAuthorityLock(runId, () => atomicWrite(target, "blocked")),
+    ).rejects.toThrow("site authority lock does not cover write target");
+    await expect(fs.stat(escapedTarget)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("fails closed before a live write attempted outside runGuardedMutation", async () => {
     const siteRoot = await fs.mkdtemp(
       path.join(os.tmpdir(), "onebox-live-write-authority-"),
