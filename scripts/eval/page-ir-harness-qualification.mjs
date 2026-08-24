@@ -315,23 +315,48 @@ function commandResult(evaluationId, state, summary) {
 
 async function loadCompletedQualification(
   run,
-  reviewerName,
+  trustedAuthority,
   loadPreReviewFn = loadQualificationPreReviewPacket,
   loadCompletedFn = loadQualificationCompletedPacket,
 ) {
+  const reviewerName = trustedAuthority?.reviewerName;
   if (typeof reviewerName !== "string" || reviewerName.trim() !== reviewerName || reviewerName.length === 0) {
     throw new Error("--reviewer-name is required for qualification coordinator evidence");
   }
+  const currentHashesByFixture = trustedAuthority?.currentHashesByFixture;
+  const corpus = run.manifest.corpus;
+  const hashKeys = [
+    "browserEvidenceSha256",
+    "buildSha256",
+    "candidateManifestSha256",
+    "mechanicalChecksSha256",
+    "pageIrSha256",
+  ];
+  if (
+    !currentHashesByFixture || typeof currentHashesByFixture !== "object" ||
+    Array.isArray(currentHashesByFixture) ||
+    JSON.stringify(Object.keys(currentHashesByFixture).sort()) !== JSON.stringify([...corpus].sort()) ||
+    corpus.some((fixtureId) => {
+      const hashes = currentHashesByFixture[fixtureId];
+      return !hashes || typeof hashes !== "object" || Array.isArray(hashes) ||
+        JSON.stringify(Object.keys(hashes).sort()) !== JSON.stringify(hashKeys) ||
+        hashKeys.some((key) => !/^[a-f0-9]{64}$/.test(hashes[key] ?? ""));
+    })
+  ) throw new Error("qualification coordinator current hashes authority is invalid");
   const packets = [];
-  for (const fixtureId of run.manifest.corpus) {
+  for (const fixtureId of corpus) {
     const preDirectory = path.join(run.directory, "qualification", "pre-review", fixtureId);
     const pre = await loadPreReviewFn(preDirectory, {
       expectedRunId: run.manifest.runId,
       expectedFixtureId: fixtureId,
     });
+    const currentHashes = currentHashesByFixture[fixtureId];
+    if (hashKeys.some((key) => pre.reviewedHashes?.[key] !== currentHashes[key])) {
+      throw new Error(`qualification coordinator current hashes are stale: ${fixtureId}`);
+    }
     const completed = await loadCompletedFn(
       path.join(run.directory, "qualification", "completed", fixtureId),
-      { trustedAuthority: { reviewerName, currentHashes: pre.reviewedHashes } },
+      { trustedAuthority: { reviewerName, currentHashes } },
     );
     packets.push({
       fixtureId,
@@ -390,7 +415,7 @@ export async function evaluateQualificationCoordinatorEvidence({
   if (!trustedAuthority || typeof trustedAuthority !== "object") {
     throw new Error("qualification coordinator requires authenticated host authority");
   }
-  const packets = await loadCompletedQualification(run, trustedAuthority.reviewerName, loadPreReviewFn, loadCompletedFn);
+  const packets = await loadCompletedQualification(run, trustedAuthority, loadPreReviewFn, loadCompletedFn);
   const packetsPass = packets.length === run.manifest.corpus.length && packets.every((packet) => packet.decision === "pass");
   if (evaluator === "qualification-human-review") {
     return commandResult(evaluationId, packetsPass ? "PASS" : "FAIL", {

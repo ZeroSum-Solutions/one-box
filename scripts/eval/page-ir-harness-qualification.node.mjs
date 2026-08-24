@@ -27,6 +27,9 @@ const HASHES = {
   mechanicalChecksSha256: "d".repeat(64),
   browserEvidenceSha256: "e".repeat(64),
 };
+const CURRENT_HASHES_BY_FIXTURE = Object.fromEntries(
+  CORPUS.map((fixtureId) => [fixtureId, HASHES]),
+);
 
 function run() {
   return {
@@ -84,6 +87,7 @@ function dependencies({ failedFixture, nonPass = [], findings = [] } = {}) {
 
 const TRUSTED_AUTHORITY = {
   reviewerName: "Devin",
+  currentHashesByFixture: CURRENT_HASHES_BY_FIXTURE,
   findingsInventorySha256: "4".repeat(64),
   findingAuthorities: {},
 };
@@ -101,6 +105,27 @@ test("human coordinator passes only when all six trusted completed reviews pass"
     trustedAuthority: TRUSTED_AUTHORITY, ...dependencies({ failedFixture: "campaign-landing" }),
   });
   assert.equal(failing.state, "FAIL");
+});
+
+test("qualification coordinator requires host-supplied current hashes for every fixture", async () => {
+  const missingHashes = { ...TRUSTED_AUTHORITY };
+  delete missingHashes.currentHashesByFixture;
+  await assert.rejects(evaluateQualificationCoordinatorEvidence({
+    run: run(), evaluationId: "EVAL-QUAL-001", evaluator: "qualification-human-review",
+    trustedAuthority: missingHashes, ...dependencies(),
+  }), /current hashes/i);
+
+  await assert.rejects(evaluateQualificationCoordinatorEvidence({
+    run: run(), evaluationId: "EVAL-QUAL-001", evaluator: "qualification-human-review",
+    trustedAuthority: {
+      ...TRUSTED_AUTHORITY,
+      currentHashesByFixture: {
+        ...CURRENT_HASHES_BY_FIXTURE,
+        "campaign-landing": { ...HASHES, buildSha256: "9".repeat(64) },
+      },
+    },
+    ...dependencies(),
+  }), /current hashes|stale/i);
 });
 
 test("OPS-004 rejects non-pass blockers and unresolved promotion findings", async () => {

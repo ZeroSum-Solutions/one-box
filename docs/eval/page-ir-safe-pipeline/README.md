@@ -190,8 +190,11 @@ npm run eval:page-ir -- materialize \
 The resulting `qualification/pre-review/<fixture>` directory is immutable and is the
 only generation the named human may review. Human-review ingestion and owner-decision
 recording are deliberately absent from the general CLI: the trusted host coordinator
-must supply authenticated identity separately from the human-authored artifact and
-current hashes. A sibling CLI argument is never accepted as identity authority.
+must supply authenticated identity separately from the human-authored artifact and an
+exact `currentHashesByFixture` mapping for every frozen corpus fixture. The coordinator
+compares those host-supplied hashes with each sealed pre-review generation before it
+loads a completed review; it never derives current authority from the packet being
+approved. A sibling CLI argument is never accepted as identity authority.
 
 Only after all six completed packets exist may the three `EVAL-QUAL-*` routes run.
 `EVAL-OPS-004` additionally requires a closed findings ledger and every other frozen

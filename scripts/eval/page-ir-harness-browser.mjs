@@ -16,13 +16,6 @@ const FROZEN_VIEWPORTS = Object.freeze([
 const MAX_STATIC_FILE_BYTES = 100 * 1024 * 1024;
 const MAX_STATIC_TOTAL_BYTES = 100 * 1024 * 1024;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-const DARWIN_BROWSER_SANDBOX_PROFILE_PREFIX = [
-  "(version 1)",
-  "(allow default)",
-  "(deny network*)",
-  "(allow network-inbound (local tcp \"localhost:*\"))",
-  "(allow network-outbound (remote tcp \"localhost:*\"))",
-];
 const MIME_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".gif", "image/gif"],
@@ -170,24 +163,6 @@ function shellQuote(value) {
   return `'${String(value).replaceAll("'", `'"'"'`)}'`;
 }
 
-function darwinBrowserSandboxProfile(temporaryDirectories) {
-  if (
-    !Array.isArray(temporaryDirectories) ||
-    temporaryDirectories.length === 0 ||
-    temporaryDirectories.some((directory) =>
-      !path.isAbsolute(directory) || directory.includes('"')
-    )
-  ) {
-    throw new Error("Browser sandbox temporary directories must be absolute quote-free paths");
-  }
-  return [
-    ...DARWIN_BROWSER_SANDBOX_PROFILE_PREFIX,
-    ...temporaryDirectories.map(
-      (directory) => `(allow network-bind (local unix-socket (path-prefix "${directory}/")))`,
-    ),
-  ].join(" ");
-}
-
 function darwinDelegatedBrowserSandboxProfile({
   browserBundleRoot,
   readableRoot,
@@ -276,28 +251,23 @@ async function launchCredentialFreeChromium(
   await fs.mkdir(homeDirectory, { mode: 0o700 });
   await fs.mkdir(temporaryDirectory, { mode: 0o700 });
   const physicalTemporaryDirectory = await fs.realpath(temporaryDirectory);
-  const physicalSystemTemporaryDirectory = await fs.realpath(os.tmpdir());
   try {
     const environment = browserEnvironment(homeDirectory, physicalTemporaryDirectory);
     const launcherPath = path.join(launcherRoot, "chromium-sandboxed");
     const delegatedProfile = path.join(launcherRoot, "delegated-profile");
-    const sandboxProfile = delegatedReadableRoot
-      ? darwinDelegatedBrowserSandboxProfile({
-          browserBundleRoot,
-          readableRoot: delegatedReadableRoot,
-          temporaryDirectory: await fs.realpath(launcherRoot),
-          allowedLoopbackPort,
-        })
-      : darwinBrowserSandboxProfile([
-          physicalTemporaryDirectory,
-          physicalSystemTemporaryDirectory,
-        ]);
+    if (!browserBundleRoot || !delegatedReadableRoot) {
+      throw new Error("Browser launch requires delegated filesystem authority");
+    }
+    const sandboxProfile = darwinDelegatedBrowserSandboxProfile({
+      browserBundleRoot,
+      readableRoot: delegatedReadableRoot,
+      temporaryDirectory: await fs.realpath(launcherRoot),
+      allowedLoopbackPort,
+    });
     const script = [
       "#!/bin/sh",
       `exec /usr/bin/sandbox-exec -p ${shellQuote(sandboxProfile)} ${shellQuote(executablePath)} "$@"${
-        delegatedReadableRoot
-          ? ` --user-data-dir=${shellQuote(delegatedProfile)}`
-          : ""
+        ` --user-data-dir=${shellQuote(delegatedProfile)}`
       }`,
       "",
     ].join("\n");
@@ -1148,8 +1118,14 @@ export async function capturePageIrBrowserEvidence(input) {
     }
     const rejectedStaticRequests = new Set();
     server = await startStaticServer(siteSnapshot.root, rejectedStaticRequests);
+    const capturePort = Number(new URL(server.origin).port);
     ({ browser, launcherRoot: browserLauncherRoot } = await launchCredentialFreeChromium(
       browserAuthority.executablePath,
+      {
+        browserBundleRoot: browserAuthority.bundleRoot,
+        delegatedReadableRoot: siteSnapshot.root,
+        allowedLoopbackPort: capturePort,
+      },
     ));
     const attemptedExternalUrls = new Set();
     const scenarios = [

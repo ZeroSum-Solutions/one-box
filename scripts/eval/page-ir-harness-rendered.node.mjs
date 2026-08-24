@@ -13,6 +13,7 @@ import {
 import {
   freezeRenderedServer,
   killFrozenRenderedServer,
+  runCaptured,
   renderedBrowserEnvironment,
   renderedEvidenceFailure,
   renderedProductionBuildArgv,
@@ -20,6 +21,34 @@ import {
   releaseFrozenRenderedAuthorities,
   reserveRenderedAppPort,
 } from "./page-ir-harness-rendered.mjs";
+
+test("rendered captured commands reject and reap background descendants", async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-rendered-captured-orphan-"));
+  const pidFile = path.join(root, "descendant.pid");
+  let descendantPid;
+  context.after(async () => {
+    if (descendantPid) {
+      try { process.kill(descendantPid, "SIGKILL"); } catch {}
+    }
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const source = [
+    "const { spawn } = require('node:child_process');",
+    "const fs = require('node:fs');",
+    "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+    "fs.writeFileSync(process.argv[1], String(child.pid));",
+    "child.unref();",
+    "process.exit(0);",
+  ].join("");
+
+  await assert.rejects(runCaptured(
+    "orphan-probe",
+    [process.execPath, "-e", source, pidFile],
+    { cwd: root, env: process.env, timeoutMs: 5_000 },
+  ), /background descendants/i);
+  descendantPid = Number(await fs.readFile(pidFile, "utf8"));
+  assert.throws(() => process.kill(descendantPid, 0), (error) => error?.code === "ESRCH");
+});
 
 test("rendered production evidence uses the canonical build path", () => {
   assert.deepEqual(renderedProductionBuildArgv({
@@ -188,9 +217,42 @@ test("rendered teardown retains app authority when browser termination is uncert
 
   assert.equal(result.browserTerminationConfirmed, false);
   assert.equal(result.errors.length, 1);
-  assert.equal(killedServer, false);
+  assert.equal(killedServer, true);
   assert.equal(releasedApp, false);
   assert.equal(removedTemporary, false);
+});
+
+test("rendered teardown reaps descendants after the group leader exits", async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-rendered-leader-exit-"));
+  const pidFile = path.join(root, "descendant.pid");
+  let descendantPid;
+  context.after(async () => {
+    if (descendantPid) {
+      try { process.kill(descendantPid, "SIGKILL"); } catch {}
+    }
+    await fs.rm(root, { recursive: true, force: true });
+  });
+  const source = [
+    "const { spawn } = require('node:child_process');",
+    "const fs = require('node:fs');",
+    "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });",
+    "fs.writeFileSync(process.argv[1], String(child.pid));",
+    "child.unref();",
+    "process.exit(0);",
+  ].join("");
+  const leader = spawn(process.execPath, ["-e", source, pidFile], {
+    detached: true,
+    stdio: "ignore",
+  });
+  await new Promise((resolve, reject) => {
+    leader.once("error", reject);
+    leader.once("close", resolve);
+  });
+  descendantPid = Number(await fs.readFile(pidFile, "utf8"));
+
+  await killFrozenRenderedServer(leader);
+
+  assert.throws(() => process.kill(descendantPid, 0), (error) => error?.code === "ESRCH");
 });
 
 test("rendered journey connects to the real delegated browser through its exact port", {

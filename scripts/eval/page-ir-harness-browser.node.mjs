@@ -426,6 +426,51 @@ test("blocks Chromium WebRTC datagrams to a non-loopback interface", {
   assert.equal(datagrams.length, 0);
 });
 
+test("browser capture cannot reach an unrelated loopback service", {
+  timeout: 60_000,
+}, async (context) => {
+  let requests = 0;
+  const unrelatedServer = http.createServer((_request, response) => {
+    requests += 1;
+    response.end("unrelated-loopback");
+  });
+  await new Promise((resolve, reject) => {
+    unrelatedServer.once("error", reject);
+    unrelatedServer.listen(0, "127.0.0.1", resolve);
+  });
+  context.after(() => new Promise((resolve) => unrelatedServer.close(resolve)));
+  const unrelatedPort = unrelatedServer.address().port;
+  const siteRoot = await syntheticSite({
+    additionalScript: `fetch("http://127.0.0.1:${unrelatedPort}/probe").catch(() => undefined);`,
+  });
+  context.after(() => fs.rm(siteRoot, { recursive: true, force: true }));
+  const originalWriteFile = fs.writeFile;
+  let launcherScript = "";
+  fs.writeFile = async (file, bytes, ...args) => {
+    if (path.basename(String(file)) === "chromium-sandboxed") {
+      launcherScript = String(bytes);
+    }
+    return originalWriteFile.call(fs, file, bytes, ...args);
+  };
+  let packet;
+  try {
+    packet = await adapter.capturePageIrBrowserEvidence({
+      siteRoot,
+      viewports: FROZEN_VIEWPORTS,
+      coreContentSelectors: ["#core-content"],
+      primaryActionSelectors: ["#primary-action"],
+    });
+  } finally {
+    fs.writeFile = originalWriteFile;
+  }
+  context.after(() => fs.rm(packet.packetRoot, { recursive: true, force: true }));
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  assert.match(launcherScript, /localhost:\d+/);
+  assert.doesNotMatch(launcherScript, /localhost:\*/);
+  assert.equal(requests, 0);
+});
+
 test("rejects relative, symlinked, and internally symlinked static roots", async (context) => {
   await assert.rejects(
     adapter.capturePageIrBrowserEvidence({

@@ -36,7 +36,33 @@ function capturedCommand(id, argv, result) {
   return { id, argv, ...result };
 }
 
-function runCaptured(id, argv, { cwd, env, timeoutMs, sandboxProfile }) {
+function renderedProcessGroupExists(processGroupId) {
+  try {
+    process.kill(-processGroupId, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "ESRCH") return false;
+    if (error?.code === "EPERM") return true;
+    throw error;
+  }
+}
+
+async function terminateRenderedProcessGroup(child, timeoutMs = 5_000) {
+  if (!child?.pid) return;
+  try { process.kill(-child.pid, "SIGKILL"); } catch (error) {
+    if (error?.code !== "ESRCH") throw error;
+  }
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!renderedProcessGroupExists(child.pid)) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  if (renderedProcessGroupExists(child.pid)) {
+    throw new Error("rendered process group could not be reaped");
+  }
+}
+
+export function runCaptured(id, argv, { cwd, env, timeoutMs, sandboxProfile }) {
   return new Promise((resolve, reject) => {
     const isolatedArgv = sandboxProfile
       ? ["/usr/bin/sandbox-exec", "-p", sandboxProfile, ...argv]
@@ -52,6 +78,8 @@ function runCaptured(id, argv, { cwd, env, timeoutMs, sandboxProfile }) {
     let stdoutBytes = 0;
     let stderrBytes = 0;
     let timedOut = false;
+    let settled = false;
+    let timer;
     const collect = (chunks, which) => (chunk) => {
       const current = which === "stdout" ? stdoutBytes : stderrBytes;
       const remaining = Math.max(0, MAX_OUTPUT_BYTES - current);
@@ -64,16 +92,23 @@ function runCaptured(id, argv, { cwd, env, timeoutMs, sandboxProfile }) {
     };
     child.stdout.on("data", collect(stdout, "stdout"));
     child.stderr.on("data", collect(stderr, "stderr"));
-    child.once("error", reject);
-    const timer = setTimeout(() => {
+    child.once("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    timer = setTimeout(() => {
       timedOut = true;
       try { process.kill(-child.pid, "SIGKILL"); } catch {}
     }, timeoutMs);
-    child.once("close", (exitCode, signal) => {
+    child.once("close", async (exitCode, signal) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       const out = Buffer.concat(stdout);
       const err = Buffer.concat(stderr);
-      resolve(capturedCommand(id, argv, {
+      const result = capturedCommand(id, argv, {
         exitCode: exitCode ?? -1,
         signal,
         timedOut,
@@ -82,7 +117,21 @@ function runCaptured(id, argv, { cwd, env, timeoutMs, sandboxProfile }) {
         stderr: err.toString("utf8"),
         stdoutSha256: sha256(out),
         stderrSha256: sha256(err),
-      }));
+      });
+      try {
+        if (renderedProcessGroupExists(child.pid)) {
+          await terminateRenderedProcessGroup(child);
+          if (!timedOut && !result.outputTruncated) {
+            throw Object.assign(
+              new Error("rendered command left background descendants after exit"),
+              result,
+            );
+          }
+        }
+        resolve(result);
+      } catch (error) {
+        reject(error);
+      }
     });
   });
 }
@@ -193,15 +242,21 @@ function launchBoundServer(argv, { cwd, env, sandboxProfile, nonce, expectedPort
     });
     let stdout = "";
     let stderr = "";
-    const timer = setTimeout(() => {
-      try { process.kill(-child.pid, "SIGKILL"); } catch {}
-      reject(new Error("production server did not publish its bound authority"));
-    }, timeoutMs);
-    const fail = (error) => {
+    let settled = false;
+    const fail = async (error) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      try { process.kill(-child.pid, "SIGKILL"); } catch {}
-      reject(error);
+      try {
+        await terminateRenderedProcessGroup(child);
+        reject(error);
+      } catch (cleanupError) {
+        reject(new AggregateError([error, cleanupError], "Production server launch failed and cleanup also failed"));
+      }
     };
+    const timer = setTimeout(() => {
+      void fail(new Error("production server did not publish its bound authority"));
+    }, timeoutMs);
     child.once("error", fail);
     child.once("close", (code) => fail(new Error(`production server exited before readiness (${code}): ${stderr.slice(0, 1_000)}`)));
     child.stderr.on("data", (chunk) => { if (stderr.length < 64 * 1024) stderr += chunk.toString("utf8"); });
@@ -216,9 +271,11 @@ function launchBoundServer(argv, { cwd, env, sandboxProfile, nonce, expectedPort
           authority.port !== expectedPort ||
           !Number.isInteger(authority.port) || authority.port < 1 || authority.port > 65535
         ) {
-          fail(new Error("production server authority is invalid"));
+          void fail(new Error("production server authority is invalid"));
           return;
         }
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         child.removeAllListeners("close");
         child.removeAllListeners("error");
@@ -268,24 +325,7 @@ export async function freezeRenderedServer(child, timeoutMs = 2_000) {
 }
 
 export async function killFrozenRenderedServer(child) {
-  if (!child || child.exitCode !== null || child.signalCode !== null) return;
-  let resolveClosed;
-  const closed = new Promise((resolve) => { resolveClosed = resolve; });
-  const onClose = () => resolveClosed();
-  child.once("close", onClose);
-  if (child.exitCode !== null || child.signalCode !== null) {
-    child.off("close", onClose);
-    return;
-  }
-  process.kill(-child.pid, "SIGKILL");
-  const terminated = await Promise.race([
-    closed.then(() => true),
-    new Promise((resolve) => setTimeout(() => resolve(false), 5_000)),
-  ]);
-  if (!terminated) {
-    child.off("close", onClose);
-    throw new Error("frozen rendered server did not terminate");
-  }
+  await terminateRenderedProcessGroup(child);
 }
 
 export function renderedEvidenceFailure(primaryError, cleanupErrors) {
@@ -318,8 +358,11 @@ export async function releaseFrozenRenderedAuthorities({
       errors.push(error);
     }
   }
+  if (killServer) {
+    try { await killServer(); } catch (error) { errors.push(error); }
+  }
   if (browserTerminationConfirmed) {
-    for (const cleanup of [killServer, closeAppAuthority, removeTemporary]) {
+    for (const cleanup of [closeAppAuthority, removeTemporary]) {
       try { await cleanup(); } catch (error) { errors.push(error); }
     }
   }
@@ -548,17 +591,14 @@ export async function executeProductionRenderedEvidence({
   }
 
   const cleanupErrors = [];
-  let serverFrozen = false;
-  try { serverFrozen = await freezeRenderedServer(server); } catch (error) { cleanupErrors.push(error); }
-  if (!server || serverFrozen || server.exitCode !== null || server.signalCode !== null) {
-    const released = await releaseFrozenRenderedAuthorities({
-      delegatedBrowser,
-      killServer: () => serverFrozen ? killFrozenRenderedServer(server) : undefined,
-      closeAppAuthority: () => appAuthority?.close(),
-      removeTemporary: () => fs.rm(temporaryRoot, { recursive: true, force: true }),
-    });
-    cleanupErrors.push(...released.errors);
-  }
+  try { await freezeRenderedServer(server); } catch (error) { cleanupErrors.push(error); }
+  const released = await releaseFrozenRenderedAuthorities({
+    delegatedBrowser,
+    killServer: () => killFrozenRenderedServer(server),
+    closeAppAuthority: () => appAuthority?.close(),
+    removeTemporary: () => fs.rm(temporaryRoot, { recursive: true, force: true }),
+  });
+  cleanupErrors.push(...released.errors);
   const failure = renderedEvidenceFailure(primaryError, cleanupErrors);
   if (failure) throw failure;
   return renderedResults;
