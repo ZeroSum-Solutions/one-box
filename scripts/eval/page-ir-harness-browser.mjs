@@ -191,6 +191,7 @@ function darwinDelegatedBrowserSandboxProfile({
   browserBundleRoot,
   readableRoot,
   temporaryDirectory,
+  allowedLoopbackPort,
 }) {
   for (const [label, directory] of [
     ["browser bundle", browserBundleRoot],
@@ -201,6 +202,10 @@ function darwinDelegatedBrowserSandboxProfile({
       throw new Error(`Delegated browser ${label} is invalid`);
     }
   }
+  if (
+    allowedLoopbackPort !== undefined &&
+    (!Number.isInteger(allowedLoopbackPort) || allowedLoopbackPort < 1 || allowedLoopbackPort > 65535)
+  ) throw new Error("Delegated browser loopback authority is invalid");
   const readRoots = [browserBundleRoot, readableRoot, temporaryDirectory];
   const readAncestors = new Set();
   for (const root of readRoots) {
@@ -214,6 +219,9 @@ function darwinDelegatedBrowserSandboxProfile({
     "(version 1)",
     "(allow default)",
     "(deny network*)",
+    ...(allowedLoopbackPort === undefined ? [] : [
+      `(allow network-outbound (remote tcp "localhost:${allowedLoopbackPort}"))`,
+    ]),
     ...[
       "/Applications",
       "/Library",
@@ -254,7 +262,7 @@ function browserEnvironment(homeDirectory, temporaryDirectory) {
 
 async function launchCredentialFreeChromium(
   executablePath,
-  { browserBundleRoot, delegatedReadableRoot, server = false } = {},
+  { browserBundleRoot, delegatedReadableRoot, allowedLoopbackPort, server = false } = {},
 ) {
   if (process.platform !== "darwin") {
     throw new Error("Browser evidence requires an OS network sandbox on this platform");
@@ -277,6 +285,7 @@ async function launchCredentialFreeChromium(
           browserBundleRoot,
           readableRoot: delegatedReadableRoot,
           temporaryDirectory: await fs.realpath(launcherRoot),
+          allowedLoopbackPort,
         })
       : darwinBrowserSandboxProfile([
           physicalTemporaryDirectory,
@@ -339,6 +348,7 @@ async function stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot) {
 export async function launchPageIrCredentialFreeBrowserServer(
   expectedAuthority,
   readableRoot,
+  { allowedLoopbackPort } = {},
 ) {
   const browserAuthority = await inspectPageIrBrowserAuthority();
   assertBrowserAuthorityMatches(browserAuthority, expectedAuthority);
@@ -363,6 +373,7 @@ export async function launchPageIrCredentialFreeBrowserServer(
     await launchCredentialFreeChromium(browserAuthority.executablePath, {
       browserBundleRoot: browserAuthority.bundleRoot,
       delegatedReadableRoot: readable,
+      allowedLoopbackPort,
       server: true,
     });
   let closed = false;

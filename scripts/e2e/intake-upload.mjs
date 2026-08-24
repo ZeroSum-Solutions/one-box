@@ -67,7 +67,9 @@ await fs.writeFile(attemptRecordPath, JSON.stringify({
   updatedAt: attemptTimestamp,
 }, null, 2), { encoding: "utf8", mode: 0o600, flag: "wx" });
 let stagedUploadDirectory;
-const browser = await chromium.launch();
+const browser = process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT
+  ? await chromium.connect(process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT)
+  : await chromium.launch();
 
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });

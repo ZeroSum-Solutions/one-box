@@ -207,7 +207,9 @@ const researchFixturePayload = {
   },
 };
 
-const browser = await chromium.launch();
+const browser = process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT
+  ? await chromium.connect(process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT)
+  : await chromium.launch();
 
 async function iframeIsOpaque(frame) {
   return frame.evaluate(() => {

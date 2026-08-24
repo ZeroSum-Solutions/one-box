@@ -54,7 +54,9 @@ const events = [
   },
 ];
 
-const browser = await chromium.launch();
+const browser = process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT
+  ? await chromium.connect(process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT)
+  : await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1100, height: 900 } });
   page.setDefaultTimeout(8_000);

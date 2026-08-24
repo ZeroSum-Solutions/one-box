@@ -3,7 +3,10 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { inspectPageIrBrowserAuthority } from "./page-ir-harness-browser.mjs";
+import {
+  inspectPageIrBrowserAuthority,
+  launchPageIrCredentialFreeBrowserServer,
+} from "./page-ir-harness-browser.mjs";
 
 const MAX_OUTPUT_BYTES = 5 * 1024 * 1024;
 const RENDERED_GROUPS = Object.freeze([
@@ -250,6 +253,23 @@ export function renderedProductionBuildArgv(runtimeContract) {
   ];
 }
 
+export function renderedBrowserEnvironment(environment, wsEndpoint) {
+  let endpoint;
+  try { endpoint = new URL(wsEndpoint); } catch {}
+  const port = Number(endpoint?.port);
+  if (
+    endpoint?.protocol !== "ws:" ||
+    !new Set(["localhost", "127.0.0.1", "[::1]"]).has(endpoint.hostname) ||
+    endpoint.username || endpoint.password ||
+    !Number.isInteger(port) || port < 1 || port > 65535
+  ) throw new Error("rendered browser endpoint is invalid");
+  return {
+    ...environment,
+    ONEBOX_EVAL_BROWSER_WS_ENDPOINT: endpoint.href,
+    ONEBOX_EVAL_LOOPBACK_PORT: String(port),
+  };
+}
+
 export async function executeProductionRenderedEvidence({
   snapshotRoot,
   runtimeContract,
@@ -326,17 +346,22 @@ export async function executeProductionRenderedEvidence({
   }
   const server = launched.child;
   const baseUrl = `http://127.0.0.1:${launched.port}`;
-  const journeySandboxProfile = renderedSandboxProfile({
-    snapshotRoot, temporaryRoot: await fs.realpath(temporaryRoot), browserBundleRoot: browser.bundleRoot,
-    writeRoots: [sitesRoot], networkMode: "journey", port: launched.port,
-  });
-  const journeyEnvironment = {
-    ...env,
-    ONEBOX_BASE_URL: baseUrl,
-    ONEBOX_EVAL_ALLOW_LOOPBACK: "1",
-    ONEBOX_EVAL_LOOPBACK_PORT: String(launched.port),
-  };
+  let delegatedBrowser;
   try {
+    delegatedBrowser = await launchPageIrCredentialFreeBrowserServer(
+      browser.binding,
+      snapshotRoot,
+      { allowedLoopbackPort: launched.port },
+    );
+    const journeySandboxProfile = renderedSandboxProfile({
+      snapshotRoot, temporaryRoot: await fs.realpath(temporaryRoot), browserBundleRoot: browser.bundleRoot,
+      writeRoots: [sitesRoot], networkMode: "journey", port: delegatedBrowser.port,
+    });
+    const journeyEnvironment = renderedBrowserEnvironment({
+      ...env,
+      ONEBOX_BASE_URL: baseUrl,
+      ONEBOX_EVAL_ALLOW_LOOPBACK: "1",
+    }, delegatedBrowser.wsEndpoint);
     await waitForServer(baseUrl, server);
     const groupCommands = new Map();
     for (const group of RENDERED_GROUPS) {
@@ -375,7 +400,11 @@ export async function executeProductionRenderedEvidence({
       ),
     ));
   } finally {
-    await stopServer(server);
-    await fs.rm(temporaryRoot, { recursive: true, force: true });
+    try {
+      await delegatedBrowser?.close();
+    } finally {
+      await stopServer(server);
+      await fs.rm(temporaryRoot, { recursive: true, force: true });
+    }
   }
 }
