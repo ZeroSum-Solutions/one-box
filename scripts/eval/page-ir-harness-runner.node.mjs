@@ -787,8 +787,22 @@ test("execution removes credentials, blocks external network, and maps prerequis
     }],
     timeoutMs: 10_000,
   });
-  assert.equal(unixSocket.state, "FAIL");
-  assert.ok(unixSocket.networkAttempts.some((attempt) => attempt.includes("net listen")));
+  assert.equal(unixSocket.state, "PASS");
+  assert.deepEqual(unixSocket.networkAttempts, []);
+
+  const hostUnixSocket = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-LOOPBACK",
+    commands: [{
+      id: "host-local-socket",
+      argv: [process.execPath, "-e", `const n=await import('node:net');const s=n.createServer();s.listen(${JSON.stringify(path.join(ROOT, "host-probe.sock"))},()=>s.close())`],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(hostUnixSocket.state, "FAIL");
+  assert.ok(hostUnixSocket.networkAttempts.some((attempt) =>
+    attempt.includes("net listen")
+  ));
 
   const hostServer = http.createServer((_request, response) => response.end("host-state"));
   await new Promise((resolve, reject) => {
@@ -797,6 +811,22 @@ test("execution removes credentials, blocks external network, and maps prerequis
   });
   context.after(() => new Promise((resolve) => hostServer.close(resolve)));
   const hostPort = hostServer.address().port;
+  const allowedBrowserLoopback = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-NETWORK",
+    browserConnection: {
+      wsEndpoint: `ws://127.0.0.1:${hostPort}/browser-authority`,
+      port: hostPort,
+    },
+    commands: [{
+      id: "browser-loopback",
+      argv: [process.execPath, "-e", `const r=await fetch("http://127.0.0.1:${hostPort}/state");if(await r.text()!=="host-state")process.exit(9)`],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(allowedBrowserLoopback.state, "PASS");
+  assert.deepEqual(allowedBrowserLoopback.networkAttempts, []);
+
   const deniedHostLoopback = await executeEvaluation({
     root: ROOT,
     evaluationId: "EVAL-SEC-003-NETWORK",

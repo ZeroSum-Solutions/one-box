@@ -290,6 +290,10 @@ function darwinSandboxProfile(environment, executionRoot) {
       `(allow file-write* (literal "${workspaceRoot}"))`,
       `(allow file-write* (subpath "${workspaceRoot}"))`,
     ] : []),
+    ...(environment.ONEBOX_EVAL_LOOPBACK_PORT ? [
+      `(allow network-outbound (remote tcp "localhost:${environment.ONEBOX_EVAL_LOOPBACK_PORT}"))`,
+    ] : []),
+    `(allow network-bind (local unix-socket (path-prefix "${temporary}/")))`,
     "(allow file-write* (literal \"/dev/null\"))",
   ].join(" ");
 }
@@ -1770,6 +1774,7 @@ export async function executeEvaluation({
   environment = process.env,
   inputsRoot,
   browserRoot,
+  browserConnection,
   workspaceRoot,
   timeoutMs = 120_000,
 }) {
@@ -1836,8 +1841,35 @@ export async function executeEvaluation({
     childEnv.NODE_OPTIONS = `--import=${offlineGuard}`;
     childEnv.ONEBOX_EVAL_NETWORK_ATTEMPT_LOG = attemptLog;
     childEnv.ONEBOX_EVAL_OS_SANDBOX = "darwin-sandbox-exec-network-and-user-storage-denied";
+    childEnv.ONEBOX_EVAL_ALLOW_TMP_UNIX_SOCKET = "1";
     if (sealedInputsRoot) childEnv.ONEBOX_EVAL_INPUTS_ROOT = sealedInputsRoot;
     if (sealedBrowserRoot) childEnv.ONEBOX_EVAL_BROWSER_ROOT = sealedBrowserRoot;
+    if (browserConnection !== undefined) {
+      if (
+        !browserConnection ||
+        !exactKeys(browserConnection, ["port", "wsEndpoint"]) ||
+        !Number.isInteger(browserConnection.port) ||
+        browserConnection.port < 1 ||
+        browserConnection.port > 65535 ||
+        typeof browserConnection.wsEndpoint !== "string"
+      ) fail("evaluation browser connection authority is invalid");
+      let endpoint;
+      try {
+        endpoint = new URL(browserConnection.wsEndpoint);
+      } catch {
+        fail("evaluation browser connection authority is invalid");
+      }
+      if (
+        endpoint.protocol !== "ws:" ||
+        !new Set(["localhost", "127.0.0.1", "[::1]"]).has(endpoint.hostname) ||
+        Number(endpoint.port) !== browserConnection.port ||
+        endpoint.username ||
+        endpoint.password
+      ) fail("evaluation browser connection must be one exact loopback endpoint");
+      childEnv.ONEBOX_EVAL_BROWSER_WS_ENDPOINT = endpoint.href;
+      childEnv.ONEBOX_EVAL_ALLOW_LOOPBACK = "1";
+      childEnv.ONEBOX_EVAL_LOOPBACK_PORT = String(browserConnection.port);
+    }
     const records = [];
     for (const command of commands) {
       if (!command || !Array.isArray(command.argv) || command.argv.length === 0 || command.argv.some((part) => typeof part !== "string")) {

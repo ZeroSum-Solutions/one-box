@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.4.0",
+  "registryVersion": "1.5.0",
   "status": "frozen",
   "evaluationManifest": {
     "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
@@ -103,7 +103,8 @@
         "src/lib/gates.candidate.integration.test.ts"
       ],
       "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
     },
     "EVAL-CAND-002": {
       "kind": "credential-free-tests",
@@ -112,7 +113,8 @@
         "src/lib/gates.candidate.integration.test.ts"
       ],
       "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
     },
     "EVAL-CAND-003": {
       "kind": "credential-free-tests",
@@ -121,7 +123,8 @@
         "src/lib/gates.candidate.integration.test.ts"
       ],
       "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
     },
     "EVAL-CAND-004": {
       "kind": "credential-free-tests",
@@ -391,11 +394,11 @@
   },
   "browserContract": {
     "revision": "1234",
-    "executableRelativePath": "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
-    "bundleSha256": "35061eb809c7786cae360797af64e06fa9eb012592943a5c99739d4d439f3724",
-    "fileCount": 334,
-    "symlinkCount": 5,
-    "totalBytes": 372014615
+    "executableRelativePath": "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+    "bundleSha256": "c246aa23d79deac8e8a590a65c8726eb8787fcd16400b0195cd16a113aac76a9",
+    "fileCount": 20,
+    "symlinkCount": 0,
+    "totalBytes": 205522835
   },
   "runtimeContract": {
     "platform": "darwin",

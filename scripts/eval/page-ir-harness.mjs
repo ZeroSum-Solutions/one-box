@@ -28,6 +28,10 @@ import {
   executeProductionRenderedEvidence,
   renderedEvaluationIds,
 } from "./page-ir-harness-rendered.mjs";
+import {
+  inspectPageIrBrowserAuthority,
+  launchPageIrCredentialFreeBrowserServer,
+} from "./page-ir-harness-browser.mjs";
 import { materializeQualificationFixture } from "./page-ir-harness-qualification.mjs";
 
 const execFileAsync = promisify(execFile);
@@ -317,6 +321,8 @@ export async function runPageIrHarnessCli(
     readGitState = readRepositoryGitState,
     createExecutionSnapshot = createGitExecutionSnapshot,
     executeEvaluationFn = executeEvaluation,
+    inspectBrowserAuthorityFn = inspectPageIrBrowserAuthority,
+    launchBrowserServerFn = launchPageIrCredentialFreeBrowserServer,
     executeRenderedEvidenceFn = executeProductionRenderedEvidence,
     materializeQualificationFn = materializeQualificationFixture,
     assembleQualificationFn = assembleQualificationPreReviewPacket,
@@ -484,6 +490,7 @@ export async function runPageIrHarnessCli(
       }
       let snapshot;
       let result;
+      let browserServer;
       try {
         if (blockers.length === 0) snapshot = await createExecutionSnapshot(
           root,
@@ -491,6 +498,17 @@ export async function runPageIrHarnessCli(
           verification.registry.runtimeContract,
         );
         const executionRoot = snapshot?.root ?? root;
+        let browserRuntime;
+        if (blockers.length === 0 && registration.browserPolicy === "frozen-chromium") {
+          browserRuntime = await inspectBrowserAuthorityFn();
+          if (!isDeepStrictEqual(browserRuntime.binding, run.manifest.browserAuthority)) {
+            fail("credential-free Chromium does not match the frozen browser authority");
+          }
+          browserServer = await launchBrowserServerFn(
+            run.manifest.browserAuthority,
+            executionRoot,
+          );
+        }
         const commands = [{
           id: "credential-free-suite",
           argv: [
@@ -514,11 +532,25 @@ export async function runPageIrHarnessCli(
           browserRoot: registration.kind === "browser-corpus-tests"
             ? path.join(run.directory, "browser")
             : undefined,
+          browserConnection: browserServer ? {
+            wsEndpoint: browserServer.wsEndpoint,
+            port: browserServer.port,
+          } : undefined,
           workspaceRoot: snapshot ? path.join(snapshot.root, "sites") : undefined,
           timeoutMs: 180_000,
         });
+        if (browserRuntime) {
+          const finalBrowserRuntime = await inspectBrowserAuthorityFn();
+          if (!isDeepStrictEqual(finalBrowserRuntime, browserRuntime)) {
+            fail("credential-free Chromium authority changed during evaluation");
+          }
+        }
       } finally {
-        await snapshot?.dispose();
+        try {
+          await browserServer?.close();
+        } finally {
+          await snapshot?.dispose();
+        }
       }
       await loadPreparedEvaluationRun(run.directory);
       await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);

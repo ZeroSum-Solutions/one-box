@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
 import fs from "node:fs/promises";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { chromium } from "playwright";
 
 const adapter = await import("./page-ir-harness-browser.mjs").catch(() => ({}));
 const BROWSER_AUTHORITY = (await adapter.inspectPageIrBrowserAuthority()).binding;
@@ -12,7 +15,85 @@ const BROWSER_AUTHORITY = (await adapter.inspectPageIrBrowserAuthority()).bindin
 test("exports the bounded browser evidence adapter", () => {
   assert.equal(typeof adapter.capturePageIrBrowserEvidence, "function");
   assert.equal(typeof adapter.inspectPageIrBrowserAuthority, "function");
+  assert.equal(typeof adapter.launchPageIrCredentialFreeBrowserServer, "function");
   assert.equal(typeof adapter.validateBrowserEvidenceViewports, "function");
+});
+
+test("delegated browser survives disconnects but cannot become a host file or loopback deputy", async (context) => {
+  const readableRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-browser-readable-"));
+  const outsideRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-browser-outside-"));
+  const varTmpOutsideRoot = await fs.mkdtemp("/private/var/tmp/one-box-browser-outside-");
+  context.after(() => fs.rm(readableRoot, { recursive: true, force: true }));
+  context.after(() => fs.rm(outsideRoot, { recursive: true, force: true }));
+  context.after(() => fs.rm(varTmpOutsideRoot, { recursive: true, force: true }));
+  const readableFile = path.join(readableRoot, "allowed.html");
+  const outsideFile = path.join(outsideRoot, "denied.html");
+  const varTmpOutsideFile = path.join(varTmpOutsideRoot, "denied.html");
+  await fs.writeFile(readableFile, "<title>allowed-browser-state</title>");
+  await fs.writeFile(outsideFile, "<title>outside-browser-state</title>");
+  await fs.writeFile(varTmpOutsideFile, "<title>var-tmp-outside-state</title>");
+  const unrelatedServer = http.createServer((_request, response) =>
+    response.end("unrelated-loopback-state")
+  );
+  await new Promise((resolve, reject) => {
+    unrelatedServer.once("error", reject);
+    unrelatedServer.listen(0, "127.0.0.1", resolve);
+  });
+  context.after(() => new Promise((resolve) => unrelatedServer.close(resolve)));
+  const unrelatedPort = unrelatedServer.address().port;
+  const server = await adapter.launchPageIrCredentialFreeBrowserServer(
+    BROWSER_AUTHORITY,
+    readableRoot,
+  );
+  try {
+    const endpoint = new URL(server.wsEndpoint);
+    assert.equal(endpoint.protocol, "ws:");
+    assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname));
+    assert.equal(Number(endpoint.port), server.port);
+    const first = await chromium.connect(server.wsEndpoint);
+    const page = await first.newPage();
+    await page.goto(pathToFileURL(readableFile).href);
+    assert.equal(await page.title(), "allowed-browser-state");
+    await assert.rejects(
+      page.goto(pathToFileURL(outsideFile).href),
+      /ERR_ACCESS_DENIED|ERR_FILE_NOT_FOUND|Failed to load|Navigation failed/i,
+    );
+    await assert.rejects(
+      page.goto("file:///etc/hosts"),
+      /ERR_ACCESS_DENIED|ERR_FILE_NOT_FOUND|Failed to load|Navigation failed/i,
+    );
+    await assert.rejects(
+      page.goto(pathToFileURL(varTmpOutsideFile).href),
+      /ERR_ACCESS_DENIED|ERR_FILE_NOT_FOUND|Failed to load|Navigation failed/i,
+    );
+    await assert.rejects(
+      page.goto(`http://127.0.0.1:${unrelatedPort}/state`),
+      /ERR_FAILED|ERR_ACCESS_DENIED|Navigation failed/i,
+    );
+    await first.close();
+    const second = await chromium.connect(server.wsEndpoint);
+    assert.equal(second.isConnected(), true);
+    await second.close();
+  } finally {
+    await server.close();
+  }
+  await assert.rejects(
+    adapter.launchPageIrCredentialFreeBrowserServer({
+      ...BROWSER_AUTHORITY,
+      bundleSha256: "c".repeat(64),
+    }, readableRoot),
+    /frozen authority/i,
+  );
+  const linkedReadable = `${readableRoot}-link`;
+  await fs.symlink(readableRoot, linkedReadable, "dir");
+  context.after(() => fs.unlink(linkedReadable).catch(() => {}));
+  await assert.rejects(
+    adapter.launchPageIrCredentialFreeBrowserServer(
+      BROWSER_AUTHORITY,
+      linkedReadable,
+    ),
+    /physical directory/i,
+  );
 });
 
 const FROZEN_VIEWPORTS = [

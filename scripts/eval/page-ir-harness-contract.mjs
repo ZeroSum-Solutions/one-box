@@ -595,9 +595,13 @@ function validateRegistry(registry) {
     assertString(evaluationId, "registry evaluation id", /^EVAL-[A-Z]+-\d{3}$/);
     assertObject(registration, `registry ${evaluationId}`);
     if (TEST_REGISTRATION_KINDS.has(registration.kind)) {
+      const registrationKeys = [
+        "kind", "testFiles", "credentialPolicy", "networkPolicy",
+        ...(registration.browserPolicy === undefined ? [] : ["browserPolicy"]),
+      ];
       assertClosedKeys(
         registration,
-        ["kind", "testFiles", "credentialPolicy", "networkPolicy"],
+        registrationKeys,
         `registry ${evaluationId}`,
       );
       assertUniqueStrings(registration.testFiles, `registry ${evaluationId} testFiles`);
@@ -613,6 +617,10 @@ function validateRegistry(registry) {
       if (registration.networkPolicy !== "deny-all") {
         fail(`registry ${evaluationId} networkPolicy must deny all traffic`);
       }
+      if (
+        registration.browserPolicy !== undefined &&
+        registration.browserPolicy !== "frozen-chromium"
+      ) fail(`registry ${evaluationId} browserPolicy is invalid`);
       continue;
     }
     if (registration.kind === "coordinator-evidence") {

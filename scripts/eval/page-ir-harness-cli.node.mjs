@@ -234,6 +234,109 @@ test("WEB run remains BLOCKED until all immutable browser packets exist", async 
   assert.ok(result.blockers.every((blocker) => blocker.code === "BROWSER_EVIDENCE_MISSING"));
 });
 
+test("browser-dependent credential-free runs receive only the frozen Chromium capability", async (context) => {
+  const runsRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-browser-runtime-cli-"));
+  context.after(() => fs.rm(runsRoot, { recursive: true, force: true }));
+  const readGitState = async () => ({ head: "d".repeat(40), clean: true });
+  const preparedIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "prepare", "--run-id", "browser-runtime", "--runs-root", runsRoot,
+  ], { root: ROOT, readGitState, ...preparedIo }), 0);
+  const registry = JSON.parse(await fs.readFile(
+    path.join(ROOT, "docs/eval/page-ir-safe-pipeline/harness-registry.json"),
+    "utf8",
+  ));
+  const frozenBrowser = {
+    binding: registry.browserContract,
+    bundleRoot: "/tmp/frozen-chromium-bundle",
+    executablePath: "/tmp/frozen-chromium-bundle/chrome",
+  };
+  const browserServer = {
+    wsEndpoint: "ws://127.0.0.1:43210/evaluation",
+    port: 43210,
+    close: async () => {},
+  };
+  let invocation;
+  const runIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "run", "--run-id", "browser-runtime", "--runs-root", runsRoot,
+    "--evaluation", "EVAL-CAND-001",
+  ], {
+    root: ROOT,
+    readGitState,
+    createExecutionSnapshot: async () => ({ root: ROOT, dispose: async () => {} }),
+    inspectBrowserAuthorityFn: async () => frozenBrowser,
+    launchBrowserServerFn: async (binding, readableRoot) => {
+      assert.deepEqual(binding, registry.browserContract);
+      assert.equal(readableRoot, ROOT);
+      return browserServer;
+    },
+    executeEvaluationFn: async (options) => {
+      invocation = options;
+      return {
+        schemaVersion: 1,
+        evaluationId: options.evaluationId,
+        state: "BLOCKED",
+        blockers: [{ code: "TEST_DOUBLE", detail: "browser runtime seam" }],
+        commands: [],
+        evidence: [],
+      };
+    },
+    ...runIo,
+  }), 3, JSON.stringify(runIo.errors));
+  assert.deepEqual(invocation.browserConnection, {
+    wsEndpoint: browserServer.wsEndpoint,
+    port: browserServer.port,
+  });
+});
+
+test("browser cleanup failure still disposes the immutable execution snapshot", async (context) => {
+  const runsRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-browser-cleanup-cli-"));
+  context.after(() => fs.rm(runsRoot, { recursive: true, force: true }));
+  const readGitState = async () => ({ head: "d".repeat(40), clean: true });
+  const preparedIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "prepare", "--run-id", "browser-cleanup", "--runs-root", runsRoot,
+  ], { root: ROOT, readGitState, ...preparedIo }), 0);
+  const registry = JSON.parse(await fs.readFile(
+    path.join(ROOT, "docs/eval/page-ir-safe-pipeline/harness-registry.json"),
+    "utf8",
+  ));
+  let disposed = false;
+  const runIo = io();
+  assert.equal(await runPageIrHarnessCli([
+    "run", "--run-id", "browser-cleanup", "--runs-root", runsRoot,
+    "--evaluation", "EVAL-CAND-001",
+  ], {
+    root: ROOT,
+    readGitState,
+    createExecutionSnapshot: async () => ({
+      root: ROOT,
+      dispose: async () => { disposed = true; },
+    }),
+    inspectBrowserAuthorityFn: async () => ({
+      binding: registry.browserContract,
+      bundleRoot: "/tmp/frozen-chromium-bundle",
+      executablePath: "/tmp/frozen-chromium-bundle/chrome",
+    }),
+    launchBrowserServerFn: async () => ({
+      wsEndpoint: "ws://127.0.0.1:43210/evaluation",
+      port: 43210,
+      close: async () => { throw new Error("browser cleanup failed"); },
+    }),
+    executeEvaluationFn: async (options) => ({
+      schemaVersion: 1,
+      evaluationId: options.evaluationId,
+      state: "PASS",
+      commands: [],
+      evidence: [],
+    }),
+    ...runIo,
+  }), 2);
+  assert.equal(disposed, true);
+  assert.match(runIo.errors[0].error, /browser cleanup failed/);
+});
+
 test("CLI rejects unknown options and missing values with usage exit", async () => {
   const captured = io();
   assert.equal(await runPageIrHarnessCli(["verify", "--surprise", "yes"], { root: ROOT, ...captured }), 2);

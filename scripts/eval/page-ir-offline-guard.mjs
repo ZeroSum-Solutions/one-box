@@ -4,12 +4,41 @@ import http from "node:http";
 import https from "node:https";
 import { syncBuiltinESMExports } from "node:module";
 import net from "node:net";
+import path from "node:path";
 import tls from "node:tls";
 
 const attemptLog = process.env.ONEBOX_EVAL_NETWORK_ATTEMPT_LOG;
 const allowLoopback = process.env.ONEBOX_EVAL_ALLOW_LOOPBACK === "1";
 const allowedLoopbackPort = Number(process.env.ONEBOX_EVAL_LOOPBACK_PORT);
 const allowLoopbackListen = process.env.ONEBOX_EVAL_ALLOW_LOOPBACK_LISTEN === "1";
+const allowTemporaryUnixSocket =
+  process.env.ONEBOX_EVAL_ALLOW_TMP_UNIX_SOCKET === "1";
+
+function unixSocketPath(options) {
+  if (typeof options === "string" && !/^\d+$/.test(options)) return options;
+  if (options && typeof options === "object" && typeof options.path === "string") {
+    return options.path;
+  }
+}
+
+function isTemporaryUnixSocket(socketPath) {
+  const temporary = process.env.TMPDIR;
+  if (
+    !allowTemporaryUnixSocket ||
+    typeof temporary !== "string" ||
+    !path.isAbsolute(temporary) ||
+    typeof socketPath !== "string" ||
+    !path.isAbsolute(socketPath) ||
+    socketPath.includes("\0")
+  ) return false;
+  try {
+    const root = fs.realpathSync(temporary);
+    const parent = fs.realpathSync(path.dirname(socketPath));
+    return parent === root || parent.startsWith(`${root}${path.sep}`);
+  } catch {
+    return false;
+  }
+}
 
 function record(target) {
   const text = String(target);
@@ -114,6 +143,11 @@ for (const networkModule of [net, tls]) {
 const originalListen = net.Server.prototype.listen;
 net.Server.prototype.listen = function offlineListen(...args) {
   const options = args[0];
+  const socketPath = unixSocketPath(options);
+  if (socketPath !== undefined) {
+    if (!isTemporaryUnixSocket(socketPath)) record(`net listen ${socketPath}`);
+    return originalListen.apply(this, args);
+  }
   const host = typeof options === "object" && options ? options.host :
     typeof args[1] === "string" ? args[1] : "localhost";
   if (!(allowLoopbackListen && isLoopback(host))) record(`net listen ${host}`);

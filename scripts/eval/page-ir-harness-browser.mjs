@@ -58,13 +58,31 @@ function validateBrowserAuthorityContract(value) {
 
 function playwrightChromiumBundleRoot(executablePath) {
   let current = path.dirname(executablePath);
-  while (path.dirname(current) !== current && !/^chromium-[0-9]+$/.test(path.basename(current))) {
+  while (
+    path.dirname(current) !== current &&
+    !/^chromium(?:_headless_shell)?-[0-9]+$/.test(path.basename(current))
+  ) {
     current = path.dirname(current);
   }
-  if (!/^chromium-[0-9]+$/.test(path.basename(current))) {
+  if (!/^chromium(?:_headless_shell)?-[0-9]+$/.test(path.basename(current))) {
     throw new Error("Browser evidence Chromium bundle authority is invalid");
   }
   return current;
+}
+
+async function playwrightHeadlessShellExecutable() {
+  const chromiumExecutable = await fs.realpath(chromium.executablePath());
+  const chromiumRoot = playwrightChromiumBundleRoot(chromiumExecutable);
+  const revision = path.basename(chromiumRoot).slice("chromium-".length);
+  if (!/^[0-9]+$/.test(revision)) {
+    throw new Error("Browser evidence Chromium revision is invalid");
+  }
+  return fs.realpath(path.join(
+    path.dirname(chromiumRoot),
+    `chromium_headless_shell-${revision}`,
+    "chrome-headless-shell-mac-arm64",
+    "chrome-headless-shell",
+  ));
 }
 
 async function hashClosedChromiumBundle(bundleRoot) {
@@ -123,9 +141,9 @@ export async function inspectPageIrBrowserAuthority() {
   if (Object.hasOwn(process.env, "PLAYWRIGHT_BROWSERS_PATH")) {
     throw new Error("Browser evidence rejects PLAYWRIGHT_BROWSERS_PATH overrides");
   }
-  const executablePath = await fs.realpath(chromium.executablePath());
+  const executablePath = await playwrightHeadlessShellExecutable();
   const bundleRoot = playwrightChromiumBundleRoot(executablePath);
-  const revision = path.basename(bundleRoot).slice("chromium-".length);
+  const revision = path.basename(bundleRoot).slice("chromium_headless_shell-".length);
   const executableRelativePath = path.relative(bundleRoot, executablePath).split(path.sep).join("/");
   if (executableRelativePath.startsWith("../") || path.isAbsolute(executableRelativePath)) {
     throw new Error("Browser evidence Chromium executable escapes its bundle");
@@ -169,6 +187,60 @@ function darwinBrowserSandboxProfile(temporaryDirectories) {
   ].join(" ");
 }
 
+function darwinDelegatedBrowserSandboxProfile({
+  browserBundleRoot,
+  readableRoot,
+  temporaryDirectory,
+}) {
+  for (const [label, directory] of [
+    ["browser bundle", browserBundleRoot],
+    ["readable root", readableRoot],
+    ["temporary directory", temporaryDirectory],
+  ]) {
+    if (!path.isAbsolute(directory) || /["\\\0\r\n]/.test(directory)) {
+      throw new Error(`Delegated browser ${label} is invalid`);
+    }
+  }
+  const readRoots = [browserBundleRoot, readableRoot, temporaryDirectory];
+  const readAncestors = new Set();
+  for (const root of readRoots) {
+    let ancestor = path.dirname(root);
+    while (ancestor !== path.dirname(ancestor)) {
+      readAncestors.add(ancestor);
+      ancestor = path.dirname(ancestor);
+    }
+  }
+  return [
+    "(version 1)",
+    "(allow default)",
+    "(deny network*)",
+    ...[
+      "/Applications",
+      "/Library",
+      "/Users",
+      "/Volumes",
+      "/opt",
+      "/private/etc",
+      "/private/opt",
+      "/private/tmp",
+      "/private/var",
+      "/usr/local",
+    ].flatMap((directory) => [
+      `(deny file-read* (subpath "${directory}"))`,
+      `(deny file-write* (subpath "${directory}"))`,
+    ]),
+    ...[...readAncestors].map((directory) =>
+      `(allow file-read-metadata (literal "${directory}"))`
+    ),
+    ...readRoots.flatMap((directory) => [
+      `(allow file-read* (literal "${directory}"))`,
+      `(allow file-read* (subpath "${directory}"))`,
+    ]),
+    `(allow file-write* (literal "${temporaryDirectory}"))`,
+    `(allow file-write* (subpath "${temporaryDirectory}"))`,
+  ].join(" ");
+}
+
 function browserEnvironment(homeDirectory, temporaryDirectory) {
   const environment = {
     HOME: homeDirectory,
@@ -180,7 +252,10 @@ function browserEnvironment(homeDirectory, temporaryDirectory) {
   return environment;
 }
 
-async function launchCredentialFreeChromium(executablePath) {
+async function launchCredentialFreeChromium(
+  executablePath,
+  { browserBundleRoot, delegatedReadableRoot, server = false } = {},
+) {
   if (process.platform !== "darwin") {
     throw new Error("Browser evidence requires an OS network sandbox on this platform");
   }
@@ -196,24 +271,130 @@ async function launchCredentialFreeChromium(executablePath) {
   try {
     const environment = browserEnvironment(homeDirectory, physicalTemporaryDirectory);
     const launcherPath = path.join(launcherRoot, "chromium-sandboxed");
-    const sandboxProfile = darwinBrowserSandboxProfile([
-      physicalTemporaryDirectory,
-      physicalSystemTemporaryDirectory,
-    ]);
+    const delegatedProfile = path.join(launcherRoot, "delegated-profile");
+    const sandboxProfile = delegatedReadableRoot
+      ? darwinDelegatedBrowserSandboxProfile({
+          browserBundleRoot,
+          readableRoot: delegatedReadableRoot,
+          temporaryDirectory: await fs.realpath(launcherRoot),
+        })
+      : darwinBrowserSandboxProfile([
+          physicalTemporaryDirectory,
+          physicalSystemTemporaryDirectory,
+        ]);
     const script = [
       "#!/bin/sh",
-      `exec /usr/bin/sandbox-exec -p ${shellQuote(sandboxProfile)} ${shellQuote(executablePath)} "$@"`,
+      `exec /usr/bin/sandbox-exec -p ${shellQuote(sandboxProfile)} ${shellQuote(executablePath)} "$@"${
+        delegatedReadableRoot
+          ? ` --user-data-dir=${shellQuote(delegatedProfile)}`
+          : ""
+      }`,
       "",
     ].join("\n");
     await fs.writeFile(launcherPath, script, { flag: "wx", mode: 0o500 });
     executablePath = launcherPath;
-    const browser = await chromium.launch({
+    const browser = await (server ? chromium.launchServer : chromium.launch).call(chromium, {
       executablePath,
       env: environment,
     });
     return { browser, launcherRoot };
   } catch (error) {
     await fs.rm(launcherRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function stopBrowserServer(browserServer) {
+  try {
+    await browserServer.close();
+  } catch (closeError) {
+    try {
+      await browserServer.kill();
+    } catch (killError) {
+      throw new AggregateError(
+        [closeError, killError],
+        "Unable to terminate the delegated browser server",
+      );
+    }
+  }
+}
+
+async function stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot) {
+  const errors = [];
+  try {
+    await stopBrowserServer(browserServer);
+  } catch (error) {
+    errors.push(error);
+  }
+  try {
+    await fs.rm(launcherRoot, { recursive: true, force: true });
+  } catch (error) {
+    errors.push(error);
+  }
+  if (errors.length > 0) {
+    throw new AggregateError(errors, "Delegated browser cleanup failed");
+  }
+}
+
+export async function launchPageIrCredentialFreeBrowserServer(
+  expectedAuthority,
+  readableRoot,
+) {
+  const browserAuthority = await inspectPageIrBrowserAuthority();
+  assertBrowserAuthorityMatches(browserAuthority, expectedAuthority);
+  if (typeof readableRoot !== "string" || !path.isAbsolute(readableRoot)) {
+    throw new Error("Delegated browser readable root must be one physical directory");
+  }
+  const requestedReadable = path.resolve(readableRoot);
+  const requestedStat = await fs.lstat(requestedReadable, { bigint: true });
+  const readable = await fs.realpath(requestedReadable);
+  const readableStat = await fs.lstat(readable, { bigint: true });
+  if (
+    requestedStat.isSymbolicLink() ||
+    !requestedStat.isDirectory() ||
+    readableStat.isSymbolicLink() ||
+    !readableStat.isDirectory() ||
+    requestedStat.dev !== readableStat.dev ||
+    requestedStat.ino !== readableStat.ino
+  ) {
+    throw new Error("Delegated browser readable root must be one physical directory");
+  }
+  const { browser: browserServer, launcherRoot } =
+    await launchCredentialFreeChromium(browserAuthority.executablePath, {
+      browserBundleRoot: browserAuthority.bundleRoot,
+      delegatedReadableRoot: readable,
+      server: true,
+    });
+  let closed = false;
+  try {
+    const wsEndpoint = browserServer.wsEndpoint();
+    const endpoint = new URL(wsEndpoint);
+    const port = Number(endpoint.port);
+    if (
+      endpoint.protocol !== "ws:" ||
+      !new Set(["localhost", "127.0.0.1", "[::1]"]).has(endpoint.hostname) ||
+      !Number.isInteger(port) ||
+      port < 1 ||
+      port > 65535
+    ) throw new Error("Browser server did not bind one loopback endpoint");
+    return {
+      wsEndpoint,
+      port,
+      async close() {
+        if (closed) return;
+        await stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot);
+        closed = true;
+      },
+    };
+  } catch (error) {
+    try {
+      await stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot);
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        "Delegated browser validation and cleanup failed",
+      );
+    }
     throw error;
   }
 }

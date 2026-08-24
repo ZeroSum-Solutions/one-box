@@ -790,7 +790,30 @@ async function executeGateSuite(
     unresolvedRefs: string[];
   },
 ): Promise<GateReport[]> {
-  const browser = await chromium.launch();
+  const evaluationEndpoint = process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT;
+  const evaluationPort = Number(process.env.ONEBOX_EVAL_LOOPBACK_PORT);
+  if (
+    evaluationEndpoint !== undefined &&
+    (process.env.ONEBOX_EVAL_OS_SANDBOX !==
+      "darwin-sandbox-exec-network-and-user-storage-denied" ||
+      (() => {
+        try {
+          const endpoint = new URL(evaluationEndpoint);
+          return endpoint.protocol !== "ws:" ||
+            !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname) ||
+            !Number.isInteger(evaluationPort) ||
+            evaluationPort < 1 ||
+            Number(endpoint.port) !== evaluationPort;
+        } catch {
+          return true;
+        }
+      })())
+  ) {
+    throw new Error("invalid credential-free evaluation browser capability");
+  }
+  const browser = evaluationEndpoint
+    ? await chromium.connect(evaluationEndpoint)
+    : await chromium.launch();
   const reports: GateReport[] = [];
   try {
     for (const name of gateNames) {

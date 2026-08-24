@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.4.0",
+  "registryVersion": "1.5.0",
   "registryPath": "docs/eval/page-ir-safe-pipeline/harness-registry.json",
-  "sha256": "39c669fce7f8eb92f648325bc566d46639e68a3cb6756398704bd05266851be5"
+  "sha256": "e3ca1d99755de071f501cd6f895203f0fde073afec0b0e1a1726f73341a27dd4"
 }
