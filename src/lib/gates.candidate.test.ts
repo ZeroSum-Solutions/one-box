@@ -92,6 +92,7 @@ const gateHarness = vi.hoisted(() => {
   return {
     state,
     launch: vi.fn(async () => browser),
+    connect: vi.fn(async () => browser),
     contrast: vi.fn(async (_browser: unknown, url: string, siteDir: string) => {
       state.contrastCalls.push({ url, siteDir });
       return {
@@ -121,7 +122,12 @@ const gateHarness = vi.hoisted(() => {
   };
 });
 
-vi.mock("playwright", () => ({ chromium: { launch: gateHarness.launch } }));
+vi.mock("playwright", () => ({
+  chromium: {
+    launch: gateHarness.launch,
+    connect: gateHarness.connect,
+  },
+}));
 vi.mock("@axe-core/playwright", () => ({
   AxeBuilder: class {
     analyze = vi.fn(async () => ({ violations: [] }));
@@ -607,6 +613,7 @@ async function rebindFailedCandidate(runId: string): Promise<void> {
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   gateHarness.reset();
   await Promise.all(
     runIds.splice(0).map((runId) =>
@@ -717,6 +724,42 @@ describe("candidate gates", () => {
     expect(await fs.readFile(paths.provenance)).toEqual(provenanceBefore);
     expect(ready.state).toBe("ready-for-gates");
     await expectLiveSentinels(runId, sentinels);
+  });
+
+  it("uses only the trusted evaluator browser capability when one is supplied", async () => {
+    const endpoint = "ws://127.0.0.1:43210/evaluator-browser";
+    vi.stubEnv("ONEBOX_EVAL_BROWSER_WS_ENDPOINT", endpoint);
+    vi.stubEnv("ONEBOX_EVAL_LOOPBACK_PORT", "43210");
+    vi.stubEnv(
+      "ONEBOX_EVAL_OS_SANDBOX",
+      "darwin-sandbox-exec-network-and-user-storage-denied",
+    );
+    const runId = testRunId("candidate-evaluator-browser");
+    await createReadyCandidate(runId);
+
+    await runCandidateGates(runId);
+
+    expect(gateHarness.connect).toHaveBeenCalledWith(endpoint);
+    expect(gateHarness.launch).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the trusted evaluator browser capability cannot connect", async () => {
+    const endpoint = "ws://127.0.0.1:43210/evaluator-browser";
+    vi.stubEnv("ONEBOX_EVAL_BROWSER_WS_ENDPOINT", endpoint);
+    vi.stubEnv("ONEBOX_EVAL_LOOPBACK_PORT", "43210");
+    vi.stubEnv(
+      "ONEBOX_EVAL_OS_SANDBOX",
+      "darwin-sandbox-exec-network-and-user-storage-denied",
+    );
+    const runId = testRunId("eval-browser-failure");
+    const { paths } = await createReadyCandidate(runId);
+    gateHarness.connect.mockRejectedValueOnce(new Error("trusted browser unavailable"));
+
+    await expect(runCandidateGates(runId)).rejects.toThrow("trusted browser unavailable");
+
+    expect(gateHarness.connect).toHaveBeenCalledWith(endpoint);
+    expect(gateHarness.launch).not.toHaveBeenCalled();
+    await expect(fs.stat(paths.gates)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("runs every full gate for PageIR authority without template-owned inputs", async () => {
@@ -1373,7 +1416,9 @@ describe("candidate gates", () => {
 
     const symlinkRunId = testRunId("candidate-symlink");
     const symlinked = await createReadyCandidate(symlinkRunId);
-    const outside = await fs.mkdtemp(path.join(process.cwd(), ".tmp-obx-011-"));
+    const outside = await fs.mkdtemp(
+      path.join(path.dirname(symlinked.paths.root), ".tmp-obx-011-"),
+    );
     try {
       await fs.rm(symlinked.paths.site, { recursive: true });
       await fs.symlink(outside, symlinked.paths.site);
@@ -1473,7 +1518,9 @@ describe("candidate gates", () => {
     const runId = testRunId("candidate-token-css-swap");
     const { paths } = await createReadyCandidate(runId);
     const tokenCssPath = path.join(paths.site, "tokens.css");
-    const outsideRoot = await fs.mkdtemp(path.join(process.cwd(), ".tmp-obx-011-"));
+    const outsideRoot = await fs.mkdtemp(
+      path.join(path.dirname(paths.root), ".tmp-obx-011-"),
+    );
     const outsideTokens = path.join(outsideRoot, "tokens.css");
     await fs.writeFile(outsideTokens, await fs.readFile(tokenCssPath));
 
