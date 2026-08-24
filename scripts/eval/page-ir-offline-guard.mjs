@@ -15,19 +15,54 @@ function record(target) {
   throw new Error(`offline evaluation blocked external network: ${text}`);
 }
 
-function hostFromRequest(input) {
-  try {
-    if (input instanceof URL || typeof input === "string") return new URL(input).hostname;
-    if (input && typeof input === "object") return input.hostname ?? input.host ?? "localhost";
-  } catch {
-    return "invalid";
-  }
-  return "localhost";
+function authorityHost(authority) {
+  const value = String(authority).trim();
+  const unbracketed = value.startsWith("[") && value.endsWith("]")
+    ? value.slice(1, -1)
+    : value;
+  if (net.isIP(unbracketed) === 4) return unbracketed;
+  if (net.isIP(unbracketed) === 6) return new URL(`http://[${unbracketed}]/`).hostname;
+  return new URL(`http://${value}`).hostname;
 }
 
-function assertLoopback(input) {
-  const host = String(hostFromRequest(input)).split(":")[0].toLowerCase();
-  if (!loopbackHosts.has(host)) record(input instanceof URL ? input.href : host);
+function requestTarget(input, { allowDefaultLoopback = false } = {}) {
+  try {
+    if (allowDefaultLoopback && input == null) {
+      return { host: "localhost", label: "localhost" };
+    }
+    if (input instanceof URL || typeof input === "string") {
+      const url = new URL(input);
+      return { host: url.hostname, label: url.href };
+    }
+    if (input && typeof input === "object") {
+      if (typeof input.url === "string") {
+        const url = new URL(input.url);
+        return { host: url.hostname, label: url.href };
+      }
+      const authority = input.hostname ?? input.host;
+      if (typeof authority === "string" && authority.trim()) {
+        return { host: authorityHost(authority), label: authority };
+      }
+      if (allowDefaultLoopback) return { host: "localhost", label: "localhost" };
+    }
+  } catch {
+    return { host: undefined, label: "invalid request target" };
+  }
+  return { host: undefined, label: "unresolved request target" };
+}
+
+function assertLoopback(input, options) {
+  const target = requestTarget(input, options);
+  const host = target.host && String(target.host).toLowerCase();
+  if (!host || !loopbackHosts.has(host)) record(target.label);
+}
+
+function isLoopbackAuthority(authority) {
+  try {
+    return loopbackHosts.has(authorityHost(authority).toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 const originalFetch = globalThis.fetch;
@@ -42,11 +77,11 @@ for (const protocol of [http, https]) {
   const originalRequest = protocol.request.bind(protocol);
   const originalGet = protocol.get.bind(protocol);
   protocol.request = function offlineRequest(...args) {
-    assertLoopback(args[0]);
+    assertLoopback(args[0], { allowDefaultLoopback: true });
     return originalRequest(...args);
   };
   protocol.get = function offlineGet(...args) {
-    assertLoopback(args[0]);
+    assertLoopback(args[0], { allowDefaultLoopback: true });
     return originalGet(...args);
   };
 }
@@ -64,7 +99,7 @@ for (const networkModule of [net, tls]) {
     const original = networkModule[method].bind(networkModule);
     networkModule[method] = function offlineConnect(...args) {
       const host = connectHost(args);
-      if (host !== undefined && !loopbackHosts.has(String(host).toLowerCase())) record(host);
+      if (host !== undefined && !isLoopbackAuthority(host)) record(host);
       return original(...args);
     };
   }

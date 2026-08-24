@@ -305,6 +305,39 @@ test("execution removes credentials, blocks external network, and maps prerequis
   });
   assert.equal(loopback.state, "PASS");
 
+  const loopbackRequest = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-LOOPBACK",
+    commands: [{
+      id: "loopback-request-object",
+      argv: [process.execPath, "-e", "const h=await import('node:http');const s=h.createServer((q,r)=>r.end('ok'));s.listen(0,'127.0.0.1',async()=>{const u=`http://127.0.0.1:${s.address().port}`;const r=await fetch(new Request(u));if(await r.text()!=='ok')process.exitCode=8;s.close()})"],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(loopbackRequest.state, "PASS");
+
+  const loopbackHttpDefaults = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-LOOPBACK",
+    commands: [{
+      id: "loopback-http-defaults",
+      argv: [process.execPath, "-e", "const h=await import('node:http');for(const invoke of [()=>h.request(),()=>h.request(undefined),()=>h.request(null)]){try{const r=invoke();r.on('error',()=>undefined);r.destroy()}catch{}}"],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(loopbackHttpDefaults.state, "PASS");
+
+  const loopbackExpandedIpv6 = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-LOOPBACK",
+    commands: [{
+      id: "loopback-expanded-ipv6",
+      argv: [process.execPath, "-e", "const h=await import('node:http');const s=h.createServer((q,r)=>r.end('ok'));s.listen(0,'::1',()=>{const r=h.get({hostname:'0:0:0:0:0:0:0:1',port:s.address().port},q=>{q.resume();q.on('end',()=>s.close())});r.on('error',e=>{console.error(e);s.close(()=>process.exit(9))})})"],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(loopbackExpandedIpv6.state, "PASS");
+
   const unixSocket = await executeEvaluation({
     root: ROOT,
     evaluationId: "EVAL-SEC-003-LOOPBACK",
@@ -324,6 +357,30 @@ test("execution removes credentials, blocks external network, and maps prerequis
   });
   assert.equal(denied.state, "FAIL");
   assert.ok(denied.networkAttempts.some((attempt) => attempt.includes("example.com")));
+
+  const deniedRequestObject = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-NETWORK",
+    commands: [{
+      id: "request-object-network",
+      argv: [process.execPath, "-e", "await fetch(new Request('https://example.com/request-object'))"],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(deniedRequestObject.state, "FAIL");
+  assert.ok(deniedRequestObject.networkAttempts.some((attempt) => attempt.includes("example.com")));
+
+  const deniedAmbiguousRequest = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-NETWORK",
+    commands: [{
+      id: "ambiguous-request-network",
+      argv: [process.execPath, "-e", "await fetch({})"],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(deniedAmbiguousRequest.state, "FAIL");
+  assert.ok(deniedAmbiguousRequest.networkAttempts.some((attempt) => attempt.includes("unresolved")));
 
   const deniedUdp = await executeEvaluation({
     root: ROOT,
