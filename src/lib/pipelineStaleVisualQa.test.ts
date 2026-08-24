@@ -33,6 +33,14 @@ vi.mock("./candidate", async (importOriginal) => {
   };
 });
 
+vi.mock("./preflight", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./preflight")>();
+  return {
+    ...actual,
+    preflight: vi.fn(() => ({ ok: true, blocking: [], advisory: [] })),
+  };
+});
+
 import { runPipeline } from "./pipeline";
 
 const intake = {
