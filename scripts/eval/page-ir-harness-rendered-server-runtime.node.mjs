@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
+import http from "node:http";
 import test from "node:test";
 import { startTrustedRenderedServer } from "./page-ir-harness-rendered-server-runtime.mjs";
 
 test("binds and publishes trusted authority before evaluated app loading and gates readiness", async () => {
+  const portProbe = await new Promise((resolve, reject) => {
+    const server = http.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close((error) => error ? reject(error) : resolve(address.port));
+    });
+  });
   const events = [];
   let authority;
   let publish;
@@ -11,6 +20,7 @@ test("binds and publishes trusted authority before evaluated app loading and gat
   const prepareBarrier = new Promise((resolve) => { releasePrepare = resolve; });
   const started = startTrustedRenderedServer({
     nonce: "a".repeat(64),
+    port: portProbe,
     publishAuthority(value) {
       authority = value;
       events.push("published");
@@ -19,7 +29,7 @@ test("binds and publishes trusted authority before evaluated app loading and gat
     createApp(authorityInput) {
       assert.deepEqual(authorityInput, {
         hostname: "127.0.0.1",
-        port: authority.port,
+        port: portProbe,
       });
       events.push("created-app");
       return {
@@ -43,6 +53,7 @@ test("binds and publishes trusted authority before evaluated app loading and gat
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]);
   assert.ok(authority, "trusted authority was not published before app loading");
+  assert.equal(authority.port, portProbe);
   assert.deepEqual(events, ["published", "created-app", "prepare-started"]);
 
   const response = fetch(`http://127.0.0.1:${authority.port}`);

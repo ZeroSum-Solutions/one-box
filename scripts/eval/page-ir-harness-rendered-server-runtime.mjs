@@ -1,7 +1,10 @@
 import http from "node:http";
 
-export async function startTrustedRenderedServer({ nonce, publishAuthority, createApp }) {
+export async function startTrustedRenderedServer({ nonce, port, publishAuthority, createApp }) {
   if (!/^[a-f0-9]{64}$/.test(nonce ?? "")) throw new Error("rendered server nonce is invalid");
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error("rendered server port is invalid");
+  }
   if (typeof publishAuthority !== "function" || typeof createApp !== "function") {
     throw new Error("rendered server lifecycle dependencies are invalid");
   }
@@ -25,7 +28,7 @@ export async function startTrustedRenderedServer({ nonce, publishAuthority, crea
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
+    server.listen(port, "127.0.0.1", resolve);
   });
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("rendered server did not bind TCP loopback");

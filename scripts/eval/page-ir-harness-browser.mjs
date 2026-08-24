@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import http from "node:http";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
@@ -305,6 +306,7 @@ async function launchCredentialFreeChromium(
     const browser = await (server ? chromium.launchServer : chromium.launch).call(chromium, {
       executablePath,
       env: environment,
+      ...(server ? { host: "127.0.0.1" } : {}),
     });
     return { browser, launcherRoot };
   } catch (error) {
@@ -320,18 +322,46 @@ async function stopBrowserServer(browserServer) {
     try {
       await browserServer.kill();
     } catch (killError) {
-      throw new AggregateError(
+      const error = new AggregateError(
         [closeError, killError],
         "Unable to terminate the delegated browser server",
       );
+      error.browserTerminationConfirmed = false;
+      throw error;
     }
   }
 }
 
-async function stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot) {
+async function closeLoopbackGuard(server) {
+  if (!server?.listening) return;
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
+
+async function holdOppositeLoopbackFamily(port) {
+  const server = net.createServer((socket) => socket.destroy());
+  try {
+    await new Promise((resolve, reject) => {
+      server.once("error", reject);
+      server.listen(port, "::1", resolve);
+    });
+    return server;
+  } catch (error) {
+    await closeLoopbackGuard(server).catch(() => {});
+    throw error;
+  }
+}
+
+async function stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot, loopbackGuard) {
   const errors = [];
+  let browserTerminationConfirmed = true;
   try {
     await stopBrowserServer(browserServer);
+  } catch (error) {
+    browserTerminationConfirmed = false;
+    errors.push(error);
+  }
+  try {
+    await closeLoopbackGuard(loopbackGuard);
   } catch (error) {
     errors.push(error);
   }
@@ -341,7 +371,9 @@ async function stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot) {
     errors.push(error);
   }
   if (errors.length > 0) {
-    throw new AggregateError(errors, "Delegated browser cleanup failed");
+    const error = new AggregateError(errors, "Delegated browser cleanup failed");
+    error.browserTerminationConfirmed = browserTerminationConfirmed;
+    throw error;
   }
 }
 
@@ -377,29 +409,31 @@ export async function launchPageIrCredentialFreeBrowserServer(
       server: true,
     });
   let closed = false;
+  let loopbackGuard;
   try {
     const wsEndpoint = browserServer.wsEndpoint();
     const endpoint = new URL(wsEndpoint);
     const port = Number(endpoint.port);
     if (
       endpoint.protocol !== "ws:" ||
-      !new Set(["localhost", "127.0.0.1", "[::1]"]).has(endpoint.hostname) ||
+      endpoint.hostname !== "127.0.0.1" ||
       !Number.isInteger(port) ||
       port < 1 ||
       port > 65535
     ) throw new Error("Browser server did not bind one loopback endpoint");
+    loopbackGuard = await holdOppositeLoopbackFamily(port);
     return {
       wsEndpoint,
       port,
       async close() {
         if (closed) return;
-        await stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot);
+        await stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot, loopbackGuard);
         closed = true;
       },
     };
   } catch (error) {
     try {
-      await stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot);
+      await stopBrowserServerAndRemoveLauncher(browserServer, launcherRoot, loopbackGuard);
     } catch (cleanupError) {
       throw new AggregateError(
         [error, cleanupError],

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -129,6 +130,8 @@ export function renderedSandboxProfile({
   writeFiles = [],
   networkMode = "deny",
   port,
+  listenPort,
+  connectPort,
 }) {
   for (const target of [snapshotRoot, temporaryRoot, browserBundleRoot, ...writeRoots, ...writeFiles]) {
     if (!path.isAbsolute(target) || /["\0\r\n]/.test(target)) {
@@ -141,6 +144,12 @@ export function renderedSandboxProfile({
   ) {
     throw new Error("rendered sandbox loopback authority is invalid");
   }
+  if (
+    networkMode === "server" &&
+    (![listenPort, connectPort].every((value) =>
+      Number.isInteger(value) && value >= 1 && value <= 65535
+    ))
+  ) throw new Error("rendered sandbox server authority is invalid");
   const readRoots = [snapshotRoot, temporaryRoot, browserBundleRoot];
   const ancestors = new Set();
   for (const root of readRoots) {
@@ -152,12 +161,16 @@ export function renderedSandboxProfile({
   }
   return [
     "(version 1)", "(deny default)", "(allow process*)",
+    ...(["server", "journey"].includes(networkMode) ? ["(deny process-fork)"] : []),
     "(allow signal (target same-sandbox))", "(allow sysctl-read)",
     "(allow mach-lookup)", "(allow file-read*)",
     "(deny file-read* (subpath \"/Users\"))", "(deny file-read* (subpath \"/Volumes\"))",
     "(deny file-read* (subpath \"/private/tmp\"))", "(deny file-read* (subpath \"/private/var/folders\"))",
     "(deny network*)",
-    ...(networkMode === "server" ? ["(allow network-inbound (local tcp \"localhost:*\"))"] : []),
+    ...(networkMode === "server" ? [
+      `(allow network-inbound (local tcp "localhost:${listenPort}"))`,
+      `(allow network-outbound (remote tcp "localhost:${connectPort}"))`,
+    ] : []),
     ...(networkMode === "journey" ? [`(allow network-outbound (remote tcp \"localhost:${port}\"))`] : []),
     ...[...ancestors].map((directory) => `(allow file-read-metadata (literal "${directory}"))`),
     ...readRoots.flatMap((directory) => [
@@ -172,7 +185,7 @@ export function renderedSandboxProfile({
   ].join(" ");
 }
 
-function launchBoundServer(argv, { cwd, env, sandboxProfile, nonce, timeoutMs = 90_000 }) {
+function launchBoundServer(argv, { cwd, env, sandboxProfile, nonce, expectedPort, timeoutMs = 90_000 }) {
   return new Promise((resolve, reject) => {
     const isolatedArgv = ["/usr/bin/sandbox-exec", "-p", sandboxProfile, ...argv];
     const child = spawn(isolatedArgv[0], isolatedArgv.slice(1), {
@@ -198,7 +211,11 @@ function launchBoundServer(argv, { cwd, env, sandboxProfile, nonce, timeoutMs = 
       for (const line of stdout.split("\n").slice(0, -1)) {
         let authority;
         try { authority = JSON.parse(line); } catch { continue; }
-        if (authority.nonce !== nonce || !Number.isInteger(authority.port) || authority.port < 1 || authority.port > 65535) {
+        if (
+          authority.nonce !== nonce ||
+          authority.port !== expectedPort ||
+          !Number.isInteger(authority.port) || authority.port < 1 || authority.port > 65535
+        ) {
           fail(new Error("production server authority is invalid"));
           return;
         }
@@ -213,8 +230,45 @@ function launchBoundServer(argv, { cwd, env, sandboxProfile, nonce, timeoutMs = 
   });
 }
 
-async function stopServer(child) {
-  if (child.exitCode !== null || child.signalCode !== null) return;
+async function renderedProcessGroupStates(processGroupId) {
+  const ps = spawn("/bin/ps", ["-axo", "pid=,pgid=,state="], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const stdout = [];
+  const stderr = [];
+  ps.stdout.on("data", (chunk) => stdout.push(chunk));
+  ps.stderr.on("data", (chunk) => stderr.push(chunk));
+  const exitCode = await new Promise((resolve, reject) => {
+    ps.once("error", reject);
+    ps.once("close", resolve);
+  });
+  if (exitCode !== 0) {
+    throw new Error(`unable to inspect rendered process group: ${Buffer.concat(stderr).toString("utf8").slice(0, 500)}`);
+  }
+  return Buffer.concat(stdout).toString("utf8").split("\n").flatMap((line) => {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)$/);
+    return match && Number(match[2]) === processGroupId ? [match[3]] : [];
+  });
+}
+
+export async function freezeRenderedServer(child, timeoutMs = 2_000) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return false;
+  process.kill(-child.pid, "SIGSTOP");
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const states = await renderedProcessGroupStates(child.pid);
+    if (states.length === 0) {
+      if (child.exitCode !== null || child.signalCode !== null) return false;
+    } else if (states.every((state) => /^[TZ]/.test(state))) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error("rendered server process group did not reach a stopped state");
+}
+
+export async function killFrozenRenderedServer(child) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
   let resolveClosed;
   const closed = new Promise((resolve) => { resolveClosed = resolve; });
   const onClose = () => resolveClosed();
@@ -223,15 +277,53 @@ async function stopServer(child) {
     child.off("close", onClose);
     return;
   }
-  try { process.kill(-child.pid, "SIGTERM"); } catch {}
-  const graceful = await Promise.race([
+  process.kill(-child.pid, "SIGKILL");
+  const terminated = await Promise.race([
     closed.then(() => true),
-    new Promise((resolve) => setTimeout(() => resolve(false), 10_000)),
+    new Promise((resolve) => setTimeout(() => resolve(false), 5_000)),
   ]);
-  if (!graceful) {
-    try { process.kill(-child.pid, "SIGKILL"); } catch {}
-    await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5_000))]);
+  if (!terminated) {
+    child.off("close", onClose);
+    throw new Error("frozen rendered server did not terminate");
   }
+}
+
+export function renderedEvidenceFailure(primaryError, cleanupErrors) {
+  if (primaryError && cleanupErrors.length > 0) {
+    return new AggregateError(
+      [primaryError, ...cleanupErrors],
+      "Rendered evidence failed and cleanup also failed",
+    );
+  }
+  if (primaryError) return primaryError;
+  if (cleanupErrors.length > 0) {
+    return new AggregateError(cleanupErrors, "Rendered evidence cleanup failed");
+  }
+}
+
+export async function releaseFrozenRenderedAuthorities({
+  delegatedBrowser,
+  killServer,
+  closeAppAuthority,
+  removeTemporary,
+}) {
+  const errors = [];
+  let browserTerminationConfirmed = delegatedBrowser === undefined;
+  if (delegatedBrowser !== undefined) {
+    try {
+      await delegatedBrowser.close();
+      browserTerminationConfirmed = true;
+    } catch (error) {
+      browserTerminationConfirmed = error?.browserTerminationConfirmed === true;
+      errors.push(error);
+    }
+  }
+  if (browserTerminationConfirmed) {
+    for (const cleanup of [killServer, closeAppAuthority, removeTemporary]) {
+      try { await cleanup(); } catch (error) { errors.push(error); }
+    }
+  }
+  return { errors, browserTerminationConfirmed };
 }
 
 export function renderedEvaluationIds() {
@@ -259,15 +351,58 @@ export function renderedBrowserEnvironment(environment, wsEndpoint) {
   const port = Number(endpoint?.port);
   if (
     endpoint?.protocol !== "ws:" ||
-    !new Set(["localhost", "127.0.0.1", "[::1]"]).has(endpoint.hostname) ||
+    endpoint.hostname !== "127.0.0.1" ||
     endpoint.username || endpoint.password ||
     !Number.isInteger(port) || port < 1 || port > 65535
   ) throw new Error("rendered browser endpoint is invalid");
   return {
     ...environment,
     ONEBOX_EVAL_BROWSER_WS_ENDPOINT: endpoint.href,
+    ONEBOX_EVAL_LOOPBACK_HOST: endpoint.hostname,
     ONEBOX_EVAL_LOOPBACK_PORT: String(port),
+    ONEBOX_EVAL_OS_SANDBOX: "darwin-sandbox-exec-network-and-user-storage-denied",
   };
+}
+
+async function closeNetServer(server) {
+  if (!server?.listening) return;
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
+
+export async function reserveRenderedAppPort() {
+  const ipv4Probe = net.createServer();
+  let ipv6Guard;
+  try {
+    await new Promise((resolve, reject) => {
+      ipv4Probe.once("error", reject);
+      ipv4Probe.listen(0, "127.0.0.1", resolve);
+    });
+    const address = ipv4Probe.address();
+    if (!address || typeof address === "string") {
+      throw new Error("rendered coordinator did not select a TCP loopback port");
+    }
+    ipv6Guard = net.createServer((socket) => socket.destroy());
+    await new Promise((resolve, reject) => {
+      ipv6Guard.once("error", reject);
+      ipv6Guard.listen(address.port, "::1", resolve);
+    });
+    await closeNetServer(ipv4Probe);
+    let closed = false;
+    return {
+      port: address.port,
+      async close() {
+        if (closed) return;
+        await closeNetServer(ipv6Guard);
+        closed = true;
+      },
+    };
+  } catch (error) {
+    await Promise.allSettled([
+      closeNetServer(ipv4Probe),
+      closeNetServer(ipv6Guard),
+    ]);
+    throw error;
+  }
 }
 
 export async function executeProductionRenderedEvidence({
@@ -325,34 +460,43 @@ export async function executeProductionRenderedEvidence({
   }
 
   const nonce = crypto.randomBytes(32).toString("hex");
-  const serverSandboxProfile = renderedSandboxProfile({
-    snapshotRoot, temporaryRoot: await fs.realpath(temporaryRoot), browserBundleRoot: browser.bundleRoot,
-    writeRoots: [nextOutputRoot, sitesRoot], networkMode: "server",
-  });
-  let launched;
+  let appAuthority;
+  let delegatedBrowser;
+  let server;
+  let renderedResults;
+  let primaryError;
   try {
-    launched = await launchBoundServer([
+    appAuthority = await reserveRenderedAppPort();
+    const appPort = appAuthority.port;
+    delegatedBrowser = await launchPageIrCredentialFreeBrowserServer(
+      browser.binding,
+      snapshotRoot,
+      { allowedLoopbackPort: appPort },
+    );
+    const serverEnvironment = renderedBrowserEnvironment({
+      ...env,
+      ONEBOX_RENDERED_SERVER_NONCE: nonce,
+      ONEBOX_RENDERED_SERVER_PORT: String(appPort),
+      ONEBOX_EVAL_ALLOW_LOOPBACK: "1",
+      ONEBOX_EVAL_ALLOW_LOOPBACK_LISTEN: "1",
+    }, delegatedBrowser.wsEndpoint);
+    const serverSandboxProfile = renderedSandboxProfile({
+      snapshotRoot, temporaryRoot: await fs.realpath(temporaryRoot), browserBundleRoot: browser.bundleRoot,
+      writeRoots: [nextOutputRoot, sitesRoot], networkMode: "server",
+      listenPort: appPort, connectPort: delegatedBrowser.port,
+    });
+    const launched = await launchBoundServer([
       runtimeContract.nodeExecutable,
       path.join(snapshotRoot, "scripts/eval/page-ir-harness-rendered-server.mjs"),
     ], {
       cwd: snapshotRoot,
-      env: { ...env, ONEBOX_RENDERED_SERVER_NONCE: nonce, ONEBOX_EVAL_ALLOW_LOOPBACK_LISTEN: "1" },
+      env: serverEnvironment,
       sandboxProfile: serverSandboxProfile,
       nonce,
+      expectedPort: appPort,
     });
-  } catch (error) {
-    await fs.rm(temporaryRoot, { recursive: true, force: true });
-    throw error;
-  }
-  const server = launched.child;
-  const baseUrl = `http://127.0.0.1:${launched.port}`;
-  let delegatedBrowser;
-  try {
-    delegatedBrowser = await launchPageIrCredentialFreeBrowserServer(
-      browser.binding,
-      snapshotRoot,
-      { allowedLoopbackPort: launched.port },
-    );
+    server = launched.child;
+    const baseUrl = `http://127.0.0.1:${appPort}`;
     const journeySandboxProfile = renderedSandboxProfile({
       snapshotRoot, temporaryRoot: await fs.realpath(temporaryRoot), browserBundleRoot: browser.bundleRoot,
       writeRoots: [sitesRoot], networkMode: "journey", port: delegatedBrowser.port,
@@ -391,7 +535,7 @@ export async function executeProductionRenderedEvidence({
       }),
     });
     if (server.exitCode !== null || server.signalCode !== null) throw new Error("production server exited during rendered evidence collection");
-    return RENDERED_GROUPS.flatMap((group) => group.evaluationIds.map((evaluationId) =>
+    renderedResults = RENDERED_GROUPS.flatMap((group) => group.evaluationIds.map((evaluationId) =>
       resultFor(
         evaluationId,
         evaluationId === "EVAL-COMP-002"
@@ -399,12 +543,23 @@ export async function executeProductionRenderedEvidence({
           : [build, groupCommands.get(group.id)],
       ),
     ));
-  } finally {
-    try {
-      await delegatedBrowser?.close();
-    } finally {
-      await stopServer(server);
-      await fs.rm(temporaryRoot, { recursive: true, force: true });
-    }
+  } catch (error) {
+    primaryError = error;
   }
+
+  const cleanupErrors = [];
+  let serverFrozen = false;
+  try { serverFrozen = await freezeRenderedServer(server); } catch (error) { cleanupErrors.push(error); }
+  if (!server || serverFrozen || server.exitCode !== null || server.signalCode !== null) {
+    const released = await releaseFrozenRenderedAuthorities({
+      delegatedBrowser,
+      killServer: () => serverFrozen ? killFrozenRenderedServer(server) : undefined,
+      closeAppAuthority: () => appAuthority?.close(),
+      removeTemporary: () => fs.rm(temporaryRoot, { recursive: true, force: true }),
+    });
+    cleanupErrors.push(...released.errors);
+  }
+  const failure = renderedEvidenceFailure(primaryError, cleanupErrors);
+  if (failure) throw failure;
+  return renderedResults;
 }

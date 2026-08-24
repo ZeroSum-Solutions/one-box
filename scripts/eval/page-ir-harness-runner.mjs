@@ -290,7 +290,7 @@ function darwinSandboxProfile(environment, executionRoot) {
       `(allow file-write* (literal "${workspaceRoot}"))`,
       `(allow file-write* (subpath "${workspaceRoot}"))`,
     ] : []),
-    ...(environment.ONEBOX_EVAL_LOOPBACK_PORT ? [
+    ...(environment.ONEBOX_EVAL_LOOPBACK_HOST && environment.ONEBOX_EVAL_LOOPBACK_PORT ? [
       `(allow network-outbound (remote tcp "localhost:${environment.ONEBOX_EVAL_LOOPBACK_PORT}"))`,
     ] : []),
     `(allow network-bind (local unix-socket (path-prefix "${temporary}/")))`,
@@ -1861,13 +1861,14 @@ export async function executeEvaluation({
       }
       if (
         endpoint.protocol !== "ws:" ||
-        !new Set(["localhost", "127.0.0.1", "[::1]"]).has(endpoint.hostname) ||
+        endpoint.hostname !== "127.0.0.1" ||
         Number(endpoint.port) !== browserConnection.port ||
         endpoint.username ||
         endpoint.password
       ) fail("evaluation browser connection must be one exact loopback endpoint");
       childEnv.ONEBOX_EVAL_BROWSER_WS_ENDPOINT = endpoint.href;
       childEnv.ONEBOX_EVAL_ALLOW_LOOPBACK = "1";
+      childEnv.ONEBOX_EVAL_LOOPBACK_HOST = endpoint.hostname;
       childEnv.ONEBOX_EVAL_LOOPBACK_PORT = String(browserConnection.port);
     }
     const records = [];

@@ -5,10 +5,12 @@ const EVALUATION_SANDBOX_MARKER =
 
 export async function launchEvaluationAwareBrowser(): Promise<Browser> {
   const evaluationEndpoint = process.env.ONEBOX_EVAL_BROWSER_WS_ENDPOINT;
+  const evaluationHost = process.env.ONEBOX_EVAL_LOOPBACK_HOST;
   const evaluationPortValue = process.env.ONEBOX_EVAL_LOOPBACK_PORT;
   const evaluationSandbox = process.env.ONEBOX_EVAL_OS_SANDBOX;
   if (
     evaluationEndpoint === undefined &&
+    evaluationHost === undefined &&
     evaluationPortValue === undefined &&
     evaluationSandbox === undefined
   ) {
@@ -16,6 +18,7 @@ export async function launchEvaluationAwareBrowser(): Promise<Browser> {
   }
   if (
     evaluationEndpoint === undefined ||
+    evaluationHost === undefined ||
     evaluationPortValue === undefined ||
     evaluationSandbox === undefined
   ) {
@@ -32,7 +35,8 @@ export async function launchEvaluationAwareBrowser(): Promise<Browser> {
   if (
     evaluationSandbox !== EVALUATION_SANDBOX_MARKER ||
     endpoint.protocol !== "ws:" ||
-    !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname) ||
+    evaluationHost !== "127.0.0.1" ||
+    endpoint.hostname !== evaluationHost ||
     !Number.isInteger(evaluationPort) ||
     evaluationPort < 1 ||
     Number(endpoint.port) !== evaluationPort

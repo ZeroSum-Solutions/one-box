@@ -9,6 +9,7 @@ import tls from "node:tls";
 
 const attemptLog = process.env.ONEBOX_EVAL_NETWORK_ATTEMPT_LOG;
 const allowLoopback = process.env.ONEBOX_EVAL_ALLOW_LOOPBACK === "1";
+const allowedLoopbackHost = process.env.ONEBOX_EVAL_LOOPBACK_HOST;
 const allowedLoopbackPort = Number(process.env.ONEBOX_EVAL_LOOPBACK_PORT);
 const allowLoopbackListen = process.env.ONEBOX_EVAL_ALLOW_LOOPBACK_LISTEN === "1";
 const allowTemporaryUnixSocket =
@@ -56,9 +57,14 @@ function authorityHost(authority) {
   return new URL(`http://${value}`).hostname;
 }
 
+function normalizeHost(host) {
+  if (typeof host !== "string") return undefined;
+  return host.replace(/^\[|\]$/g, "").toLowerCase();
+}
+
 function isLoopback(host) {
   if (typeof host !== "string") return false;
-  const normalized = host.replace(/^\[|\]$/g, "").toLowerCase();
+  const normalized = normalizeHost(host);
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
 }
 
@@ -89,7 +95,8 @@ function requestTarget(input, { allowDefaultLoopback = false } = {}) {
 }
 
 function allowedTarget(target) {
-  return allowLoopback && isLoopback(target.host) &&
+  return allowLoopback && isLoopback(allowedLoopbackHost) &&
+    normalizeHost(target.host) === normalizeHost(allowedLoopbackHost) &&
     Number.isInteger(allowedLoopbackPort) && allowedLoopbackPort > 0 &&
     target.port === allowedLoopbackPort;
 }
@@ -150,7 +157,11 @@ net.Server.prototype.listen = function offlineListen(...args) {
   }
   const host = typeof options === "object" && options ? options.host :
     typeof args[1] === "string" ? args[1] : "localhost";
-  if (!(allowLoopbackListen && isLoopback(host))) record(`net listen ${host}`);
+  if (!(
+    allowLoopbackListen &&
+    isLoopback(allowedLoopbackHost) &&
+    normalizeHost(host) === normalizeHost(allowedLoopbackHost)
+  )) record(`net listen ${host}`);
   return originalListen.apply(this, args);
 };
 

@@ -3,9 +3,12 @@ import { startTrustedRenderedServer } from "./page-ir-harness-rendered-server-ru
 
 const nonce = process.env.ONEBOX_RENDERED_SERVER_NONCE;
 if (!/^[a-f0-9]{64}$/.test(nonce ?? "")) throw new Error("rendered server nonce is invalid");
+const port = Number(process.env.ONEBOX_RENDERED_SERVER_PORT);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("rendered server port is invalid");
 
 const running = await startTrustedRenderedServer({
   nonce,
+  port,
   publishAuthority: (authority) => process.stdout.write(`${JSON.stringify(authority)}\n`),
   createApp: ({ hostname, port }) => next({
     dev: false,

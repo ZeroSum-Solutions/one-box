@@ -48,8 +48,13 @@ test("delegated browser survives disconnects but cannot become a host file or lo
   try {
     const endpoint = new URL(server.wsEndpoint);
     assert.equal(endpoint.protocol, "ws:");
-    assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname));
+    assert.equal(endpoint.hostname, "127.0.0.1");
     assert.equal(Number(endpoint.port), server.port);
+    const hostileIpv6Server = http.createServer();
+    await assert.rejects(new Promise((resolve, reject) => {
+      hostileIpv6Server.once("error", reject);
+      hostileIpv6Server.listen(server.port, "::1", resolve);
+    }), { code: "EADDRINUSE" });
     const first = await chromium.connect(server.wsEndpoint);
     const page = await first.newPage();
     await page.goto(pathToFileURL(readableFile).href);

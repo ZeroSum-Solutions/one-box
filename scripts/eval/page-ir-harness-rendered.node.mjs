@@ -11,9 +11,14 @@ import {
   launchPageIrCredentialFreeBrowserServer,
 } from "./page-ir-harness-browser.mjs";
 import {
+  freezeRenderedServer,
+  killFrozenRenderedServer,
   renderedBrowserEnvironment,
+  renderedEvidenceFailure,
   renderedProductionBuildArgv,
   renderedSandboxProfile,
+  releaseFrozenRenderedAuthorities,
+  reserveRenderedAppPort,
 } from "./page-ir-harness-rendered.mjs";
 
 test("rendered production evidence uses the canonical build path", () => {
@@ -51,12 +56,141 @@ test("rendered browser journeys receive only the delegated loopback endpoint", (
   ), {
     CI: "1",
     ONEBOX_EVAL_BROWSER_WS_ENDPOINT: "ws://127.0.0.1:43124/verified-token",
+    ONEBOX_EVAL_LOOPBACK_HOST: "127.0.0.1",
     ONEBOX_EVAL_LOOPBACK_PORT: "43124",
+    ONEBOX_EVAL_OS_SANDBOX: "darwin-sandbox-exec-network-and-user-storage-denied",
   });
   assert.throws(
     () => renderedBrowserEnvironment({}, "wss://example.com/browser"),
     /endpoint is invalid/,
   );
+});
+
+test("rendered server receives only exact app and browser ports", () => {
+  const profile = renderedSandboxProfile({
+    snapshotRoot: "/snapshot",
+    temporaryRoot: "/temporary",
+    browserBundleRoot: "/browser",
+    writeRoots: ["/snapshot/.next"],
+    networkMode: "server",
+    listenPort: 43123,
+    connectPort: 43124,
+  });
+
+  assert.match(profile, /network-inbound \(local tcp "localhost:43123"\)/);
+  assert.match(profile, /network-outbound \(remote tcp "localhost:43124"\)/);
+  assert.doesNotMatch(profile, /localhost:\*/);
+  assert.doesNotMatch(profile, /localhost:43125/);
+  assert.match(profile, /\(deny process-fork\)/);
+});
+
+test("rendered server and journey sandboxes reject detached descendants", {
+  skip: process.platform !== "darwin",
+}, async () => {
+  const root = path.resolve(import.meta.dirname, "../..");
+  const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-rendered-no-fork-"));
+  try {
+    for (const options of [
+      { networkMode: "server", listenPort: 43123, connectPort: 43124 },
+      { networkMode: "journey", port: 43124 },
+    ]) {
+      const profile = renderedSandboxProfile({
+        snapshotRoot: root,
+        temporaryRoot: await fs.realpath(temporaryRoot),
+        browserBundleRoot: root,
+        writeRoots: [],
+        ...options,
+      });
+      const child = spawn("/usr/bin/sandbox-exec", [
+        "-p", profile,
+        process.execPath,
+        "--input-type=module",
+        "--eval",
+        `import { spawn } from "node:child_process"; let denied = false; try { const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 1000)"], { detached: true }); denied = await new Promise((resolve) => { child.once("error", (error) => resolve(error.code === "EPERM")); child.once("spawn", () => resolve(false)); }); } catch (error) { denied = error.code === "EPERM"; } if (!denied) process.exit(9);`,
+      ], { stdio: ["ignore", "pipe", "pipe"] });
+      const stderr = [];
+      child.stderr.on("data", (chunk) => stderr.push(chunk));
+      const exitCode = await new Promise((resolve, reject) => {
+        child.once("error", reject);
+        child.once("close", resolve);
+      });
+      assert.equal(exitCode, 0, Buffer.concat(stderr).toString("utf8"));
+    }
+  } finally {
+    await fs.rm(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("rendered teardown freezes evaluated code before a control port can be captured", async () => {
+  const trustedServer = http.createServer((_request, response) => response.end("trusted"));
+  let trustedRequests = 0;
+  trustedServer.on("request", () => { trustedRequests += 1; });
+  await new Promise((resolve, reject) => {
+    trustedServer.once("error", reject);
+    trustedServer.listen(0, "127.0.0.1", resolve);
+  });
+  const port = trustedServer.address().port;
+  const worker = spawn(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    `import http from "node:http"; setInterval(() => { const request = http.get("http://127.0.0.1:${port}", (response) => response.resume()); request.on("error", () => {}); }, 5);`,
+  ], { detached: true, stdio: "ignore" });
+  let hostileServer;
+  try {
+    const deadline = Date.now() + 2_000;
+    while (trustedRequests === 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.ok(trustedRequests > 0, "evaluated worker did not reach the trusted endpoint");
+    assert.equal(await freezeRenderedServer(worker), true);
+    await new Promise((resolve) => trustedServer.close(resolve));
+    let hostileRequests = 0;
+    hostileServer = http.createServer((_request, response) => {
+      hostileRequests += 1;
+      response.end("hostile");
+    });
+    await new Promise((resolve, reject) => {
+      hostileServer.once("error", reject);
+      hostileServer.listen(port, "127.0.0.1", resolve);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(hostileRequests, 0);
+    await killFrozenRenderedServer(worker);
+  } finally {
+    if (worker.exitCode === null && worker.signalCode === null) {
+      try { process.kill(-worker.pid, "SIGKILL"); } catch {}
+    }
+    if (trustedServer.listening) await new Promise((resolve) => trustedServer.close(resolve));
+    if (hostileServer?.listening) await new Promise((resolve) => hostileServer.close(resolve));
+  }
+});
+
+test("rendered cleanup failures preserve the primary evaluation error", () => {
+  const primary = new Error("primary evaluation failure");
+  const cleanup = new Error("cleanup failure");
+  const failure = renderedEvidenceFailure(primary, [cleanup]);
+  assert.ok(failure instanceof AggregateError);
+  assert.deepEqual(failure.errors, [primary, cleanup]);
+});
+
+test("rendered teardown retains app authority when browser termination is uncertain", async () => {
+  let killedServer = false;
+  let releasedApp = false;
+  let removedTemporary = false;
+  const result = await releaseFrozenRenderedAuthorities({
+    delegatedBrowser: {
+      async close() { throw new Error("browser termination uncertain"); },
+    },
+    async killServer() { killedServer = true; },
+    async closeAppAuthority() { releasedApp = true; },
+    async removeTemporary() { removedTemporary = true; },
+  });
+
+  assert.equal(result.browserTerminationConfirmed, false);
+  assert.equal(result.errors.length, 1);
+  assert.equal(killedServer, false);
+  assert.equal(releasedApp, false);
+  assert.equal(removedTemporary, false);
 });
 
 test("rendered journey connects to the real delegated browser through its exact port", {
@@ -65,21 +199,27 @@ test("rendered journey connects to the real delegated browser through its exact 
   const root = path.resolve(import.meta.dirname, "../..");
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-rendered-browser-test-"));
   const appServer = http.createServer((_request, response) => response.end("allowed-rendered-app"));
-  const unrelatedServer = http.createServer((_request, response) => response.end("unrelated-loopback"));
+  const hostileIpv6Server = http.createServer((_request, response) => response.end("unrelated-loopback"));
   let server;
+  let appAuthority;
   try {
     const authority = await inspectPageIrBrowserAuthority();
-    await Promise.all([appServer, unrelatedServer].map((httpServer) => new Promise((resolve, reject) => {
-      httpServer.once("error", reject);
-      httpServer.listen(0, "127.0.0.1", resolve);
-    })));
+    appAuthority = await reserveRenderedAppPort();
+    await new Promise((resolve, reject) => {
+      appServer.once("error", reject);
+      appServer.listen(appAuthority.port, "127.0.0.1", resolve);
+    });
     const appPort = appServer.address().port;
-    const unrelatedPort = unrelatedServer.address().port;
+    await assert.rejects(new Promise((resolve, reject) => {
+      hostileIpv6Server.once("error", reject);
+      hostileIpv6Server.listen(appPort, "::1", resolve);
+    }), { code: "EADDRINUSE" });
     server = await launchPageIrCredentialFreeBrowserServer(
       authority.binding,
       root,
       { allowedLoopbackPort: appPort },
     );
+    assert.equal(new URL(server.wsEndpoint).hostname, "127.0.0.1");
     const profile = renderedSandboxProfile({
       snapshotRoot: root,
       temporaryRoot: await fs.realpath(temporaryRoot),
@@ -104,7 +244,7 @@ test("rendered journey connects to the real delegated browser through its exact 
         NODE_OPTIONS: `--import=${path.join(root, "scripts/eval/page-ir-offline-guard.mjs")}`,
         ONEBOX_EVAL_ALLOW_LOOPBACK: "1",
         ONEBOX_TEST_APP_URL: `http://127.0.0.1:${appPort}/`,
-        ONEBOX_TEST_UNRELATED_URL: `http://127.0.0.1:${unrelatedPort}/`,
+        ONEBOX_TEST_UNRELATED_URL: `http://[::1]:${appPort}/`,
       }, server.wsEndpoint),
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -117,11 +257,12 @@ test("rendered journey connects to the real delegated browser through its exact 
     assert.equal(exitCode, 0, Buffer.concat(stderr).toString("utf8"));
   } finally {
     await server?.close();
-    await Promise.all([appServer, unrelatedServer].map((httpServer) =>
+    await Promise.all([appServer, hostileIpv6Server].map((httpServer) =>
       httpServer.listening
         ? new Promise((resolve) => httpServer.close(resolve))
         : Promise.resolve()
     ));
+    await appAuthority?.close();
     await fs.rm(temporaryRoot, { recursive: true, force: true });
   }
 });

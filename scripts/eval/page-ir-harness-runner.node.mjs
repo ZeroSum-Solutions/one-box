@@ -827,6 +827,30 @@ test("execution removes credentials, blocks external network, and maps prerequis
   assert.equal(allowedBrowserLoopback.state, "PASS");
   assert.deepEqual(allowedBrowserLoopback.networkAttempts, []);
 
+  const oppositeFamilyServer = http.createServer((_request, response) => response.end("opposite-family-state"));
+  await new Promise((resolve, reject) => {
+    oppositeFamilyServer.once("error", reject);
+    oppositeFamilyServer.listen(hostPort, "::1", resolve);
+  });
+  context.after(() => new Promise((resolve) => oppositeFamilyServer.close(resolve)));
+  const deniedOppositeFamily = await executeEvaluation({
+    root: ROOT,
+    evaluationId: "EVAL-SEC-003-NETWORK",
+    browserConnection: {
+      wsEndpoint: `ws://127.0.0.1:${hostPort}/browser-authority`,
+      port: hostPort,
+    },
+    commands: [{
+      id: "opposite-family-loopback",
+      argv: [process.execPath, "-e", `await fetch("http://[::1]:${hostPort}/state")`],
+    }],
+    timeoutMs: 10_000,
+  });
+  assert.equal(deniedOppositeFamily.state, "FAIL");
+  assert.ok(deniedOppositeFamily.networkAttempts.some((attempt) =>
+    attempt.includes(`::1`)
+  ));
+
   const deniedHostLoopback = await executeEvaluation({
     root: ROOT,
     evaluationId: "EVAL-SEC-003-NETWORK",

@@ -729,6 +729,7 @@ describe("candidate gates", () => {
   it("uses only the trusted evaluator browser capability when one is supplied", async () => {
     const endpoint = "ws://127.0.0.1:43210/evaluator-browser";
     vi.stubEnv("ONEBOX_EVAL_BROWSER_WS_ENDPOINT", endpoint);
+    vi.stubEnv("ONEBOX_EVAL_LOOPBACK_HOST", "127.0.0.1");
     vi.stubEnv("ONEBOX_EVAL_LOOPBACK_PORT", "43210");
     vi.stubEnv(
       "ONEBOX_EVAL_OS_SANDBOX",
@@ -746,6 +747,7 @@ describe("candidate gates", () => {
   it("fails closed when the trusted evaluator browser capability cannot connect", async () => {
     const endpoint = "ws://127.0.0.1:43210/evaluator-browser";
     vi.stubEnv("ONEBOX_EVAL_BROWSER_WS_ENDPOINT", endpoint);
+    vi.stubEnv("ONEBOX_EVAL_LOOPBACK_HOST", "127.0.0.1");
     vi.stubEnv("ONEBOX_EVAL_LOOPBACK_PORT", "43210");
     vi.stubEnv(
       "ONEBOX_EVAL_OS_SANDBOX",
