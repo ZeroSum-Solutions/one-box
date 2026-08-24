@@ -219,6 +219,21 @@ export function renderedEvaluationIds() {
   return RENDERED_GROUPS.flatMap((group) => [...group.evaluationIds]);
 }
 
+export function renderedProductionBuildArgv(runtimeContract) {
+  const npmCli = path.join(
+    runtimeContract.npmBundleRoot,
+    ...runtimeContract.npmCliRelativePath.split("/"),
+  );
+  return [
+    runtimeContract.nodeExecutable,
+    npmCli,
+    "run",
+    "build",
+    "--",
+    "--webpack",
+  ];
+}
+
 export async function executeProductionRenderedEvidence({
   snapshotRoot,
   runtimeContract,
@@ -260,8 +275,7 @@ export async function executeProductionRenderedEvidence({
   env.CI = "1";
   env.NEXT_TELEMETRY_DISABLED = "1";
   env.NODE_OPTIONS = `--import=${path.join(snapshotRoot, "scripts/eval/page-ir-offline-guard.mjs")}`;
-  const npmCli = path.join(runtimeContract.npmBundleRoot, ...runtimeContract.npmCliRelativePath.split("/"));
-  const build = await runCaptured("production-build", [runtimeContract.nodeExecutable, npmCli, "run", "build"], {
+  const build = await runCaptured("production-build", renderedProductionBuildArgv(runtimeContract), {
     cwd: snapshotRoot,
     env,
     timeoutMs: 300_000,
