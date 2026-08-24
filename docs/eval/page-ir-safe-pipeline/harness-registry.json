@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "1.0.0",
+  "status": "frozen",
+  "evaluationManifest": {
+    "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+    "lockPath": "docs/eval/page-ir-safe-pipeline/manifest.lock.json",
+    "contractVersion": "1.0.0",
+    "sha256": "cc51b40767e5f40019f97351a1d90d248ee363750cff95f1817ef325dd9fdeac"
+  },
+  "ticketContract": {
+    "manifestPath": "docs/tickets/page-ir-safe-pipeline/manifest.json",
+    "ticketDirectory": "docs/tickets/page-ir-safe-pipeline",
+    "traceabilityPath": "docs/eval/page-ir-safe-pipeline/traceability.md"
+  },
+  "evaluations": {
+    "EVAL-SEC-003": {
+      "testFiles": [
+        "src/lib/pageIrContracts.test.ts",
+        "src/lib/pageIrCompiler.test.ts",
+        "src/lib/candidate.test.ts",
+        "src/lib/candidatePromotion.test.ts",
+        "src/lib/candidateRecovery.test.ts",
+        "src/lib/gates.candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts",
+        "src/lib/pipelineReplay.test.ts",
+        "src/lib/localApiAuth.test.ts",
+        "src/lib/siteAuthority.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-non-loopback"
+    }
+  },
+  "providerCredentialDenylist": [
+    "OPENROUTER_API_KEY",
+    "FIRECRAWL_API_KEY",
+    "REFERO_MCP_TOKEN",
+    "GOOGLE_MAPS_API_KEY",
+    "ONE_BOX_REFERO_OAUTH_STORE"
+  ],
+  "renderedProviderPolicy": {
+    "responses": "recorded-or-stubbed",
+    "maximumMeteredCalls": 0,
+    "network": "loopback-only"
+  },
+  "requiredArtifacts": {
+    "qualification": [
+      "run-manifest.json",
+      "inputs/",
+      "page-ir.json",
+      "candidate-manifest.json",
+      "gate-reports.json",
+      "provenance.json",
+      "site/",
+      "screenshots/desktop.png",
+      "screenshots/tablet.png",
+      "screenshots/mobile.png",
+      "human-visual-review.json"
+    ],
+    "browser": [
+      "browser-evidence.json",
+      "screenshots/desktop.png",
+      "screenshots/tablet.png",
+      "screenshots/mobile.png"
+    ]
+  },
+  "viewportsPointer": {
+    "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+    "jsonPointer": "/viewports"
+  },
+  "thresholdPointers": {
+    "composer": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/composer"
+    },
+    "failedCandidateRetention": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/failedCandidateRetention"
+    },
+    "accessibility": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/accessibility"
+    },
+    "performanceQualification": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/performanceQualification"
+    }
+  },
+  "fixtureContract": {
+    "schemaVersion": 1,
+    "fixtureVersion": "1.0.0",
+    "requiredFields": [
+      "schemaVersion",
+      "id",
+      "purpose",
+      "providerMode",
+      "inputs"
+    ],
+    "purposes": [
+      "brochure-local-service",
+      "portfolio-showcase",
+      "saas-marketing",
+      "editorial-index",
+      "campaign-landing",
+      "institutional-presence"
+    ]
+  }
+}

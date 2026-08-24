@@ -15,6 +15,7 @@
     "eval:baseline:live": "node scripts/eval/baseline-live-runner.mjs",
     "eval:baseline:request-path-b": "node scripts/eval/baseline-live-runner.mjs request-path-b",
     "eval:model-benchmark": "node scripts/eval/model-benchmark.mjs",
+    "eval:page-ir": "node scripts/eval/page-ir-harness.mjs",
     "test:eval": "node --test scripts/eval/*.node.mjs",
     "test:smoke": "node scripts/smoke/gates-smoke.mjs && node scripts/smoke/scan-filter-smoke.mjs",
     "test:e2e:intake": "node scripts/e2e/intake-upload.mjs",
