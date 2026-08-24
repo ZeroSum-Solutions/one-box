@@ -66,4 +66,20 @@ describe("motion route authorization", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "unsupported-project-target", projectTarget: "ios-app" });
     expect(mocks.revert).not.toHaveBeenCalled();
   });
+  it("rejects Page IR motion mutation before preview or compiled-file writes", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    runIds.push(runId);
+    const response = await POST(new Request("http://localhost:3000/api/motion", {
+      method: "POST",
+      headers: { Host: "localhost:3000", Origin: "http://localhost:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "remove", runId, editId: "hero", kind: "entrance" }),
+    }));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "unsupported-page-ir-capability" });
+    expect(mocks.preview).not.toHaveBeenCalled();
+    expect(mocks.mutate).not.toHaveBeenCalled();
+  });
 });

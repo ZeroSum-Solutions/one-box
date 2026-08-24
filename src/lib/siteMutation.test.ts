@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   invalidateApprovedVisualQaUnderSiteAuthority: vi.fn(),
+  layoutAuthority: "template-v1" as "template-v1" | "page-ir-v1",
 }));
 
 vi.mock("./runstate", () => ({
@@ -13,7 +14,7 @@ vi.mock("./runstate", () => ({
     mocks.invalidateApprovedVisualQaUnderSiteAuthority,
   RunNotFoundError: class RunNotFoundError extends Error {},
   LayoutAuthorityMismatchError: class LayoutAuthorityMismatchError extends Error {},
-  loadRun: async () => ({ layoutAuthority: "template-v1" }),
+  loadRun: async () => ({ layoutAuthority: mocks.layoutAuthority }),
   assertRunLayoutAuthority: (
     state: { layoutAuthority: string },
     expected: string,
@@ -61,6 +62,7 @@ const contentGateRequest = knownMutationGateRequest("content");
 
 afterEach(async () => {
   mocks.invalidateApprovedVisualQaUnderSiteAuthority.mockReset();
+  mocks.layoutAuthority = "template-v1";
   await Promise.all(
     tempDirectories.splice(0).map((directory) =>
       fs.rm(directory, { recursive: true, force: true })
@@ -69,6 +71,30 @@ afterEach(async () => {
 });
 
 describe("generated-site mutation write authority", () => {
+  it("rejects direct compiled-file mutation for Page IR runs before mutation", async () => {
+    const runId = "authority-page-ir-direct";
+    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const target = path.join(runRoot, "site", "index.html");
+    tempDirectories.push(runRoot);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, "before");
+    mocks.layoutAuthority = "page-ir-v1";
+    const mutate = vi.fn(async () => atomicWrite(target, "after"));
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        snapshotPaths: [target],
+        gateRequest: contentGateRequest,
+        mutate,
+        gateRunner: async () => [],
+      }),
+    ).rejects.toThrow(/Page IR.*typed IR mutation/i);
+
+    expect(mutate).not.toHaveBeenCalled();
+    expect(await fs.readFile(target, "utf8")).toBe("before");
+  });
+
   it("rejects a direct canonical live atomic write without authority", async () => {
     const runId = "authority-atomic-no-context";
     const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;

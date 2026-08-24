@@ -184,6 +184,15 @@ export async function POST(req: Request) {
     if (response) return response;
     throw error;
   }
+  if ((await loadRun(runId)).layoutAuthority === "page-ir-v1") {
+    return Response.json(
+      {
+        code: "unsupported-page-ir-capability",
+        error: "Arbitrary HTML and image-instruction edits are not represented by Page IR v1",
+      },
+      { status: 409 },
+    );
+  }
 
   const tokens = (await loadArtifact(runId, ARTIFACTS.tokens)) as DesignTokens;
   let preflightElement: Awaited<ReturnType<typeof readPreflightElementContext>>;

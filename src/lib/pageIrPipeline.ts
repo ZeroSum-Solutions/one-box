@@ -52,7 +52,10 @@ import {
 import { derivePageIRV1 } from "./pageIrDerivation";
 import { pageIrSha256 } from "./pageIrHash";
 import { PAGE_IR_COMPILER_VERSION, compilePageIRV1 } from "./pageIrCompiler";
-import { withSiteAuthorityLock } from "./siteAuthority";
+import {
+  assertSiteAuthorityHeld,
+  withSiteAuthorityLock,
+} from "./siteAuthority";
 
 const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
 const NONBLOCK = constants.O_NONBLOCK ?? 0;
@@ -970,188 +973,196 @@ export async function materializePageIrCandidate(
   hooks: MaterializePageIrCandidateHooks = {},
 ): Promise<MaterializePageIrCandidateResult> {
   const request = PageIrCandidateMaterializationRequestV1Schema.parse(input);
-  return withSiteAuthorityLock(request.runId, async () => {
-    const run = await loadRun(request.runId);
-    assertRunLayoutAuthority(
-      run,
-      "page-ir-v1",
-      "Page IR candidate materialization",
-    );
-    const persisted = await loadPersistedPageIrUnderState(run);
-    const runRoot = sitePaths(request.runId).root;
-    const pageIrBytes = await readRegularFile(
-      pageIrPaths(request.runId).pageIr,
-      "Page IR candidate input",
-    );
-    const compilerAssets = await Promise.all(
-      request.assets.map(async (asset) => {
-        const bytes = await readRegularFile(
-          path.join(runRoot, ...asset.artifactPath.split("/")),
-          `Page IR compiler asset ${asset.assetId}`,
-          PAGE_IR_BOUNDS.maxAssetBytes,
-        );
-        if (sha256(bytes) !== asset.sha256) {
-          throw new Error(
-            `Page IR compiler asset ${asset.assetId} SHA-256 mismatch`,
-          );
-        }
-        return {
-          assetId: asset.assetId,
-          mediaType: asset.mediaType,
-          sha256: asset.sha256,
-          bytes,
-        };
-      }),
-    );
-    const compilation = compilePageIRV1({
-      schemaVersion: 1,
-      pageIr: persisted.pageIr,
-      assets: compilerAssets,
-    });
-    const editorSourceMap = editorSourceMapForCompilation(
-      persisted,
-      compilation,
-    );
-    const inputArtifactHashes = [
-      { path: "page-ir.json", sha256: sha256(pageIrBytes) },
-      ...request.assets.map((asset) => ({
-        path: asset.artifactPath,
-        sha256: asset.sha256,
-      })),
-    ].sort((left, right) =>
-      left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
-    );
-    const manifestSha256 = candidateManifestSha256(compilation.manifest);
-    const current = await inspectCandidate(request.runId);
-    if (
-      current.status === "present" &&
-      current.provenance.layoutAuthority === "page-ir-v1" &&
-      current.provenance.compilerVersion === PAGE_IR_COMPILER_VERSION
-    ) {
-      assertEditorSourceMapMatchesPersistedPageIr(
-        current.provenance.editorSourceMap!,
-        persisted,
-      );
-    }
-    const matchesCurrentCompilation = Boolean(
-      current.status === "present" &&
-      current.manifest &&
-      ["ready-for-gates", "promotable", "promoted", "failed"].includes(
-        current.provenance.state,
-      ) &&
-      current.provenance.layoutAuthority === "page-ir-v1" &&
-      current.provenance.compilerVersion === PAGE_IR_COMPILER_VERSION &&
-      current.provenance.pageIrSha256 === persisted.pageIrSha256 &&
-      sameInputHashes(
-        current.provenance.inputArtifactHashes,
-        inputArtifactHashes,
-      ) &&
-      current.provenance.candidateManifestSha256 === manifestSha256 &&
-      current.provenance.buildSha256 === compilation.manifest.buildSha256 &&
-      JSON.stringify(current.provenance.editorSourceMap) ===
-        JSON.stringify(editorSourceMap) &&
-      JSON.stringify(current.manifest) === JSON.stringify(compilation.manifest),
-    );
-    if (
-      matchesCurrentCompilation &&
-      current.status === "present" &&
-      current.manifest
-    ) {
-      await validateCandidateInputArtifactHashes(
-        request.runId,
-        inputArtifactHashes,
-      );
-      return {
-        status:
-          current.provenance.state === "failed" ? "parked-failed" : "reused",
-        manifest: current.manifest,
-        provenance: current.provenance,
-      };
-    }
-    if (
-      current.status === "present" &&
-      ["failed", "promotable", "promoted"].includes(current.provenance.state)
-    ) {
-      throw new Error(
-        `Page IR ${current.provenance.state} candidate is parked and cannot be replaced by materialization`,
-      );
-    }
+  return withSiteAuthorityLock(request.runId, () =>
+    materializePageIrCandidateUnderSiteAuthority(request, hooks),
+  );
+}
 
-    const candidateRoot = path.join(runRoot, "candidate");
-    const staging = `${candidateRoot}.building-${process.pid}-${randomBytes(6).toString("hex")}`;
-    const stagingSite = path.join(staging, "site");
-    await fs.mkdir(stagingSite, { recursive: true });
-    let committed = false;
-    try {
-      const outputDirectories = new Set([stagingSite]);
-      for (const file of compilation.files) {
-        const output = path.join(stagingSite, ...file.path.split("/"));
-        await fs.mkdir(path.dirname(output), { recursive: true });
-        outputDirectories.add(path.dirname(output));
-        await writeExclusive(output, file.bytes);
+export async function materializePageIrCandidateUnderSiteAuthority(
+  request: z.infer<typeof PageIrCandidateMaterializationRequestV1Schema>,
+  hooks: MaterializePageIrCandidateHooks = {},
+): Promise<MaterializePageIrCandidateResult> {
+  assertSiteAuthorityHeld(request.runId);
+  const run = await loadRun(request.runId);
+  assertRunLayoutAuthority(
+    run,
+    "page-ir-v1",
+    "Page IR candidate materialization",
+  );
+  const persisted = await loadPersistedPageIrUnderState(run);
+  const runRoot = sitePaths(request.runId).root;
+  const pageIrBytes = await readRegularFile(
+    pageIrPaths(request.runId).pageIr,
+    "Page IR candidate input",
+  );
+  const compilerAssets = await Promise.all(
+    request.assets.map(async (asset) => {
+      const bytes = await readRegularFile(
+        path.join(runRoot, ...asset.artifactPath.split("/")),
+        `Page IR compiler asset ${asset.assetId}`,
+        PAGE_IR_BOUNDS.maxAssetBytes,
+      );
+      if (sha256(bytes) !== asset.sha256) {
+        throw new Error(
+          `Page IR compiler asset ${asset.assetId} SHA-256 mismatch`,
+        );
       }
-      for (const directory of [...outputDirectories].sort(
-        (left, right) => right.length - left.length,
-      )) {
-        await syncDirectory(directory);
-      }
-      await validateCandidateInventory(stagingSite, compilation.manifest);
-      const createdAt = new Date().toISOString();
-      const preparing = CandidateProvenanceV1Schema.parse({
-        schemaVersion: 1,
-        candidateId: "candidate-v1",
-        runId: request.runId,
-        createdAt,
-        state: "preparing",
-        history: [{ state: "preparing", at: createdAt }],
-        inputArtifactHashes,
-        layoutAuthority: "page-ir-v1",
-        compilerVersion: PAGE_IR_COMPILER_VERSION,
-        pageIrSha256: persisted.pageIrSha256,
-        editorSourceMap,
-      });
-      const ready = transitionCandidateProvenance(
-        preparing,
-        "ready-for-gates",
-        new Date().toISOString(),
-        {
-          candidateManifestSha256: manifestSha256,
-          buildSha256: compilation.manifest.buildSha256,
-        },
-      );
-      await writeExclusive(
-        path.join(staging, "manifest.json"),
-        compilation.manifestBytes,
-      );
-      await writeExclusive(
-        path.join(staging, "provenance.json"),
-        `${JSON.stringify(ready, null, 2)}\n`,
-      );
-      await syncDirectory(staging);
-      await validateCandidateInputArtifactHashes(
-        request.runId,
-        inputArtifactHashes,
-      );
-      const currentRun = await loadRun(request.runId);
-      assertRunLayoutAuthority(
-        currentRun,
-        "page-ir-v1",
-        "Page IR candidate commit",
-      );
-      const currentPersisted = await loadPersistedPageIrUnderState(currentRun);
-      assertEditorSourceMapMatchesPersistedPageIr(
-        editorSourceMap,
-        currentPersisted,
-      );
-      await installCandidateDirectory(staging, candidateRoot, hooks);
-      committed = true;
       return {
-        status: "created",
-        manifest: compilation.manifest,
-        provenance: ready,
+        assetId: asset.assetId,
+        mediaType: asset.mediaType,
+        sha256: asset.sha256,
+        bytes,
       };
-    } finally {
-      if (!committed) await fs.rm(staging, { recursive: true, force: true });
-    }
+    }),
+  );
+  const compilation = compilePageIRV1({
+    schemaVersion: 1,
+    pageIr: persisted.pageIr,
+    assets: compilerAssets,
   });
+  const editorSourceMap = editorSourceMapForCompilation(
+    persisted,
+    compilation,
+  );
+  const inputArtifactHashes = [
+    { path: "page-ir.json", sha256: sha256(pageIrBytes) },
+    ...request.assets.map((asset) => ({
+      path: asset.artifactPath,
+      sha256: asset.sha256,
+    })),
+  ].sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  );
+  const manifestSha256 = candidateManifestSha256(compilation.manifest);
+  const current = await inspectCandidate(request.runId);
+  if (
+    current.status === "present" &&
+    current.provenance.layoutAuthority === "page-ir-v1" &&
+    current.provenance.compilerVersion === PAGE_IR_COMPILER_VERSION
+  ) {
+    assertEditorSourceMapMatchesPersistedPageIr(
+      current.provenance.editorSourceMap!,
+      persisted,
+    );
+  }
+  const matchesCurrentCompilation = Boolean(
+    current.status === "present" &&
+    current.manifest &&
+    ["ready-for-gates", "promotable", "promoted", "failed"].includes(
+      current.provenance.state,
+    ) &&
+    current.provenance.layoutAuthority === "page-ir-v1" &&
+    current.provenance.compilerVersion === PAGE_IR_COMPILER_VERSION &&
+    current.provenance.pageIrSha256 === persisted.pageIrSha256 &&
+    sameInputHashes(
+      current.provenance.inputArtifactHashes,
+      inputArtifactHashes,
+    ) &&
+    current.provenance.candidateManifestSha256 === manifestSha256 &&
+    current.provenance.buildSha256 === compilation.manifest.buildSha256 &&
+    JSON.stringify(current.provenance.editorSourceMap) ===
+      JSON.stringify(editorSourceMap) &&
+    JSON.stringify(current.manifest) === JSON.stringify(compilation.manifest),
+  );
+  if (
+    matchesCurrentCompilation &&
+    current.status === "present" &&
+    current.manifest
+  ) {
+    await validateCandidateInputArtifactHashes(
+      request.runId,
+      inputArtifactHashes,
+    );
+    return {
+      status:
+        current.provenance.state === "failed" ? "parked-failed" : "reused",
+      manifest: current.manifest,
+      provenance: current.provenance,
+    };
+  }
+  if (
+    current.status === "present" &&
+    ["failed", "promotable", "promoted"].includes(current.provenance.state)
+  ) {
+    throw new Error(
+      `Page IR ${current.provenance.state} candidate is parked and cannot be replaced by materialization`,
+    );
+  }
+
+  const candidateRoot = path.join(runRoot, "candidate");
+  const staging = `${candidateRoot}.building-${process.pid}-${randomBytes(6).toString("hex")}`;
+  const stagingSite = path.join(staging, "site");
+  await fs.mkdir(stagingSite, { recursive: true });
+  let committed = false;
+  try {
+    const outputDirectories = new Set([stagingSite]);
+    for (const file of compilation.files) {
+      const output = path.join(stagingSite, ...file.path.split("/"));
+      await fs.mkdir(path.dirname(output), { recursive: true });
+      outputDirectories.add(path.dirname(output));
+      await writeExclusive(output, file.bytes);
+    }
+    for (const directory of [...outputDirectories].sort(
+      (left, right) => right.length - left.length,
+    )) {
+      await syncDirectory(directory);
+    }
+    await validateCandidateInventory(stagingSite, compilation.manifest);
+    const createdAt = new Date().toISOString();
+    const preparing = CandidateProvenanceV1Schema.parse({
+      schemaVersion: 1,
+      candidateId: "candidate-v1",
+      runId: request.runId,
+      createdAt,
+      state: "preparing",
+      history: [{ state: "preparing", at: createdAt }],
+      inputArtifactHashes,
+      layoutAuthority: "page-ir-v1",
+      compilerVersion: PAGE_IR_COMPILER_VERSION,
+      pageIrSha256: persisted.pageIrSha256,
+      editorSourceMap,
+    });
+    const ready = transitionCandidateProvenance(
+      preparing,
+      "ready-for-gates",
+      new Date().toISOString(),
+      {
+        candidateManifestSha256: manifestSha256,
+        buildSha256: compilation.manifest.buildSha256,
+      },
+    );
+    await writeExclusive(
+      path.join(staging, "manifest.json"),
+      compilation.manifestBytes,
+    );
+    await writeExclusive(
+      path.join(staging, "provenance.json"),
+      `${JSON.stringify(ready, null, 2)}\n`,
+    );
+    await syncDirectory(staging);
+    await validateCandidateInputArtifactHashes(
+      request.runId,
+      inputArtifactHashes,
+    );
+    const currentRun = await loadRun(request.runId);
+    assertRunLayoutAuthority(
+      currentRun,
+      "page-ir-v1",
+      "Page IR candidate commit",
+    );
+    const currentPersisted = await loadPersistedPageIrUnderState(currentRun);
+    assertEditorSourceMapMatchesPersistedPageIr(
+      editorSourceMap,
+      currentPersisted,
+    );
+    await installCandidateDirectory(staging, candidateRoot, hooks);
+    committed = true;
+    return {
+      status: "created",
+      manifest: compilation.manifest,
+      provenance: ready,
+    };
+  } finally {
+    if (!committed) await fs.rm(staging, { recursive: true, force: true });
+  }
 }

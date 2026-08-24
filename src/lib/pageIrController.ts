@@ -13,6 +13,7 @@ import {
   type PipelineEvent,
   type PageIrGeneratedSourcesV1,
   type PageIrSourceBundleV1,
+  type PersistedPageIrV1,
   type WorkflowArtifactVersion,
 } from "./contracts";
 import { withFileLock } from "./fileLock";
@@ -31,10 +32,13 @@ import {
   loadCurrentApprovedPageIrUpstreamArtifacts,
   loadPageIrSourceBundleForReview,
   loadPersistedPageIr,
-  materializePageIrCandidate,
+  materializePageIrCandidateUnderSiteAuthority,
   proposePageIrSourceBundle,
   type PageIrSourceBundleReviewProjection,
 } from "./pageIrPipeline";
+import {
+  materializePersistedPageIrCandidateFromAuthorityUnderSiteAuthority,
+} from "./pageIrAssets";
 import {
   loadArtifact,
   loadRun,
@@ -321,11 +325,46 @@ export function ensurePageIrSourceBundle(
 
 type Emit = (event: PipelineEvent) => void;
 
+async function materializeControllerPageIrCandidate(
+  runId: string,
+  envelope: PersistedPageIrV1,
+) {
+  return withSiteAuthorityLock(runId, async () => {
+    const live = await inspectPromotedLiveBundle(runId);
+    if (live.status === "absent") {
+      return materializePageIrCandidateUnderSiteAuthority({
+        schemaVersion: 1,
+        runId,
+        assets: [],
+      });
+    }
+    if (
+      live.provenance.layoutAuthority !== "page-ir-v1" ||
+      live.provenance.state !== "promoted" ||
+      live.provenance.pageIrSha256 !== envelope.pageIrSha256 ||
+      live.provenance.promotedBuildSha256 !== live.manifest.buildSha256
+    ) {
+      throw new Error(
+        "persisted Page IR cannot be rebuilt from a different promoted live authority",
+      );
+    }
+    return materializePersistedPageIrCandidateFromAuthorityUnderSiteAuthority({
+      schemaVersion: 1,
+      runId,
+      envelope,
+      authority: {
+        inputArtifactHashes: live.provenance.inputArtifactHashes,
+        manifest: live.manifest,
+      },
+    });
+  });
+}
+
 type PageIrBuildControllerDependencies = {
   ensurePageIrSourceBundle: typeof ensurePageIrSourceBundle;
   loadPersistedPageIr: typeof loadPersistedPageIr;
   deriveAndPersistInitialPageIr: typeof deriveAndPersistInitialPageIr;
-  materializePageIrCandidate: typeof materializePageIrCandidate;
+  materializePageIrCandidate: typeof materializeControllerPageIrCandidate;
   inspectCandidate: typeof inspectCandidate;
   gateBuiltCandidate: typeof gateBuiltCandidate;
   promoteCandidate: typeof promoteCandidate;
@@ -342,7 +381,7 @@ const defaultPageIrBuildControllerDependencies: PageIrBuildControllerDependencie
   ensurePageIrSourceBundle,
   loadPersistedPageIr,
   deriveAndPersistInitialPageIr,
-  materializePageIrCandidate,
+  materializePageIrCandidate: materializeControllerPageIrCandidate,
   inspectCandidate,
   gateBuiltCandidate,
   promoteCandidate,
@@ -435,11 +474,10 @@ export async function executePageIrBuildController(
 
   let inspection = await dependencies.inspectCandidate(runId);
   if (inspection.status === "absent") {
-    const materialized = await dependencies.materializePageIrCandidate({
-      schemaVersion: 1,
+    const materialized = await dependencies.materializePageIrCandidate(
       runId,
-      assets: [],
-    });
+      persisted,
+    );
     emitBuildCard(
       emit,
       "PageIR candidate materialized",

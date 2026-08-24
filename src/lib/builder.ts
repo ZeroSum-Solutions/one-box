@@ -61,7 +61,10 @@ import {
   sitePaths,
 } from "./runstate";
 import { runCandidateGates, type CandidateGateRunResult } from "./gates";
-import { withSiteAuthorityLock } from "./siteAuthority";
+import {
+  assertSiteAuthorityHeld,
+  withSiteAuthorityLock,
+} from "./siteAuthority";
 
 const TEMPLATE_DIR = path.join(process.cwd(), "templates", "local-service");
 const RUN_ID_RE = /^[a-z0-9_-]{4,40}$/i;
@@ -700,12 +703,15 @@ async function restoreCandidateReceipt(
 export function gateBuiltCandidate(
   runId: string,
 ): Promise<CandidateGateDisposition> {
-  return withSiteAuthorityLock(runId, () => gateBuiltCandidateUnderAuthority(runId));
+  return withSiteAuthorityLock(runId, () =>
+    gateBuiltCandidateUnderSiteAuthority(runId),
+  );
 }
 
-async function gateBuiltCandidateUnderAuthority(
+export async function gateBuiltCandidateUnderSiteAuthority(
   runId: string,
 ): Promise<CandidateGateDisposition> {
+  assertSiteAuthorityHeld(runId);
   const inspection = await inspectCandidate(runId);
   if (
     inspection.status !== "present" ||
@@ -868,7 +874,7 @@ async function commitCandidateRepairUnderAuthority(
   }
 
   try {
-    return await gateBuiltCandidateUnderAuthority(runId);
+    return await gateBuiltCandidateUnderSiteAuthority(runId);
   } catch (error) {
     try {
       const provenanceBytes = await readStableBuildInput(

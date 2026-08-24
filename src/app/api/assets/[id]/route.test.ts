@@ -116,6 +116,46 @@ describe("project assets API", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "unsupported-project-target", projectTarget: "web-app" });
   });
 
+  it("rejects Page IR asset generation before ledger, staging, or provider work", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    runIds.push(runId);
+    const response = await POST(
+      new Request(`http://localhost:3000/api/assets/${runId}`, {
+        method: "POST",
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "generate",
+          requestId: "00000000-0000-4000-8000-000000000230",
+          prompt: "A Page IR hero",
+          model: "higgsfield:gpt_image_2",
+          aspectRatio: "1:1",
+          quality: "high",
+          meteredConsent: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: runId }) },
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-page-ir-capability",
+    });
+    const roots = sitePaths(runId);
+    await expect(
+      fs.stat(`${roots.root}/image-generation-ledger.json`),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(`${roots.root}/image-staging`)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it.each(["generate", "regenerate"] as const)(
     "rejects non-Website asset %s before claims, reservation, staging, or provider work",
     async (action) => {

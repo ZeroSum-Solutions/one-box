@@ -8,6 +8,7 @@ import {
   CandidateProvenanceV1Schema,
   CandidateStateSchema,
   CandidateGateReceiptV1Schema,
+  PAGE_IR_BOUNDS,
   MAX_CANDIDATE_BYTES as CONTRACT_MAX_CANDIDATE_BYTES,
   type CandidateFileRecord,
   type CandidateManifestV1,
@@ -25,7 +26,11 @@ import {
   type CandidatePaths,
 } from "./runstate";
 import { assertWebsiteProductionRun } from "./productionTarget";
-import { withSiteAuthorityLock } from "./siteAuthority";
+import {
+  assertSiteAuthorityHeld,
+  resolveSiteAuthorityWriteTarget,
+  withSiteAuthorityLock,
+} from "./siteAuthority";
 import {
   candidateBuildSha256,
   LIVE_BUNDLE_GATES_FILE,
@@ -582,6 +587,130 @@ async function recordRecovery(
   return result;
 }
 
+const PAGE_IR_EDIT_JOURNAL_DIRECTORY = ".page-ir-edit-transaction";
+const PAGE_IR_EDIT_JOURNAL_FILE = "journal.json";
+const PAGE_IR_EDIT_TOKEN_PATTERN = /^[a-f0-9]{12}$/;
+const PAGE_IR_EDIT_FALLBACK_PATTERN = /^uploads\/page-ir-edit-assets\/[A-Za-z0-9_-]{1,80}-[a-f0-9]{12}\.(?:jpg|png|webp|avif|gif)$/;
+
+const PageIrEditJournalFileSchema = z.object({
+  relativePath: z.string().max(240),
+  before: z.discriminatedUnion("present", [
+    z.object({ present: z.literal(false) }).strict(),
+    z.object({
+      present: z.literal(true),
+      sizeBytes: z.number().int().nonnegative().max(PAGE_IR_BOUNDS.maxAssetBytes),
+      sha256: z.string().regex(HASH_PATTERN),
+    }).strict(),
+  ]),
+  after: z.object({
+    sizeBytes: z.number().int().nonnegative().max(PAGE_IR_BOUNDS.maxAssetBytes),
+    sha256: z.string().regex(HASH_PATTERN),
+  }).strict(),
+}).strict();
+
+const PageIrEditJournalSchema = z.object({
+  schemaVersion: z.literal(1),
+  runId: z.string().min(1).max(160),
+  token: z.string().regex(PAGE_IR_EDIT_TOKEN_PATTERN),
+  beforeCandidateProvenanceSha256: z.string().regex(HASH_PATTERN),
+  nextPageIrSha256: z.string().regex(HASH_PATTERN),
+  files: z.array(PageIrEditJournalFileSchema).min(2).max(PAGE_IR_BOUNDS.maxAssets + 2),
+}).strict().superRefine((journal, context) => {
+  const paths = journal.files.map((file) => file.relativePath);
+  if (new Set(paths).size !== paths.length || paths.some((entry, index) => index > 0 && entry <= paths[index - 1])) {
+    context.addIssue({ code: "custom", path: ["files"], message: "journal file paths must be sorted and unique" });
+  }
+  for (const [index, relativePath] of paths.entries()) {
+    if (relativePath !== "page-ir.json" && relativePath !== "page-ir-edit-history.json" && !PAGE_IR_EDIT_FALLBACK_PATTERN.test(relativePath)) {
+      context.addIssue({ code: "custom", path: ["files", index, "relativePath"], message: "journal file path is outside the closed authority set" });
+    }
+  }
+  for (const required of ["page-ir.json", "page-ir-edit-history.json"]) {
+    if (paths.filter((entry) => entry === required).length !== 1) {
+      context.addIssue({ code: "custom", path: ["files"], message: `journal requires exactly one ${required}` });
+    }
+  }
+});
+
+type PageIrEditJournal = z.infer<typeof PageIrEditJournalSchema>;
+
+export interface PageIrEditJournalFileInput {
+  relativePath: string;
+  before: Buffer | undefined;
+  after: Buffer;
+}
+
+export interface PreparedPageIrEditJournal {
+  token: string;
+}
+
+function pageIrEditJournalRoot(runId: string): string {
+  return path.join(sitePaths(runId).root, PAGE_IR_EDIT_JOURNAL_DIRECTORY);
+}
+
+function pageIrEditFilePath(runId: string, relativePath: string): string {
+  return path.join(sitePaths(runId).root, ...relativePath.split("/"));
+}
+
+/** Persist the complete rollback authority before any Page IR authority changes. */
+export async function preparePageIrEditJournalUnderSiteAuthority(input: {
+  runId: string;
+  nextPageIrSha256: string;
+  files: readonly PageIrEditJournalFileInput[];
+}): Promise<PreparedPageIrEditJournal> {
+  assertSiteAuthorityHeld(input.runId);
+  const canonical = candidatePaths(input.runId);
+  const candidate = await inspectCandidateAtRoot(input.runId, canonical);
+  if (candidate.status !== "present" || candidate.provenance.state !== "promoted") {
+    throw new Error("Page IR edit journal requires the current promoted candidate");
+  }
+  const provenance = await readProvenanceSnapshot(canonical, input.runId);
+  const token = randomBytes(6).toString("hex");
+  const root = pageIrEditJournalRoot(input.runId);
+  const preparing = path.join(sitePaths(input.runId).root, `${PAGE_IR_EDIT_JOURNAL_DIRECTORY}-preparing-${token}`);
+  if (await lstatMaybe(root)) throw new Error("Page IR edit transaction journal already exists");
+
+  const files = [...input.files]
+    .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+    .map((file) => ({
+      relativePath: file.relativePath,
+      before: file.before === undefined
+        ? { present: false as const }
+        : { present: true as const, sizeBytes: file.before.byteLength, sha256: sha256(file.before) },
+      after: { sizeBytes: file.after.byteLength, sha256: sha256(file.after) },
+    }));
+  const journal = PageIrEditJournalSchema.parse({
+    schemaVersion: 1,
+    runId: input.runId,
+    token,
+    beforeCandidateProvenanceSha256: provenance.bytesSha256,
+    nextPageIrSha256: input.nextPageIrSha256,
+    files,
+  });
+
+  await fs.mkdir(preparing);
+  try {
+    const snapshots = path.join(preparing, "snapshots");
+    await fs.mkdir(snapshots);
+    for (const [index, file] of input.files
+      .slice()
+      .sort((left, right) => left.relativePath.localeCompare(right.relativePath))
+      .entries()) {
+      if (file.before !== undefined) {
+        await durableAtomicWrite(path.join(snapshots, `${index}.bin`), file.before);
+      }
+    }
+    await durableAtomicWrite(path.join(preparing, PAGE_IR_EDIT_JOURNAL_FILE), `${JSON.stringify(journal, null, 2)}\n`);
+    await syncTree(preparing);
+    await fs.rename(preparing, root);
+    await syncDirectory(sitePaths(input.runId).root);
+  } catch (error) {
+    await fs.rm(preparing, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
+  return { token };
+}
+
 async function candidateLeftovers(runId: string): Promise<{
   building: string[];
   repairing: string[];
@@ -692,6 +821,213 @@ async function restorePromotionFootprint(
   await syncDirectory(roots.root);
 }
 
+async function readBoundedJournalFile(filePath: string, maxBytes: number): Promise<Buffer> {
+  const target = await resolveSiteAuthorityWriteTarget(filePath);
+  const initial = await fs.lstat(target, { bigint: true });
+  if (
+    initial.isSymbolicLink() ||
+    !initial.isFile() ||
+    initial.nlink > BigInt(1) ||
+    initial.size > BigInt(maxBytes)
+  ) {
+    throw new Error("Page IR edit journal contains an unsafe or oversized file");
+  }
+  const handle = await fs.open(target, READ_FLAGS);
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (
+      !opened.isFile() ||
+      opened.nlink > BigInt(1) ||
+      !sameFile(initial, opened) ||
+      opened.size !== initial.size ||
+      opened.size > BigInt(maxBytes)
+    ) {
+      throw new Error("Page IR edit journal file changed before read");
+    }
+    const bytes = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+    if (!sameFile(opened, after) || opened.size !== after.size) {
+      throw new Error("Page IR edit journal file changed while read");
+    }
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function loadPageIrEditJournal(runId: string): Promise<{
+  root: string;
+  journal: PageIrEditJournal;
+  snapshots: Array<Buffer | undefined>;
+} | undefined> {
+  const root = pageIrEditJournalRoot(runId);
+  const rootStat = await lstatMaybe(root);
+  if (!rootStat) return undefined;
+  assertDirectory(rootStat, "Page IR edit journal root");
+  const entries = (await fs.readdir(root)).sort();
+  if (JSON.stringify(entries) !== JSON.stringify([PAGE_IR_EDIT_JOURNAL_FILE, "snapshots"].sort())) {
+    throw new Error("Page IR edit journal inventory is not closed");
+  }
+  const raw = await readBoundedJournalFile(path.join(root, PAGE_IR_EDIT_JOURNAL_FILE), 64 * 1024);
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw.toString("utf8"));
+  } catch {
+    throw new Error("Page IR edit journal is not valid JSON");
+  }
+  const journal = PageIrEditJournalSchema.parse(decoded);
+  if (journal.runId !== runId) throw new Error("Page IR edit journal belongs to another run");
+  const snapshotRoot = path.join(root, "snapshots");
+  const snapshotStat = await fs.lstat(snapshotRoot, { bigint: true });
+  assertDirectory(snapshotStat, "Page IR edit journal snapshot root");
+  const expectedNames = journal.files.flatMap((file, index) => file.before.present ? [`${index}.bin`] : []);
+  const actualNames = (await fs.readdir(snapshotRoot)).sort();
+  if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames.sort())) {
+    throw new Error("Page IR edit journal snapshot inventory is not closed");
+  }
+  const snapshots: Array<Buffer | undefined> = [];
+  for (const [index, file] of journal.files.entries()) {
+    if (!file.before.present) {
+      snapshots.push(undefined);
+      continue;
+    }
+    const bytes = await readBoundedJournalFile(path.join(snapshotRoot, `${index}.bin`), PAGE_IR_BOUNDS.maxAssetBytes);
+    if (bytes.byteLength !== file.before.sizeBytes || sha256(bytes) !== file.before.sha256) {
+      throw new Error("Page IR edit journal snapshot hash does not match its authority record");
+    }
+    snapshots.push(bytes);
+  }
+  return { root, journal, snapshots };
+}
+
+async function currentFileMatches(runId: string, file: PageIrEditJournal["files"][number], side: "before" | "after"): Promise<boolean> {
+  const target = await resolveSiteAuthorityWriteTarget(
+    pageIrEditFilePath(runId, file.relativePath),
+  );
+  const stat = await lstatMaybe(target);
+  if (side === "before" && !file.before.present) return !stat;
+  const expected = side === "after" ? file.after : file.before;
+  if (!("sizeBytes" in expected)) return false;
+  if (!stat || stat.isSymbolicLink() || !stat.isFile() || stat.nlink > BigInt(1)) return false;
+  if (stat.size > BigInt(PAGE_IR_BOUNDS.maxAssetBytes)) return false;
+  const bytes = await readBoundedJournalFile(target, PAGE_IR_BOUNDS.maxAssetBytes);
+  return bytes.byteLength === expected.sizeBytes && sha256(bytes) === expected.sha256;
+}
+
+async function restoreJournalFiles(
+  runId: string,
+  journal: PageIrEditJournal,
+  snapshots: Array<Buffer | undefined>,
+): Promise<void> {
+  for (const [index, file] of journal.files.entries()) {
+    const target = await resolveSiteAuthorityWriteTarget(
+      pageIrEditFilePath(runId, file.relativePath),
+    );
+    const snapshot = snapshots[index];
+    if (snapshot === undefined) {
+      await fs.rm(target, { force: true });
+      await syncDirectory(path.dirname(target)).catch((error: unknown) => {
+        if (!isEnoent(error)) throw error;
+      });
+    } else if (!(await currentFileMatches(runId, file, "before"))) {
+      await durableAtomicWrite(target, snapshot);
+    }
+  }
+}
+
+/** Finish or roll back an interrupted Page IR edit while the site lock is held. */
+export async function recoverPageIrEditTransactionUnderSiteAuthority(runId: string): Promise<"none" | "rolled-back" | "finalized"> {
+  assertSiteAuthorityHeld(runId);
+  const runRoot = sitePaths(runId).root;
+  const preparingRoots = (await fs.readdir(runRoot))
+    .filter((entry) => /^\.page-ir-edit-transaction-preparing-[a-f0-9]{12}$/.test(entry))
+    .map((entry) => path.join(runRoot, entry));
+  const loaded = await loadPageIrEditJournal(runId);
+  if (loaded && preparingRoots.length > 0) {
+    throw new Error("ambiguous Page IR edit journal generations");
+  }
+  if (!loaded) {
+    for (const preparing of preparingRoots) {
+      const stat = await fs.lstat(preparing, { bigint: true });
+      assertDirectory(stat, "Page IR edit preparing journal root");
+      await fs.rm(preparing, { recursive: true, force: false });
+    }
+    if (preparingRoots.length > 0) await syncDirectory(runRoot);
+    return "none";
+  }
+  const { root, journal, snapshots } = loaded;
+  const canonical = candidatePaths(runId);
+  const retiredRoot = `${canonical.root}.retired-${journal.token}`;
+  const retiredStat = await lstatMaybe(retiredRoot);
+  let canonicalInspection: CandidateInspection | undefined;
+  if (await lstatMaybe(canonical.root)) {
+    canonicalInspection = await inspectCandidateAtRoot(runId, canonical);
+    if (canonicalInspection.status !== "present") throw new Error("Page IR edit canonical candidate is invalid");
+  }
+
+  const afterFilesMatch = (await Promise.all(journal.files.map((file) => currentFileMatches(runId, file, "after"))))
+    .every(Boolean);
+  let committed = false;
+  if (
+    canonicalInspection?.status === "present" &&
+    canonicalInspection.provenance.state === "promoted" &&
+    canonicalInspection.provenance.layoutAuthority === "page-ir-v1" &&
+    canonicalInspection.provenance.pageIrSha256 === journal.nextPageIrSha256 &&
+    afterFilesMatch
+  ) {
+    const live = await inspectPromotedLiveBundle(runId);
+    committed = live.status === "present" &&
+      live.manifest.buildSha256 === canonicalInspection.manifest?.buildSha256 &&
+      JSON.stringify(canonicalize(live.provenance)) === JSON.stringify(canonicalize(canonicalInspection.provenance));
+  }
+  if (committed) {
+    if (retiredStat) await fs.rm(retiredRoot, { recursive: true, force: false });
+    await fs.rm(root, { recursive: true, force: false });
+    await syncDirectory(sitePaths(runId).root);
+    return "finalized";
+  }
+
+  const leftovers = await candidateLeftovers(runId);
+  if (canonicalInspection?.status === "present") {
+    await restorePromotionFootprint(runId, leftovers, canonicalInspection);
+  } else if (leftovers.promotionStages.length > 0 || leftovers.promotionRetired.length > 0) {
+    throw new Error("Page IR edit promotion footprint has no validating candidate authority");
+  }
+
+  if (retiredStat) {
+    const retiredPaths = pathsForCandidateRoot(retiredRoot);
+    const retired = await inspectCandidateAtRoot(runId, retiredPaths);
+    const retiredProvenance = await readProvenanceSnapshot(retiredPaths, runId);
+    if (retired.status !== "present" || retiredProvenance.bytesSha256 !== journal.beforeCandidateProvenanceSha256) {
+      throw new Error("Page IR edit retired candidate does not match the rollback authority");
+    }
+    if (canonicalInspection?.status === "present") {
+      if (
+        canonicalInspection.provenance.layoutAuthority !== "page-ir-v1" ||
+        canonicalInspection.provenance.pageIrSha256 !== journal.nextPageIrSha256
+      ) {
+        throw new Error("Page IR edit canonical candidate is not bound to the interrupted revision");
+      }
+      await fs.rm(canonical.root, { recursive: true, force: false });
+    }
+    await restoreJournalFiles(runId, journal, snapshots);
+    await fs.rename(retiredRoot, canonical.root);
+    await syncDirectory(sitePaths(runId).root);
+  } else {
+    if (canonicalInspection?.status !== "present") {
+      throw new Error("Page IR edit rollback candidate is missing");
+    }
+    const provenance = await readProvenanceSnapshot(canonical, runId);
+    if (provenance.bytesSha256 !== journal.beforeCandidateProvenanceSha256) {
+      throw new Error("Page IR edit journal is missing its recognized retired candidate");
+    }
+    await restoreJournalFiles(runId, journal, snapshots);
+  }
+  await fs.rm(root, { recursive: true, force: false });
+  await syncDirectory(sitePaths(runId).root);
+  return "rolled-back";
+}
+
 async function recoverCanonicalCandidate(
   runId: string,
   leftovers: Awaited<ReturnType<typeof candidateLeftovers>>,
@@ -767,6 +1103,14 @@ async function abandonInvalidCanonicalCandidate(
  * and reports the next already-authorized lifecycle action. */
 export function recoverCandidateState(runId: string): Promise<CandidateRecoveryResult> {
   return withSiteAuthorityLock(runId, async () => {
+    try {
+      await recoverPageIrEditTransactionUnderSiteAuthority(runId);
+    } catch (error) {
+      return recordRecovery(runId, {
+        action: "blocked",
+        reason: boundedRecoveryReason(error instanceof Error ? error.message : "Page IR edit transaction recovery failed"),
+      });
+    }
     const leftovers = await candidateLeftovers(runId);
     let inspection: CandidateInspection;
     try {
@@ -1277,153 +1621,161 @@ export function promoteCandidate(
   runId: string,
   options: PromotionOptions = {},
 ): Promise<PromotionResult> {
-  return withSiteAuthorityLock(runId, async () => {
-    await assertWebsiteProductionRun(runId);
-    const roots = sitePaths(runId);
-    const snapshot = await readPromotableCandidateSnapshot(runId);
-    await options.injectFault?.("after-revalidation");
+  return withSiteAuthorityLock(runId, () =>
+    promoteCandidateUnderSiteAuthority(runId, options),
+  );
+}
 
-    const promotedProvenance = transitionCandidateProvenance(
-      snapshot.provenance,
-      "promoted",
-      nextPromotionTimestamp(snapshot.provenance),
-      { promotedBuildSha256: snapshot.manifest.buildSha256 },
-    );
-    const promotedProvenanceBytes = Buffer.from(
-      JSON.stringify(promotedProvenance, null, 2),
-    );
-    const token = `${process.pid}-${randomBytes(6).toString("hex")}`;
-    const stagingSite = path.join(roots.root, `.site-promotion-stage-${token}`);
-    const retiredSite = path.join(roots.root, `.site-promotion-retired-${token}`);
-    const candidateProvenancePath = candidatePaths(runId).provenance;
-    let hadPrevious = false;
-    let liveRetired = false;
-    let liveReplaced = false;
-    let provenanceCommitted = false;
-    let committed = false;
+export async function promoteCandidateUnderSiteAuthority(
+  runId: string,
+  options: PromotionOptions = {},
+): Promise<PromotionResult> {
+  assertSiteAuthorityHeld(runId);
+  await assertWebsiteProductionRun(runId);
+  const roots = sitePaths(runId);
+  const snapshot = await readPromotableCandidateSnapshot(runId);
+  await options.injectFault?.("after-revalidation");
 
-    try {
-      await stageLiveBundle(stagingSite, snapshot, promotedProvenanceBytes);
-      await options.injectFault?.("before-staging-sync");
-      await syncTree(stagingSite);
-      await options.injectFault?.("after-staging");
-      await assertCandidateSnapshotUnchanged(runId, snapshot);
+  const promotedProvenance = transitionCandidateProvenance(
+    snapshot.provenance,
+    "promoted",
+    nextPromotionTimestamp(snapshot.provenance),
+    { promotedBuildSha256: snapshot.manifest.buildSha256 },
+  );
+  const promotedProvenanceBytes = Buffer.from(
+    JSON.stringify(promotedProvenance, null, 2),
+  );
+  const token = `${process.pid}-${randomBytes(6).toString("hex")}`;
+  const stagingSite = path.join(roots.root, `.site-promotion-stage-${token}`);
+  const retiredSite = path.join(roots.root, `.site-promotion-retired-${token}`);
+  const candidateProvenancePath = candidatePaths(runId).provenance;
+  let hadPrevious = false;
+  let liveRetired = false;
+  let liveReplaced = false;
+  let provenanceCommitted = false;
+  let committed = false;
 
-      hadPrevious = await lstatMaybe(roots.site).then(Boolean);
-      if (hadPrevious) {
-        await fs.rename(roots.site, retiredSite);
-        liveRetired = true;
-        await options.injectFault?.("before-retired-directory-sync");
-        await syncDirectory(roots.root);
-      }
-      await options.injectFault?.("after-live-retired");
-      await fs.rename(stagingSite, roots.site);
-      liveReplaced = true;
-      await options.injectFault?.("before-live-directory-sync");
+  try {
+    await stageLiveBundle(stagingSite, snapshot, promotedProvenanceBytes);
+    await options.injectFault?.("before-staging-sync");
+    await syncTree(stagingSite);
+    await options.injectFault?.("after-staging");
+    await assertCandidateSnapshotUnchanged(runId, snapshot);
+
+    hadPrevious = await lstatMaybe(roots.site).then(Boolean);
+    if (hadPrevious) {
+      await fs.rename(roots.site, retiredSite);
+      liveRetired = true;
+      await options.injectFault?.("before-retired-directory-sync");
       await syncDirectory(roots.root);
-      await options.injectFault?.("after-live-replaced");
+    }
+    await options.injectFault?.("after-live-retired");
+    await fs.rename(stagingSite, roots.site);
+    liveReplaced = true;
+    await options.injectFault?.("before-live-directory-sync");
+    await syncDirectory(roots.root);
+    await options.injectFault?.("after-live-replaced");
 
-      await options.injectFault?.("before-provenance-sync");
-      await durableAtomicWrite(
-        candidateProvenancePath,
-        promotedProvenanceBytes,
-        async () => {
-          provenanceCommitted = true;
-          await options.injectFault?.("after-provenance-renamed");
+    await options.injectFault?.("before-provenance-sync");
+    await durableAtomicWrite(
+      candidateProvenancePath,
+      promotedProvenanceBytes,
+      async () => {
+        provenanceCommitted = true;
+        await options.injectFault?.("after-provenance-renamed");
+      },
+    );
+    await options.injectFault?.("after-provenance-committed");
+    await options.injectFault?.("before-visual-approval-invalidation");
+    const { visualApprovalInvalidated } =
+      await preparePromotedVisualQaUnderSiteAuthority(
+        runId,
+        snapshot.manifest.buildSha256,
+        {
+          afterPreparation: () =>
+            options.injectFault?.("after-visual-approval-invalidation"),
         },
       );
-      await options.injectFault?.("after-provenance-committed");
-      await options.injectFault?.("before-visual-approval-invalidation");
-      const { visualApprovalInvalidated } =
-        await preparePromotedVisualQaUnderSiteAuthority(
-          runId,
-          snapshot.manifest.buildSha256,
-          {
-            afterPreparation: () =>
-              options.injectFault?.("after-visual-approval-invalidation"),
-          },
-        );
-      committed = true;
+    committed = true;
 
-      let compatibilityCopyUpdated = true;
-      try {
-        await durableAtomicWrite(
-          path.join(roots.root, "gates.json"),
-          JSON.stringify(snapshot.receipt.reports, null, 2),
-        );
-      } catch {
-        compatibilityCopyUpdated = false;
-      }
+    let compatibilityCopyUpdated = true;
+    try {
+      await durableAtomicWrite(
+        path.join(roots.root, "gates.json"),
+        JSON.stringify(snapshot.receipt.reports, null, 2),
+      );
+    } catch {
+      compatibilityCopyUpdated = false;
+    }
 
-      let retiredCleanupPending = false;
-      if (liveRetired) {
-        try {
-          await options.injectFault?.("before-retired-cleanup");
-          await fs.rm(retiredSite, { recursive: true, force: false });
-          await syncDirectory(roots.root);
-        } catch {
-          retiredCleanupPending = true;
-        }
-      }
-      return {
-        buildSha256: snapshot.manifest.buildSha256,
-        candidateManifestSha256:
-          snapshot.provenance.candidateManifestSha256!,
-        gateReportSha256: snapshot.provenance.gateReportSha256!,
-        visualApprovalInvalidated,
-        compatibilityCopyUpdated,
-        retiredCleanupPending,
-      };
-    } catch (error) {
-      if (committed) throw error;
-      const rollbackErrors: unknown[] = [];
+    let retiredCleanupPending = false;
+    if (liveRetired) {
       try {
-        await options.injectFault?.("before-rollback");
-      } catch (rollbackError) {
-        rollbackErrors.push(rollbackError);
-      }
-      if (provenanceCommitted) {
-        try {
-          await durableAtomicWrite(
-            candidateProvenancePath,
-            snapshot.provenanceBytes,
-          );
-        } catch (rollbackError) {
-          rollbackErrors.push(rollbackError);
-        }
-      }
-      if (liveReplaced) {
-        try {
-          await fs.rename(roots.site, stagingSite);
-          liveReplaced = false;
-        } catch (rollbackError) {
-          rollbackErrors.push(rollbackError);
-        }
-      }
-      if (liveRetired) {
-        try {
-          await fs.rename(retiredSite, roots.site);
-          liveRetired = false;
-        } catch (rollbackError) {
-          rollbackErrors.push(rollbackError);
-        }
-      }
-      try {
+        await options.injectFault?.("before-retired-cleanup");
+        await fs.rm(retiredSite, { recursive: true, force: false });
         await syncDirectory(roots.root);
-      } catch (rollbackError) {
-        rollbackErrors.push(rollbackError);
-      }
-      if (rollbackErrors.length > 0) {
-        throw new AggregateError(
-          [error, ...rollbackErrors],
-          "candidate promotion failed and rollback was incomplete",
-        );
-      }
-      throw error;
-    } finally {
-      if (!committed) {
-        await fs.rm(stagingSite, { recursive: true, force: true }).catch(() => {});
+      } catch {
+        retiredCleanupPending = true;
       }
     }
-  });
+    return {
+      buildSha256: snapshot.manifest.buildSha256,
+      candidateManifestSha256:
+        snapshot.provenance.candidateManifestSha256!,
+      gateReportSha256: snapshot.provenance.gateReportSha256!,
+      visualApprovalInvalidated,
+      compatibilityCopyUpdated,
+      retiredCleanupPending,
+    };
+  } catch (error) {
+    if (committed) throw error;
+    const rollbackErrors: unknown[] = [];
+    try {
+      await options.injectFault?.("before-rollback");
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError);
+    }
+    if (provenanceCommitted) {
+      try {
+        await durableAtomicWrite(
+          candidateProvenancePath,
+          snapshot.provenanceBytes,
+        );
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    if (liveReplaced) {
+      try {
+        await fs.rename(roots.site, stagingSite);
+        liveReplaced = false;
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    if (liveRetired) {
+      try {
+        await fs.rename(retiredSite, roots.site);
+        liveRetired = false;
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    }
+    try {
+      await syncDirectory(roots.root);
+    } catch (rollbackError) {
+      rollbackErrors.push(rollbackError);
+    }
+    if (rollbackErrors.length > 0) {
+      throw new AggregateError(
+        [error, ...rollbackErrors],
+        "candidate promotion failed and rollback was incomplete",
+      );
+    }
+    throw error;
+  } finally {
+    if (!committed) {
+      await fs.rm(stagingSite, { recursive: true, force: true }).catch(() => {});
+    }
+  }
 }

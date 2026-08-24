@@ -225,6 +225,13 @@ describe("PageIR build controller", () => {
 
     expect(dependencies.deriveAndPersistInitialPageIr).toHaveBeenCalledOnce();
     expect(dependencies.materializePageIrCandidate).toHaveBeenCalledOnce();
+    expect(dependencies.materializePageIrCandidate).toHaveBeenCalledWith(
+      "run-page-ir",
+      {
+        pageIrSha256: OTHER_HASH,
+        bindingSetSha256: "f".repeat(64),
+      },
+    );
     expect(
       events
         .filter((event) => event.type === "card")

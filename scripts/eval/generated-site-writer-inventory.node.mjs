@@ -13,6 +13,7 @@ const inventoryPath = path.join(
 const permittedAuthorities = [
   "candidate-compiler",
   "guarded-mutation",
+  "page-ir-edit-transaction",
   "promotion-recovery",
   "test-only",
 ];
@@ -2658,8 +2659,9 @@ function readInventory() {
 const promotionRecoveryFunctions = new Set([
   "abandonInvalidCanonicalCandidate",
   "cleanupCandidateDiagnosticsUnderAuthority",
-  "promoteCandidate",
+  "promoteCandidateUnderSiteAuthority",
   "recoverCanonicalCandidate",
+  "recoverPageIrEditTransactionUnderSiteAuthority",
   "restorePromotionFootprint",
 ]);
 
@@ -2670,6 +2672,15 @@ function authorityAllows(finding, authority) {
   }
   if (authority === "candidate-compiler") {
     return finding.targetKind === "candidate";
+  }
+  if (authority === "page-ir-edit-transaction") {
+    return (
+      finding.module === "src/lib/pageIrMutation.ts" &&
+      finding.function === "executePageIrEditTransaction" &&
+      finding.targetKind === "candidate" &&
+      finding.guarded &&
+      finding.rootBound
+    );
   }
   if (authority === "promotion-recovery") {
     return (
@@ -3042,6 +3053,18 @@ test("candidate and promotion authorities reject live-path and unapproved-callsi
           const roots = sitePaths(runId);
           await fs.rename(staging, roots.site);
         }
+        export async function promoteCandidateUnderSiteAuthority() {
+          const roots = sitePaths(runId);
+          return withSiteAuthorityLock(runId, async () => {
+            await fs.rename(staging, roots.site);
+          });
+        }
+        export async function recoverPageIrEditTransactionUnderSiteAuthority() {
+          const roots = candidatePaths(runId);
+          return withSiteAuthorityLock(runId, async () => {
+            await fs.rename(retired, roots.root);
+          });
+        }
         export async function inventedRecovery() {
           const roots = sitePaths(runId);
           return withSiteAuthorityLock(runId, async () => {
@@ -3057,7 +3080,65 @@ test("candidate and promotion authorities reject live-path and unapproved-callsi
   assert.equal(authorityAllows(findings.get("compileCandidate"), "candidate-compiler"), true);
   assert.equal(authorityAllows(findings.get("candidatePathEscape"), "candidate-compiler"), false);
   assert.equal(authorityAllows(findings.get("promoteCandidate"), "promotion-recovery"), false);
+  assert.equal(
+    authorityAllows(
+      findings.get("promoteCandidateUnderSiteAuthority"),
+      "promotion-recovery",
+    ),
+    true,
+  );
+  assert.equal(
+    authorityAllows(
+      findings.get("recoverPageIrEditTransactionUnderSiteAuthority"),
+      "promotion-recovery",
+    ),
+    true,
+  );
   assert.equal(authorityAllows(findings.get("inventedRecovery"), "promotion-recovery"), false);
+});
+
+test("Page IR edit transaction authority is exact, guarded, and candidate-scoped", () => {
+  const fixtureSources = [
+    fixtureSource(
+      "src/lib/pageIrMutation.ts",
+      `
+        export async function executePageIrEditTransaction() {
+          const roots = candidatePaths(runId);
+          const retiredRoot = roots.root + ".retired-token";
+          return withSiteAuthorityLock(runId, async () => {
+            await fs.rename(roots.root, retiredRoot);
+          });
+        }
+        export async function inventedPageIrTransaction() {
+          const roots = candidatePaths(runId);
+          const retiredRoot = roots.root + ".retired-token";
+          return withSiteAuthorityLock(runId, async () => {
+            await fs.rename(roots.root, retiredRoot);
+          });
+        }
+      `,
+    ),
+  ];
+  const findings = directLiveSiteWrites(fixtureSources);
+  const findingFor = (functionName) => findings.find(
+    (finding) =>
+      finding.function === functionName &&
+      finding.operation === "rename-source-removal",
+  );
+  assert.equal(
+    authorityAllows(
+      findingFor("executePageIrEditTransaction"),
+      "page-ir-edit-transaction",
+    ),
+    true,
+  );
+  assert.equal(
+    authorityAllows(
+      findingFor("inventedPageIrTransaction"),
+      "page-ir-edit-transaction",
+    ),
+    false,
+  );
 });
 
 test("rename inventories source removal and destination creation independently", () => {

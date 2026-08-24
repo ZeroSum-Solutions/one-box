@@ -65,4 +65,20 @@ describe("token route authorization", () => {
     await expect(response.json()).resolves.toMatchObject({ code: "unsupported-project-target", projectTarget: "web-app" });
     expect(mocks.revert).not.toHaveBeenCalled();
   });
+  it("rejects Page IR token mutation before preview or compiled-file writes", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    runIds.push(runId);
+    const response = await POST(new Request("http://localhost:3000/api/tokens", {
+      method: "POST",
+      headers: { Host: "localhost:3000", Origin: "http://localhost:3000", "Sec-Fetch-Site": "same-origin", "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "apply", runId, token: "--color-text", value: "#000000" }),
+    }));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "unsupported-page-ir-capability" });
+    expect(mocks.preview).not.toHaveBeenCalled();
+    expect(mocks.apply).not.toHaveBeenCalled();
+  });
 });

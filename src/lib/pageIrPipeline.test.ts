@@ -13,10 +13,18 @@ import { buildTailwindPlan, buildTokenInventory } from "./evidence";
 import {
   candidateManifestSha256,
   inspectCandidate,
+  inspectPromotedLiveBundle,
+  promoteCandidate,
   validateCandidateInventory,
 } from "./candidate";
+import { gateBuiltCandidate } from "./builder";
 import { pageIrSha256 } from "./pageIrHash";
 import { compilePageIRV1 } from "./pageIrCompiler";
+import {
+  PageIrMutationRejectedError,
+  applyPageIrEditTransaction,
+  movePageIrEditHistory,
+} from "./pageIrMutation";
 import {
   addCost,
   advanceEvidenceWorkflow,
@@ -26,6 +34,7 @@ import {
   saveEvidenceArtifactVersion,
   sitePaths,
   transitionEvidenceArtifactApproval,
+  workflowArtifactVersionPath,
 } from "./runstate";
 import {
   COMPILER_WEBP_BYTES,
@@ -460,6 +469,24 @@ async function candidateByteSnapshot(runId: string) {
       ]),
     ),
   );
+}
+
+async function regularFileTree(root: string, relative = ""): Promise<Record<string, Buffer>> {
+  const current = path.join(root, relative);
+  const entries = await fs.readdir(current, { withFileTypes: true }).catch(
+    (error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return [];
+      throw error;
+    },
+  );
+  const files: Record<string, Buffer> = {};
+  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+    if (entry.name === ".site-authority-lock" || entry.name === ".run-state-lock") continue;
+    const child = path.join(relative, entry.name);
+    if (entry.isDirectory()) Object.assign(files, await regularFileTree(root, child));
+    else if (entry.isFile()) files[child] = await fs.readFile(path.join(root, child));
+  }
+  return files;
 }
 
 afterEach(async () => {
@@ -1766,4 +1793,283 @@ describe("Page IR candidate materialization", () => {
       status: "created",
     });
   });
+});
+
+describe("Page IR edit transaction", () => {
+  async function promotedFixture() {
+    const runId = await createApprovedPageIrRun();
+    await savePageIrGenerationContext(runId);
+    const initial = await preparePersistedPageIr(runId);
+    const approvedSource = await loadPageIrSourceBundleForReview(runId);
+    const persisted = structuredClone(initial);
+    const title = persisted.pageIr.content.find((entry) => entry.id === "page-title");
+    if (!title || title.kind !== "heading") throw new Error("Page IR fixture title missing");
+    title.text = "Local service";
+    const main = persisted.pageIr.layoutProgram.nodes.find((node) => node.id === "main");
+    if (!main || main.kind === "slot") throw new Error("Page IR fixture main missing");
+    main.responsive.small = { flow: "stack" };
+    const designBinding = persisted.lineage.sources.find(
+      (source) => source.kind === "design-contract",
+    );
+    if (!designBinding) throw new Error("Page IR fixture design binding missing");
+    const designPath = path.join(
+      sitePaths(runId).root,
+      workflowArtifactVersionPath("design-contract", designBinding.version),
+    );
+    const design = JSON.parse(await fs.readFile(designPath, "utf8"));
+    design.designTokens.colors = [
+      {
+        name: "Compiler canvas",
+        value: "#ffffff",
+        cssVar: "--compiler-canvas",
+        role: "page",
+        forbiddenContexts: [],
+      },
+      {
+        name: "Compiler ink",
+        value: "#172033",
+        cssVar: "--compiler-color",
+        role: "text",
+        forbiddenContexts: [],
+      },
+    ];
+    design.designTokens.fonts = [
+      {
+        family: "ui-sans-serif",
+        cssVar: "--compiler-font",
+        weights: [400, 700],
+        role: "body",
+        substitutes: [],
+      },
+    ];
+    const designBytes = Buffer.from(JSON.stringify(design, null, 2));
+    await fs.writeFile(designPath, designBytes);
+    designBinding.sha256 = createHash("sha256").update(designBytes).digest("hex");
+    persisted.bindingSetSha256 = bindingSetProofSha256(
+      runId,
+      persisted.lineage.sources,
+    );
+    persisted.pageIrSha256 = pageIrSha256(persisted.pageIr);
+    await fs.writeFile(
+      path.join(sitePaths(runId).root, "page-ir.json"),
+      `${JSON.stringify(persisted, null, 2)}\n`,
+    );
+    const request = await candidateRequest(runId);
+    await materializePageIrCandidate(request);
+    const disposition = await gateBuiltCandidate(runId);
+    expect(
+      disposition.receipt.reports.filter((report) => report.blocking && !report.pass),
+    ).toEqual([]);
+    await promoteCandidate(runId);
+    return { runId, persisted, request, approvedSource };
+  }
+
+  it("persists a typed edit, rebuilds through a candidate, and promotes only the validated projection", async () => {
+    const { runId, persisted, request } = await promotedFixture();
+    const liveBefore = await inspectPromotedLiveBundle(runId);
+    expect(liveBefore.status).toBe("present");
+
+    const result = await applyPageIrEditTransaction({
+      schemaVersion: 1,
+      runId,
+      mutations: [
+        {
+          kind: "replace-text",
+          editId: "intro-text",
+          text: "Persisted transactional copy",
+        },
+      ],
+    });
+
+    const after = await loadPersistedPageIr(runId);
+    const liveAfter = await inspectPromotedLiveBundle(runId);
+    expect(after.revision).toBe(persisted.revision + 1);
+    expect(after.pageIrSha256).toBe(result.pageIrSha256);
+    expect(after.pageIr.content.find((entry) => entry.id === "intro-copy")).toMatchObject({
+      text: "Persisted transactional copy",
+    });
+    expect(liveAfter).toMatchObject({
+      status: "present",
+      provenance: {
+        state: "promoted",
+        layoutAuthority: "page-ir-v1",
+        pageIrSha256: after.pageIrSha256,
+      },
+    });
+    expect(
+      await fs.readFile(path.join(sitePaths(runId).site, "index.html"), "utf8"),
+    ).toContain("Persisted transactional copy");
+    const rebuilt = compilePageIRV1({
+      schemaVersion: 1,
+      pageIr: (await loadPersistedPageIr(runId)).pageIr,
+      assets: [
+        {
+          assetId: "hero-image",
+          mediaType: "image/webp",
+          sha256: request.assets[0].sha256,
+          bytes: await fs.readFile(
+            path.join(sitePaths(runId).root, request.assets[0].artifactPath),
+          ),
+        },
+      ],
+    });
+    const rebuiltIndex = rebuilt.files.find((file) => file.path === "index.html")!;
+    expect(Buffer.from(rebuiltIndex.bytes)).toEqual(
+      await fs.readFile(path.join(sitePaths(runId).site, "index.html")),
+    );
+    expect(liveAfter.status === "present" && liveBefore.status === "present"
+      ? liveAfter.manifest.buildSha256
+      : "").not.toBe(
+      liveBefore.status === "present" ? liveBefore.manifest.buildSha256 : "",
+    );
+  }, 120_000);
+
+  it("restores Page IR, candidate report, live bundle, reports, and approval bytes after gate rejection", async () => {
+    const { runId } = await promotedFixture();
+    const runRoot = sitePaths(runId).root;
+    const before = await regularFileTree(runRoot);
+
+    await expect(
+      applyPageIrEditTransaction({
+        schemaVersion: 1,
+        runId,
+        mutations: [
+          {
+            kind: "replace-text",
+            editId: "nav-external",
+            text: "",
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(PageIrMutationRejectedError);
+
+    expect(await regularFileTree(runRoot)).toEqual(before);
+  }, 120_000);
+
+  it("serializes concurrent Page IR edits and persists undo/redo through promoted rebuilds", async () => {
+    const { runId, persisted } = await promotedFixture();
+
+    const [first, second] = await Promise.all([
+      applyPageIrEditTransaction({
+        schemaVersion: 1,
+        runId,
+        mutations: [
+          { kind: "replace-text", editId: "intro-text", text: "First serialized edit" },
+        ],
+      }),
+      applyPageIrEditTransaction({
+        schemaVersion: 1,
+        runId,
+        mutations: [
+          { kind: "replace-text", editId: "footer-text", text: "Second serialized edit" },
+        ],
+      }),
+    ]);
+    expect(new Set([first.revision, second.revision])).toEqual(
+      new Set([persisted.revision + 1, persisted.revision + 2]),
+    );
+    let current = await loadPersistedPageIr(runId);
+    expect(current.revision).toBe(persisted.revision + 2);
+    expect(current.pageIr.content.find((entry) => entry.id === "intro-copy")).toMatchObject({
+      text: "First serialized edit",
+    });
+    expect(current.pageIr.content.find((entry) => entry.id === "footer-copy")).toMatchObject({
+      text: "Second serialized edit",
+    });
+
+    const undone = await movePageIrEditHistory(runId, "undo");
+    expect(undone).toMatchObject({ canUndo: true, canRedo: true });
+    current = await loadPersistedPageIr(runId);
+    expect(current.pageIr.content.find((entry) => entry.id === "footer-copy")).toMatchObject({
+      text: "Local & accountable",
+    });
+    expect(
+      await fs.readFile(path.join(sitePaths(runId).site, "index.html"), "utf8"),
+    ).not.toContain("Second serialized edit");
+
+    const redone = await movePageIrEditHistory(runId, "redo");
+    expect(redone).toMatchObject({ canUndo: true, canRedo: false });
+    current = await loadPersistedPageIr(runId);
+    expect(current.pageIr.content.find((entry) => entry.id === "footer-copy")).toMatchObject({
+      text: "Second serialized edit",
+    });
+    expect(
+      await fs.readFile(path.join(sitePaths(runId).site, "index.html"), "utf8"),
+    ).toContain("Second serialized edit");
+  }, 120_000);
+
+  it("rebuilds an edited asset-bearing Page IR after restart through the real controller", async () => {
+    const { runId, request, approvedSource } = await promotedFixture();
+    await applyPageIrEditTransaction({
+      schemaVersion: 1,
+      runId,
+      mutations: [
+        {
+          kind: "replace-text",
+          editId: "intro-text",
+          text: "Restart-safe persisted copy",
+        },
+      ],
+    });
+    const persisted = await loadPersistedPageIr(runId);
+    const runRoot = sitePaths(runId).root;
+    await fs.rm(path.join(runRoot, "candidate"), {
+      recursive: true,
+      force: false,
+    });
+
+    await expect(
+      executePageIrBuildController(runId, vi.fn(), {
+        ensurePageIrSourceBundle: async () => approvedSource,
+        materializePromotedPageIrVisualQa: async () => {
+          const run = await loadRun(runId);
+          const visualQa = run.evidenceWorkflow.artifacts
+            .filter((artifact) => artifact.artifactType === "visual-qa")
+            .sort((left, right) => right.version - left.version)[0];
+          if (!visualQa || visualQa.artifactType !== "visual-qa") {
+            throw new Error("promoted visual QA placeholder missing");
+          }
+          return visualQa;
+        },
+      }),
+    ).resolves.toEqual({ status: "visual-review" });
+
+    const [candidate, live, rebuiltIndex, rebuiltAsset] = await Promise.all([
+      inspectCandidate(runId),
+      inspectPromotedLiveBundle(runId),
+      fs.readFile(path.join(sitePaths(runId).site, "index.html"), "utf8"),
+      fs.readFile(path.join(sitePaths(runId).site, "assets", "hero-image.webp")),
+    ]);
+    expect(candidate).toMatchObject({
+      status: "present",
+      provenance: {
+        state: "promoted",
+        pageIrSha256: persisted.pageIrSha256,
+      },
+    });
+    expect(live).toMatchObject({
+      status: "present",
+      provenance: {
+        state: "promoted",
+        pageIrSha256: persisted.pageIrSha256,
+        inputArtifactHashes: expect.arrayContaining([
+          {
+            path: request.assets[0].artifactPath,
+            sha256: request.assets[0].sha256,
+          },
+        ]),
+      },
+      manifest: {
+        files: expect.arrayContaining([
+          {
+            path: "assets/hero-image.webp",
+            sha256: request.assets[0].sha256,
+            sizeBytes: COMPILER_WEBP_BYTES.byteLength,
+          },
+        ]),
+      },
+    });
+    expect(rebuiltIndex).toContain("Restart-safe persisted copy");
+    expect(rebuiltAsset).toEqual(Buffer.from(COMPILER_WEBP_BYTES));
+  }, 120_000);
 });

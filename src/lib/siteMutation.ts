@@ -5,6 +5,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { runGates } from "./gates";
 import {
   invalidateApprovedVisualQaUnderSiteAuthority,
+  loadRun,
   RunNotFoundError,
   sitePaths,
 } from "./runstate";
@@ -375,6 +376,19 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
       throw new GeneratedSiteMutationAuthorityError(
         "custom run roots require a root-aware gate runner",
       );
+    }
+    try {
+      const run = await loadRun(runId);
+      if (run.layoutAuthority === "page-ir-v1") {
+        throw new GeneratedSiteMutationAuthorityError(
+          "Page IR runs require a typed IR mutation; direct compiled-site mutation is forbidden",
+        );
+      }
+    } catch (error) {
+      // Existing isolated mutation tests and custom-root callers may not have
+      // durable run state. A durable Page IR run, when present, must fail
+      // before snapshots or user mutation code can execute.
+      if (!(error instanceof RunNotFoundError)) throw error;
     }
     const gateRunner: GateRunner = options.gateRunner ??
       ((gateRunId, gateOptions) =>

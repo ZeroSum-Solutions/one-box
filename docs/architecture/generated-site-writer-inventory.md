@@ -49,6 +49,7 @@ but it fails verification and is not an allowed production authority.
   "permittedAuthorities": [
     "candidate-compiler",
     "guarded-mutation",
+    "page-ir-edit-transaction",
     "promotion-recovery",
     "test-only"
   ],
@@ -384,12 +385,87 @@ but it fails verification and is not an allowed production authority.
         "src/lib/pageIrController.test.ts"
       ],
       "scannerKeys": [
-        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:mkdir:candidate:1",
-        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:mkdir:candidate:2",
-        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:writeExclusive:candidate:1",
-        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:writeExclusive:candidate:2",
-        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:writeExclusive:candidate:3",
-        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidate:rm:candidate:1"
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidateUnderSiteAuthority:mkdir:candidate:1",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidateUnderSiteAuthority:mkdir:candidate:2",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidateUnderSiteAuthority:writeExclusive:candidate:1",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidateUnderSiteAuthority:writeExclusive:candidate:2",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidateUnderSiteAuthority:writeExclusive:candidate:3",
+        "write:src/lib/pageIrPipeline.ts#materializePageIrCandidateUnderSiteAuthority:rm:candidate:1"
+      ],
+      "status": "compliant"
+    },
+    {
+      "id": "page-ir-edit-transactions",
+      "endpoints": ["POST /api/elements action=apply|undo|redo for page-ir-v1"],
+      "modules": [
+        "src/lib/pageIrMutation.ts",
+        "src/lib/pageIrPipeline.ts",
+        "src/lib/candidate.ts"
+      ],
+      "filesWritten": [
+        "page-ir.json",
+        "page-ir-edit-history.json",
+        "uploads/page-ir-edit-assets/** when validated fallback recovery is required",
+        "candidate/**",
+        "candidate.retired-*/**",
+        "site/** and gates.json through promotion-recovery authority"
+      ],
+      "authority": "page-ir-edit-transaction",
+      "snapshotSet": [
+        "persisted Page IR and edit-history exact bytes",
+        "validated fallback asset prior bytes and directory presence",
+        "prior canonical candidate exact directory",
+        "canonical promoted live bundle and gate receipt"
+      ],
+      "rollbackArtifacts": [
+        "page-ir.json",
+        "page-ir-edit-history.json",
+        "uploads/page-ir-edit-assets/**"
+      ],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": ["candidate/**"],
+      "owningTests": [
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/pageIrPipeline.test.ts#persists a typed edit, rebuilds through a candidate, and promotes only the validated projection"
+      ],
+      "scannerKeys": [
+        "write:src/lib/pageIrMutation.ts#executePageIrEditTransaction:rename-source-removal:candidate:1",
+        "write:src/lib/pageIrMutation.ts#executePageIrEditTransaction:rename-destination-creation:candidate:1"
+      ],
+      "status": "compliant"
+    },
+    {
+      "id": "page-ir-edit-recovery",
+      "endpoints": ["startup/resume candidate recovery and Page IR edit failure rollback"],
+      "modules": [
+        "src/lib/candidate.ts#recoverPageIrEditTransactionUnderSiteAuthority"
+      ],
+      "filesWritten": [
+        "page-ir.json",
+        "page-ir-edit-history.json",
+        "uploads/page-ir-edit-assets/**",
+        "candidate/**",
+        "candidate.retired-*/**",
+        ".page-ir-edit-transaction/**"
+      ],
+      "authority": "promotion-recovery",
+      "snapshotSet": [
+        "hash-bound closed Page IR edit journal and exact before-byte snapshots",
+        "prior promoted candidate provenance and recognized retired directory",
+        "current canonical candidate and live promotion footprint"
+      ],
+      "rollbackArtifacts": [],
+      "nonRollbackArtifacts": [],
+      "transactionArtifacts": ["candidate/**"],
+      "owningTests": [
+        "src/lib/candidateRecovery.test.ts#rolls back the Page IR edit journal crash seam",
+        "src/lib/candidateRecovery.test.ts#finalizes a committed promoted Page IR edit"
+      ],
+      "scannerKeys": [
+        "write:src/lib/candidate.ts#recoverPageIrEditTransactionUnderSiteAuthority:rm:candidate:1",
+        "write:src/lib/candidate.ts#recoverPageIrEditTransactionUnderSiteAuthority:rm:candidate:2",
+        "write:src/lib/candidate.ts#recoverPageIrEditTransactionUnderSiteAuthority:rename-source-removal:candidate:1",
+        "write:src/lib/candidate.ts#recoverPageIrEditTransactionUnderSiteAuthority:rename-destination-creation:candidate:1"
       ],
       "status": "compliant"
     },
@@ -504,20 +580,20 @@ but it fails verification and is not an allowed production authority.
         "write:src/lib/candidate.ts#recoverCanonicalCandidate:rename-destination-creation:candidate:1",
         "write:src/lib/candidate.ts#abandonInvalidCanonicalCandidate:durableAtomicWrite:candidate:1",
         "write:src/lib/candidate.ts#cleanupCandidateDiagnosticsUnderAuthority:rm:candidate:1",
-        "write:src/lib/candidate.ts#promoteCandidate:stageLiveBundle:promotion:1",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:live:1",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:promotion:1",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:promotion:1",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:live:1",
-        "write:src/lib/candidate.ts#promoteCandidate:durableAtomicWrite:candidate:1",
-        "write:src/lib/candidate.ts#promoteCandidate:durableAtomicWrite:live:1",
-        "write:src/lib/candidate.ts#promoteCandidate:rm:promotion:1",
-        "write:src/lib/candidate.ts#promoteCandidate:durableAtomicWrite:candidate:2",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:live:2",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:promotion:2",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-source-removal:promotion:2",
-        "write:src/lib/candidate.ts#promoteCandidate:rename-destination-creation:live:2",
-        "write:src/lib/candidate.ts#promoteCandidate:rm:promotion:2"
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:stageLiveBundle:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-source-removal:live:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-destination-creation:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-source-removal:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-destination-creation:live:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:durableAtomicWrite:candidate:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:durableAtomicWrite:live:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rm:promotion:1",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:durableAtomicWrite:candidate:2",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-source-removal:live:2",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-destination-creation:promotion:2",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-source-removal:promotion:2",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rename-destination-creation:live:2",
+        "write:src/lib/candidate.ts#promoteCandidateUnderSiteAuthority:rm:promotion:2"
       ],
       "status": "compliant"
     }

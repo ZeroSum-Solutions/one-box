@@ -20,7 +20,7 @@ import {
   websiteOnlyProductionResponse,
 } from "../../../../lib/productionTarget";
 import { ARTIFACTS } from "../../../../lib/contracts";
-import { loadArtifact } from "../../../../lib/runstate";
+import { loadArtifact, loadRun } from "../../../../lib/runstate";
 
 export const maxDuration = 300;
 
@@ -121,6 +121,15 @@ export async function POST(
     }
     const body = AssetMutationRequestSchema.parse(await request.json());
     await assertWebsiteProductionRun(id);
+    if ((await loadRun(id)).layoutAuthority === "page-ir-v1") {
+      return Response.json(
+        {
+          code: "unsupported-page-ir-capability",
+          error: "Asset mutations are not represented by Page IR v1",
+        },
+        { status: 409 },
+      );
+    }
 
     if (body.action === "place") {
       const result = await placeLibraryImage(id, body.assetId, body.editId);

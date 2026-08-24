@@ -13,6 +13,7 @@ import {
   assertWebsiteProductionRun,
   websiteOnlyProductionResponse,
 } from "../../../lib/productionTarget";
+import { loadRun } from "../../../lib/runstate";
 
 const RunIdSchema = z.string().regex(/^[a-z0-9_-]{4,40}$/i);
 const RequestSchema = z.discriminatedUnion("action", [
@@ -41,6 +42,15 @@ export async function POST(request: Request) {
   try {
     const body = parsed.data;
     await assertWebsiteProductionRun(body.runId);
+    if ((await loadRun(body.runId)).layoutAuthority === "page-ir-v1") {
+      return Response.json(
+        {
+          code: "unsupported-page-ir-capability",
+          error: "Motion mutations are not represented by Page IR v1",
+        },
+        { status: 409 },
+      );
+    }
     if (body.action === "preview") return Response.json({ ok: true, draft: await previewMotionEdit(body.runId, body.draft) });
     if (body.action === "apply") return Response.json({ ok: true, ...(await mutateSiteMotion(body.runId, { action: "apply", draft: body.draft })) });
     if (body.action === "remove") return Response.json({ ok: true, ...(await mutateSiteMotion(body.runId, body)) });
