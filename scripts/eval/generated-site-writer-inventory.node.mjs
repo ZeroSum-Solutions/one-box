@@ -4464,6 +4464,51 @@ test("checked-in inventory covers the statically discovered generated-site write
     assert.ok(Array.isArray(writer.rollbackArtifacts), `${writer.id}: rollbackArtifacts required`);
     assert.ok(Array.isArray(writer.nonRollbackArtifacts), `${writer.id}: nonRollbackArtifacts required`);
     assert.ok(Array.isArray(writer.transactionArtifacts), `${writer.id}: transactionArtifacts required`);
+    const dispositionSets = [
+      new Set(writer.rollbackArtifacts),
+      new Set(writer.nonRollbackArtifacts),
+      new Set(writer.transactionArtifacts),
+    ];
+    const overlappingArtifacts = [...new Set(
+      dispositionSets.flatMap((set, index) => [...set].filter((artifact) =>
+        dispositionSets.some((candidate, candidateIndex) => candidateIndex !== index && candidate.has(artifact)),
+      )),
+    )];
+    if (overlappingArtifacts.length > 0) {
+      assert.ok(
+        Array.isArray(writer.artifactDispositionContexts) && writer.artifactDispositionContexts.length > 0,
+        `${writer.id}: overlapping artifact dispositions require endpoint contexts`,
+      );
+      const contextEndpoints = writer.artifactDispositionContexts.map((context) => context.endpoint).sort();
+      assert.deepEqual(
+        contextEndpoints,
+        writer.endpoints.slice().sort(),
+        `${writer.id}: disposition contexts must cover every endpoint exactly once`,
+      );
+      const aggregateKeys = ["rollbackArtifacts", "nonRollbackArtifacts", "transactionArtifacts"];
+      for (const context of writer.artifactDispositionContexts) {
+        const contextSets = aggregateKeys.map((key) => {
+          assert.ok(Array.isArray(context[key]), `${writer.id}/${context.endpoint}: ${key} required`);
+          return new Set(context[key]);
+        });
+        for (let left = 0; left < contextSets.length; left += 1) {
+          for (let right = left + 1; right < contextSets.length; right += 1) {
+            assert.deepEqual(
+              [...contextSets[left]].filter((artifact) => contextSets[right].has(artifact)),
+              [],
+              `${writer.id}/${context.endpoint}: one artifact cannot have two dispositions`,
+            );
+          }
+        }
+      }
+      for (const key of aggregateKeys) {
+        assert.deepEqual(
+          [...new Set(writer.artifactDispositionContexts.flatMap((context) => context[key]))].sort(),
+          [...new Set(writer[key])].sort(),
+          `${writer.id}: ${key} must be the union of endpoint contexts`,
+        );
+      }
+    }
     assert.ok(writer.owningTests.length > 0, `${writer.id}: owningTests required`);
     assert.ok(writer.scannerKeys.length > 0, `${writer.id}: scannerKeys required`);
     assert.ok(

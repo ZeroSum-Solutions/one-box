@@ -149,7 +149,8 @@ hashes, purpose, and safe Refero alias/trait attribution without a timestamp.
 This does not claim human qualitative eval passage and does not read, persist,
 compile, promote, or edit an artifact; those remain later ticket boundaries.
 
-OBX-022 now adds the pure `page-ir-static@1` compiler boundary. It reparses
+OBX-022 introduced the pure `page-ir-static@1` compiler boundary; the shipped
+contract is now `page-ir-static@3`. It reparses
 numeric-v1 Page IR, requires the exact referenced in-memory image set, binds
 media type, byte count, SHA-256, and image magic, clones input bytes, and returns
 only sorted `index.html`, `site.css`, `tokens.css`, and canonical asset files plus
@@ -162,12 +163,13 @@ Page IR hashing moved to the pure `src/lib/pageIrHash.ts` authority shared with
 derivation.
 
 This closes mechanical determinism, not visual qualification: Page IR v1 has
-token IDs/categories but no approved values or contrast roles, so compiler v1
-uses fixed safe category fallbacks. Human `EVAL-WEB-001` and visual-quality
-qualification remain `NOT_RUN` pending an explicit future contract/version
-decision. The existing no-JavaScript gate is also coupled to frozen template
-IDs and run-root `tokens.json`; OBX-024 must resolve that mismatch before it can
-claim compiler candidates pass the production gate path.
+token IDs/categories but no approved values or contrast roles, so the current
+compiler uses fixed safe compiler-owned canvas, color, typography, and category
+fallbacks. Human `EVAL-WEB-001` and visual-quality
+qualification remain separate named-human gates backed by the frozen six-purpose
+packets. The current compiler emits the closed canvas and token declarations needed
+by the no-JavaScript and token-drift checks; OBX-024 routes those checks against the
+unserved Page IR candidate before atomic promotion.
 
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and

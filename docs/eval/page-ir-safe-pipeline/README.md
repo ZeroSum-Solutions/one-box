@@ -126,8 +126,8 @@ OBX-042 registers `EVAL-SEC-001` as a credential-free evaluator suite. The rende
 Vitest-only suites: the sealed evaluator therefore reports them `BLOCKED` instead of
 claiming rendered success from component or route tests. Their merge-blocking owner
 evidence is the CI `Rendered Page IR regressions` gate, which builds the application,
-copies the tracked deterministic preview fixture, starts the production build on
-loopback, and runs both browser journeys:
+starts the production build on loopback, and runs both browser journeys. The preview
+journey itself copies the tracked deterministic fixture into an isolated run root:
 
 ```sh
 npm run test:e2e:intake
@@ -145,8 +145,14 @@ provenance, placement, and blocking-gate recovery. Route tests separately exerci
 valid same-origin Start replay and hostile Host authority without a provider call.
 Component and route PASS does not replace these rendered journeys.
 
+`EVAL-COMP-002` is separately owned by
+`scripts/e2e/page-ir-editor-identity.node.mjs`. The trusted rendered coordinator
+runs that browser oracle across all six purposes, ten clean compiles, and the frozen
+1440, 768, and 390 pixel widths; a Vitest-only compiler result cannot satisfy the
+responsive identity criterion.
+
 OBX-050 registers the credential-free `EVAL-OPS-001`, `EVAL-OPS-002`, and
-`EVAL-OPS-003` suites in harness registry `1.3.0`. The sealed suites verify the
+`EVAL-OPS-003` suites in harness registry `1.8.0`. The sealed suites verify the
 closed provenance/event contracts, failure-class projection, immutable
 creation-time rollout decision, kill-switch precedence, and separate linked
 fallback. Producer-level regressions exercise the real build/gate failure seam,

@@ -16,6 +16,7 @@ import {
   runCaptured,
   renderedBrowserEnvironment,
   renderedEvidenceFailure,
+  renderedEditorIdentityArgv,
   renderedProductionBuildArgv,
   renderedSandboxProfile,
   releaseFrozenRenderedAuthorities,
@@ -62,6 +63,17 @@ test("rendered production evidence uses the canonical build path", () => {
     "build",
     "--",
     "--webpack",
+  ]);
+});
+
+test("EVAL-COMP-002 runs the responsive six-purpose editor-identity oracle", () => {
+  assert.deepEqual(renderedEditorIdentityArgv({
+    nodeExecutable: "/runtime/node",
+    snapshotRoot: "/snapshot",
+  }), [
+    "/runtime/node",
+    "--test",
+    "/snapshot/scripts/e2e/page-ir-editor-identity.node.mjs",
   ]);
 });
 

@@ -50,8 +50,17 @@ jobs:
           ONEBOX_BASE_URL: http://127.0.0.1:3000
           ONE_BOX_REFERO_OAUTH_STORE: ${{ runner.temp }}/one-box-no-refero.json
         run: |
-          npm run start > "$RUNNER_TEMP/one-box-next.log" 2>&1 &
+          python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+            npm run start -- --hostname 127.0.0.1 --port 3000 \
+            > "$RUNNER_TEMP/one-box-next.log" 2>&1 &
           server_pid=$!
-          trap 'kill "$server_pid"' EXIT
-          node -e 'let attempts=0; const poll=async()=>{try{const response=await fetch(process.env.ONEBOX_BASE_URL); if(response.ok) return;}catch{} if(++attempts>=60) process.exit(1); setTimeout(poll,500)}; poll()'
+          cleanup() {
+            status=$?
+            trap - EXIT INT TERM
+            kill -TERM "-$server_pid" 2>/dev/null || true
+            wait "$server_pid" 2>/dev/null || true
+            exit "$status"
+          }
+          trap cleanup EXIT INT TERM
+          node -e 'let attempts=0; const poll=async()=>{try{const response=await fetch(process.env.ONEBOX_BASE_URL,{signal:AbortSignal.timeout(1000)}); if(response.ok) return;}catch{} if(++attempts>=60) process.exit(1); setTimeout(poll,500)}; poll()'
           npm run test:e2e:page-ir

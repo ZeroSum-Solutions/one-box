@@ -388,6 +388,14 @@ export function renderedProductionBuildArgv(runtimeContract) {
   ];
 }
 
+export function renderedEditorIdentityArgv({ nodeExecutable, snapshotRoot }) {
+  return [
+    nodeExecutable,
+    "--test",
+    path.join(snapshotRoot, "scripts/e2e/page-ir-editor-identity.node.mjs"),
+  ];
+}
+
 export function renderedBrowserEnvironment(environment, wsEndpoint) {
   let endpoint;
   try { endpoint = new URL(wsEndpoint); } catch {}
@@ -563,12 +571,10 @@ export async function executeProductionRenderedEvidence({
       });
       groupCommands.set(group.id, command);
     }
-    const identity = await runCaptured("page-ir-editor-identity", [
-      runtimeContract.nodeExecutable,
-      path.join(snapshotRoot, "node_modules/vitest/vitest.mjs"),
-      "run", "src/lib/pageIrCompiler.test.ts", "src/lib/pageIrQualityCorpus.test.ts",
-      "--maxWorkers=1", "--reporter=default",
-    ], {
+    const identity = await runCaptured("page-ir-editor-identity", renderedEditorIdentityArgv({
+      nodeExecutable: runtimeContract.nodeExecutable,
+      snapshotRoot,
+    }), {
       cwd: snapshotRoot,
       env,
       timeoutMs: 180_000,

@@ -520,6 +520,20 @@ but it fails verification and is not an allowed production authority.
       "rollbackArtifacts": ["gates.json"],
       "nonRollbackArtifacts": ["gates.json"],
       "transactionArtifacts": ["gates.json temporary sibling"],
+      "artifactDispositionContexts": [
+        {
+          "endpoint": "guarded edits through runGuardedMutation after-edit gates",
+          "rollbackArtifacts": ["gates.json"],
+          "nonRollbackArtifacts": [],
+          "transactionArtifacts": ["gates.json temporary sibling"]
+        },
+        {
+          "endpoint": "POST /api/evidence/[id] action=record-human-visual-review",
+          "rollbackArtifacts": [],
+          "nonRollbackArtifacts": ["gates.json"],
+          "transactionArtifacts": ["gates.json temporary sibling"]
+        }
+      ],
       "owningTests": [
         "src/lib/siteMutation.test.ts",
         "src/lib/gates.candidate.test.ts",
@@ -549,7 +563,7 @@ but it fails verification and is not an allowed production authority.
         "candidate/provenance.json",
         "gates.json compatibility copy",
         ".site-promotion-{stage,retired,demoted}-*/**",
-        "candidate.recovery.json"
+        "candidate-recovery.json"
       ],
       "authority": "promotion-recovery",
       "snapshotSet": [
