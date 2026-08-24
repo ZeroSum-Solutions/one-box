@@ -1,12 +1,12 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   invalidateApprovedVisualQaUnderSiteAuthority: vi.fn(),
   layoutAuthority: "template-v1" as "template-v1" | "page-ir-v1",
+  mutationRoot: `${process.cwd()}/sites/.tmp-onebox-site-mutation-locks`,
 }));
 
 vi.mock("./runstate", () => ({
@@ -22,15 +22,15 @@ vi.mock("./runstate", () => ({
     if (state.layoutAuthority !== expected) throw new Error("authority mismatch");
   },
   sitePaths: (runId: string) => ({
-    root: `/tmp/onebox-site-mutation-locks/${runId}`,
-    site: `/tmp/onebox-site-mutation-locks/${runId}/site`,
+    root: `${mocks.mutationRoot}/${runId}`,
+    site: `${mocks.mutationRoot}/${runId}/site`,
   }),
   candidatePaths: (runId: string) => ({
-    root: `/tmp/onebox-site-mutation-locks/${runId}/candidate`,
-    site: `/tmp/onebox-site-mutation-locks/${runId}/candidate/site`,
-    manifest: `/tmp/onebox-site-mutation-locks/${runId}/candidate/manifest.json`,
-    provenance: `/tmp/onebox-site-mutation-locks/${runId}/candidate/provenance.json`,
-    gates: `/tmp/onebox-site-mutation-locks/${runId}/candidate/gates.json`,
+    root: `${mocks.mutationRoot}/${runId}/candidate`,
+    site: `${mocks.mutationRoot}/${runId}/candidate/site`,
+    manifest: `${mocks.mutationRoot}/${runId}/candidate/manifest.json`,
+    provenance: `${mocks.mutationRoot}/${runId}/candidate/provenance.json`,
+    gates: `${mocks.mutationRoot}/${runId}/candidate/gates.json`,
   }),
 }));
 
@@ -60,6 +60,12 @@ import {
 const tempDirectories: string[] = [];
 const contentGateRequest = knownMutationGateRequest("content");
 
+async function workspaceTempDirectory(prefix: string): Promise<string> {
+  const workspaceRoot = path.join(process.cwd(), "sites");
+  await fs.mkdir(workspaceRoot, { recursive: true });
+  return fs.mkdtemp(path.join(workspaceRoot, `.tmp-${prefix}`));
+}
+
 afterEach(async () => {
   mocks.invalidateApprovedVisualQaUnderSiteAuthority.mockReset();
   mocks.layoutAuthority = "template-v1";
@@ -68,12 +74,13 @@ afterEach(async () => {
       fs.rm(directory, { recursive: true, force: true })
     )
   );
+  await fs.rm(mocks.mutationRoot, { recursive: true, force: true });
 });
 
 describe("generated-site mutation write authority", () => {
   it("rejects direct compiled-file mutation for Page IR runs before mutation", async () => {
     const runId = "authority-page-ir-direct";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const target = path.join(runRoot, "site", "index.html");
     tempDirectories.push(runRoot);
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -97,7 +104,7 @@ describe("generated-site mutation write authority", () => {
 
   it("rejects a direct canonical live atomic write without authority", async () => {
     const runId = "authority-atomic-no-context";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const liveTarget = path.join(runRoot, "site", "index.html");
     tempDirectories.push(runRoot);
 
@@ -109,12 +116,10 @@ describe("generated-site mutation write authority", () => {
 
   it("rejects a no-context live atomic write through an outside canonical-root alias", async () => {
     const runId = "authority-atomic-alias-no-context";
-    const canonicalSitesRoot = "/tmp/onebox-site-mutation-locks";
+    const canonicalSitesRoot = mocks.mutationRoot;
     const runRoot = path.join(canonicalSitesRoot, runId);
     const canonicalTarget = path.join(runRoot, "site", "index.html");
-    const aliasParent = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-sites-alias-"),
-    );
+    const aliasParent = await workspaceTempDirectory("onebox-sites-alias-");
     const aliasRoot = path.join(aliasParent, "sites-alias");
     const aliasTarget = path.join(aliasRoot, runId, "site", "index.html");
     tempDirectories.push(aliasParent, runRoot);
@@ -132,8 +137,8 @@ describe("generated-site mutation write authority", () => {
   it("binds generic atomic writes to the held run root", async () => {
     const lockedRunId = "authority-atomic-root-a";
     const otherRunId = "authority-atomic-root-b";
-    const lockedRunRoot = `/tmp/onebox-site-mutation-locks/${lockedRunId}`;
-    const otherRunRoot = `/tmp/onebox-site-mutation-locks/${otherRunId}`;
+    const lockedRunRoot = path.join(mocks.mutationRoot, lockedRunId);
+    const otherRunRoot = path.join(mocks.mutationRoot, otherRunId);
     const allowedTarget = path.join(lockedRunRoot, "metadata.json");
     const crossRunTarget = path.join(otherRunRoot, "site", "index.html");
     tempDirectories.push(lockedRunRoot, otherRunRoot);
@@ -151,9 +156,9 @@ describe("generated-site mutation write authority", () => {
 
   it("rejects a held-authority atomic write through a symlinked parent", async () => {
     const runId = "authority-atomic-symlink-parent";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
-    const outsideRoot = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-authority-atomic-escape-"),
+    const runRoot = path.join(mocks.mutationRoot, runId);
+    const outsideRoot = await workspaceTempDirectory(
+      "onebox-authority-atomic-escape-",
     );
     const target = path.join(runRoot, "site", "index.html");
     const escapedTarget = path.join(outsideRoot, "index.html");
@@ -170,8 +175,8 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("fails closed before a live write attempted outside runGuardedMutation", async () => {
-    const siteRoot = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-live-write-authority-"),
+    const siteRoot = await workspaceTempDirectory(
+      "onebox-live-write-authority-",
     );
     tempDirectories.push(siteRoot);
     const target = path.join(siteRoot, "index.html");
@@ -185,7 +190,7 @@ describe("generated-site mutation write authority", () => {
 
   it("does not grant mutation context to a plain compiler/promotion/recovery site lock", async () => {
     const runId = "authority-plain-lock";
-    const siteRoot = `/tmp/onebox-site-mutation-locks/${runId}/site`;
+    const siteRoot = path.join(mocks.mutationRoot, runId, "site");
     tempDirectories.push(path.dirname(siteRoot));
     const target = path.join(siteRoot, "index.html");
 
@@ -201,7 +206,7 @@ describe("generated-site mutation write authority", () => {
 
   it("writes atomically inside runGuardedMutation under the existing site lock", async () => {
     const runId = "authority-guarded-write";
-    const siteRoot = `/tmp/onebox-site-mutation-locks/${runId}/site`;
+    const siteRoot = path.join(mocks.mutationRoot, runId, "site");
     tempDirectories.push(path.dirname(siteRoot));
     const target = path.join(siteRoot, "index.html");
 
@@ -219,7 +224,7 @@ describe("generated-site mutation write authority", () => {
 
   it("restores a guarded live write and preserves invalidation ordering on gate rejection", async () => {
     const runId = "authority-rollback";
-    const siteRoot = `/tmp/onebox-site-mutation-locks/${runId}/site`;
+    const siteRoot = path.join(mocks.mutationRoot, runId, "site");
     tempDirectories.push(path.dirname(siteRoot));
     await fs.mkdir(siteRoot, { recursive: true });
     const target = path.join(siteRoot, "index.html");
@@ -252,7 +257,7 @@ describe("generated-site mutation write authority", () => {
 
   it("binds mutation authority to the current run and generated-site root", async () => {
     const runId = "authority-binding";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const siteRoot = path.join(runRoot, "site");
     const outsideTarget = path.join(runRoot, "outside.html");
     const otherRunTarget = path.join(siteRoot, "other-run.html");
@@ -286,8 +291,8 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("binds an injected run root to the site lock and guarded write root", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-injected-mutation-root-"),
+    const container = await workspaceTempDirectory(
+      "onebox-injected-mutation-root-",
     );
     tempDirectories.push(container);
     const runId = "authority-injected-root";
@@ -316,9 +321,7 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("passes the guarded custom root to every gate run", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-root-aware-gates-"),
-    );
+    const container = await workspaceTempDirectory("onebox-root-aware-gates-");
     tempDirectories.push(container);
     const runId = "authority-root-aware-gates";
     const runRoot = path.join(container, runId);
@@ -343,8 +346,8 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("refuses a custom root before mutation without a root-aware gate runner", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-custom-root-default-gates-"),
+    const container = await workspaceTempDirectory(
+      "onebox-custom-root-default-gates-",
     );
     tempDirectories.push(container);
     const runId = "authority-custom-default-gates";
@@ -366,8 +369,8 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("retires mutation authority before a detached continuation reaches gates", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-mutation-authority-lifetime-"),
+    const container = await workspaceTempDirectory(
+      "onebox-mutation-authority-lifetime-",
     );
     tempDirectories.push(container);
     const runId = "authority-mutation-lifetime";
@@ -405,12 +408,12 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("treats a custom path alias of the canonical root as canonical", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-canonical-root-alias-"),
+    const container = await workspaceTempDirectory(
+      "onebox-canonical-root-alias-",
     );
     tempDirectories.push(container);
     const runId = "authority-canonical-alias";
-    const canonicalRunRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const canonicalRunRoot = path.join(mocks.mutationRoot, runId);
     tempDirectories.push(canonicalRunRoot);
     await fs.mkdir(path.join(canonicalRunRoot, "site"), { recursive: true });
     const aliasRunRoot = path.join(container, "run-root-alias");
@@ -437,8 +440,8 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("rejects a generated-site write through a symlink that escapes the guarded root", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-mutation-symlink-escape-"),
+    const container = await workspaceTempDirectory(
+      "onebox-mutation-symlink-escape-",
     );
     tempDirectories.push(container);
     const runId = "authority-symlink-escape";
@@ -471,8 +474,8 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("rejects a symlinked snapshot path before mutation or outside rollback writes", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-snapshot-symlink-escape-"),
+    const container = await workspaceTempDirectory(
+      "onebox-snapshot-symlink-escape-",
     );
     tempDirectories.push(container);
     const runId = "authority-snapshot-symlink";
@@ -514,8 +517,8 @@ describe("generated-site mutation write authority", () => {
   });
 
   it("rejects a sibling of the injected site root and reads its preexisting gates", async () => {
-    const container = await fs.mkdtemp(
-      path.join(os.tmpdir(), "onebox-injected-mutation-root-"),
+    const container = await workspaceTempDirectory(
+      "onebox-injected-mutation-root-",
     );
     tempDirectories.push(container);
     const runId = "authority-injected-gates";
@@ -577,7 +580,7 @@ describe("generated-site mutation write authority", () => {
 describe("guarded mutation gate request forwarding", () => {
   it("uses the identical explicit request for candidate and restorative gate runs", async () => {
     const runId = "gate-request-identical";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const target = path.join(runRoot, "site", "index.html");
     const request = knownMutationGateRequest("token-style");
     const received: unknown[] = [];
@@ -614,7 +617,7 @@ describe("guarded mutation gate request forwarding", () => {
 
   it("resolves a value-derived request after mutate returns under the mutation lock", async () => {
     const runId = "gate-request-resolver";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const target = path.join(runRoot, "site", "index.html");
     const received: MutationGateRequest[] = [];
     tempDirectories.push(runRoot);
@@ -642,7 +645,7 @@ describe("guarded mutation gate request forwarding", () => {
 
   it("fails closed to unknown for restoration when request resolution throws", async () => {
     const runId = "gate-request-resolver-error";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const target = path.join(runRoot, "site", "index.html");
     const received: MutationGateRequest[] = [];
     tempDirectories.push(runRoot);
@@ -673,7 +676,7 @@ describe("guarded mutation gate request forwarding", () => {
 
   it("fails closed to unknown when mutate throws before a request can resolve", async () => {
     const runId = "gate-request-mutate-error";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const target = path.join(runRoot, "site", "index.html");
     const received: MutationGateRequest[] = [];
     tempDirectories.push(runRoot);
@@ -702,7 +705,7 @@ describe("guarded mutation gate request forwarding", () => {
 
   it("normalizes a missing runtime request to unknown instead of skipping gates", async () => {
     const runId = "gate-request-runtime-missing";
-    const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+    const runRoot = path.join(mocks.mutationRoot, runId);
     const target = path.join(runRoot, "site", "index.html");
     const received: MutationGateRequest[] = [];
     tempDirectories.push(runRoot);
@@ -726,7 +729,7 @@ describe("guarded mutation gate request forwarding", () => {
 
 describe("committed site mutation visual-QA invalidation", () => {
   it("invalidates only after the candidate passes mechanical gates and commits", async () => {
-    const runRoot = "/tmp/onebox-site-mutation-locks/test-run";
+    const runRoot = path.join(mocks.mutationRoot, "test-run");
     tempDirectories.push(runRoot);
     const target = path.join(runRoot, "site", "index.html");
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -758,7 +761,7 @@ describe("committed site mutation visual-QA invalidation", () => {
   });
 
   it("does not invalidate a rejected candidate", async () => {
-    const runRoot = "/tmp/onebox-site-mutation-locks/test-run";
+    const runRoot = path.join(mocks.mutationRoot, "test-run");
     tempDirectories.push(runRoot);
     const target = path.join(runRoot, "site", "index.html");
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -796,7 +799,7 @@ describe("committed site mutation visual-QA invalidation", () => {
 // invariants (audit P1); only the account of what failed is now accurate.
 describe("blocking-gate refusal distinguishes inherited failures", () => {
   const runId = "gate-baseline-run";
-  const runRoot = `/tmp/onebox-site-mutation-locks/${runId}`;
+  const runRoot = path.join(mocks.mutationRoot, runId);
 
   async function attempt(failingGate: string): Promise<BlockingMutationError> {
     const target = path.join(runRoot, "mutation-fixture.json");
