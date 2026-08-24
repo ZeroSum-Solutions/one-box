@@ -118,9 +118,17 @@ function resultFor(evaluationId, commands) {
   };
 }
 
-export function renderedSandboxProfile({ snapshotRoot, temporaryRoot, browserBundleRoot, writeRoots, networkMode = "deny", port }) {
-  for (const directory of [snapshotRoot, temporaryRoot, browserBundleRoot, ...writeRoots]) {
-    if (!path.isAbsolute(directory) || /["\0\r\n]/.test(directory)) {
+export function renderedSandboxProfile({
+  snapshotRoot,
+  temporaryRoot,
+  browserBundleRoot,
+  writeRoots,
+  writeFiles = [],
+  networkMode = "deny",
+  port,
+}) {
+  for (const target of [snapshotRoot, temporaryRoot, browserBundleRoot, ...writeRoots, ...writeFiles]) {
+    if (!path.isAbsolute(target) || /["\0\r\n]/.test(target)) {
       throw new Error("rendered sandbox authority is invalid");
     }
   }
@@ -150,6 +158,7 @@ export function renderedSandboxProfile({ snapshotRoot, temporaryRoot, browserBun
     ...writeRoots.flatMap((directory) => [
       `(allow file-write* (literal "${directory}"))`, `(allow file-write* (subpath "${directory}"))`,
     ]),
+    ...writeFiles.map((file) => `(allow file-write* (literal "${file}"))`),
     "(allow file-write* (literal \"/dev/null\"))",
   ].join(" ");
 }
@@ -267,6 +276,7 @@ export async function executeProductionRenderedEvidence({
     temporaryRoot: await fs.realpath(temporaryRoot),
     browserBundleRoot: browser.bundleRoot,
     writeRoots: [nextOutputRoot],
+    writeFiles: [path.join(snapshotRoot, "next-env.d.ts")],
   });
   const env = Object.fromEntries([
     "PATH", "TMPDIR", "TMP", "TEMP", "SHELL", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "CI",

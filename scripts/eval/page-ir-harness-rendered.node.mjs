@@ -30,3 +30,16 @@ test("rendered workers may signal only descendants in the same sandbox", () => {
 
   assert.match(profile, /\(allow signal \(target same-sandbox\)\)/);
 });
+
+test("rendered build may refresh only the exact generated Next type file", () => {
+  const profile = renderedSandboxProfile({
+    snapshotRoot: "/snapshot",
+    temporaryRoot: "/temporary",
+    browserBundleRoot: "/browser",
+    writeRoots: ["/snapshot/.next"],
+    writeFiles: ["/snapshot/next-env.d.ts"],
+  });
+
+  assert.match(profile, /\(allow file-write\* \(literal "\/snapshot\/next-env\.d\.ts"\)\)/);
+  assert.doesNotMatch(profile, /\(allow file-write\* \(subpath "\/snapshot\/next-env\.d\.ts"\)\)/);
+});
