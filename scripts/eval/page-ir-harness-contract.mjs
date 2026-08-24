@@ -18,6 +18,10 @@ const TEST_REGISTRATION_KINDS = new Set([
   "credential-free-tests",
   "browser-corpus-tests",
 ]);
+const FROZEN_BROWSER_TEST_FILES = new Set([
+  "src/lib/gates.afterEdit.integration.test.ts",
+  "src/lib/gates.candidate.integration.test.ts",
+]);
 const COORDINATOR_EVALUATORS = new Set([
   "rendered-evidence",
   "qualification-human-review",
@@ -939,6 +943,22 @@ export async function validatePageIrHarnessContract(repositoryRoot) {
     if (TEST_REGISTRATION_KINDS.has(registration.kind)) {
       for (const testFile of registration.testFiles) {
         await readRepositoryFile(root, testFile, `registered test ${testFile}`, MAX_REGISTERED_TEST_BYTES);
+      }
+      const drivesFrozenBrowser = registration.testFiles.some((testFile) =>
+        FROZEN_BROWSER_TEST_FILES.has(testFile)
+      );
+      if (
+        drivesFrozenBrowser &&
+        registration.browserPolicy !== "frozen-chromium"
+      ) {
+        fail(
+          `browser-driving evaluation ${evaluationId} requires the frozen Chromium capability`,
+        );
+      }
+      if (!drivesFrozenBrowser && registration.browserPolicy !== undefined) {
+        fail(
+          `non-browser evaluation ${evaluationId} must not receive the frozen Chromium capability`,
+        );
       }
     }
   }

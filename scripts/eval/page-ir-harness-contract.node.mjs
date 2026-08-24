@@ -90,9 +90,9 @@ test("validates the frozen Page IR harness contract and every registered referen
   assert.equal(result.ticketCount, 22);
   assert.equal(result.credentialFreeTestCount, 10);
   assert.equal(result.contractVersion, "1.0.0");
-  assert.equal(result.registryVersion, "1.5.0");
+  assert.equal(result.registryVersion, "1.6.0");
   assert.equal(result.manifest.evaluations.length, 44);
-  assert.equal(result.registry.registryVersion, "1.5.0");
+  assert.equal(result.registry.registryVersion, "1.6.0");
   assert.deepEqual(
     Object.keys(result.registry.evaluations).sort(),
     result.manifest.evaluations.map((evaluation) => evaluation.id).sort(),
@@ -122,7 +122,7 @@ test("validates the frozen Page IR harness contract and every registered referen
   const cliContract = await validateEvaluationContract({ root: REPOSITORY_ROOT });
   assert.deepEqual(cliContract.errors, []);
   assert.equal(cliContract.manifest.evaluations.length, 44);
-  assert.equal(cliContract.registry.registryVersion, "1.5.0");
+  assert.equal(cliContract.registry.registryVersion, "1.6.0");
   assert.equal(cliContract.manifestSha256, result.manifestSha256);
   assert.equal(cliContract.registrySha256, result.registrySha256);
 });
@@ -290,6 +290,68 @@ test("rejects a registry that does not route every frozen blocking evaluation", 
   await assert.rejects(
     validatePageIrHarnessContract(root),
     /registry evaluations.*frozen contract/i,
+  );
+});
+
+test("browser-driving credential-free suites require the frozen Chromium capability", async (context) => {
+  const browserEvaluationIds = [
+    "EVAL-CAND-001",
+    "EVAL-CAND-002",
+    "EVAL-CAND-003",
+    "EVAL-EDIT-001",
+    "EVAL-SEC-003",
+  ];
+  const registry = await json(
+    path.join(
+      REPOSITORY_ROOT,
+      "docs/eval/page-ir-safe-pipeline/harness-registry.json",
+    ),
+  );
+  for (const evaluationId of browserEvaluationIds) {
+    assert.equal(
+      registry.evaluations[evaluationId].browserPolicy,
+      "frozen-chromium",
+      `${evaluationId} must declare its browser capability`,
+    );
+  }
+
+  const root = await copyContractRoot(context);
+  const registryPath = path.join(
+    root,
+    "docs/eval/page-ir-safe-pipeline/harness-registry.json",
+  );
+  const mutatedRegistry = await json(registryPath);
+  delete mutatedRegistry.evaluations["EVAL-EDIT-001"].browserPolicy;
+  await writeJson(registryPath, mutatedRegistry);
+  await refreshLock(
+    root,
+    "harness-registry.lock.json",
+    "harness-registry.json",
+    "registryVersion",
+  );
+  await assert.rejects(
+    validatePageIrHarnessContract(root),
+    /browser-driving.*frozen Chromium capability/i,
+  );
+
+  const overgrantRoot = await copyContractRoot(context);
+  const overgrantRegistryPath = path.join(
+    overgrantRoot,
+    "docs/eval/page-ir-safe-pipeline/harness-registry.json",
+  );
+  const overgrantRegistry = await json(overgrantRegistryPath);
+  overgrantRegistry.evaluations["EVAL-IR-001"].browserPolicy =
+    "frozen-chromium";
+  await writeJson(overgrantRegistryPath, overgrantRegistry);
+  await refreshLock(
+    overgrantRoot,
+    "harness-registry.lock.json",
+    "harness-registry.json",
+    "registryVersion",
+  );
+  await assert.rejects(
+    validatePageIrHarnessContract(overgrantRoot),
+    /non-browser evaluation.*must not receive.*Chromium capability/i,
   );
 });
 

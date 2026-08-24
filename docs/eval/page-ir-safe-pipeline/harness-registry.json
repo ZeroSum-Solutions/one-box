@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.5.0",
+  "registryVersion": "1.6.0",
   "status": "frozen",
   "evaluationManifest": {
     "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
@@ -169,7 +169,8 @@
         "src/lib/gates.afterEdit.integration.test.ts"
       ],
       "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
     },
     "EVAL-EDIT-002": {
       "kind": "credential-free-tests",
@@ -334,7 +335,8 @@
         "src/lib/siteAuthority.test.ts"
       ],
       "credentialPolicy": "absent",
-      "networkPolicy": "deny-all"
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
     }
   },
   "providerCredentialDenylist": [
