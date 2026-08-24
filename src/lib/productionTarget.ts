@@ -59,10 +59,12 @@ export function classifyPersistedIntakeCompatibility(
 export class WebsiteOnlyProductionError extends Error {
   readonly code = WEBSITE_ONLY_PRODUCTION_ERROR.code;
   readonly action = WEBSITE_ONLY_PRODUCTION_ERROR.action;
+  readonly projectTarget: Exclude<ProjectTarget, "website">;
 
-  constructor(readonly projectTarget: Exclude<ProjectTarget, "website">) {
+  constructor(projectTarget: Exclude<ProjectTarget, "website">) {
     super(WEBSITE_ONLY_PRODUCTION_ERROR.error);
     this.name = "WebsiteOnlyProductionError";
+    this.projectTarget = projectTarget;
   }
 }
 

@@ -578,10 +578,14 @@ export type CandidateRecoveryPerformedAction =
   | "recovery-blocked";
 
 class CandidateRecoveryMutationError extends Error {
+  readonly recoveryCause: unknown;
+  readonly performedActions: CandidateRecoveryPerformedAction[];
+  readonly phase: "mutation" | "validation";
+
   constructor(
-    readonly recoveryCause: unknown,
-    readonly performedActions: CandidateRecoveryPerformedAction[],
-    readonly phase: "mutation" | "validation",
+    recoveryCause: unknown,
+    performedActions: CandidateRecoveryPerformedAction[],
+    phase: "mutation" | "validation",
   ) {
     super(
       recoveryCause instanceof Error
@@ -589,6 +593,9 @@ class CandidateRecoveryMutationError extends Error {
         : "candidate recovery validation failed after mutation",
     );
     this.name = "CandidateRecoveryMutationError";
+    this.recoveryCause = recoveryCause;
+    this.performedActions = performedActions;
+    this.phase = phase;
   }
 }
 
