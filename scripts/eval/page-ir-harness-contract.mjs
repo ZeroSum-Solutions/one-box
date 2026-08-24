@@ -14,6 +14,12 @@ const REGISTRY_LOCK_PATH = `${CONTRACT_ROOT}/harness-registry.lock.json`;
 const MAX_CONTRACT_BYTES = 2 * 1024 * 1024;
 const MAX_REGISTERED_TEST_BYTES = 16 * 1024 * 1024;
 const RESULT_STATES = ["PASS", "FAIL", "BLOCKED", "NOT_RUN"];
+const REGISTERED_EVALUATION_IDS = [
+  "EVAL-SEC-003",
+  "EVAL-WEB-001",
+  "EVAL-WEB-002",
+  "EVAL-WEB-003",
+];
 const REQUIRED_QUALIFICATION_ARTIFACTS = [
   "run-manifest.json",
   "inputs/",
@@ -555,6 +561,8 @@ function validateRegistry(registry) {
       "requiredArtifacts",
       "viewportsPointer",
       "thresholdPointers",
+      "browserContract",
+      "runtimeContract",
       "fixtureContract",
     ],
     "harness registry",
@@ -579,25 +587,27 @@ function validateRegistry(registry) {
   for (const key of ["manifestPath", "ticketDirectory", "traceabilityPath"]) {
     safeRelativePath(registry.ticketContract[key], `registry ticketContract.${key}`);
   }
-  assertClosedKeys(registry.evaluations, ["EVAL-SEC-003"], "registry evaluations");
-  const credentialEval = registry.evaluations["EVAL-SEC-003"];
-  assertClosedKeys(
-    credentialEval,
-    ["testFiles", "credentialPolicy", "networkPolicy"],
-    "registry EVAL-SEC-003",
-  );
-  assertUniqueStrings(credentialEval.testFiles, "registry EVAL-SEC-003 testFiles");
-  for (const [index, testFile] of credentialEval.testFiles.entries()) {
-    safeRelativePath(testFile, `registered test ${index}`);
-    if (!testFile.endsWith(".test.ts") && !testFile.endsWith(".test.tsx")) {
-      fail(`registered test ${testFile} must be a TypeScript test file`);
+  assertClosedKeys(registry.evaluations, REGISTERED_EVALUATION_IDS, "registry evaluations");
+  for (const evaluationId of REGISTERED_EVALUATION_IDS) {
+    const registration = registry.evaluations[evaluationId];
+    assertClosedKeys(
+      registration,
+      ["testFiles", "credentialPolicy", "networkPolicy"],
+      `registry ${evaluationId}`,
+    );
+    assertUniqueStrings(registration.testFiles, `registry ${evaluationId} testFiles`);
+    for (const [index, testFile] of registration.testFiles.entries()) {
+      safeRelativePath(testFile, `registered test ${evaluationId}[${index}]`);
+      if (!testFile.endsWith(".test.ts") && !testFile.endsWith(".test.tsx")) {
+        fail(`registered test ${testFile} must be a TypeScript test file`);
+      }
     }
-  }
-  if (credentialEval.credentialPolicy !== "absent") {
-    fail("registry EVAL-SEC-003 credentialPolicy must be absent");
-  }
-  if (credentialEval.networkPolicy !== "deny-non-loopback") {
-    fail("registry EVAL-SEC-003 networkPolicy must deny non-loopback traffic");
+    if (registration.credentialPolicy !== "absent") {
+      fail(`registry ${evaluationId} credentialPolicy must be absent`);
+    }
+    if (registration.networkPolicy !== "deny-all") {
+      fail(`registry ${evaluationId} networkPolicy must deny all traffic`);
+    }
   }
   assertUniqueStrings(
     registry.providerCredentialDenylist,
@@ -639,14 +649,71 @@ function validateRegistry(registry) {
     validatePointer(pointer, `registry thresholdPointers.${key}`);
   }
   assertClosedKeys(
+    registry.browserContract,
+    ["revision", "executableRelativePath", "bundleSha256", "fileCount", "symlinkCount", "totalBytes"],
+    "registry browserContract",
+  );
+  assertString(registry.browserContract.revision, "browser revision", /^[0-9]+$/);
+  safeRelativePath(registry.browserContract.executableRelativePath, "browser executableRelativePath");
+  assertString(registry.browserContract.bundleSha256, "browser bundleSha256", /^[a-f0-9]{64}$/);
+  assertPositiveInteger(registry.browserContract.fileCount, "browser fileCount");
+  if (!Number.isSafeInteger(registry.browserContract.symlinkCount) || registry.browserContract.symlinkCount < 0) {
+    fail("browser symlinkCount must be a nonnegative safe integer");
+  }
+  assertPositiveInteger(registry.browserContract.totalBytes, "browser totalBytes");
+  assertClosedKeys(
+    registry.runtimeContract,
+    [
+      "platform", "arch", "nodeVersion", "nodeExecutable", "nodeExecutableSha256",
+      "gitExecutable", "gitExecutableSha256", "npmBundleRoot", "npmCliRelativePath",
+      "npmBundleSha256", "npmFileCount", "npmSymlinkCount", "npmTotalBytes",
+    ],
+    "registry runtimeContract",
+  );
+  if (registry.runtimeContract.platform !== "darwin" || registry.runtimeContract.arch !== "arm64") {
+    fail("runtime contract must bind the supported darwin arm64 coordinator");
+  }
+  assertString(registry.runtimeContract.nodeVersion, "runtime nodeVersion", /^\d+\.\d+\.\d+$/);
+  for (const key of ["nodeExecutable", "gitExecutable", "npmBundleRoot"]) {
+    assertString(registry.runtimeContract[key], `runtime ${key}`);
+    if (!path.isAbsolute(registry.runtimeContract[key]) || /[\0\r\n]/.test(registry.runtimeContract[key])) {
+      fail(`runtime ${key} must be an absolute path`);
+    }
+  }
+  safeRelativePath(registry.runtimeContract.npmCliRelativePath, "runtime npmCliRelativePath");
+  for (const key of ["nodeExecutableSha256", "gitExecutableSha256", "npmBundleSha256"]) {
+    assertString(registry.runtimeContract[key], `runtime ${key}`, /^[a-f0-9]{64}$/);
+  }
+  assertPositiveInteger(registry.runtimeContract.npmFileCount, "runtime npmFileCount");
+  if (!Number.isSafeInteger(registry.runtimeContract.npmSymlinkCount) || registry.runtimeContract.npmSymlinkCount < 0) {
+    fail("runtime npmSymlinkCount must be a nonnegative safe integer");
+  }
+  assertPositiveInteger(registry.runtimeContract.npmTotalBytes, "runtime npmTotalBytes");
+  assertClosedKeys(
     registry.fixtureContract,
-    ["schemaVersion", "fixtureVersion", "requiredFields", "purposes"],
+    ["schemaVersion", "fixtureVersion", "requiredFields", "purposes", "manifestSha256ByPurpose", "buildSha256ByPurpose"],
     "registry fixtureContract",
   );
   if (registry.fixtureContract.schemaVersion !== 1) fail("fixture schemaVersion must be 1");
   assertString(registry.fixtureContract.fixtureVersion, "fixture version", /^\d+\.\d+\.\d+$/);
   assertUniqueStrings(registry.fixtureContract.requiredFields, "fixture requiredFields", /^[a-z][A-Za-z0-9]*$/);
   assertUniqueStrings(registry.fixtureContract.purposes, "fixture purposes", /^[a-z][a-z0-9-]*$/);
+  assertClosedKeys(
+    registry.fixtureContract.manifestSha256ByPurpose,
+    registry.fixtureContract.purposes,
+    "fixture manifest hashes",
+  );
+  for (const [purpose, hash] of Object.entries(registry.fixtureContract.manifestSha256ByPurpose)) {
+    assertString(hash, `fixture manifest hash ${purpose}`, /^[a-f0-9]{64}$/);
+  }
+  assertClosedKeys(
+    registry.fixtureContract.buildSha256ByPurpose,
+    registry.fixtureContract.purposes,
+    "fixture build hashes",
+  );
+  for (const [purpose, hash] of Object.entries(registry.fixtureContract.buildSha256ByPurpose)) {
+    assertString(hash, `fixture build hash ${purpose}`, /^[a-f0-9]{64}$/);
+  }
   return registry;
 }
 
@@ -807,11 +874,29 @@ export async function validatePageIrHarnessContract(repositoryRoot) {
   ) {
     fail("EVAL-SEC-003 ownership or requirement binding is invalid");
   }
-  for (const testFile of registry.evaluations["EVAL-SEC-003"].testFiles) {
-    await readRepositoryFile(root, testFile, `registered test ${testFile}`, MAX_REGISTERED_TEST_BYTES);
+  for (const evaluationId of REGISTERED_EVALUATION_IDS) {
+    if (!evaluationById.has(evaluationId)) {
+      fail(`registered evaluation ${evaluationId} is absent from the frozen manifest`);
+    }
+    for (const testFile of registry.evaluations[evaluationId].testFiles) {
+      await readRepositoryFile(root, testFile, `registered test ${testFile}`, MAX_REGISTERED_TEST_BYTES);
+    }
   }
   await validatePointers(root, registry, manifest);
   assertExactStrings(registry.fixtureContract.purposes, manifest.corpus, "fixture purposes");
+  for (const purpose of manifest.corpus) {
+    const fixtureManifestBytes = await readRepositoryFile(
+      root,
+      `${CONTRACT_ROOT}/fixtures/${purpose}/fixture.json`,
+      `frozen fixture manifest ${purpose}`,
+    );
+    if (
+      sha256(fixtureManifestBytes) !==
+      registry.fixtureContract.manifestSha256ByPurpose[purpose]
+    ) {
+      fail(`frozen fixture manifest hash mismatch: ${purpose}`);
+    }
+  }
   if (
     registry.evaluationManifest.contractVersion !== manifest.contractVersion ||
     registry.evaluationManifest.sha256 !== sha256(manifestBytes)

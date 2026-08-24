@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "saas-marketing",
+  "purpose": "saas-marketing",
+  "providerMode": "recorded-or-stubbed",
+  "inputs": [
+    {
+      "path": "brief.json",
+      "sha256": "fd43b62f428c2ffc2ee43ac22aa925e54da298e734610832f6a7a7397fc89b63"
+    },
+    {
+      "path": "page-ir.json",
+      "sha256": "06459d0c1bb06c1a6e74b61f62431bf2a278c133d74ba3a7de3677e3fd734bfe"
+    }
+  ]
+}

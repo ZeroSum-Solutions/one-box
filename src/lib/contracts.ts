@@ -2294,6 +2294,236 @@ export const PAGE_IR_PURPOSES = [
 export const PagePurposeV1Schema = z.enum(PAGE_IR_PURPOSES);
 export type PagePurposeV1 = z.infer<typeof PagePurposeV1Schema>;
 
+export const PAGE_IR_QUALIFICATION_DIMENSIONS = [
+  "briefFidelity",
+  "purposeTopology",
+  "hierarchy",
+  "compositionAndSpacing",
+  "typographyAndColor",
+  "businessSpecificity",
+  "referenceAlignment",
+  "responsiveBehavior",
+  "interactionAndMotion",
+  "craftAndCompleteness",
+] as const;
+
+const PageIrQualificationScoreV1Schema = z
+  .object({
+    score: z.number().int().min(0).max(4),
+    evidence: z.string().trim().min(1).max(2_000),
+  })
+  .strict();
+
+const PageIrQualificationHashesV1Schema = z
+  .object({
+    buildSha256: Sha256Schema,
+    pageIrSha256: Sha256Schema,
+    candidateManifestSha256: Sha256Schema,
+    mechanicalChecksSha256: Sha256Schema,
+    browserEvidenceSha256: Sha256Schema,
+  })
+  .strict();
+
+export const PageIrQualificationAutomaticRejectionV1Schema = z.enum([
+  "invented-business-fact",
+  "broken-blocking-gate",
+  "missing-viewport-evidence",
+  "restyled-local-service-topology",
+  "copied-reference-branding-or-composition",
+  "missing-provenance-or-hidden-paid-fallback",
+  "unsupported-product-target",
+  "served-before-gates",
+  "page-ir-authority-bypass",
+]);
+
+/** Serializable reviewer artifact only. Parsing this shape is not approval;
+ * callers must use verifyPageIrQualificationHumanReviewV1 with identity and
+ * current hashes supplied by the trusted human-review ingestion boundary. */
+export const PageIrQualificationHumanReviewV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    reviewerName: z.string().trim().min(1).max(120),
+    reviewerKind: z.literal("human"),
+    humanAttestation: z.literal(true),
+    reviewedAt: z.string().datetime({ offset: true }),
+    fixtureId: PagePurposeV1Schema,
+    reviewedHashes: PageIrQualificationHashesV1Schema,
+    mechanicalGatesPassed: z.boolean(),
+    automaticRejections: z
+      .array(PageIrQualificationAutomaticRejectionV1Schema)
+      .max(9),
+    dimensions: z
+      .object({
+        briefFidelity: PageIrQualificationScoreV1Schema,
+        purposeTopology: PageIrQualificationScoreV1Schema,
+        hierarchy: PageIrQualificationScoreV1Schema,
+        compositionAndSpacing: PageIrQualificationScoreV1Schema,
+        typographyAndColor: PageIrQualificationScoreV1Schema,
+        businessSpecificity: PageIrQualificationScoreV1Schema,
+        referenceAlignment: PageIrQualificationScoreV1Schema,
+        responsiveBehavior: PageIrQualificationScoreV1Schema,
+        interactionAndMotion: PageIrQualificationScoreV1Schema,
+        craftAndCompleteness: PageIrQualificationScoreV1Schema,
+      })
+      .strict(),
+    findings: z.array(z.string().trim().min(1).max(2_000)).max(50),
+    decision: z.enum(["pass", "fail"]),
+  })
+  .strict()
+  .superRefine((review, context) => {
+    if (review.decision === "fail") return;
+    if (!review.mechanicalGatesPassed) {
+      context.addIssue({
+        code: "custom",
+        path: ["mechanicalGatesPassed"],
+        message: "a passing qualification requires all blocking mechanical gates",
+      });
+    }
+    if (review.automaticRejections.length > 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["automaticRejections"],
+        message: "a passing qualification cannot contain an automatic rejection",
+      });
+    }
+    const scores = PAGE_IR_QUALIFICATION_DIMENSIONS.map(
+      (dimension) => review.dimensions[dimension].score,
+    );
+    if (scores.some((score) => score < 3)) {
+      context.addIssue({
+        code: "custom",
+        path: ["dimensions"],
+        message: "every qualification dimension must score at least 3",
+      });
+    }
+    const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    if (mean < 3.2) {
+      context.addIssue({
+        code: "custom",
+        path: ["dimensions"],
+        message: "qualification dimension mean must be at least 3.2",
+      });
+    }
+  });
+export type PageIrQualificationHumanReviewV1 = z.infer<
+  typeof PageIrQualificationHumanReviewV1Schema
+>;
+
+export interface PageIrQualificationHumanAuthorityV1 {
+  reviewerName: string;
+  currentHashes: z.infer<typeof PageIrQualificationHashesV1Schema>;
+}
+
+export function verifyPageIrQualificationHumanReviewV1(
+  input: unknown,
+  authority: PageIrQualificationHumanAuthorityV1,
+): PageIrQualificationHumanReviewV1 {
+  const review = PageIrQualificationHumanReviewV1Schema.parse(input);
+  const reviewerName = z.string().trim().min(1).max(120).parse(authority.reviewerName);
+  const currentHashes = PageIrQualificationHashesV1Schema.parse(authority.currentHashes);
+  if (review.reviewerName !== reviewerName) {
+    throw new Error("qualification reviewer does not match trusted human authority");
+  }
+  for (const key of Object.keys(currentHashes) as Array<keyof typeof currentHashes>) {
+    if (review.reviewedHashes[key] !== currentHashes[key]) {
+      throw new Error(`qualification review is stale for ${key}`);
+    }
+  }
+  return review;
+}
+
+const PageIrQualityViewportV1Schema = z
+  .object({
+    id: z.enum(["desktop", "tablet", "mobile"]),
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+  })
+  .strict();
+
+export const PageIrQualityCorpusBriefV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    fixtureId: PagePurposeV1Schema,
+    purpose: PagePurposeV1Schema,
+    fixtureSourceKind: z.literal("synthetic-evaluation"),
+    customerApproval: z.literal("not-applicable"),
+    audience: BoundedLabelSchema,
+    objective: BoundedLabelSchema,
+    syntheticFacts: z.array(BoundedLabelSchema).min(1).max(12),
+    referenceState: z.discriminatedUnion("mode", [
+      z
+        .object({ mode: z.literal("selected"), sourceAliases: z.array(IrIdSchema).min(1).max(3) })
+        .strict(),
+      z
+        .object({ mode: z.literal("explicit-none"), reason: BoundedLabelSchema })
+        .strict(),
+    ]),
+    expectedSectionIds: z.array(IrIdSchema).min(1).max(12),
+    primaryConversion: z
+      .object({
+        label: BoundedLabelSchema,
+        kind: z.enum(["scroll-to", "call", "email", "external"]),
+        actionId: IrIdSchema,
+        targetNodeId: IrIdSchema,
+      })
+      .strict(),
+    expectedCoreSelectors: z.array(BoundedLabelSchema).min(1).max(20),
+    expectedActionSelectors: z.array(BoundedLabelSchema).min(1).max(20),
+    forbiddenOutcomes: z.array(BoundedLabelSchema).min(1).max(20),
+    viewports: z.array(PageIrQualityViewportV1Schema).length(3),
+  })
+  .strict()
+  .superRefine((brief, context) => {
+    if (brief.fixtureId !== brief.purpose) {
+      context.addIssue({ code: "custom", path: ["purpose"], message: "fixture purpose must match its ID" });
+    }
+    const expectedViewports = [
+      ["desktop", 1440, 900],
+      ["tablet", 768, 1024],
+      ["mobile", 390, 844],
+    ] as const;
+    if (brief.viewports.some((viewport, index) => {
+      const expected = expectedViewports[index];
+      return viewport.id !== expected[0] || viewport.width !== expected[1] || viewport.height !== expected[2];
+    })) {
+      context.addIssue({ code: "custom", path: ["viewports"], message: "quality fixtures use the frozen viewport set" });
+    }
+  });
+export type PageIrQualityCorpusBriefV1 = z.infer<
+  typeof PageIrQualityCorpusBriefV1Schema
+>;
+
+export const PageIrQualityFixtureManifestV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: PagePurposeV1Schema,
+    purpose: PagePurposeV1Schema,
+    providerMode: z.literal("recorded-or-stubbed"),
+    inputs: z
+      .array(
+        z
+          .object({
+            path: z.enum(["brief.json", "page-ir.json"]),
+            sha256: Sha256Schema,
+          })
+          .strict(),
+      )
+      .length(2),
+  })
+  .strict()
+  .superRefine((manifest, context) => {
+    if (manifest.id !== manifest.purpose) {
+      context.addIssue({ code: "custom", path: ["purpose"], message: "fixture purpose must match its ID" });
+    }
+    const paths = manifest.inputs.map((input) => input.path).sort();
+    if (paths.join(",") !== "brief.json,page-ir.json") {
+      context.addIssue({ code: "custom", path: ["inputs"], message: "fixture inventory must contain both literal sources once" });
+    }
+  });
+export type PageIrQualityFixtureManifestV1 = z.infer<
+  typeof PageIrQualityFixtureManifestV1Schema
+>;
+
 const RawReferoIdV1Schema = z
   .string()
   .min(1)

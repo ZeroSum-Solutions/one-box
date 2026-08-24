@@ -7,12 +7,11 @@ import net from "node:net";
 import tls from "node:tls";
 
 const attemptLog = process.env.ONEBOX_EVAL_NETWORK_ATTEMPT_LOG;
-const loopbackHosts = new Set(["127.0.0.1", "::1", "localhost", "[::1]"]);
 
 function record(target) {
   const text = String(target);
   if (attemptLog) fs.appendFileSync(attemptLog, `${text.replaceAll("\n", " ")}\n`, "utf8");
-  throw new Error(`offline evaluation blocked external network: ${text}`);
+  throw new Error(`offline evaluation blocked network: ${text}`);
 }
 
 function authorityHost(authority) {
@@ -51,24 +50,10 @@ function requestTarget(input, { allowDefaultLoopback = false } = {}) {
   return { host: undefined, label: "unresolved request target" };
 }
 
-function assertLoopback(input, options) {
-  const target = requestTarget(input, options);
-  const host = target.host && String(target.host).toLowerCase();
-  if (!host || !loopbackHosts.has(host)) record(target.label);
-}
-
-function isLoopbackAuthority(authority) {
-  try {
-    return loopbackHosts.has(authorityHost(authority).toLowerCase());
-  } catch {
-    return false;
-  }
-}
-
 const originalFetch = globalThis.fetch;
 if (typeof originalFetch === "function") {
   globalThis.fetch = async function offlineFetch(input, init) {
-    assertLoopback(input);
+    record(requestTarget(input).label);
     return originalFetch(input, init);
   };
 }
@@ -77,11 +62,11 @@ for (const protocol of [http, https]) {
   const originalRequest = protocol.request.bind(protocol);
   const originalGet = protocol.get.bind(protocol);
   protocol.request = function offlineRequest(...args) {
-    assertLoopback(args[0], { allowDefaultLoopback: true });
+    record(requestTarget(args[0], { allowDefaultLoopback: true }).label);
     return originalRequest(...args);
   };
   protocol.get = function offlineGet(...args) {
-    assertLoopback(args[0], { allowDefaultLoopback: true });
+    record(requestTarget(args[0], { allowDefaultLoopback: true }).label);
     return originalGet(...args);
   };
 }
@@ -99,11 +84,17 @@ for (const networkModule of [net, tls]) {
     const original = networkModule[method].bind(networkModule);
     networkModule[method] = function offlineConnect(...args) {
       const host = connectHost(args);
-      if (host !== undefined && !isLoopbackAuthority(host)) record(host);
+      record(host ?? "net socket");
       return original(...args);
     };
   }
 }
+
+const originalListen = net.Server.prototype.listen;
+net.Server.prototype.listen = function offlineListen(...args) {
+  record("net listen");
+  return originalListen.apply(this, args);
+};
 
 const originalCreateSocket = dgram.createSocket.bind(dgram);
 dgram.createSocket = function offlineDatagramSocket(...args) {

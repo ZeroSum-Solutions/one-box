@@ -77,6 +77,77 @@ cases in the scope contract tests.
   make a metered generation call.
 - Qualification screenshots are reviewed by a named person using `rubric.md`.
 
+## Canonical WEB qualification flow
+
+Run the harness only from a clean commit. `prepare` copies the six checked-in fixtures
+into an immutable run and binds each fixture manifest and deterministic compiler build
+hash to the run manifest.
+
+```sh
+npm run eval:page-ir -- prepare \
+  --run-id "$RUN_ID" \
+  --runs-root "$RUNS_ROOT" \
+  --fixtures-root docs/eval/page-ir-safe-pipeline/fixtures
+```
+
+Materialize each prepared `page-ir.json` with the repository compiler into its own
+static site directory. Capture that directory once per fixture; selectors come from
+the prepared brief and cannot be supplied by the caller.
+
+```sh
+npm run eval:page-ir -- capture \
+  --run-id "$RUN_ID" \
+  --runs-root "$RUNS_ROOT" \
+  --fixture "$FIXTURE_ID" \
+  --site-root "$SITE_ROOT"
+```
+
+Capture always launches Chromium through its own macOS non-loopback network sandbox.
+It rejects a site unless the closed site inventory and `candidate-manifest.json` match
+the fixture's locked build hash. The immutable packet includes the candidate manifest,
+full browser measurements, and five PNG screenshots (`desktop`, `tablet`, `mobile`,
+`no-js`, and `reduced-motion`). Packet loading verifies the closed evidence schema,
+fixture/build/selector bindings, file hashes, PNG checksums and decoded dimensions.
+The registry also freezes the Chromium revision, executable-relative path, complete
+bundle digest and inventory counts. Capture rejects `PLAYWRIGHT_BROWSERS_PATH`, verifies
+that authority before launch and again before publication, and records it in both the
+run manifest and packet.
+
+All six packets must exist before any registered WEB evaluation can run:
+
+```sh
+npm run eval:page-ir -- run --run-id "$RUN_ID" --runs-root "$RUNS_ROOT" --evaluation EVAL-WEB-001
+npm run eval:page-ir -- run --run-id "$RUN_ID" --runs-root "$RUNS_ROOT" --evaluation EVAL-WEB-002
+npm run eval:page-ir -- run --run-id "$RUN_ID" --runs-root "$RUNS_ROOT" --evaluation EVAL-WEB-003
+```
+
+The evaluator reads only the sealed fixture and browser roots, executes from the bound
+Git commit with dependencies installed offline from `package-lock.json`, receives no
+provider credentials, cannot access host loopback or external networks, cannot read
+user-storage paths outside its exact execution/evidence/scratch roots, and cannot write
+outside its isolated scratch directory. A browser packet can unlock mechanical WEB
+evaluation; it cannot satisfy the separate named-human visual review. Parsing
+`human-visual-review.json` is not approval: the trusted qualification coordinator must
+verify its reviewer identity and reviewed artifact hashes against the current run
+before an owner gate can pass.
+
+The registry's coordinator-runtime contract is the local root of trust: exact platform,
+architecture, Node version and executable hash, root-owned `/usr/bin/git` hash, and the
+closed npm bundle digest are verified before prepare, capture, or run. Git is never
+resolved through `PATH`; the bound npm CLI is invoked through the bound Node executable.
+
+### Implementation ownership
+
+- `src/lib/contracts.ts` owns the qualification human-review schema and trusted
+  authority comparison.
+- `src/lib/test-fixtures/pageIrQualityCorpus.ts` owns fixture loading, structural
+  rejection rules, deterministic compilation, and materialization.
+- `scripts/eval/page-ir-harness-browser.mjs` owns isolated Chromium capture and
+  candidate-build validation.
+- `scripts/eval/page-ir-harness-runner.mjs` owns immutable run, packet, screenshot,
+  and evaluator-sandbox validation.
+- `scripts/eval/page-ir-harness.mjs` is the canonical CLI coordinator.
+
 ## Frozen thresholds
 
 - Composer height: 120px minimum and `min(360px, 50dvh)` maximum.

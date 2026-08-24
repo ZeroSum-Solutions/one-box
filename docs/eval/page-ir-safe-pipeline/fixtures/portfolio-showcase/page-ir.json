@@ -1,0 +1,323 @@
+{
+  "schemaVersion": 1,
+  "target": "website",
+  "referenceContract": {
+    "schemaVersion": 1,
+    "selection": {
+      "mode": "explicit-none",
+      "reason": "This fixture tests an intentional no-reference workflow."
+    },
+    "preserveTraits": [
+      "Purpose-led hierarchy"
+    ],
+    "rhythm": "alternating",
+    "density": "comfortable",
+    "surfaceArc": [
+      "base",
+      "raised",
+      "contrast"
+    ],
+    "mediaTreatment": "full-bleed",
+    "componentAnatomy": [
+      "headline",
+      "supporting-copy",
+      "primary-action",
+      "proof"
+    ],
+    "rejects": [
+      "Frozen local-service section order",
+      "Copied reference branding"
+    ],
+    "motion": {
+      "intent": "subtle",
+      "reducedMotion": "static"
+    }
+  },
+  "layoutProgram": {
+    "schemaVersion": 1,
+    "rootNodeId": "document",
+    "nodes": [
+      {
+        "id": "document",
+        "kind": "document",
+        "childIds": [
+          "header",
+          "main",
+          "footer"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "stack"
+          },
+          "large": {
+            "flow": "stack"
+          }
+        }
+      },
+      {
+        "id": "header",
+        "kind": "landmark",
+        "landmark": "header",
+        "childIds": [
+          "navigation"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "row"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "navigation",
+        "kind": "landmark",
+        "landmark": "navigation",
+        "childIds": [
+          "nav-action"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "row"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "nav-action",
+        "kind": "slot",
+        "slotType": "action"
+      },
+      {
+        "id": "main",
+        "kind": "landmark",
+        "landmark": "main",
+        "childIds": [
+          "portfolio-intro",
+          "project-gallery",
+          "case-study"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "stack"
+          },
+          "large": {
+            "flow": "stack"
+          }
+        }
+      },
+      {
+        "id": "portfolio-intro",
+        "kind": "section",
+        "childIds": [
+          "page-heading",
+          "intro-copy",
+          "primary-action"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "grid",
+            "columns": 3
+          }
+        }
+      },
+      {
+        "id": "page-heading",
+        "kind": "slot",
+        "slotType": "heading",
+        "level": 1
+      },
+      {
+        "id": "intro-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "primary-action",
+        "kind": "slot",
+        "slotType": "action"
+      },
+      {
+        "id": "project-gallery",
+        "kind": "section",
+        "childIds": [
+          "project-gallery-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "grid",
+            "columns": 2
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "project-gallery-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "case-study",
+        "kind": "section",
+        "childIds": [
+          "case-study-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "grid",
+            "columns": 2
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "case-study-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "footer",
+        "kind": "landmark",
+        "landmark": "footer",
+        "childIds": [
+          "footer-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "footer-copy",
+        "kind": "slot",
+        "slotType": "text"
+      }
+    ]
+  },
+  "content": [
+    {
+      "id": "page-title",
+      "kind": "heading",
+      "text": "portfolio-showcase synthetic evaluation"
+    },
+    {
+      "id": "intro-text",
+      "kind": "text",
+      "text": "Lead with selected work, then reveal one case study before an email inquiry."
+    },
+    {
+      "id": "conversion-label",
+      "kind": "text",
+      "text": "Request the synthetic portfolio"
+    },
+    {
+      "id": "footer-text",
+      "kind": "text",
+      "text": "Synthetic fixture only; not approved customer content."
+    },
+    {
+      "id": "project-gallery-content",
+      "kind": "text",
+      "text": "Synthetic evaluation content for project-gallery."
+    },
+    {
+      "id": "case-study-content",
+      "kind": "text",
+      "text": "Synthetic evaluation content for case-study."
+    }
+  ],
+  "tokens": [],
+  "assets": [],
+  "actions": [
+    {
+      "id": "primary-conversion",
+      "kind": "email",
+      "email": "fixture@example.com"
+    }
+  ],
+  "slotBindings": [
+    {
+      "nodeId": "nav-action",
+      "kind": "action",
+      "labelContentId": "conversion-label",
+      "actionId": "primary-conversion"
+    },
+    {
+      "nodeId": "page-heading",
+      "kind": "heading",
+      "contentId": "page-title"
+    },
+    {
+      "nodeId": "intro-copy",
+      "kind": "text",
+      "contentId": "intro-text"
+    },
+    {
+      "nodeId": "primary-action",
+      "kind": "action",
+      "labelContentId": "conversion-label",
+      "actionId": "primary-conversion"
+    },
+    {
+      "nodeId": "project-gallery-copy",
+      "kind": "text",
+      "contentId": "project-gallery-content"
+    },
+    {
+      "nodeId": "case-study-copy",
+      "kind": "text",
+      "contentId": "case-study-content"
+    },
+    {
+      "nodeId": "footer-copy",
+      "kind": "text",
+      "contentId": "footer-text"
+    }
+  ],
+  "nodeTokenBindings": [],
+  "accessibility": {
+    "language": "en-US",
+    "titleContentId": "page-title",
+    "navigationNodeId": "navigation",
+    "mainNodeId": "main",
+    "skipToNodeId": "portfolio-intro"
+  }
+}

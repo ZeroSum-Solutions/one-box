@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "institutional-presence",
+  "purpose": "institutional-presence",
+  "providerMode": "recorded-or-stubbed",
+  "inputs": [
+    {
+      "path": "brief.json",
+      "sha256": "b71af5802f8883cc3bf762bdc69c5481766058d6460e8e44c9687d7c4c111655"
+    },
+    {
+      "path": "page-ir.json",
+      "sha256": "bbe7f1126fe76f51de143633beb238cd194182a2514a5dbec3b7f2f0a98e718b"
+    }
+  ]
+}

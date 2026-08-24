@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import crypto from "node:crypto";
 import { execFile, spawn } from "node:child_process";
+import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { promisify } from "node:util";
+import { isDeepStrictEqual, promisify } from "node:util";
 import {
   createVersionedManifestLock,
   validateEvaluationContract,
@@ -62,13 +64,119 @@ async function validatedContract(root) {
   if (verification.errors.length > 0 || !verification.manifest || !verification.registry) {
     fail(`evaluation contract invalid: ${verification.errors.join("; ")}`);
   }
+  await validateCoordinatorRuntime(verification.registry.runtimeContract);
   return verification;
+}
+
+function sha256(bytes) {
+  return crypto.createHash("sha256").update(bytes).digest("hex");
+}
+
+async function readStableToolFile(file, label, { allowHardlinks = false } = {}) {
+  const initial = await fs.lstat(file, { bigint: true });
+  if (
+    initial.isSymbolicLink() || !initial.isFile() || initial.nlink < 1n ||
+    (!allowHardlinks && initial.nlink !== 1n) || initial.size > 128n * 1024n * 1024n
+  ) {
+    fail(`${label} must be one bounded physical file`);
+  }
+  const handle = await fs.open(file, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+  try {
+    const opened = await handle.stat({ bigint: true });
+    if (
+      opened.dev !== initial.dev || opened.ino !== initial.ino ||
+      opened.size !== initial.size || opened.nlink !== initial.nlink
+    ) {
+      fail(`${label} changed before read`);
+    }
+    const bytes = await handle.readFile();
+    const after = await handle.stat({ bigint: true });
+    if (
+      after.dev !== opened.dev || after.ino !== opened.ino ||
+      after.size !== opened.size || after.nlink !== opened.nlink
+    ) {
+      fail(`${label} changed while read`);
+    }
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function hashClosedToolBundle(root) {
+  const physicalRoot = await fs.realpath(root);
+  if (physicalRoot !== path.resolve(root)) fail("runtime npm bundle root must be physical");
+  const records = [];
+  let fileCount = 0;
+  let symlinkCount = 0;
+  let totalBytes = 0;
+  async function visit(directory, relativeDirectory) {
+    const directoryStat = await fs.lstat(directory);
+    if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) fail("runtime npm bundle contains an unsafe directory");
+    const entries = (await fs.readdir(directory, { withFileTypes: true }))
+      .sort((left, right) => left.name.localeCompare(right.name));
+    for (const entry of entries) {
+      const absolute = path.join(directory, entry.name);
+      const relative = relativeDirectory ? `${relativeDirectory}/${entry.name}` : entry.name;
+      const stat = await fs.lstat(absolute);
+      if (stat.isDirectory() && !stat.isSymbolicLink()) {
+        await visit(absolute, relative);
+      } else if (stat.isSymbolicLink()) {
+        const target = await fs.readlink(absolute);
+        const resolved = path.resolve(path.dirname(absolute), target);
+        if (resolved !== physicalRoot && !resolved.startsWith(`${physicalRoot}${path.sep}`)) {
+          fail(`runtime npm bundle symlink escapes authority: ${relative}`);
+        }
+        records.push(`L\0${relative}\0${target}\0`);
+        symlinkCount += 1;
+      } else if (stat.isFile()) {
+        const bytes = await readStableToolFile(absolute, `runtime npm bundle file ${relative}`);
+        records.push(`F\0${relative}\0${bytes.length}\0${sha256(bytes)}\0`);
+        fileCount += 1;
+        totalBytes += bytes.length;
+      } else {
+        fail(`runtime npm bundle contains an unsafe entry: ${relative}`);
+      }
+    }
+  }
+  await visit(physicalRoot, "");
+  return {
+    bundleSha256: sha256(Buffer.from(records.join(""), "utf8")),
+    fileCount,
+    symlinkCount,
+    totalBytes,
+  };
+}
+
+async function validateCoordinatorRuntime(contract) {
+  if (!contract || process.platform !== contract.platform || process.arch !== contract.arch || process.versions.node !== contract.nodeVersion) {
+    fail("coordinator runtime does not match the frozen authority");
+  }
+  if (await fs.realpath(process.execPath) !== contract.nodeExecutable) {
+    fail("coordinator Node executable does not match the frozen authority");
+  }
+  const [nodeBytes, gitBytes, npmBinding] = await Promise.all([
+    readStableToolFile(contract.nodeExecutable, "coordinator Node executable"),
+    readStableToolFile(contract.gitExecutable, "coordinator Git executable", { allowHardlinks: true }),
+    hashClosedToolBundle(contract.npmBundleRoot),
+  ]);
+  if (
+    sha256(nodeBytes) !== contract.nodeExecutableSha256 ||
+    sha256(gitBytes) !== contract.gitExecutableSha256 ||
+    npmBinding.bundleSha256 !== contract.npmBundleSha256 ||
+    npmBinding.fileCount !== contract.npmFileCount ||
+    npmBinding.symlinkCount !== contract.npmSymlinkCount ||
+    npmBinding.totalBytes !== contract.npmTotalBytes
+  ) fail("coordinator runtime tools do not match the frozen authority");
+  const npmCli = path.join(contract.npmBundleRoot, ...contract.npmCliRelativePath.split("/"));
+  await readStableToolFile(npmCli, "coordinator npm CLI");
+  return { ...contract, npmCli };
 }
 
 async function readRepositoryGitState(root) {
   const [{ stdout: head }, { stdout: status }] = await Promise.all([
-    execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root }),
-    execFileAsync("git", ["status", "--porcelain=v1", "--untracked-files=all"], { cwd: root }),
+    execFileAsync("/usr/bin/git", ["rev-parse", "HEAD"], { cwd: root }),
+    execFileAsync("/usr/bin/git", ["status", "--porcelain=v1", "--untracked-files=all"], { cwd: root }),
   ]);
   return { head: head.trim(), clean: status.length === 0 };
 }
@@ -92,13 +200,14 @@ function waitForChild(child, stderrChunks) {
   });
 }
 
-export async function createGitExecutionSnapshot(root, gitSha) {
+export async function createGitExecutionSnapshot(root, gitSha, runtimeContract) {
   if (!/^[a-f0-9]{40}$/.test(gitSha ?? "")) fail("execution snapshot Git authority is invalid");
+  const runtime = await validateCoordinatorRuntime(runtimeContract);
   const snapshotRoot = await fs.mkdtemp(path.join(process.platform === "darwin" ? "/tmp" : os.tmpdir(), "one-box-eval-source-"));
   try {
     const archiveErrors = [];
     const extractErrors = [];
-    const archive = spawn("git", ["archive", "--format=tar", gitSha], {
+    const archive = spawn(runtime.gitExecutable, ["archive", "--format=tar", gitSha], {
       cwd: root,
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -114,10 +223,19 @@ export async function createGitExecutionSnapshot(root, gitSha) {
     if (archiveExit.code !== 0 || extractExit.code !== 0) {
       fail(`unable to create immutable Git execution snapshot: ${Buffer.concat([...archiveErrors, ...extractErrors]).toString("utf8").slice(0, 2000)}`);
     }
-    const dependencies = await fs.realpath(path.join(root, "node_modules"));
+    const installErrors = [];
+    const install = spawn(
+      runtime.nodeExecutable,
+      [runtime.npmCli, "ci", "--ignore-scripts", "--offline", "--no-audit", "--no-fund"],
+      { cwd: snapshotRoot, stdio: ["ignore", "ignore", "pipe"] },
+    );
+    const installExit = await waitForChild(install, installErrors);
+    if (installExit.code !== 0) {
+      fail(`unable to install lockfile-bound execution dependencies offline: ${Buffer.concat(installErrors).toString("utf8").slice(0, 2000)}`);
+    }
+    const dependencies = path.join(snapshotRoot, "node_modules");
     const dependencyStat = await fs.lstat(dependencies);
     if (dependencyStat.isSymbolicLink() || !dependencyStat.isDirectory()) fail("execution dependencies must be one physical directory");
-    await fs.symlink(dependencies, path.join(snapshotRoot, "node_modules"), "dir");
     return {
       root: snapshotRoot,
       dispose: () => fs.rm(snapshotRoot, { recursive: true, force: true }),
@@ -130,6 +248,32 @@ export async function createGitExecutionSnapshot(root, gitSha) {
 
 async function loadRun(runsRoot, runId) {
   return loadPreparedEvaluationRun(path.join(path.resolve(runsRoot), runId));
+}
+
+function assertRunFrozenAuthority(manifest, verification) {
+  const expected = {
+    contractVersion: verification.manifest.contractVersion,
+    contractSha256: verification.manifestSha256,
+    registrySha256: verification.registrySha256,
+    sourceCommit: verification.manifest.sourceCommit,
+    corpus: verification.manifest.corpus,
+    fixtureManifestSha256:
+      verification.registry.fixtureContract.manifestSha256ByPurpose,
+    fixtureBuildSha256:
+      verification.registry.fixtureContract.buildSha256ByPurpose,
+    browserAuthority: verification.registry.browserContract,
+    runtimeAuthority: verification.registry.runtimeContract,
+    initialResults: verification.manifest.evaluations.map(({ id }) => ({
+      evaluationId: id,
+      state: "NOT_RUN",
+    })),
+  };
+  const actual = Object.fromEntries(
+    Object.keys(expected).map((key) => [key, manifest[key]]),
+  );
+  if (!isDeepStrictEqual(actual, expected)) {
+    fail("prepared run is bound to a different frozen authority");
+  }
 }
 
 function blockersFor(run, evaluationId) {
@@ -166,6 +310,7 @@ export async function runPageIrHarnessCli(
     environment = process.env,
     readGitState = readRepositoryGitState,
     createExecutionSnapshot = createGitExecutionSnapshot,
+    executeEvaluationFn = executeEvaluation,
   } = {},
 ) {
   try {
@@ -208,6 +353,12 @@ export async function runPageIrHarnessCli(
           registrySha256: verification.registrySha256,
           sourceCommit: verification.manifest.sourceCommit,
           corpus: verification.manifest.corpus,
+          fixtureManifestSha256:
+            verification.registry.fixtureContract.manifestSha256ByPurpose,
+          fixtureBuildSha256:
+            verification.registry.fixtureContract.buildSha256ByPurpose,
+          browserAuthority: verification.registry.browserContract,
+          runtimeAuthority: verification.registry.runtimeContract,
           evaluations: verification.manifest.evaluations,
         },
       });
@@ -216,10 +367,7 @@ export async function runPageIrHarnessCli(
     }
 
     const run = await loadRun(runsRoot, runId);
-    if (
-      run.manifest.contractSha256 !== verification.manifestSha256 ||
-      run.manifest.registrySha256 !== verification.registrySha256
-    ) fail("prepared run is bound to a different frozen contract");
+    assertRunFrozenAuthority(run.manifest, verification);
 
     if (command === "run") {
       onlyOptions(options, ["run-id", "runs-root", "evaluation"]);
@@ -227,11 +375,26 @@ export async function runPageIrHarnessCli(
       const evaluationId = requireOption(options, "evaluation");
       const registration = verification.registry.evaluations[evaluationId];
       const blockers = blockersFor(run, evaluationId);
+      if (
+        registration &&
+        evaluationId.startsWith("EVAL-WEB-") &&
+        blockers.length === 0
+      ) {
+        for (const fixtureId of run.manifest.corpus) {
+          if (!run.browserFixtureIds.includes(fixtureId)) {
+            blockers.push({ code: "BROWSER_EVIDENCE_MISSING", detail: fixtureId });
+          }
+        }
+      }
       if (!registration && blockers.length === 0) blockers.push({ code: "EVALUATOR_NOT_REGISTERED", detail: evaluationId });
       let snapshot;
       let result;
       try {
-        if (registration && blockers.length === 0) snapshot = await createExecutionSnapshot(root, run.manifest.evaluatedGitSha);
+        if (registration && blockers.length === 0) snapshot = await createExecutionSnapshot(
+          root,
+          run.manifest.evaluatedGitSha,
+          verification.registry.runtimeContract,
+        );
         const executionRoot = snapshot?.root ?? root;
         const commands = registration ? [{
           id: "credential-free-suite",
@@ -244,10 +407,24 @@ export async function runPageIrHarnessCli(
             "--reporter=default",
           ],
         }] : [];
-        result = await executeEvaluation({ root: executionRoot, evaluationId, commands, blockers, environment, timeoutMs: 180_000 });
+        result = await executeEvaluationFn({
+          root: executionRoot,
+          evaluationId,
+          commands,
+          blockers,
+          environment,
+          inputsRoot: registration && evaluationId.startsWith("EVAL-WEB-")
+            ? path.join(run.directory, "inputs")
+            : undefined,
+          browserRoot: registration && evaluationId.startsWith("EVAL-WEB-")
+            ? path.join(run.directory, "browser")
+            : undefined,
+          timeoutMs: 180_000,
+        });
       } finally {
         await snapshot?.dispose();
       }
+      await loadPreparedEvaluationRun(run.directory);
       await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
       await publishExecutionResult(path.join(run.directory, "results"), result);
       writeOut({ status: result.state, evaluationId, meteredCalls: result.meteredCalls ?? 0 });
@@ -255,13 +432,33 @@ export async function runPageIrHarnessCli(
     }
 
     if (command === "capture") {
-      onlyOptions(options, ["run-id", "runs-root", "fixture", "site-root", "core-selectors", "action-selectors"]);
+      onlyOptions(options, ["run-id", "runs-root", "fixture", "site-root"]);
       await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
       const fixtureId = requireOption(options, "fixture");
       if (!verification.manifest.corpus.includes(fixtureId)) fail("fixture is not in the frozen corpus");
       const fixtureInput = path.join(run.directory, "inputs", fixtureId, "fixture.json");
       await fs.stat(fixtureInput).catch(() => fail("fixture was not prepared in this immutable run"));
-      const snapshot = await createExecutionSnapshot(root, run.manifest.evaluatedGitSha);
+      let brief;
+      try {
+        brief = JSON.parse(await fs.readFile(
+          path.join(run.directory, "inputs", fixtureId, "brief.json"),
+          "utf8",
+        ));
+      } catch {
+        fail("prepared fixture brief is invalid");
+      }
+      for (const key of ["expectedCoreSelectors", "expectedActionSelectors"]) {
+        if (
+          !Array.isArray(brief?.[key]) ||
+          brief[key].length === 0 ||
+          brief[key].some((selector) => typeof selector !== "string" || selector.length === 0)
+        ) fail(`prepared fixture brief ${key} is invalid`);
+      }
+      const snapshot = await createExecutionSnapshot(
+        root,
+        run.manifest.evaluatedGitSha,
+        verification.registry.runtimeContract,
+      );
       let packet;
       try {
         const adapterUrl = pathToFileURL(path.join(snapshot.root, "scripts/eval/page-ir-harness-browser.mjs"));
@@ -270,13 +467,23 @@ export async function runPageIrHarnessCli(
         packet = await capturePageIrBrowserEvidence({
           siteRoot: path.resolve(requireOption(options, "site-root")),
           viewports: verification.manifest.viewports,
-          coreContentSelectors: requireOption(options, "core-selectors").split(",").filter(Boolean),
-          primaryActionSelectors: requireOption(options, "action-selectors").split(",").filter(Boolean),
+          coreContentSelectors: brief.expectedCoreSelectors,
+          primaryActionSelectors: brief.expectedActionSelectors,
+          qualificationChecks: true,
+          browserAuthority: run.manifest.browserAuthority,
+          fixtureBinding: {
+            fixtureId,
+            fixtureManifestSha256:
+              run.manifest.fixtureManifestSha256[fixtureId],
+            buildSha256:
+              run.manifest.fixtureBuildSha256[fixtureId],
+          },
         });
       } finally {
         await snapshot.dispose();
       }
       try {
+        await loadPreparedEvaluationRun(run.directory);
         await requireCleanGitAuthority(root, readGitState, run.manifest.evaluatedGitSha);
         const published = await publishImmutableEvidencePacket(
           path.join(run.directory, "browser"),

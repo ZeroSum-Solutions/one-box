@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "campaign-landing",
+  "purpose": "campaign-landing",
+  "providerMode": "recorded-or-stubbed",
+  "inputs": [
+    {
+      "path": "brief.json",
+      "sha256": "4f15711bd5f9be22e84662877579065411b5168081adc927ce26d4b155af2b67"
+    },
+    {
+      "path": "page-ir.json",
+      "sha256": "8af8495c93242c2ab525039a0ddfe6e50a0230952b93db72ea1aaab01727e217"
+    }
+  ]
+}

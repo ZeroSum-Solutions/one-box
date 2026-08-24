@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "registryVersion": "1.0.0",
+  "registryVersion": "1.1.0",
   "status": "frozen",
   "evaluationManifest": {
     "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
@@ -28,7 +28,28 @@
         "src/lib/siteAuthority.test.ts"
       ],
       "credentialPolicy": "absent",
-      "networkPolicy": "deny-non-loopback"
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-001": {
+      "testFiles": [
+        "src/lib/pageIrQualityCorpus.web001.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-002": {
+      "testFiles": [
+        "src/lib/pageIrQualityCorpus.web002.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-003": {
+      "testFiles": [
+        "src/lib/pageIrQualityCorpus.web003.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
     }
   },
   "providerCredentialDenylist": [
@@ -86,6 +107,29 @@
       "jsonPointer": "/thresholds/performanceQualification"
     }
   },
+  "browserContract": {
+    "revision": "1234",
+    "executableRelativePath": "chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing",
+    "bundleSha256": "35061eb809c7786cae360797af64e06fa9eb012592943a5c99739d4d439f3724",
+    "fileCount": 334,
+    "symlinkCount": 5,
+    "totalBytes": 372014615
+  },
+  "runtimeContract": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "nodeVersion": "26.7.0",
+    "nodeExecutable": "/opt/homebrew/Cellar/node/26.7.0/bin/node",
+    "nodeExecutableSha256": "1ef99ea25fe70c9b67e7efe768ef8ee22148d3cabc703db6131b57aeb617d040",
+    "gitExecutable": "/usr/bin/git",
+    "gitExecutableSha256": "179301dcb41ea78accc3fa0048a7e6f6710d891945a751a34addd622020c1818",
+    "npmBundleRoot": "/opt/homebrew/lib/node_modules/npm",
+    "npmCliRelativePath": "bin/npm-cli.js",
+    "npmBundleSha256": "b9deab18dd33d9f8a58231476294ed7db2eda2246094abad521911505eacf444",
+    "npmFileCount": 1962,
+    "npmSymlinkCount": 9,
+    "npmTotalBytes": 12964239
+  },
   "fixtureContract": {
     "schemaVersion": 1,
     "fixtureVersion": "1.0.0",
@@ -103,6 +147,22 @@
       "editorial-index",
       "campaign-landing",
       "institutional-presence"
-    ]
+    ],
+    "manifestSha256ByPurpose": {
+      "brochure-local-service": "3ff832cbfa0b1983be1b34cc517191fd7961524d74cc9dc0b34565acb3e97a25",
+      "portfolio-showcase": "e6b409abe4e096f87f976d38e7b649cafc6e857d8e0997c0511b74ee337a7aac",
+      "saas-marketing": "2823774013756a762db74ef64424e11e056bc241d2f25309ed23b1c70db1b025",
+      "editorial-index": "784e7ab6358cb48a7d60d39d7fd9129b098a52c11e1eead525653c05369f571a",
+      "campaign-landing": "0e405f174aafbbad649407f2c13fed0bd96a8901be6e8f3eeae5c975776b3810",
+      "institutional-presence": "0790173be13451272b6603dc8cc597086553eedb110eeaf56eeace0ef9cc0de5"
+    },
+    "buildSha256ByPurpose": {
+      "brochure-local-service": "bca0bcc73b11bad7059c3c67ac0e8861a4d5974c1946a7afa55ac9c85c19dc0f",
+      "portfolio-showcase": "26a510e2b5027071085c1b9ca3429eb5adc6916a45d4471d120d1ce4377aee29",
+      "saas-marketing": "25989d3f5d51de3a340d148789c6aa3e33a1b54cbbaa5b86108a9b89e4640ffa",
+      "editorial-index": "36dc530ba24b62539cd500bdfd11160b1c574680bb428e7ddcbb86d78a344f02",
+      "campaign-landing": "05d4f3f7e5444d9df94608ef9f4809c57bd18fd940f44bf4df712dcf40a25018",
+      "institutional-presence": "baa6902080d60668f1cca618a5f90997bf799aecfc4ec9428379dda025e5064b"
+    }
   }
 }

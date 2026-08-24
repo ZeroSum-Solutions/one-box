@@ -59,7 +59,10 @@ async function copyContractRoot(context) {
   const registry = await json(
     path.join(root, "docs/eval/page-ir-safe-pipeline/harness-registry.json"),
   );
-  for (const relative of registry.evaluations["EVAL-SEC-003"].testFiles) {
+  const registeredTests = new Set(
+    Object.values(registry.evaluations).flatMap((evaluation) => evaluation.testFiles),
+  );
+  for (const relative of registeredTests) {
     const source = path.join(REPOSITORY_ROOT, ...relative.split("/"));
     const target = path.join(root, ...relative.split("/"));
     await fs.mkdir(path.dirname(target), { recursive: true });
@@ -85,13 +88,13 @@ test("validates the frozen Page IR harness contract and every registered referen
   assert.equal(result.ticketCount, 22);
   assert.equal(result.credentialFreeTestCount, 10);
   assert.equal(result.contractVersion, "1.0.0");
-  assert.equal(result.registryVersion, "1.0.0");
+  assert.equal(result.registryVersion, "1.1.0");
   assert.equal(result.manifest.evaluations.length, 44);
-  assert.equal(result.registry.registryVersion, "1.0.0");
+  assert.equal(result.registry.registryVersion, "1.1.0");
   const cliContract = await validateEvaluationContract({ root: REPOSITORY_ROOT });
   assert.deepEqual(cliContract.errors, []);
   assert.equal(cliContract.manifest.evaluations.length, 44);
-  assert.equal(cliContract.registry.registryVersion, "1.0.0");
+  assert.equal(cliContract.registry.registryVersion, "1.1.0");
   assert.equal(cliContract.manifestSha256, result.manifestSha256);
   assert.equal(cliContract.registrySha256, result.registrySha256);
 });
@@ -247,6 +250,40 @@ test("rejects closed-schema drift, missing states, traceability drift, and missi
   const missingTest = await copyContractRoot(context);
   await fs.rm(path.join(missingTest, "src/lib/pageIrCompiler.test.ts"));
   await assert.rejects(validatePageIrHarnessContract(missingTest), /registered test.*unreadable/i);
+});
+
+test("rejects evaluator registrations outside the frozen executable set", async (context) => {
+  const root = await copyContractRoot(context);
+  const registryPath = path.join(root, "docs/eval/page-ir-safe-pipeline/harness-registry.json");
+  const registry = await json(registryPath);
+  registry.evaluations["EVAL-IR-001"] = structuredClone(registry.evaluations["EVAL-WEB-001"]);
+  await writeJson(registryPath, registry);
+  await refreshLock(root, "harness-registry.lock.json", "harness-registry.json", "registryVersion");
+  await assert.rejects(
+    validatePageIrHarnessContract(root),
+    /registry evaluations.*unexpected key EVAL-IR-001/i,
+  );
+});
+
+test("rejects checked-in fixture drift even when the registry lock is refreshed", async (context) => {
+  const root = await copyContractRoot(context);
+  const fixturePath = path.join(
+    root,
+    "docs/eval/page-ir-safe-pipeline/fixtures/brochure-local-service/fixture.json",
+  );
+  const fixture = await json(fixturePath);
+  fixture.providerMode = "live";
+  await writeJson(fixturePath, fixture);
+  await refreshLock(
+    root,
+    "harness-registry.lock.json",
+    "harness-registry.json",
+    "registryVersion",
+  );
+  await assert.rejects(
+    validatePageIrHarnessContract(root),
+    /frozen fixture manifest hash mismatch/i,
+  );
 });
 
 test("rejects a missing PRD authority referenced by the ticket manifest", async (context) => {

@@ -11,6 +11,8 @@ import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
   HumanVisualReviewSchema,
+  PageIrQualificationHumanReviewV1Schema,
+  verifyPageIrQualificationHumanReviewV1,
   IntakeSchema,
   RunStateSchema,
   STAGES,
@@ -20,6 +22,42 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const HASH_C = "c".repeat(64);
 const HASH_D = "d".repeat(64);
+
+function qualificationReview(overrides: Record<string, unknown> = {}) {
+  const targetHashes = {
+    buildSha256: HASH_A,
+    pageIrSha256: HASH_B,
+    candidateManifestSha256: HASH_C,
+    mechanicalChecksSha256: HASH_D,
+    browserEvidenceSha256: "e".repeat(64),
+  };
+  return {
+    schemaVersion: 1,
+    reviewerName: "Named Human",
+    reviewerKind: "human",
+    humanAttestation: true,
+    reviewedAt: "2026-08-24T12:00:00.000Z",
+    fixtureId: "portfolio-showcase",
+    reviewedHashes: targetHashes,
+    mechanicalGatesPassed: true,
+    automaticRejections: [],
+    dimensions: {
+      briefFidelity: { score: 4, evidence: "The named audience and action are visible." },
+      purposeTopology: { score: 4, evidence: "Projects and case studies lead the page." },
+      hierarchy: { score: 3, evidence: "Offer, proof, and contact read in order." },
+      compositionAndSpacing: { score: 3, evidence: "All three viewports retain clear grouping." },
+      typographyAndColor: { score: 3, evidence: "Rendered contrast and hierarchy are coherent." },
+      businessSpecificity: { score: 4, evidence: "Synthetic fixture facts remain purpose-specific." },
+      referenceAlignment: { score: 3, evidence: "Recorded lessons are synthesized without copying." },
+      responsiveBehavior: { score: 3, evidence: "Tablet and mobile change flow intentionally." },
+      interactionAndMotion: { score: 3, evidence: "Keyboard and reduced-motion evidence passes." },
+      craftAndCompleteness: { score: 3, evidence: "Focus and conversion states are review-ready." },
+    },
+    findings: [],
+    decision: "pass",
+    ...overrides,
+  };
+}
 
 function candidateProvenance(overrides: Record<string, unknown> = {}) {
   return {
@@ -626,5 +664,77 @@ describe("ScanResultSchema yelp lane", () => {
 
     expect(parsed.yelp?.summary.ratingMedian).toBe(4.4);
     expect(parsed.yelp?.listings[0].name).toBe("Ken's Artisan Bakery");
+  });
+});
+
+describe("PageIrQualificationHumanReviewV1Schema", () => {
+  it("accepts a named human pass bound to the exact build and prerequisites", () => {
+    const review = qualificationReview();
+    expect(verifyPageIrQualificationHumanReviewV1(review, {
+      reviewerName: "Named Human",
+      currentHashes: review.reviewedHashes,
+    }).decision).toBe("pass");
+  });
+
+  it.each([
+    ["model reviewer", { reviewerKind: "model" }],
+    ["missing attestation", { humanAttestation: false }],
+  ])("rejects %s", (_name, overrides) => {
+    expect(PageIrQualificationHumanReviewV1Schema.safeParse(qualificationReview(overrides)).success).toBe(false);
+  });
+
+  it("accepts a human fail record for low scores, failed prerequisites, or a closed automatic rejection", () => {
+    const base = qualificationReview();
+    const dimensions = base.dimensions as Record<string, { score: number; evidence: string }>;
+    expect(PageIrQualificationHumanReviewV1Schema.safeParse({
+      ...base,
+      decision: "fail",
+      mechanicalGatesPassed: false,
+      automaticRejections: ["invented-business-fact"],
+      dimensions: {
+        ...dimensions,
+        hierarchy: { ...dimensions.hierarchy, score: 1 },
+      },
+    }).success).toBe(true);
+  });
+
+  it("rejects a pass when mechanical gates failed or an automatic rejection exists", () => {
+    expect(PageIrQualificationHumanReviewV1Schema.safeParse(
+      qualificationReview({ mechanicalGatesPassed: false }),
+    ).success).toBe(false);
+    expect(PageIrQualificationHumanReviewV1Schema.safeParse(
+      qualificationReview({ automaticRejections: ["invented-business-fact"] }),
+    ).success).toBe(false);
+  });
+
+  it("rejects a stale or mismatched build and prerequisite binding", () => {
+    const base = qualificationReview();
+    const currentHashes = base.reviewedHashes;
+    expect(() => verifyPageIrQualificationHumanReviewV1({
+      ...base,
+      reviewedHashes: { ...currentHashes, buildSha256: "f".repeat(64) },
+    }, { reviewerName: "Named Human", currentHashes })).toThrow(/stale/i);
+    expect(() => verifyPageIrQualificationHumanReviewV1(base, {
+      reviewerName: "Different Human",
+      currentHashes,
+    })).toThrow(/trusted human authority/i);
+  });
+
+  it("rejects any dimension below three or a mean below 3.2", () => {
+    const base = qualificationReview();
+    const dimensions = base.dimensions as Record<string, { score: number; evidence: string }>;
+    expect(PageIrQualificationHumanReviewV1Schema.safeParse({
+      ...base,
+      dimensions: {
+        ...dimensions,
+        hierarchy: { ...dimensions.hierarchy, score: 2 },
+      },
+    }).success).toBe(false);
+    expect(PageIrQualificationHumanReviewV1Schema.safeParse({
+      ...base,
+      dimensions: Object.fromEntries(
+        Object.entries(dimensions).map(([key, value]) => [key, { ...value, score: 3 }]),
+      ),
+    }).success).toBe(false);
   });
 });

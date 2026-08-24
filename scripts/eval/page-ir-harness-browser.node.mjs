@@ -7,9 +7,11 @@ import path from "node:path";
 import test from "node:test";
 
 const adapter = await import("./page-ir-harness-browser.mjs").catch(() => ({}));
+const BROWSER_AUTHORITY = (await adapter.inspectPageIrBrowserAuthority()).binding;
 
 test("exports the bounded browser evidence adapter", () => {
   assert.equal(typeof adapter.capturePageIrBrowserEvidence, "function");
+  assert.equal(typeof adapter.inspectPageIrBrowserAuthority, "function");
   assert.equal(typeof adapter.validateBrowserEvidenceViewports, "function");
 });
 
@@ -102,10 +104,6 @@ test("captures exact credential-free rendered evidence into one temporary immuta
 }, async (context) => {
   const siteRoot = await syntheticSite();
   context.after(() => fs.rm(siteRoot, { recursive: true, force: true }));
-  const snapshotPrefix = "one-box-page-ir-browser-site-snapshot-";
-  const snapshotsBefore = (await fs.readdir(os.tmpdir()))
-    .filter((entry) => entry.startsWith(snapshotPrefix))
-    .sort();
 
   const packet = await adapter.capturePageIrBrowserEvidence({
     siteRoot,
@@ -114,10 +112,6 @@ test("captures exact credential-free rendered evidence into one temporary immuta
     primaryActionSelectors: ["#primary-action"],
   });
   context.after(() => fs.rm(packet.packetRoot, { recursive: true, force: true }));
-  const snapshotsAfter = (await fs.readdir(os.tmpdir()))
-    .filter((entry) => entry.startsWith(snapshotPrefix))
-    .sort();
-  assert.deepEqual(snapshotsAfter, snapshotsBefore);
 
   assert.equal(packet.evidencePath, path.join(packet.packetRoot, "browser-evidence.json"));
   await assert.rejects(
@@ -177,6 +171,7 @@ test("captures exact credential-free rendered evidence into one temporary immuta
     assert.ok(capture.metrics.domContentLoadedMs >= 0);
     assert.ok(capture.metrics.totalTransferBytes > 0);
     assert.ok(capture.metrics.imageTransferBytes > 0);
+    assert.ok(Array.isArray(capture.localResourceFailures));
   }
   const desktop = packet.evidence.captures[0];
   assert.equal(desktop.javascriptMarker, "enabled");
@@ -217,6 +212,95 @@ test("captures exact credential-free rendered evidence into one temporary immuta
     "reduced-motion.png",
     "tablet.png",
   ]);
+});
+
+test("captures blocking qualification measurements only when requested", {
+  timeout: 60_000,
+}, async (context) => {
+  const siteRoot = await syntheticSite({
+    additionalScript: "document.documentElement.dataset.js = 'ready';",
+  });
+  context.after(() => fs.rm(siteRoot, { recursive: true, force: true }));
+
+  const packet = await adapter.capturePageIrBrowserEvidence({
+    siteRoot,
+    viewports: FROZEN_VIEWPORTS,
+    coreContentSelectors: ["#core-content"],
+    primaryActionSelectors: ["#primary-action"],
+    qualificationChecks: true,
+  });
+  context.after(() => fs.rm(packet.packetRoot, { recursive: true, force: true }));
+
+  assert.equal(packet.evidence.qualificationChecks, true);
+  for (const capture of packet.evidence.captures.filter(({ id }) =>
+    ["desktop", "tablet", "mobile"].includes(id)
+  )) {
+    assert.equal(capture.metrics.cpuThrottleRate, 4);
+    assert.equal(typeof capture.qualification.horizontalOverflow, "boolean");
+    assert.ok(Array.isArray(capture.qualification.overflowingElements));
+    assert.ok(Array.isArray(capture.qualification.keyboard.unreachedSelectors));
+    assert.ok(Array.isArray(capture.qualification.accessibility.seriousOrCritical));
+    assert.ok(Array.isArray(capture.qualification.accessibility.colorContrast));
+  }
+  const reducedMotion = packet.evidence.captures.find(({ id }) => id === "reduced-motion");
+  assert.equal(reducedMotion.qualification.reducedMotion.matches, true);
+  assert.equal(typeof reducedMotion.qualification.reducedMotion.allMotionDisabled, "boolean");
+  assert.ok(Array.isArray(reducedMotion.qualification.reducedMotion.activeMotion));
+});
+
+test("refuses every caller request to reuse an outer sandbox", async (context) => {
+  const siteRoot = await syntheticSite();
+  context.after(() => fs.rm(siteRoot, { recursive: true, force: true }));
+  await assert.rejects(
+    adapter.capturePageIrBrowserEvidence({
+      siteRoot,
+      viewports: FROZEN_VIEWPORTS,
+      coreContentSelectors: ["#core-content"],
+      primaryActionSelectors: ["#primary-action"],
+      outerSandboxed: true,
+    }),
+    /outerSandboxed is unsupported/i,
+  );
+});
+
+test("rejects fixture-bound evidence from a site without the frozen candidate build", async (context) => {
+  const siteRoot = await syntheticSite();
+  context.after(() => fs.rm(siteRoot, { recursive: true, force: true }));
+  await assert.rejects(
+    adapter.capturePageIrBrowserEvidence({
+      siteRoot,
+      viewports: FROZEN_VIEWPORTS,
+      coreContentSelectors: ["#core-content"],
+      primaryActionSelectors: ["#primary-action"],
+      fixtureBinding: {
+        fixtureId: "brochure-local-service",
+        fixtureManifestSha256: "a".repeat(64),
+        buildSha256: "b".repeat(64),
+      },
+      browserAuthority: BROWSER_AUTHORITY,
+    }),
+    /candidate-manifest\.json/i,
+  );
+});
+
+test("rejects fixture-bound capture when the Chromium bundle authority differs", async (context) => {
+  const siteRoot = await syntheticSite();
+  context.after(() => fs.rm(siteRoot, { recursive: true, force: true }));
+  await assert.rejects(
+    adapter.capturePageIrBrowserEvidence({
+      siteRoot,
+      viewports: FROZEN_VIEWPORTS,
+      coreContentSelectors: ["#core-content"],
+      primaryActionSelectors: ["#primary-action"],
+      fixtureBinding: {
+        fixtureId: "brochure-local-service",
+        fixtureManifestSha256: "a".repeat(64),
+        buildSha256: "b".repeat(64),
+      },
+      browserAuthority: { ...BROWSER_AUTHORITY, bundleSha256: "c".repeat(64) },
+    }),
+    /Chromium bundle does not match the frozen authority/i,
+  );
 });
 
 test("blocks Chromium WebRTC datagrams to a non-loopback interface", {

@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "editorial-index",
+  "purpose": "editorial-index",
+  "fixtureSourceKind": "synthetic-evaluation",
+  "customerApproval": "not-applicable",
+  "audience": "A fictional reader browsing an independent publication.",
+  "objective": "Prioritize scanning, story discovery, and entry into a featured synthetic issue.",
+  "syntheticFacts": [
+    "Evaluation-only publication named Margin Journal.",
+    "All headlines and issue descriptions are fictional."
+  ],
+  "referenceState": {
+    "mode": "explicit-none",
+    "reason": "No visual reference is selected so editorial hierarchy is derived from the brief."
+  },
+  "expectedSectionIds": [
+    "editorial-index",
+    "latest-stories",
+    "topic-collections"
+  ],
+  "primaryConversion": {
+    "label": "Read the synthetic issue",
+    "kind": "external",
+    "actionId": "primary-conversion",
+    "targetNodeId": "primary-action"
+  },
+  "expectedCoreSelectors": [
+    "header",
+    "nav",
+    "main",
+    "footer",
+    "#editorial-index",
+    "#latest-stories",
+    "#topic-collections"
+  ],
+  "expectedActionSelectors": [
+    "[data-edit-id=\"primary-action\"]"
+  ],
+  "forbiddenOutcomes": [
+    "Invented customer facts or testimonials",
+    "Frozen local-service topology for a non-brochure purpose",
+    "Copied reference branding or composition",
+    "Pixel-prescribed layout expectations"
+  ],
+  "viewports": [
+    {
+      "id": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "id": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "id": "mobile",
+      "width": 390,
+      "height": 844
+    }
+  ]
+}
