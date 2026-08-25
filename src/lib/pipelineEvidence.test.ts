@@ -110,7 +110,7 @@ describe("evidence pipeline research controls", () => {
     const runId = await createRun();
     runIds.push(runId);
     vi.stubEnv("FIRECRAWL_API_KEY", "test-firecrawl");
-    vi.stubEnv("GOOGLE_MAPS_API_KEY", "");
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "");
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: { web: [{ title: "Local Operator", url: "https://operator.example" }] },
     }), { status: 200, headers: { "Content-Type": "application/json" } }));
