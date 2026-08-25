@@ -127,6 +127,7 @@ npm run test:plans          # positive and fail-closed plan-authority tests
 npm run test:smoke          # deterministic generated-site gates
 npm run test:e2e:intake     # rendered intake/upload acceptance
 npm run test:e2e:preview    # rendered View/Edit workbench acceptance
+npm run test:e2e:evidence-review # summary, feedback, attachment, a11y matrix
 npm run test:e2e:page-ir    # merge-blocking intake, workbench, and rollout UI
 npm run test:e2e:motion     # isolated GSAP lifecycle/reduced-motion matrix
 npm run test:e2e:token-motion # integrated token/motion workbench matrix
@@ -170,6 +171,16 @@ then requires the same final visual review.
 and each approval advances a persisted workflow gate. `/preview/<id>` serves a
 sandboxed generated site; structured and natural-language edits share the same
 per-run lock, history, validation, and rollback path.
+
+`/evidence/<id>` presents each gate as four plain-language review answers before
+its sources and technical tables. The bottom decision composer can save a note
+and up to five private attachments without approving or changing the site.
+Each submission has a stable feedback ID: an exact retry replays its receipt,
+while conflicting reuse fails closed. Accepted files move from the bounded
+upload staging area into `sites/<id>/evidence/review-feedback/`; the opaque
+upload session is never persisted in the receipt. Claimed feedback remains for
+the life of the local run and is removed only when that run directory is
+intentionally removed; unclaimed staging still expires after 30 minutes.
 
 The intake keeps attachment, the Phase 1 Website target, research, and paid
 fallback choices inside one composer. The prompt begins at 120px, grows to

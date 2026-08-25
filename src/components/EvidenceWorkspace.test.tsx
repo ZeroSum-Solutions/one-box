@@ -15,6 +15,7 @@ import {
   syncPageIrSourceReviewDraft,
   type PageIrSourceReviewView,
 } from "./EvidenceWorkspace";
+import { TokenSpecList } from "./evidence/ArtifactViewers";
 import type { RunState } from "../lib/contracts";
 
 const base = {
@@ -30,6 +31,152 @@ function render(artifact: unknown): string {
 }
 
 describe("EvidenceWorkspace artifact previews", () => {
+  it("shows the four plain-language review answers before technical detail", () => {
+    const ledger = {
+      ...base,
+      artifactType: "ledger",
+      artifact: {
+        projectTarget: "website",
+        businessIntelligence: {
+          kind: "business-intelligence",
+          sources: [],
+          competitors: [],
+          marketExpectations: ["People expect clear service details"],
+          differentiationOpportunities: ["Show proof near the contact action"],
+          claims: [],
+        },
+        referoDesignEvidence: {
+          kind: "refero-design-evidence",
+          sources: [],
+          references: [],
+          claims: [],
+        },
+        clientEvidence: {
+          sources: [],
+          claims: [],
+          unsupportedUploadIds: [],
+          artifactRelationships: [],
+        },
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "evidence", artifacts: [ledger] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    const deciding = html.indexOf("What are we deciding?");
+    const learned = html.indexOf("What did OneBox learn?");
+    const proposed = html.indexOf("What does the proposed choice look like?");
+    const next = html.indexOf("What do you need to do next?");
+    const details = html.indexOf("View sources and technical details");
+
+    expect(deciding).toBeGreaterThan(-1);
+    expect(learned).toBeGreaterThan(deciding);
+    expect(proposed).toBeGreaterThan(learned);
+    expect(next).toBeGreaterThan(proposed);
+    expect(details).toBeGreaterThan(next);
+    expect(html).toContain("People expect clear service details");
+    expect(html).not.toContain("Every stage is versioned and must be approved in order.");
+  });
+
+  it("puts one attachment-aware feedback composer and decision controls after reviewed content", () => {
+    const ledger = {
+      ...base,
+      artifactType: "ledger",
+      artifact: {
+        projectTarget: "website",
+        businessIntelligence: {
+          kind: "business-intelligence",
+          sources: [],
+          competitors: [],
+          marketExpectations: [],
+          differentiationOpportunities: [],
+          claims: [],
+        },
+        referoDesignEvidence: {
+          kind: "refero-design-evidence",
+          sources: [],
+          references: [],
+          claims: [],
+        },
+        clientEvidence: {
+          sources: [],
+          claims: [],
+          unsupportedUploadIds: [],
+          artifactRelationships: [],
+        },
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "evidence", artifacts: [ledger] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    const details = html.indexOf("View sources and technical details");
+    const composer = html.indexOf("Add feedback or evidence");
+
+    expect(composer).toBeGreaterThan(details);
+    expect(html.match(/Add feedback or evidence/g)).toHaveLength(1);
+    expect(html).toContain("Drop files here");
+    expect(html).toContain("Attach files");
+    expect(html).toContain("Send feedback");
+    expect(html).toContain("Approve to Continue");
+    expect(html).toContain("Request Changes");
+    expect(html).toContain('aria-live="polite"');
+  });
+
+  it("renders token values as realistic specimens before the technical table", () => {
+    const html = renderToStaticMarkup(
+      <TokenSpecList
+        groups={[
+          {
+            category: "typography",
+            tokens: [
+              { semanticName: "--font-heading", value: "Roboto", usage: "Headings", evidenceIds: [] },
+              { semanticName: "--text-heading", value: "32px", usage: "Heading size", evidenceIds: [] },
+              { semanticName: "--leading-heading", value: "1.2", usage: "Heading line height", evidenceIds: [] },
+            ],
+          },
+          { category: "spacing", tokens: [{ semanticName: "--space-lg", value: "24px", usage: "Section gap", evidenceIds: [] }] },
+          { category: "radius", tokens: [{ semanticName: "--radius-card", value: "12px", usage: "Cards", evidenceIds: [] }] },
+          { category: "border", tokens: [{ semanticName: "--border-card", value: "2px solid #808080", usage: "Cards", evidenceIds: [] }] },
+          { category: "shadow", tokens: [{ semanticName: "--shadow-card", value: "0 4px 16px #00000040", usage: "Cards", evidenceIds: [] }] },
+          { category: "component-state", tokens: [{ semanticName: "--state-focus", value: "2px solid #ffffff", usage: "Focus", evidenceIds: [] }] },
+        ]}
+      />
+    );
+
+    expect(html).toContain("token-specimen-gallery");
+    expect(html).toContain("The quick brown fox");
+    expect(html).toContain("font-family:Roboto");
+    expect(html).toContain("gap:24px");
+    expect(html).toContain("border-radius:12px");
+    expect(html).toContain("border:2px solid #808080");
+    expect(html).toContain("box-shadow:0 4px 16px #00000040");
+    expect(html).toContain("Hover");
+    expect(html).toContain("Focus");
+    expect(html).toContain("Selected");
+    expect(html).toContain("Disabled");
+    expect(html).toContain("Error");
+    expect(html.indexOf("token-specimen-gallery")).toBeLessThan(html.indexOf("spec-table"));
+  });
+
   it("renders explicit empty states when a research group collected no evidence", () => {
     const ledger = render({
       ...base,
@@ -270,7 +417,7 @@ describe("EvidenceWorkspace artifact previews", () => {
       evidenceWorkflow: { currentStage: "build", artifacts: [qa] },
     } as unknown as RunState;
     const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
-    expect(html).toContain("Submit for review");
+    expect(html).toContain("Submit for Review");
     expect(html).not.toContain("Approve &amp; continue");
     // The gate rail must mirror the panel's real approval state, not a
     // hardcoded "in review" for whichever gate happens to be current.
@@ -347,7 +494,9 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(html).not.toContain('value="design-and-references"');
     expect(html).toContain("Open build preview");
     expect(html).toContain("I attest that I am the human reviewer");
-    expect(html).not.toContain(">Approve<");
+    expect(html).toContain("Approve to Continue");
+    expect(html).toContain("Request Changes");
+    expect(html).not.toContain("Approve &amp; continue");
   });
 
   it("keeps a completed human review readable in visual-QA history", () => {

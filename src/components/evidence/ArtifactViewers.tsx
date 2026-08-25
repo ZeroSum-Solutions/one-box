@@ -328,14 +328,17 @@ export function PaletteGrid({ entries }: { entries: PaletteEntry[] }) {
  * alphabetised rows. */
 export function TokenSpecList({
   groups,
+  showSpecimens = true,
 }: {
   groups: Array<{
     category: string;
     tokens: Array<{ semanticName: string; value: string; usage: string; evidenceIds: string[] }>;
   }>;
+  showSpecimens?: boolean;
 }) {
   return (
     <div className="spec-groups">
+      {showSpecimens && <TokenSpecimenGallery groups={groups} />}
       {groups.map((group) => (
         <section className="spec-group" key={group.category}>
           <p className="eyebrow">{`{ ${group.category} }`}</p>
@@ -357,6 +360,107 @@ export function TokenSpecList({
         </section>
       ))}
     </div>
+  );
+}
+
+function tokenValue(
+  tokens: Array<{ semanticName: string; value: string }>,
+  pattern: RegExp,
+): string | undefined {
+  return tokens.find((token) => pattern.test(token.semanticName))?.value;
+}
+
+/** Show the proposed system doing real work before asking a reviewer to read
+ * its variable table. Arbitrary client values stay inside these bounded
+ * specimen wells, preserving the Midnight Instrument shell around them. */
+export function TokenSpecimenGallery({
+  groups,
+}: {
+  groups: Array<{
+    category: string;
+    tokens: Array<{ semanticName: string; value: string; usage: string; evidenceIds: string[] }>;
+  }>;
+}) {
+  const byCategory = new Map(groups.map((group) => [group.category, group.tokens]));
+  const typography = byCategory.get("typography") ?? [];
+  const spacing = byCategory.get("spacing") ?? [];
+  const radii = byCategory.get("radius") ?? [];
+  const borders = byCategory.get("border") ?? [];
+  const shadows = byCategory.get("shadow") ?? [];
+  const family = tokenValue(typography, /font(?!.*(?:size|weight))/i);
+  const fontSize = tokenValue(typography, /(?:text|font).*size|heading/i);
+  const fontWeight = tokenValue(typography, /weight/i);
+  const lineHeight = tokenValue(typography, /(?:leading|line-height)/i);
+  const gap = spacing[0]?.value;
+  const radius = radii[0]?.value;
+  const border = borders[0]?.value;
+  const shadow = shadows[0]?.value;
+  const hasSpecimens = typography.length + spacing.length + radii.length + borders.length + shadows.length > 0;
+
+  if (!hasSpecimens && !byCategory.has("component-state")) return null;
+
+  return (
+    <section className="token-specimen-gallery" aria-labelledby="token-specimen-title">
+      <div className="token-specimen-gallery__head">
+        <p className="eyebrow">{"{ real examples }"}</p>
+        <h3 id="token-specimen-title">See the system before reading its values</h3>
+      </div>
+      <div className="token-specimen-gallery__grid">
+        {typography.length > 0 && (
+          <article className="token-specimen token-specimen--type">
+            <span className="token-specimen__label">Typography</span>
+            <p
+              className="token-specimen__heading"
+              style={{
+                ...(family ? { fontFamily: family } : {}),
+                ...(fontSize ? { fontSize } : {}),
+                ...(fontWeight ? { fontWeight } : {}),
+                ...(lineHeight ? { lineHeight } : {}),
+              }}
+            >
+              The quick brown fox
+            </p>
+            <p className="token-specimen__body">A heading and body line show the real family, scale, weight, and rhythm together.</p>
+          </article>
+        )}
+        {gap && (
+          <article className="token-specimen">
+            <span className="token-specimen__label">Spacing</span>
+            <div className="token-spacing-demo" style={{ gap }} aria-label={`Two elements separated by ${gap}`}>
+              <span>First element</span>
+              <span>Second element</span>
+            </div>
+          </article>
+        )}
+        {(radius || border || shadow) && (
+          <article className="token-specimen">
+            <span className="token-specimen__label">Surface</span>
+            <div
+              className="token-surface-demo"
+              style={{
+                ...(radius ? { borderRadius: radius } : {}),
+                ...(border ? { border } : {}),
+                ...(shadow ? { boxShadow: shadow } : {}),
+              }}
+            >
+              Card, border, radius, and shadow in one component role.
+            </div>
+          </article>
+        )}
+        {byCategory.has("component-state") && (
+          <article className="token-specimen token-specimen--states">
+            <span className="token-specimen__label">Interaction states</span>
+            <div className="token-state-demo" aria-label="Button state examples">
+              <button type="button" data-state="hover">Hover</button>
+              <button type="button" data-state="focus">Focus</button>
+              <button type="button" data-state="selected" aria-pressed="true">Selected</button>
+              <button type="button" disabled>Disabled</button>
+              <span className="token-state-demo__error">Error</span>
+            </div>
+          </article>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -515,4 +619,3 @@ export function ConfidenceTrack({ value }: { value: number }) {
     </span>
   );
 }
-

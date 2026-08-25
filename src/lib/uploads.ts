@@ -868,6 +868,126 @@ export async function claimUploadSession(
   });
 }
 
+/** Claim a staged upload batch into a private, run-bound evidence folder.
+ * This is the same inspected staging system used at intake; only the final
+ * destination differs so later review evidence cannot overwrite the intake
+ * manifest that already belongs to the run. */
+export async function claimEvidenceUploadSession(
+  handle: string | null | undefined,
+  selectedIds: string[],
+  runId: string,
+  feedbackId: string,
+  stagingRoot = DEFAULT_STAGING_ROOT,
+  nowMs = Date.now(),
+): Promise<UploadMetadata[]> {
+  if (selectedIds.length === 0) {
+    if (handle) {
+      throw new UploadError("An upload session without selected files cannot be claimed.");
+    }
+    return [];
+  }
+  if (!handle) throw new UploadError("Uploaded files require a valid upload session.", 401);
+  if (!RUN_ID_PATTERN.test(runId)) throw new UploadError("Invalid run id.");
+  if (!REQUEST_ID_PATTERN.test(feedbackId)) throw new UploadError("Invalid feedback id.");
+  if (new Set(selectedIds).size !== selectedIds.length) {
+    throw new UploadError("Duplicate uploaded files are not accepted.");
+  }
+
+  return withStagingLock(stagingRoot, async () => {
+    const relativeDirectory = path.posix.join(
+      "evidence",
+      "review-feedback",
+      feedbackId,
+      "uploads",
+    );
+    const destination = path.join(sitePaths(runId).root, relativeDirectory);
+    const manifestPath = path.join(destination, "manifest.json");
+    try {
+      const committed = RunUploadManifestSchema.parse(
+        JSON.parse(await fs.readFile(manifestPath, "utf8")),
+      );
+      if (
+        committed.handleHash !== handleHash(handle) ||
+        committed.files.map((file) => file.id).join("\0") !== selectedIds.join("\0")
+      ) {
+        throw new UploadError("The feedback id was already used for different files.", 409);
+      }
+      return committed.files.map((file) => UploadMetadataSchema.parse(file));
+    } catch (error) {
+      if (error instanceof UploadError) throw error;
+      if (!(typeof error === "object" && error !== null && "code" in error &&
+        (error as { code?: unknown }).code === "ENOENT")) throw error;
+    }
+
+    await cleanupUploadSessionsUnlocked(stagingRoot, nowMs);
+    const originalDirectory = sessionPath(stagingRoot, handle);
+    const manifest = await readSessionManifest(originalDirectory, handle, nowMs);
+    const byId = new Map(manifest.files.map((file) => [file.id, file]));
+    const selected = selectedIds.map((id) => {
+      const file = byId.get(id);
+      if (!file) throw new UploadError("An uploaded file is not in this session.", 409);
+      return file;
+    });
+    const claimDirectory = path.join(
+      stagingRoot,
+      `.claiming-${handleHash(handle)}-${randomBytes(4).toString("hex")}`,
+    );
+    try {
+      await fs.rename(originalDirectory, claimDirectory);
+    } catch {
+      throw new UploadError("The upload session was already claimed or expired.", 409);
+    }
+
+    const parent = path.dirname(destination);
+    const temporaryDestination = path.join(
+      parent,
+      `.uploads-${randomBytes(4).toString("hex")}.tmp`,
+    );
+    const authoritative: UploadMetadata[] = [];
+    try {
+      await fs.mkdir(parent, { recursive: true, mode: 0o700 });
+      await fs.mkdir(temporaryDestination, { recursive: false, mode: 0o700 });
+      for (const file of selected) {
+        const bytes = await verifiedBlob(claimDirectory, file);
+        await fs.writeFile(path.join(temporaryDestination, file.storedName), bytes, {
+          mode: 0o600,
+          flag: "wx",
+        });
+        authoritative.push(
+          UploadMetadataSchema.parse({
+            id: file.id,
+            fileName: file.fileName,
+            kind: file.kind,
+            mediaType: file.mediaType,
+            sizeBytes: file.sizeBytes,
+            uploadedAt: file.uploadedAt,
+            sha256: file.sha256,
+            storagePath: path.posix.join(relativeDirectory, file.storedName),
+          }),
+        );
+      }
+      await writeJsonAtomic(
+        path.join(temporaryDestination, "manifest.json"),
+        RunUploadManifestSchema.parse({
+          version: 1,
+          sessionId: manifest.sessionId,
+          state: "claimed",
+          claimedAt: new Date(nowMs).toISOString(),
+          handleHash: handleHash(handle),
+          files: authoritative,
+        }),
+      );
+      await fs.rename(temporaryDestination, destination);
+    } catch (error) {
+      await fs.rm(temporaryDestination, { recursive: true, force: true });
+      await fs.rename(claimDirectory, originalDirectory).catch(() => undefined);
+      throw error;
+    }
+    await fs.rm(claimDirectory, { recursive: true, force: true }).catch(() => undefined);
+    return authoritative;
+  });
+}
+
 export async function readRunUpload(
   runId: string,
   uploadId: string
