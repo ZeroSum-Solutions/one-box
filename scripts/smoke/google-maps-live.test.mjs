@@ -21,22 +21,34 @@ async function withFakeProvider(handler, run) {
   }
 }
 
-function runSmoke(endpoint) {
+function runSmoke(endpoint, { timeoutMs, maximumWaitMs = 1_000 } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [SCRIPT], {
       env: {
         ...process.env,
+        NODE_ENV: "test",
         GOOGLE_PLACES_API_KEY: SYNTHETIC_KEY,
         ONEBOX_PLACES_SMOKE_ENDPOINT: endpoint,
+        ...(timeoutMs === undefined
+          ? {}
+          : { ONEBOX_PLACES_SMOKE_TIMEOUT_MS: String(timeoutMs) }),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
     let stderr = "";
+    let timedOut = false;
+    const watchdog = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, maximumWaitMs);
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
     child.on("error", reject);
-    child.on("close", (code) => resolve({ code, stdout, stderr }));
+    child.on("close", (code) => {
+      clearTimeout(watchdog);
+      resolve({ code, stdout, stderr, timedOut });
+    });
   });
 }
 
@@ -74,5 +86,46 @@ test("redacts a rejected provider response", async () => {
   assert.equal(result.stdout, "");
   assert.equal(result.stderr.trim(), "status=provider-unavailable code=403");
   assert.equal(`${result.stdout}${result.stderr}`.includes("provider-body-must-not-print"), false);
+  assert.equal(`${result.stdout}${result.stderr}`.includes(SYNTHETIC_KEY), false);
+});
+
+test("rejects a non-literal loopback test endpoint before it receives the Places key", async () => {
+  const receivedKeys = [];
+  const result = await withFakeProvider((request, response) => {
+    receivedKeys.push(request.headers["x-goog-api-key"]);
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({ places: [{ id: "synthetic-place" }] }));
+  }, (_endpoint, port) => runSmoke(`http://localhost:${port}/places:searchText`));
+
+  assert.notEqual(result.code, 0);
+  assert.equal(result.stderr.trim(), "status=invalid-test-endpoint");
+  assert.equal(receivedKeys.length, 0);
+  assert.equal(`${result.stdout}${result.stderr}`.includes(SYNTHETIC_KEY), false);
+});
+
+test("times out a stalled loopback response with a fixed redacted status", { timeout: 2_000 }, async () => {
+  const result = await withFakeProvider((request, response) => {
+    request.on("close", () => response.end());
+  }, (endpoint) => runSmoke(endpoint, { timeoutMs: 25 }));
+
+  assert.equal(result.timedOut, false);
+  assert.notEqual(result.code, 0);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr.trim(), "status=provider-unavailable code=network");
+  assert.equal(`${result.stdout}${result.stderr}`.includes(SYNTHETIC_KEY), false);
+});
+
+test("rejects an oversized streamed response before JSON parsing", async () => {
+  const result = await withFakeProvider((_request, response) => {
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.end(JSON.stringify({
+      places: [{ id: "synthetic-place" }],
+      padding: "x".repeat(70 * 1024),
+    }));
+  }, runSmoke);
+
+  assert.notEqual(result.code, 0);
+  assert.equal(result.stdout, "");
+  assert.equal(result.stderr.trim(), "status=provider-unavailable code=response-too-large");
   assert.equal(`${result.stdout}${result.stderr}`.includes(SYNTHETIC_KEY), false);
 });
