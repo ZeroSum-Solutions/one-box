@@ -68,14 +68,6 @@ export function mapsPlaceUrl(place: Place): string {
   );
 }
 
-// ---------- tier 2: metered Maps Platform ----------
-
-/** Compatibility stub until Task 2 atomically replaces it with a key-free
- * descriptor and same-origin Embed route. */
-export function embedSearchUrl(_query: string): string | undefined {
-  return undefined;
-}
-
 interface RawPlace {
   id?: string;
   displayName?: { text?: string };

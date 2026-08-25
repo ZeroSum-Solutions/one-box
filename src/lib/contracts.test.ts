@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { CardMap } from "./contracts";
 import {
   AiTeammateJobV1Schema,
   AiTeammateRegistryV1Schema,
@@ -32,6 +33,21 @@ const HASH_A = "a".repeat(64);
 const HASH_B = "b".repeat(64);
 const HASH_C = "c".repeat(64);
 const HASH_D = "d".repeat(64);
+
+describe("card map contract", () => {
+  it("carries a key-free embed query instead of a provider URL", () => {
+    const map = {
+      embedQuery: "plumber in Austin, TX",
+      fallbackUrl:
+        "https://www.google.com/maps/search/?api=1&query=plumber%20in%20Austin%2C%20TX",
+      pins: [{ name: "Acme Plumbing", lat: 30.2672, lng: -97.7431 }],
+    } satisfies CardMap;
+
+    expect(map.embedQuery).toBe("plumber in Austin, TX");
+    expect(JSON.stringify(map)).not.toContain("embedUrl");
+    expect(JSON.stringify(map)).not.toContain("key=");
+  });
+});
 
 function qualificationReview(overrides: Record<string, unknown> = {}) {
   const targetHashes = {

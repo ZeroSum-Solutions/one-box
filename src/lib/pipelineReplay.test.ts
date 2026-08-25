@@ -679,6 +679,35 @@ describe("pipeline replay", () => {
     ).toEqual([card, error]);
   });
 
+  it("drops a legacy embedUrl while preserving the key-free fallback on replay", () => {
+    const legacyCard = {
+      type: "card",
+      stage: "scanned",
+      title: "Market structure",
+      body: "Historic map card",
+      map: {
+        embedUrl: "https://www.google.com/maps/embed/v1/search?key=legacy-key&q=plumber",
+        fallbackUrl:
+          "https://www.google.com/maps/search/?api=1&query=plumber%20in%20Austin%2C%20TX",
+        pins: [{ name: "Acme Plumbing", lat: 30.2672, lng: -97.7431 }],
+      },
+    } as unknown as PipelineEvent;
+
+    expect(projectPipelineReplayEvents([legacyCard])).toEqual([
+      {
+        type: "card",
+        stage: "scanned",
+        title: "Market structure",
+        body: "Historic map card",
+        map: {
+          fallbackUrl:
+            "https://www.google.com/maps/search/?api=1&query=plumber%20in%20Austin%2C%20TX",
+          pins: [{ name: "Acme Plumbing", lat: 30.2672, lng: -97.7431 }],
+        },
+      },
+    ]);
+  });
+
   it("replays one current hash-bound PageIR source-review terminal", () => {
     const sourcePause = {
       type: "page-ir-source-paused",

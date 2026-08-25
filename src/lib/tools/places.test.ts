@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { embedSearchUrl, findPlace, placesApiKey, placesConfigured } from "./places";
+import { findPlace, placesApiKey, placesConfigured } from "./places";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -7,14 +7,6 @@ afterEach(() => {
 });
 
 describe("Places credential boundary", () => {
-  it("keeps the temporary Embed shim from creating a credential-bearing URL", () => {
-    vi.stubEnv("GOOGLE_PLACES_API_KEY", "places-test-key");
-    vi.stubEnv("GOOGLE_MAPS_EMBED_API_KEY", "embed-test-key");
-    vi.stubEnv("GOOGLE_MAPS_API_KEY", "legacy-test-key");
-
-    expect(embedSearchUrl("plumber in Austin, TX")).toBeUndefined();
-  });
-
   it("uses only the server-side Places key", async () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "places-test-key");
     vi.stubEnv("GOOGLE_MAPS_EMBED_API_KEY", "embed-test-key");
