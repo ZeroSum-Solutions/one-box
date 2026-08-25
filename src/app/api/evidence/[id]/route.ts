@@ -48,12 +48,18 @@ import {
   inspectPromotedLiveBundle,
 } from "../../../../lib/candidate";
 import { toPageIrSourceReviewView } from "../../../../components/pageIrSourceReview";
+import {
+  recordReviewFeedback,
+  ReviewFeedbackActionSchema,
+  ReviewFeedbackError,
+} from "../../../../lib/reviewFeedback";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 const PAYLOAD_SHA256 = z.string().regex(/^[a-f0-9]{64}$/);
 const REVIEWER_NAME = z.string().trim().min(1).max(120);
 
 const ActionSchema = z.discriminatedUnion("action", [
+  ReviewFeedbackActionSchema,
   z.object({ action: z.literal("submit"), note: z.string().max(2_000).optional() }),
   z.object({
     action: z.literal("request-revision"),
@@ -97,7 +103,23 @@ const ActionSchema = z.discriminatedUnion("action", [
     reviewerName: REVIEWER_NAME,
     note: z.string().trim().min(1).max(2_000),
   }).strict(),
-]);
+]).superRefine((input, ctx) => {
+  if (input.action !== "record-feedback") return;
+  if (input.uploadIds.length > 0 && !input.uploadSession) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["uploadSession"],
+      message: "feedback attachments require an upload session",
+    });
+  }
+  if (input.uploadIds.length === 0 && input.uploadSession) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["uploadSession"],
+      message: "an upload session requires selected feedback attachments",
+    });
+  }
+});
 
 function humanReviewPassed(review: Pick<HumanVisualReview, "criteria">): boolean {
   return Object.values(review.criteria).every((criterion) => criterion.status === "pass");
@@ -367,6 +389,7 @@ export async function POST(
     }
     const current = latestCurrentArtifact(before);
     const input = parsed.data;
+    let feedback;
     if (
       input.action === "begin-page-ir-source-bundle-review" ||
       input.action === "approve-page-ir-source-bundle" ||
@@ -401,6 +424,22 @@ export async function POST(
           error instanceof Error ? error.message : "PageIR Source Bundle review failed",
         );
       }
+    } else if (input.action === "record-feedback") {
+      if (!current) {
+        throw new EvidenceWorkflowError(
+          "resume generation before sending feedback for this stage",
+        );
+      }
+      feedback = await recordReviewFeedback({
+        runId: id,
+        feedbackId: input.feedbackId,
+        text: input.text,
+        uploadSession: input.uploadSession,
+        uploadIds: input.uploadIds,
+        stage: before.evidenceWorkflow.currentStage,
+        artifactType: current.artifactType,
+        artifactVersion: current.version,
+      });
     } else if (input.action === "advance") {
       await advanceEvidenceWorkflow(id, input.nextStage);
     } else if (input.action === "save-version") {
@@ -646,12 +685,18 @@ export async function POST(
         );
       }
     }
-    return Response.json(await responsePayload(await loadRun(id)));
+    return Response.json({
+      ...(await responsePayload(await loadRun(id))),
+      ...(feedback ? { feedback } : {}),
+    });
   } catch (error) {
     const targetResponse = websiteOnlyProductionResponse(error);
     if (targetResponse) return targetResponse;
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });
+    }
+    if (error instanceof ReviewFeedbackError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
     if (error instanceof EvidenceWorkflowError || error instanceof z.ZodError) {
       return Response.json({ error: error.message }, { status: 409 });

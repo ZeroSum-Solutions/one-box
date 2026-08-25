@@ -14,6 +14,7 @@ import {
   type RunState,
   type EvidenceWorkflowStage,
   type HumanVisualReviewCriteria,
+  type UploadMetadata,
   type WorkflowArtifactType,
   type WorkflowArtifactVersion,
 } from "../lib/contracts";
@@ -27,9 +28,11 @@ import {
   PaletteGrid,
   ThemeMappingTable,
   TokenSpecList,
+  TokenSpecimenGallery,
   UsageMap,
   VariableHierarchy,
 } from "./evidence/ArtifactViewers";
+import { UploadPanel } from "./UploadPanel";
 import type {
   PageIrSourceReviewCriterion,
   PageIrSourceReviewView,
@@ -653,6 +656,7 @@ export function ArtifactPreview({
           )}
           {categories.length > 0 && (
             <TokenSpecList
+              showSpecimens={false}
               groups={categories.map((category) => ({
                 category,
                 tokens: others
@@ -1030,6 +1034,143 @@ function PageIrSourceReviewPanel({
   );
 }
 
+function tokenSpecimenGroups(
+  artifact: Extract<WorkflowArtifactVersion, { artifactType: "token-inventory" }>,
+) {
+  const others = artifact.artifact.tokens.filter((token) => token.category !== "color");
+  return [...new Set(others.map((token) => token.category))].map((category) => ({
+    category,
+    tokens: others
+      .filter((token) => token.category === category)
+      .map((token) => ({
+        semanticName: token.semanticName,
+        value: token.value,
+        usage: token.usage,
+        evidenceIds: token.sourceEvidenceIds,
+      })),
+  }));
+}
+
+function reviewStageAnswers(
+  artifact: WorkflowArtifactVersion,
+  approval: ArtifactApprovalState | null,
+): { deciding: string; learned: string; proposed: string; next: string } {
+  const next = approval === "revision-requested"
+    ? "Explain what needs to change, attach any useful files, then save or regenerate the next version."
+    : approval === "approved"
+      ? "Move to the next stage when you are ready."
+      : "Check the proposal, add feedback or files if needed, then approve it or request changes.";
+
+  switch (artifact.artifactType) {
+    case "ledger": {
+      const expectations = artifact.artifact.businessIntelligence.marketExpectations;
+      const sourceCount =
+        artifact.artifact.businessIntelligence.sources.length +
+        artifact.artifact.referoDesignEvidence.sources.length +
+        artifact.artifact.clientEvidence.sources.length;
+      return {
+        deciding: "Which research and client evidence should guide this project?",
+        learned: expectations[0] ?? `OneBox saved ${sourceCount} source${sourceCount === 1 ? "" : "s"} for this decision.`,
+        proposed: "Use the strongest recorded evidence as the basis for the design work that follows.",
+        next,
+      };
+    }
+    case "design-contract":
+      return {
+        deciding: "Which visual rules should guide the site?",
+        learned: `The proposal connects ${artifact.artifact.approvedEvidenceIds.length} approved evidence item${artifact.artifact.approvedEvidenceIds.length === 1 ? "" : "s"} to one design rulebook.`,
+        proposed: "The palette and design rulebook below show the look OneBox will carry into the build.",
+        next,
+      };
+    case "token-inventory":
+      return {
+        deciding: "How should the approved look behave in real interface parts?",
+        learned: `OneBox turned the rulebook into ${artifact.artifact.tokens.length} reusable style choice${artifact.artifact.tokens.length === 1 ? "" : "s"}.`,
+        proposed: "The specimens below show type, spacing, surfaces, and interaction states at their real values.",
+        next,
+      };
+    case "tailwind-plan":
+      return {
+        deciding: "How should the saved style choices connect to the site builder?",
+        learned: `OneBox prepared ${artifact.artifact.themeMappings.length} checked connection${artifact.artifact.themeMappings.length === 1 ? "" : "s"}.`,
+        proposed: "Each approved choice has one named place in the generated site.",
+        next,
+      };
+    case "css-architecture":
+      return {
+        deciding: "Where should each approved style be used?",
+        learned: `OneBox mapped ${Object.keys(artifact.artifact.tokenToComponentUsage).length} style choice${Object.keys(artifact.artifact.tokenToComponentUsage).length === 1 ? "" : "s"} to real parts of the site.`,
+        proposed: "The plan keeps global rules, page rules, and component rules in a clear order.",
+        next,
+      };
+    case "visual-qa": {
+      const passed = artifact.artifact.checks.filter((check) => check.status === "pass").length;
+      return {
+        deciding: "Is the current build ready to accept?",
+        learned: `The saved review checks currently show ${passed} of ${artifact.artifact.checks.length} passing.`,
+        proposed: "The desktop, tablet, and phone evidence below show the build that will be accepted or revised.",
+        next,
+      };
+    }
+  }
+}
+
+function ReviewStageOverview({
+  artifact,
+  approval,
+}: {
+  artifact: WorkflowArtifactVersion;
+  approval: ArtifactApprovalState | null;
+}) {
+  const answers = reviewStageAnswers(artifact, approval);
+  const contractColors = artifact.artifactType === "design-contract"
+    ? artifact.artifact.designTokens?.colors ?? []
+    : [];
+  const inventoryColors = artifact.artifactType === "token-inventory"
+    ? artifact.artifact.tokens.filter((token) => token.category === "color")
+    : [];
+
+  return (
+    <section className="review-overview" aria-labelledby="review-overview-title">
+      <h3 id="review-overview-title">Review summary</h3>
+      <dl className="review-overview__answers">
+        <div><dt>What are we deciding?</dt><dd>{answers.deciding}</dd></div>
+        <div><dt>What did OneBox learn?</dt><dd>{answers.learned}</dd></div>
+        <div><dt>What does the proposed choice look like?</dt><dd>{answers.proposed}</dd></div>
+        <div><dt>What do you need to do next?</dt><dd>{answers.next}</dd></div>
+      </dl>
+      {contractColors.length > 0 && (
+        <PaletteGrid
+          entries={contractColors.map((color) => ({
+            name: color.name,
+            value: color.value,
+            cssVar: color.cssVar,
+            role: color.role,
+            forbidden: color.forbidden,
+          }))}
+        />
+      )}
+      {artifact.artifactType === "token-inventory" && (
+        <>
+          {inventoryColors.length > 0 && (
+            <PaletteGrid
+              entries={inventoryColors.map((token) => ({
+                name: token.semanticName.replace(/^--(color-)?/, "").replace(/-/g, " "),
+                value: token.value,
+                cssVar: token.semanticName,
+                role: token.usage.split("Never:")[0].trim(),
+                forbidden: token.usage.split("Never:")[1]?.trim(),
+                evidenceIds: token.sourceEvidenceIds,
+              }))}
+            />
+          )}
+          <TokenSpecimenGallery groups={tokenSpecimenGroups(artifact)} />
+        </>
+      )}
+    </section>
+  );
+}
+
 export function EvidenceWorkspace({
   initialRun,
   compatibility,
@@ -1046,6 +1187,10 @@ export function EvidenceWorkspace({
   const legacyReadOnly = compatibility?.readOnly === true;
   const [run, setRun] = useState(initialRun);
   const [note, setNote] = useState("");
+  const [feedbackUploads, setFeedbackUploads] = useState<UploadMetadata[]>([]);
+  const [feedbackUploadSession, setFeedbackUploadSession] = useState<string | null>(null);
+  const [feedbackId, setFeedbackId] = useState<string | null>(null);
+  const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pageIrSourceReview, setPageIrSourceReview] = useState(initialPageIrSourceReview);
@@ -1161,6 +1306,12 @@ export function EvidenceWorkspace({
         criterion.status !== "" &&
         (criterion.status !== "fail" || criterion.findings.trim().length > 0)
     );
+  const humanReviewAllPass =
+    humanReviewReady &&
+    Object.values(humanCriteria).every((criterion) => criterion.status === "pass");
+  const humanReviewHasRevision =
+    humanReviewReady &&
+    Object.values(humanCriteria).some((criterion) => criterion.status === "fail");
 
   async function action(body: Record<string, unknown>) {
     setBusy(true);
@@ -1183,6 +1334,96 @@ export function EvidenceWorkspace({
       setDraftText(updatedCurrent ? JSON.stringify(updatedCurrent.artifact, null, 2) : "");
       setPageIrSourceReview(updated.pageIrSourceReview);
       setNote("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Evidence action failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function clearFeedbackDraft() {
+    setNote("");
+    setFeedbackUploads([]);
+    setFeedbackUploadSession(null);
+    setFeedbackId(null);
+  }
+
+  function currentFeedbackBody() {
+    const id = feedbackId ?? crypto.randomUUID();
+    if (!feedbackId) setFeedbackId(id);
+    return {
+      action: "record-feedback",
+      feedbackId: id,
+      text: note.trim(),
+      uploadSession: feedbackUploadSession,
+      uploadIds: feedbackUploads.map((upload) => upload.id),
+    };
+  }
+
+  async function sendFeedback() {
+    if (!note.trim()) {
+      setError("Write feedback before sending it.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFeedbackStatus(null);
+    try {
+      const response = await fetch(`/api/evidence/${run.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(currentFeedbackBody()),
+      });
+      const result = (await response.json()) as {
+        error?: string;
+        workflow?: RunState["evidenceWorkflow"];
+        pageIrSourceReview?: PageIrSourceReviewView | null;
+      };
+      const updated = mergeEvidenceWorkspaceResponse(run, pageIrSourceReview, result);
+      if (!response.ok || !updated) throw new Error(result.error ?? "Feedback could not be saved");
+      setRun(updated.run);
+      setPageIrSourceReview(updated.pageIrSourceReview);
+      clearFeedbackDraft();
+      setFeedbackStatus("Feedback and attachments were saved with this review.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Feedback could not be saved");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function requestChanges() {
+    if (!note.trim()) return;
+    setBusy(true);
+    setError(null);
+    setFeedbackStatus(null);
+    try {
+      let responseRun = run;
+      let responseReview = pageIrSourceReview;
+      const step = async (body: Record<string, unknown>) => {
+        const response = await fetch(`/api/evidence/${run.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const result = (await response.json()) as {
+          error?: string;
+          workflow?: RunState["evidenceWorkflow"];
+          pageIrSourceReview?: PageIrSourceReviewView | null;
+        };
+        const updated = mergeEvidenceWorkspaceResponse(responseRun, responseReview, result);
+        if (!response.ok || !updated) throw new Error(result.error ?? "Evidence action failed");
+        responseRun = updated.run;
+        responseReview = updated.pageIrSourceReview;
+        setRun(updated.run);
+        setPageIrSourceReview(updated.pageIrSourceReview);
+      };
+      await step(currentFeedbackBody());
+      await step({ action: "request-revision", note: note.trim() });
+      setRun(responseRun);
+      setPageIrSourceReview(responseReview);
+      clearFeedbackDraft();
+      setFeedbackStatus("Changes were requested and your feedback was saved.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Evidence action failed");
     } finally {
@@ -1221,8 +1462,11 @@ export function EvidenceWorkspace({
         responseRun = updated.run;
         responseReview = updated.pageIrSourceReview;
         workflow = updated.run.evidenceWorkflow;
+        setRun(updated.run);
         setPageIrSourceReview(updated.pageIrSourceReview);
       };
+
+      if (note.trim()) await step(currentFeedbackBody());
 
       if (approval === "draft") await step({ action: "submit", note });
       if (approval === "draft" || approval === "in-review") await step({ action: "approve", note });
@@ -1232,7 +1476,7 @@ export function EvidenceWorkspace({
       if (next) await step({ action: "advance", nextStage: next });
 
       setRun(responseRun);
-      setNote("");
+      clearFeedbackDraft();
 
       // Materialize the newly-advanced gate's draft without leaving the
       // workspace: kick the pipeline, read its stream to the terminal event
@@ -1336,7 +1580,7 @@ export function EvidenceWorkspace({
       <header className="evidence-workspace__header">
         <p className="eyebrow">{"{ evidence workspace }"}</p>
         <h1>Review before build</h1>
-        <p className="evidence-workspace__sub">Run {run.id}. Every stage is versioned and must be approved in order.</p>
+        <p className="evidence-workspace__sub">Start with the useful summary. Open sources and technical details only when you need them.</p>
       </header>
 
       {legacyReadOnly && compatibility && (
@@ -1434,28 +1678,9 @@ export function EvidenceWorkspace({
                 </button>
               </div>
             )}
-            {!browsing && canApproveAndContinue && (
+            {!browsing && current && !sourceReviewActive && (
               <div className="artifact-panel__actions">
-                <button className="btn-primary" disabled={busy} onClick={() => void approveAndContinue()}>
-                  Approve &amp; continue
-                </button>
-                <button className="btn-coral" disabled={busy || !note.trim()} onClick={() => void action({ action: "request-revision", note })}>
-                  Request changes
-                </button>
-              </div>
-            )}
-            {!browsing && canSubmitVisualQaDraft && (
-              <div className="artifact-panel__actions">
-                <button className="btn-primary" disabled={busy} onClick={() => void action({ action: "submit", note })}>
-                  Submit for review
-                </button>
-              </div>
-            )}
-            {!browsing && canSaveRevisionFromHeader && (
-              <div className="artifact-panel__actions">
-                <button className="btn-primary" disabled={busy} onClick={() => void saveVersion()}>
-                  Save new version
-                </button>
+                <a className="btn-ghost" href="#review-decision">Review decision</a>
               </div>
             )}
           </div>
@@ -1494,7 +1719,11 @@ export function EvidenceWorkspace({
             />
           ) : shown ? (
             <>
-              <ArtifactPreview artifact={shown} runId={run.id} palette={palette} />
+              <ReviewStageOverview artifact={shown} approval={shownApproval} />
+              <details className="review-technical">
+                <summary>View sources and technical details</summary>
+                <ArtifactPreview artifact={shown} runId={run.id} palette={palette} />
+              </details>
               {!browsing && approval === "revision-requested" && current?.artifactType !== "visual-qa" && (
                 <textarea
                   className="evidence-draft-editor"
@@ -1519,12 +1748,6 @@ export function EvidenceWorkspace({
             </div>
           )}
 
-          {/* Every action that reads the note is gated on an artifact, so a
-              stage with no draft must not show the field at all. */}
-          {!legacyReadOnly && !sourceReviewActive && current && !(approval === "in-review" && current.artifactType === "visual-qa") && <label className="evidence-note">
-            Review note
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} />
-          </label>}
           {!legacyReadOnly && !sourceReviewActive && approval === "in-review" && current?.artifactType === "visual-qa" && (
             <section className="evidence-readable" aria-labelledby="human-visual-review-title">
               <h3 id="human-visual-review-title">Human visual review</h3>
@@ -1561,6 +1784,88 @@ export function EvidenceWorkspace({
           )}
           {error && <p className="chat-error" role="alert">{error}</p>}
 
+          {!legacyReadOnly && !sourceReviewActive && !browsing && current && (
+            <section
+              className="review-feedback-composer"
+              id="review-decision"
+              aria-labelledby="review-feedback-title"
+            >
+              <div className="review-feedback-composer__head">
+                <div>
+                  <p className="eyebrow">{"{ your decision }"}</p>
+                  <h3 id="review-feedback-title">Add feedback or evidence</h3>
+                </div>
+                <p id="review-feedback-help">Attach a brand kit, logo, screenshot, reference image, or document. Files stay private and do not change the site by themselves.</p>
+              </div>
+              <label className="review-feedback-composer__field">
+                Feedback
+                <textarea
+                  value={note}
+                  onChange={(event) => {
+                    setNote(event.target.value);
+                    setFeedbackStatus(null);
+                  }}
+                  maxLength={2_000}
+                  aria-required="true"
+                  aria-invalid={Boolean(error && !note.trim())}
+                  aria-describedby="review-feedback-help"
+                  placeholder="Tell OneBox what works or what needs to change…"
+                />
+              </label>
+              <UploadPanel
+                uploads={feedbackUploads}
+                onChange={setFeedbackUploads}
+                uploadSession={feedbackUploadSession}
+                onUploadSessionChange={setFeedbackUploadSession}
+                disabled={busy}
+                review
+              />
+              <div className="review-feedback-composer__status" aria-live="polite">
+                {feedbackStatus}
+              </div>
+              <div className="review-feedback-composer__actions">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  disabled={busy || !note.trim()}
+                  onClick={() => void sendFeedback()}
+                >
+                  {busy ? "Sending…" : "Send feedback"}
+                </button>
+                {canApproveAndContinue && (
+                  <button className="btn-primary" disabled={busy} onClick={() => void approveAndContinue()}>
+                    Approve to Continue
+                  </button>
+                )}
+                {canSubmitVisualQaDraft && (
+                  <button className="btn-primary" disabled={busy} onClick={() => void action({ action: "submit", note })}>
+                    Submit for Review
+                  </button>
+                )}
+                {canSaveRevisionFromHeader && (
+                  <button className="btn-primary" disabled={busy} onClick={() => void saveVersion()}>
+                    Save New Version
+                  </button>
+                )}
+                {current.artifactType !== "visual-qa" && approval !== "revision-requested" && (
+                  <button className="btn-coral" disabled={busy || !note.trim()} onClick={() => void requestChanges()}>
+                    Request Changes
+                  </button>
+                )}
+                {current.artifactType === "visual-qa" && approval === "in-review" && (
+                  <>
+                    <button className="btn-primary" disabled={busy || !humanReviewAllPass} onClick={submitHumanReview}>
+                      Approve to Continue
+                    </button>
+                    <button className="btn-coral" disabled={busy || !humanReviewHasRevision} onClick={submitHumanReview}>
+                      Request Changes
+                    </button>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
+
           <div className="evidence-actions">
             {!sourceReviewActive && current?.artifactType === "visual-qa" && approval !== "approved" && (
               <Link className="btn-ghost" href={`/preview/${run.id}`}>
@@ -1571,9 +1876,6 @@ export function EvidenceWorkspace({
               <Link className="btn-ghost" href={`/?run=${run.id}`}>
                 Resume generation
               </Link>
-            )}
-            {!legacyReadOnly && !sourceReviewActive && approval === "in-review" && current?.artifactType === "visual-qa" && (
-              <button className="btn-primary" disabled={busy || !humanReviewReady} onClick={submitHumanReview}>Submit human visual review</button>
             )}
             {!legacyReadOnly && !sourceReviewActive && approval === "revision-requested" && current?.artifactType === "visual-qa" && (
               <button className="btn-ghost" disabled={busy} onClick={() => void action({ action: "regenerate-visual-qa" })}>

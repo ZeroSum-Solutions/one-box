@@ -24,6 +24,7 @@
     "test:e2e:canvas": "node scripts/e2e/canvas-coverage.mjs",
     "test:e2e:canvas-contract": "node scripts/e2e/canvas-contract.mjs",
     "test:e2e:canvas-contract:axe": "node scripts/e2e/canvas-contract.mjs --axe",
+    "test:e2e:evidence-review": "node scripts/e2e/evidence-review.mjs",
     "test:e2e:motion": "node scripts/e2e/motion-runtime.mjs",
     "test:e2e:token-motion": "node scripts/e2e/token-motion-workbench.mjs",
     "test:e2e:full-unit": "node --test scripts/e2e/full-run-state.node.mjs"
