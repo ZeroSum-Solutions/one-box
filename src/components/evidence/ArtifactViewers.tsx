@@ -380,15 +380,27 @@ function specimenFontFamily(family: string | undefined): string | undefined {
   return knownShellFamilies[family.toLowerCase()] ?? family;
 }
 
-function specimenFontIsLoaded(family: string): boolean {
-  return ["switzer", "clash display", "jetbrains mono"].includes(family.toLowerCase());
-}
-
 function specimenWeights(token: { usage: string }): number[] {
   return usageValue(token, /weights?\s+([0-9, ]+)/i)
     ?.split(",")
     .map((value) => Number.parseInt(value.trim(), 10))
     .filter(Number.isFinite) ?? [];
+}
+
+function specimenFontStatus(family: string, weights: number[]): string {
+  const loadedWeights: Record<string, number[]> = {
+    switzer: [400, 510, 590],
+    "clash display": [500, 600],
+    "jetbrains mono": [400],
+  };
+  const available = loadedWeights[family.toLowerCase()];
+  if (!available) {
+    return "Uses this family and its declared weights when available; otherwise shows a browser fallback or synthesized weight.";
+  }
+  const missing = weights.filter((weight) => !available.includes(weight));
+  return missing.length === 0
+    ? "Loaded in this reviewer at every declared weight."
+    : `Family loaded, but weight${missing.length === 1 ? "" : "s"} ${missing.join(", ")} ${missing.length === 1 ? "is" : "are"} unavailable; the browser may synthesize them.`;
 }
 
 /** Show the proposed system doing real work before asking a reviewer to read
@@ -446,9 +458,7 @@ export function TokenSpecimenGallery({
                       <code>{familyToken.semanticName}</code>
                     </div>
                     <p className="token-font-family__availability">
-                      {specimenFontIsLoaded(familyToken.value)
-                        ? "Loaded in this reviewer."
-                        : "Uses this family when available; otherwise shows its browser fallback."}
+                      {specimenFontStatus(familyToken.value, weights)}
                     </p>
                     {(roleSpecificTypes.length > 0 ? roleSpecificTypes : typeTokens.length > 0 ? typeTokens : [{
                       semanticName: "type-sample",
