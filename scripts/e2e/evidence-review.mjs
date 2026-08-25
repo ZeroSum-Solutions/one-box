@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { registerHooks } from "node:module";
 import { chromium } from "playwright";
@@ -39,7 +41,7 @@ const designTokens = {
     { name: "Lime", value: "#d7ff3f", cssVar: "--color-primary", role: "one primary action", forbiddenContexts: ["large-surface"] },
   ],
   fonts: [
-    { family: "Inter", cssVar: "--font-body", weights: [400, 500], role: "interface and body", substitutes: ["system-ui"] },
+    { family: "Switzer", cssVar: "--font-body", weights: [400, 590], role: "interface and body", substitutes: ["system-ui"] },
   ],
   typeScale: [
     { role: "body", sizePx: 16, lineHeight: 1.5, cssVar: "--text-body" },
@@ -118,6 +120,31 @@ async function assertReviewSurface(page, width) {
   ]);
   assert.equal(await page.locator(".review-technical").getAttribute("open"), null);
   assert.equal(await page.locator(".token-specimen-gallery").count(), 1, "token specimens must appear once before disclosure");
+  const specimenType = await page.evaluate(() => {
+    const heading = getComputedStyle(document.querySelector(".token-specimen__heading"));
+    const body = getComputedStyle(document.querySelector(".token-specimen__body"));
+    return {
+      heading: {
+        family: heading.fontFamily,
+        weight: heading.fontWeight,
+        size: Number.parseFloat(heading.fontSize),
+        lineHeight: Number.parseFloat(heading.lineHeight),
+        tracking: heading.letterSpacing,
+      },
+      body: {
+        family: body.fontFamily,
+        weight: body.fontWeight,
+        size: Number.parseFloat(body.fontSize),
+        lineHeight: Number.parseFloat(body.lineHeight),
+      },
+    };
+  });
+  assert.match(specimenType.heading.family, /switzer/i);
+  assert.equal(specimenType.heading.weight, "590");
+  assert.equal(specimenType.body.weight, "400");
+  assert.ok(Math.abs(specimenType.heading.lineHeight / specimenType.heading.size - 1.15) < 0.02);
+  assert.ok(Math.abs(specimenType.body.lineHeight / specimenType.body.size - 1.5) < 0.02);
+  assert.equal(specimenType.heading.tracking, "-0.64px");
   assert.equal(await page.locator(".review-feedback-composer").count(), 1);
   await page.getByText("Drop files here", { exact: true }).waitFor();
   await page.getByRole("button", { name: "Approve to Continue", exact: true }).waitFor();
@@ -139,6 +166,22 @@ async function assertReviewSurface(page, width) {
       const box = await page.getByRole("button", { name, exact: true }).boundingBox();
       assert.ok(box && box.height >= 44, `${name} is below 44px at ${width}px`);
     }
+    const undersized = await page.locator(".evidence-workspace").evaluate((root) =>
+      [...root.querySelectorAll("button, a, summary, input, textarea, select")]
+        .filter((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          return node.getAttribute("aria-hidden") !== "true" &&
+            node.getAttribute("tabindex") !== "-1" &&
+            rect.width > 0 && rect.height > 0 && style.visibility !== "hidden";
+        })
+        .map((node) => ({
+          label: node.getAttribute("aria-label") || node.textContent?.trim() || node.tagName,
+          height: node.getBoundingClientRect().height,
+        }))
+        .filter((item) => item.height < 44),
+    );
+    assert.deepEqual(undersized, [], `interactive targets below 44px at ${width}px`);
   }
 
   const details = page.locator(".review-technical");
@@ -156,7 +199,14 @@ async function assertReviewSurface(page, width) {
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
     .analyze();
   const severe = axe.violations.filter((violation) => violation.impact === "serious" || violation.impact === "critical");
-  assert.deepEqual(severe.map(({ id, impact }) => ({ id, impact })), []);
+  assert.deepEqual(
+    severe.map(({ id, impact, nodes }) => ({
+      id,
+      impact,
+      targets: nodes.map((node) => node.target),
+    })),
+    [],
+  );
 
   await page.screenshot({ path: path.join(output, `token-review-${width}.png`), fullPage: true });
 }
@@ -174,15 +224,63 @@ try {
 
     if (width === 1440) {
       const fileInput = page.locator(".intake-upload--review input[type=file]");
+      const uploadResponse = page.waitForResponse((response) =>
+        response.url().endsWith("/api/uploads") && response.request().method() === "POST"
+      );
       await fileInput.setInputFiles({ name: "brand-guide.md", mimeType: "text/markdown", buffer: Buffer.from("# Approved brand guide") });
+      const firstUpload = await (await uploadResponse).json();
       await page.getByText("brand-guide.md", { exact: true }).waitFor();
       await page.getByRole("textbox", { name: "Feedback" }).fill("Use the approved brand guide as evidence for this review.");
+      const stagingRoot = path.join(
+        os.tmpdir(),
+        `one-box-intake-${createHash("sha256").update(process.cwd()).digest("hex").slice(0, 16)}`,
+      );
+      await fs.rm(
+        path.join(stagingRoot, createHash("sha256").update(firstUpload.uploadSession).digest("hex")),
+        { recursive: true, force: true },
+      );
+      await page.getByRole("button", { name: "Send feedback", exact: true }).click();
+      await page.getByRole("button", { name: "Choose files again", exact: true }).waitFor();
+      assert.ok(
+        errors.some((entry) => entry.includes("401 (Unauthorized)")),
+        "the forced expired-session request must fail closed with 401",
+      );
+      assert.equal(
+        await page.getByRole("textbox", { name: "Feedback" }).inputValue(),
+        "Use the approved brand guide as evidence for this review.",
+      );
+
+      const recoveryUploadResponse = page.waitForResponse((response) =>
+        response.url().endsWith("/api/uploads") && response.request().method() === "POST"
+      );
+      const recoveryChooser = page.waitForEvent("filechooser");
+      await page.getByRole("button", { name: "Choose files again", exact: true }).click();
+      await (await recoveryChooser).setFiles({ name: "brand-guide.md", mimeType: "text/markdown", buffer: Buffer.from("# Approved brand guide") });
+      const recoveryResponse = await recoveryUploadResponse;
+      const recoveryBody = await recoveryResponse.json();
+      assert.equal(recoveryResponse.status(), 200);
+      assert.equal(recoveryBody.uploads?.[0]?.fileName, "brand-guide.md");
+      await page.waitForTimeout(500);
+      const recoveryUi = await page.locator(".intake-upload--review").textContent();
+      assert.equal(
+        await page.locator('button[aria-label="Remove brand-guide.md"]').count(),
+        1,
+        `recovered upload did not appear in the review UI: ${recoveryUi}`,
+      );
+      await page.locator(".intake-upload__disclosure summary").click();
+      await page.locator('button[aria-label="Remove brand-guide.md"]').click();
+      await page.getByText("brand-guide.md", { exact: true }).waitFor({ state: "detached" });
+      await fileInput.setInputFiles({ name: "brand-guide.md", mimeType: "text/markdown", buffer: Buffer.from("# Approved brand guide") });
+      await page.getByText("brand-guide.md", { exact: true }).waitFor();
       await page.getByRole("button", { name: "Send feedback", exact: true }).click();
       await page.getByText("Feedback and attachments were saved with this review.", { exact: true }).waitFor();
       await page.screenshot({ path: path.join(output, "token-review-feedback-saved-1440.png"), fullPage: true });
     }
 
-    assert.deepEqual(errors, [], `browser errors at ${width}px`);
+    const unexpectedErrors = errors.filter((entry) =>
+      !(width === 1440 && entry.includes("401 (Unauthorized)"))
+    );
+    assert.deepEqual(unexpectedErrors, [], `browser errors at ${width}px`);
     await context.close();
   }
 

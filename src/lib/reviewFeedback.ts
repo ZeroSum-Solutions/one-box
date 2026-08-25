@@ -13,6 +13,7 @@ import { sitePaths } from "./runstate";
 import { claimEvidenceUploadSession, UploadError } from "./uploads";
 
 const WORKFLOW_ARTIFACT_TYPES = [
+  "reference-selection",
   "ledger",
   "design-contract",
   "token-inventory",
@@ -63,7 +64,7 @@ interface RecordReviewFeedbackInput {
   uploadSession: string | null;
   uploadIds: string[];
   stage: EvidenceWorkflowStage;
-  artifactType: WorkflowArtifactType;
+  artifactType: WorkflowArtifactType | "reference-selection";
   artifactVersion: number;
 }
 

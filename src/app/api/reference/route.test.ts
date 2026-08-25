@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const referenceStageMocks = vi.hoisted(() => ({ stageLockCandidates: vi.fn() }));
@@ -123,6 +124,37 @@ afterEach(async () => {
 });
 
 describe("reference picker route", () => {
+  it("records feedback against the current reference-selection version without selecting it", async () => {
+    const runId = await fixtureRun();
+    const feedbackId = "11111111-1111-4111-8111-111111111111";
+
+    const response = await POST(
+      request(runId, {
+        action: "record-feedback",
+        feedbackId,
+        text: "Use the quieter color direction.",
+        uploadSession: null,
+        uploadIds: [],
+      }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await loadRun(runId)).referenceSelection?.status).toBe("pending");
+    await expect(
+      fs.readFile(
+        path.join(sitePaths(runId).root, "evidence", "review-feedback", `${feedbackId}.json`),
+        "utf8",
+      ).then(JSON.parse),
+    ).resolves.toMatchObject({
+      id: feedbackId,
+      stage: "evidence",
+      artifactType: "reference-selection",
+      artifactVersion: 1,
+      text: "Use the quieter color direction.",
+    });
+  });
+
   it("returns the persisted picker state for workspace polling", async () => {
     const runId = await fixtureRun();
 

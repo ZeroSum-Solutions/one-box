@@ -363,11 +363,21 @@ export function TokenSpecList({
   );
 }
 
-function tokenValue(
-  tokens: Array<{ semanticName: string; value: string }>,
+function usageValue(
+  token: { usage: string } | undefined,
   pattern: RegExp,
 ): string | undefined {
-  return tokens.find((token) => pattern.test(token.semanticName))?.value;
+  return token?.usage.match(pattern)?.[1];
+}
+
+function specimenFontFamily(family: string | undefined): string | undefined {
+  if (!family) return undefined;
+  const knownShellFamilies: Record<string, string> = {
+    switzer: "var(--font-body)",
+    "clash display": "var(--font-display)",
+    "jetbrains mono": "var(--font-mono-app)",
+  };
+  return knownShellFamilies[family.toLowerCase()] ?? family;
 }
 
 /** Show the proposed system doing real work before asking a reviewer to read
@@ -387,15 +397,22 @@ export function TokenSpecimenGallery({
   const radii = byCategory.get("radius") ?? [];
   const borders = byCategory.get("border") ?? [];
   const shadows = byCategory.get("shadow") ?? [];
-  const family = tokenValue(typography, /font(?!.*(?:size|weight))/i);
-  const fontSize = tokenValue(typography, /(?:text|font).*size|heading/i);
-  const fontWeight = tokenValue(typography, /weight/i);
-  const lineHeight = tokenValue(typography, /(?:leading|line-height)/i);
-  const gap = spacing[0]?.value;
-  const radius = radii[0]?.value;
-  const border = borders[0]?.value;
-  const shadow = shadows[0]?.value;
-  const hasSpecimens = typography.length + spacing.length + radii.length + borders.length + shadows.length > 0;
+  const colors = byCategory.get("color") ?? [];
+  const familyToken = typography.find((token) => /--font-/i.test(token.semanticName));
+  const typeTokens = typography.filter((token) => /--text-/i.test(token.semanticName));
+  const headingToken = typeTokens.find((token) => /heading|display|title/i.test(`${token.semanticName} ${token.usage}`)) ?? typeTokens.at(-1);
+  const bodyToken = typeTokens.find((token) => /body/i.test(`${token.semanticName} ${token.usage}`)) ?? typeTokens[0];
+  const family = specimenFontFamily(familyToken?.value);
+  const weights = usageValue(familyToken, /weights?\s+([0-9, ]+)/i)
+    ?.split(",")
+    .map((value) => Number.parseInt(value.trim(), 10))
+    .filter(Number.isFinite) ?? [];
+  const headingWeight = weights.length > 0 ? String(Math.max(...weights)) : undefined;
+  const bodyWeight = weights.length > 0 ? String(Math.min(...weights)) : undefined;
+  const headingLineHeight = usageValue(headingToken, /line-height\s+([^;\s]+)/i);
+  const bodyLineHeight = usageValue(bodyToken, /line-height\s+([^;\s]+)/i);
+  const headingTracking = usageValue(headingToken, /tracking\s+([^;\s]+)/i);
+  const hasSpecimens = typography.length + spacing.length + radii.length + borders.length + shadows.length + colors.length > 0;
 
   if (!hasSpecimens && !byCategory.has("component-state")) return null;
 
@@ -413,37 +430,83 @@ export function TokenSpecimenGallery({
               className="token-specimen__heading"
               style={{
                 ...(family ? { fontFamily: family } : {}),
-                ...(fontSize ? { fontSize } : {}),
-                ...(fontWeight ? { fontWeight } : {}),
-                ...(lineHeight ? { lineHeight } : {}),
+                ...(headingToken ? { fontSize: headingToken.value } : {}),
+                ...(headingWeight ? { fontWeight: headingWeight } : {}),
+                ...(headingLineHeight ? { lineHeight: headingLineHeight } : {}),
+                ...(headingTracking ? { letterSpacing: headingTracking } : {}),
               }}
             >
               The quick brown fox
             </p>
-            <p className="token-specimen__body">A heading and body line show the real family, scale, weight, and rhythm together.</p>
+            <p
+              className="token-specimen__body"
+              style={{
+                ...(family ? { fontFamily: family } : {}),
+                ...(bodyToken ? { fontSize: bodyToken.value } : {}),
+                ...(bodyWeight ? { fontWeight: bodyWeight } : {}),
+                ...(bodyLineHeight ? { lineHeight: bodyLineHeight } : {}),
+              }}
+            >
+              A heading and body line show the real family, scale, weight, and rhythm together.
+            </p>
           </article>
         )}
-        {gap && (
+        {colors.length > 0 && (
           <article className="token-specimen">
-            <span className="token-specimen__label">Spacing</span>
-            <div className="token-spacing-demo" style={{ gap }} aria-label={`Two elements separated by ${gap}`}>
-              <span>First element</span>
-              <span>Second element</span>
+            <span className="token-specimen__label">Color roles</span>
+            <div className="token-color-role-list">
+              {colors.map((token) => {
+                const rgb = parseHex(token.value);
+                const foreground = rgb && relativeLuminance(rgb) > 0.42 ? "#111111" : "#ffffff";
+                return (
+                  <div
+                    className="token-color-role"
+                    key={token.semanticName}
+                    style={{ background: token.value, color: foreground }}
+                  >
+                    <span>{token.usage.split(";")[0] || "Interface role"}</span>
+                    <code>{token.semanticName}</code>
+                  </div>
+                );
+              })}
             </div>
           </article>
         )}
-        {(radius || border || shadow) && (
+        {spacing.length > 0 && (
           <article className="token-specimen">
-            <span className="token-specimen__label">Surface</span>
-            <div
-              className="token-surface-demo"
-              style={{
-                ...(radius ? { borderRadius: radius } : {}),
-                ...(border ? { border } : {}),
-                ...(shadow ? { boxShadow: shadow } : {}),
-              }}
-            >
-              Card, border, radius, and shadow in one component role.
+            <span className="token-specimen__label">Spacing</span>
+            <div className="token-measure-list">
+              {spacing.map((token) => (
+                <div className="token-measure" key={token.semanticName}>
+                  <div className="token-spacing-demo" style={{ gap: token.value }} role="img" aria-label={`Two elements separated by ${token.value}`}>
+                    <span aria-hidden="true" />
+                    <span aria-hidden="true" />
+                  </div>
+                  <code>{token.semanticName}: {token.value}</code>
+                </div>
+              ))}
+            </div>
+          </article>
+        )}
+        {radii.length + borders.length + shadows.length > 0 && (
+          <article className="token-specimen">
+            <span className="token-specimen__label">Surfaces</span>
+            <div className="token-surface-list">
+              {radii.map((token) => (
+                <div className="token-surface-demo" key={token.semanticName} style={{ borderRadius: token.value }}>
+                  <span>Radius</span><code>{token.semanticName}: {token.value}</code>
+                </div>
+              ))}
+              {borders.map((token) => (
+                <div className="token-surface-demo" key={token.semanticName} style={{ border: token.value }}>
+                  <span>Border</span><code>{token.semanticName}: {token.value}</code>
+                </div>
+              ))}
+              {shadows.map((token) => (
+                <div className="token-surface-demo" key={token.semanticName} style={{ boxShadow: token.value }}>
+                  <span>Shadow or overlay</span><code>{token.semanticName}: {token.value}</code>
+                </div>
+              ))}
             </div>
           </article>
         )}

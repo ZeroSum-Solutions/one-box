@@ -341,15 +341,62 @@
 
 .token-spacing-demo {
   display: flex;
-  flex-direction: column;
+  align-items: center;
 }
 
-.token-spacing-demo span,
+.token-spacing-demo span {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  background: rgb(255 255 255 / 12%);
+  border: 1px solid var(--border-smoke);
+  border-radius: 3px;
+}
+
+.token-measure-list,
+.token-surface-list,
+.token-color-role-list {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+.token-measure {
+  display: grid;
+  grid-template-columns: minmax(44px, auto) 1fr;
+  align-items: center;
+  gap: var(--spacing-12);
+  min-width: 0;
+}
+
+.token-measure code,
+.token-surface-demo code,
+.token-color-role code {
+  overflow-wrap: anywhere;
+  font-size: 10.5px;
+}
+
 .token-surface-demo {
+  display: grid;
+  gap: 4px;
   padding: var(--spacing-12);
   background: rgb(255 255 255 / 5%);
   color: var(--text-mist);
   font-size: 12px;
+}
+
+.token-color-role {
+  display: grid;
+  gap: 4px;
+  min-height: 64px;
+  align-content: end;
+  padding: var(--spacing-12);
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: var(--radius-small);
+  font-size: 12px;
+}
+
+.token-color-role code {
+  color: inherit;
 }
 
 .token-state-demo {
@@ -517,6 +564,8 @@
 
   .review-feedback-composer__actions > *,
   .review-upload__drop .intake-upload__button,
+  .gate-rail__open,
+  .token-state-demo button,
   .review-technical > summary {
     min-height: 44px;
   }

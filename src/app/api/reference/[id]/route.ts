@@ -20,10 +20,16 @@ import {
   assertWebsiteProductionRun,
   websiteOnlyProductionResponse,
 } from "../../../../lib/productionTarget";
+import {
+  recordReviewFeedback,
+  ReviewFeedbackActionSchema,
+  ReviewFeedbackError,
+} from "../../../../lib/reviewFeedback";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
 const ActionSchema = z.discriminatedUnion("action", [
+  ReviewFeedbackActionSchema,
   z.object({
     action: z.literal("select"),
     selectedId: z.string().min(1).max(80),
@@ -93,6 +99,25 @@ export async function POST(
   try {
     await assertWebsiteProductionRun(id);
     const input = parsed.data;
+    if (input.action === "record-feedback") {
+      const state = pickerState(await loadRun(id));
+      if (state.status !== "pending") {
+        throw new ReferenceSelectionError("reference selection feedback is closed");
+      }
+      const version = state.versions.at(-1);
+      if (!version) throw new ReferenceSelectionError("reference options are unavailable");
+      const feedback = await recordReviewFeedback({
+        runId: id,
+        feedbackId: input.feedbackId,
+        text: input.text,
+        uploadSession: input.uploadSession,
+        uploadIds: input.uploadIds,
+        stage: "evidence",
+        artifactType: "reference-selection",
+        artifactVersion: version.version,
+      });
+      return Response.json({ ...responsePayload(await loadRun(id)), feedback });
+    }
     if (input.action === "select") {
       const selection = await withRunTransaction(id, async (transaction) => {
         const state = pickerState(transaction.state);
@@ -218,6 +243,9 @@ export async function POST(
     if (error instanceof ReferenceSelectionError) {
       const status = error.message === "selected candidate is not among the shown options" ? 400 : 409;
       return Response.json({ error: error.message }, { status });
+    }
+    if (error instanceof ReviewFeedbackError) {
+      return Response.json({ error: error.message }, { status: error.status });
     }
     throw error;
   }
