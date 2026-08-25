@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import type { Page } from "playwright";
+import type { Locator, Page } from "playwright";
 import { withSiteAuthorityLock } from "./siteMutation";
 import { launchEvaluationAwareBrowser } from "./evaluationBrowser";
 import {
@@ -585,6 +585,22 @@ async function boundedVisibleQaTarget(page: Page) {
   return null;
 }
 
+async function movePointerOutsideTarget(page: Page, target: Locator) {
+  const box = await target.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error("visible QA target bounds are unavailable");
+  const point = [
+    { x: 0, y: 0 },
+    { x: viewport.width - 1, y: 0 },
+    { x: 0, y: viewport.height - 1 },
+    { x: viewport.width - 1, y: viewport.height - 1 },
+  ].find(({ x, y }) =>
+    x < box.x || x >= box.x + box.width || y < box.y || y >= box.y + box.height
+  );
+  if (!point) throw new Error("visible QA target covers the interaction viewport");
+  await page.mouse.move(point.x, point.y);
+}
+
 async function runThreeWidthVisualQaUnlocked(
   siteDirectory: string,
   sourceCssArchitectureVersion: number,
@@ -648,6 +664,8 @@ async function runThreeWidthVisualQaUnlocked(
           boxShadow: style.boxShadow,
         };
       });
+      await movePointerOutsideTarget(interactionPage, visibleTarget);
+      await interactionPage.waitForTimeout(250);
       const beforeHover = await visualState();
       await visibleTarget.hover({ timeout: 2_000 });
       await interactionPage.waitForTimeout(250);
