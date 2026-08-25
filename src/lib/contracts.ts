@@ -2313,7 +2313,7 @@ export type Intake = z.infer<typeof IntakeSchema>;
 // ---------- Stage 2: competitive scan ----------
 
 /** A competitor resolved against Google Maps Platform. Present only when the
- * Maps lane is configured (GOOGLE_MAPS_API_KEY); its absence is a normal
+ * Places lane is configured (GOOGLE_PLACES_API_KEY); its absence is a normal
  * degraded state, never a scan failure — see tools/places.ts. */
 export const PlaceSchema = z.object({
   placeId: z.string(),
