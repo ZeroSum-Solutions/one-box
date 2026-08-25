@@ -1,0 +1,51 @@
+{
+  "id": "smoke-fixture",
+  "createdAt": "2026-08-14T12:00:00.000Z",
+  "pipelineVersion": "legacy-v1",
+  "stages": {
+    "intake": {
+      "status": "pending",
+      "retries": 0,
+      "gateRepairAttempts": 0
+    },
+    "scanned": {
+      "status": "pending",
+      "retries": 0,
+      "gateRepairAttempts": 0
+    },
+    "locked": {
+      "status": "pending",
+      "retries": 0,
+      "gateRepairAttempts": 0
+    },
+    "synthesized": {
+      "status": "pending",
+      "retries": 0,
+      "gateRepairAttempts": 0
+    },
+    "built": {
+      "status": "pending",
+      "retries": 0,
+      "gateRepairAttempts": 0
+    },
+    "edited": {
+      "status": "pending",
+      "retries": 0,
+      "gateRepairAttempts": 0
+    }
+  },
+  "costUsd": 0,
+  "costCapUsd": 3,
+  "modelSlugs": {
+    "orchestrator": "google/gemini-3.1-pro-preview",
+    "builder": "moonshotai/kimi-k3",
+    "bulk": "deepseek/deepseek-v4-flash"
+  },
+  "referenceMode": "refero",
+  "evidenceWorkflow": {
+    "currentStage": "evidence",
+    "artifacts": []
+  },
+  "referencePickerEnabled": false,
+  "layoutAuthority": "template-v1"
+}

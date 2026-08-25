@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "brochure-local-service",
+  "purpose": "brochure-local-service",
+  "fixtureSourceKind": "synthetic-evaluation",
+  "customerApproval": "not-applicable",
+  "audience": "A fictional homeowner comparing a local service.",
+  "objective": "Explain the synthetic service and make a phone conversation the clear next step.",
+  "syntheticFacts": [
+    "Evaluation-only business named Northstar Workshop.",
+    "The fixture offers a fictional consultation."
+  ],
+  "referenceState": {
+    "mode": "selected",
+    "sourceAliases": [
+      "ref-brochure"
+    ]
+  },
+  "expectedSectionIds": [
+    "hero",
+    "services"
+  ],
+  "primaryConversion": {
+    "label": "Call the synthetic studio",
+    "kind": "call",
+    "actionId": "primary-conversion",
+    "targetNodeId": "primary-action"
+  },
+  "expectedCoreSelectors": [
+    "header",
+    "nav",
+    "main",
+    "footer",
+    "#hero",
+    "#services"
+  ],
+  "expectedActionSelectors": [
+    "[data-edit-id=\"primary-action\"]"
+  ],
+  "forbiddenOutcomes": [
+    "Invented customer facts or testimonials",
+    "Frozen local-service topology for a non-brochure purpose",
+    "Copied reference branding or composition",
+    "Pixel-prescribed layout expectations"
+  ],
+  "viewports": [
+    {
+      "id": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "id": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "id": "mobile",
+      "width": 390,
+      "height": 844
+    }
+  ]
+}

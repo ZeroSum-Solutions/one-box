@@ -6,7 +6,11 @@ export function resumedRunId(search: string): string | null {
 }
 
 export function pipelineStatusLabel(event: PipelineEvent | undefined): string {
-  if (event?.type === "paused" || event?.type === "reference-paused") return "{ review required }";
+  if (
+    event?.type === "paused" ||
+    event?.type === "reference-paused" ||
+    event?.type === "page-ir-source-paused"
+  ) return "{ review required }";
   if (event?.type === "complete") return "{ complete }";
   if (event?.type === "error") return "{ blocked }";
   return "{ building }";
@@ -20,7 +24,13 @@ export async function consumePipelineRunStream(
   await readSSE(response, (raw) => {
     if (!raw || typeof raw !== "object" || !("type" in raw)) return;
     const event = raw as PipelineEvent;
-    if (event.type === "complete" || event.type === "paused" || event.type === "reference-paused" || event.type === "error") {
+    if (
+      event.type === "complete" ||
+      event.type === "paused" ||
+      event.type === "reference-paused" ||
+      event.type === "page-ir-source-paused" ||
+      event.type === "error"
+    ) {
       terminal = true;
     }
     onEvent(event);

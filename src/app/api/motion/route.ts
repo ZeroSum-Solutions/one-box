@@ -9,6 +9,11 @@ import {
   revertSiteMotion,
 } from "../../../lib/siteMotion";
 import { BlockingMutationError } from "../../../lib/siteMutation";
+import {
+  assertWebsiteProductionRun,
+  websiteOnlyProductionResponse,
+} from "../../../lib/productionTarget";
+import { loadRun } from "../../../lib/runstate";
 
 const RunIdSchema = z.string().regex(/^[a-z0-9_-]{4,40}$/i);
 const RequestSchema = z.discriminatedUnion("action", [
@@ -36,11 +41,23 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: parsed.error.message }, { status: 400 });
   try {
     const body = parsed.data;
+    await assertWebsiteProductionRun(body.runId);
+    if ((await loadRun(body.runId)).layoutAuthority === "page-ir-v1") {
+      return Response.json(
+        {
+          code: "unsupported-page-ir-capability",
+          error: "Motion mutations are not represented by Page IR v1",
+        },
+        { status: 409 },
+      );
+    }
     if (body.action === "preview") return Response.json({ ok: true, draft: await previewMotionEdit(body.runId, body.draft) });
     if (body.action === "apply") return Response.json({ ok: true, ...(await mutateSiteMotion(body.runId, { action: "apply", draft: body.draft })) });
     if (body.action === "remove") return Response.json({ ok: true, ...(await mutateSiteMotion(body.runId, body)) });
     return Response.json({ ok: true, ...(await revertSiteMotion(body.runId)) });
   } catch (error) {
+    const targetResponse = websiteOnlyProductionResponse(error);
+    if (targetResponse) return targetResponse;
     if (error instanceof BlockingMutationError) return Response.json({ error: error.message, gates: error.reports }, { status: 409 });
     if (error instanceof MotionValidationError) return Response.json({ error: error.message }, { status: 400 });
     return Response.json({ error: error instanceof Error ? error.message : "motion mutation failed" }, { status: 500 });

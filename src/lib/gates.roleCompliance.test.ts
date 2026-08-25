@@ -168,4 +168,55 @@ describe("evaluateColorRoleCompliance", () => {
       )
     ).toEqual([]);
   });
+
+  it("does not blame a shared rendered color when one matching token allows the context", () => {
+    const duplicateWhiteTokens = {
+      colors: [
+        {
+          name: "Page Canvas",
+          value: "#ffffff",
+          cssVar: "--color-bg",
+          role: "inverted contact text",
+          forbiddenContexts: [],
+        },
+        {
+          name: "Card Surface",
+          value: "#ffffff",
+          cssVar: "--color-surface-alt",
+          role: "card backgrounds only",
+          forbiddenContexts: ["body-text", "heading-text", "border"],
+        },
+        {
+          name: "Button Contrast",
+          value: "#ffffff",
+          cssVar: "--color-primary-contrast",
+          role: "primary button text only",
+          forbiddenContexts: ["body-text", "heading-text", "border"],
+        },
+      ],
+    } as unknown as DesignTokens;
+
+    expect(
+      evaluateColorRoleCompliance(
+        [
+          {
+            selector: '[data-edit-id="contact.headline"]',
+            context: "heading-text",
+            colorHex: "#ffffff",
+          },
+          {
+            selector: '[data-edit-id="contact.sub"]',
+            context: "body-text",
+            colorHex: "#ffffff",
+          },
+          {
+            selector: '[data-edit-id="contact.phone"]',
+            context: "border",
+            colorHex: "#ffffff",
+          },
+        ],
+        duplicateWhiteTokens
+      )
+    ).toEqual([]);
+  });
 });

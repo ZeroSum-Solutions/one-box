@@ -9,19 +9,52 @@ import {
   mutateSiteMotion,
   revertSiteMotion,
 } from "./siteMotion";
-import type { GateReport } from "./contracts";
+import type { GateReport, MutationGateRequestV1 } from "./contracts";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
 
 const roots: string[] = [];
 const passGate = async (): Promise<GateReport[]> => [];
 
-async function fixture() {
+async function fixture(runId = "test-run") {
   const sitesRoot = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-motion-"));
   roots.push(sitesRoot);
-  const root = path.join(sitesRoot, "test-run");
+  const root = path.join(sitesRoot, runId);
   await fs.mkdir(path.join(root, "site"), { recursive: true });
   await fs.writeFile(path.join(root, "site", "index.html"), '<main><h1 data-edit-id="hero.headline">Hello</h1><div data-edit-id="hero.webgl"><canvas></canvas></div></main>');
   await fs.writeFile(path.join(root, "gates.json"), "original gates");
   return { sitesRoot, root };
+}
+
+async function readOptional(filePath: string): Promise<Buffer | null> {
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+async function snapshotArtifacts(root: string) {
+  const relativePaths = [
+    "site/motion.json",
+    "site/motion-manifest.js",
+    "motion-history.json",
+    "gates.json",
+  ];
+  return new Map(
+    await Promise.all(
+      relativePaths.map(async (relativePath) => [
+        relativePath,
+        await readOptional(path.join(root, relativePath)),
+      ] as const),
+    ),
+  );
+}
+
+async function expectArtifacts(root: string, expected: Map<string, Buffer | null>) {
+  for (const [relativePath, bytes] of expected) {
+    expect(await readOptional(path.join(root, relativePath))).toEqual(bytes);
+  }
 }
 
 afterEach(async () => {
@@ -71,6 +104,47 @@ describe("motion schema", () => {
 });
 
 describe("motion persistence", () => {
+  it("routes apply, remove, and revert through the motion capability", async () => {
+    const { sitesRoot } = await fixture();
+    const requests: MutationGateRequestV1[] = [];
+    const gateRunner = async (_runId: string, options: { afterEdit: MutationGateRequestV1 }): Promise<GateReport[]> => {
+      requests.push(options.afterEdit);
+      return [];
+    };
+
+    await mutateSiteMotion("test-run", { action: "apply", draft }, { sitesRoot, gateRunner });
+    await mutateSiteMotion(
+      "test-run",
+      { action: "remove", editId: "hero.headline", kind: "entrance" },
+      { sitesRoot, gateRunner },
+    );
+    await revertSiteMotion("test-run", { sitesRoot, gateRunner });
+
+    expect(requests).toEqual([
+      knownMutationGateRequest("motion"),
+      knownMutationGateRequest("motion"),
+      knownMutationGateRequest("motion"),
+    ]);
+  });
+
+  it("keeps an injected-root apply and revert away from the default run root", async () => {
+    const runId = "motion-injected-root";
+    const defaultRunRoot = path.join(process.cwd(), "sites", runId);
+    roots.push(defaultRunRoot);
+    await fs.rm(defaultRunRoot, { recursive: true, force: true });
+    const { sitesRoot } = await fixture(runId);
+
+    await mutateSiteMotion(
+      runId,
+      { action: "apply", draft },
+      { sitesRoot, gateRunner: passGate },
+    );
+    await revertSiteMotion(runId, { sitesRoot, gateRunner: passGate });
+
+    expect((await inspectSiteMotion(runId, undefined, { sitesRoot })).entries).toEqual([]);
+    await expect(fs.stat(defaultRunRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("applies, replaces, removes, and reverts through guarded history", async () => {
     const { sitesRoot } = await fixture();
     await mutateSiteMotion("test-run", { action: "apply", draft }, { sitesRoot, gateRunner: passGate });
@@ -125,18 +199,45 @@ describe("motion persistence", () => {
     await expect(mutateSiteMotion("test-run", { action: "apply", draft: { ...draft, editId: "hero.webgl" } }, { sitesRoot, gateRunner: passGate })).rejects.toThrow(/WebGL/);
   });
 
-  it("rolls back manifest/history/gates when blocking gates fail", async () => {
+  it("restores exact motion artifacts and absent-before state after rejected gates", async () => {
     const { sitesRoot, root } = await fixture();
+    await fs.writeFile(path.join(root, "site", "motion.json"), '{ "version": 1, "entries": [] }\n');
+    await fs.writeFile(
+      path.join(root, "site", "motion-manifest.js"),
+      'window.__ONEBOX_MOTION_MANIFEST__={"version":1,"entries":[]};\n',
+    );
+    await fs.writeFile(
+      path.join(root, "motion-history.json"),
+      '{ "version": 1, "entries": [], "cursor": 0 }\n',
+    );
+    const presentBefore = await snapshotArtifacts(root);
     let gateCalls = 0;
-    const failGate = async () => {
+    const failGate = async (): Promise<GateReport[]> => {
       gateCalls += 1;
-      await fs.writeFile(path.join(root, "gates.json"), "candidate gates");
+      await fs.writeFile(path.join(root, "gates.json"), `candidate gates ${gateCalls}`);
       if (gateCalls > 1) throw new Error("restorative gate failed");
       return [{ gate: "motion-qa", pass: false, blocking: true, details: ["blocked"], ranAt: new Date().toISOString() }];
     };
     await expect(mutateSiteMotion("test-run", { action: "apply", draft }, { sitesRoot, gateRunner: failGate })).rejects.toThrow(/blocking gates/);
-    expect((await inspectSiteMotion("test-run", undefined, { sitesRoot })).entries).toEqual([]);
-    expect(await fs.readFile(path.join(root, "gates.json"), "utf8")).toBe("original gates");
+    await expectArtifacts(root, presentBefore);
+
+    const absent = await fixture("motion-rejected-absent");
+    const absentBefore = await snapshotArtifacts(absent.root);
+    let absentGateCalls = 0;
+    const rejectAbsent = async (): Promise<GateReport[]> => {
+      absentGateCalls += 1;
+      await fs.writeFile(path.join(absent.root, "gates.json"), `candidate gates ${absentGateCalls}`);
+      if (absentGateCalls > 1) throw new Error("restorative gate failed");
+      return [{ gate: "motion-qa", pass: false, blocking: true, details: ["blocked"], ranAt: new Date().toISOString() }];
+    };
+    await expect(
+      mutateSiteMotion(
+        "motion-rejected-absent",
+        { action: "apply", draft },
+        { sitesRoot: absent.sitesRoot, gateRunner: rejectAbsent },
+      ),
+    ).rejects.toThrow(/blocking gates/);
+    await expectArtifacts(absent.root, absentBefore);
   });
 
   it("serializes concurrent apply operations without stale history", async () => {

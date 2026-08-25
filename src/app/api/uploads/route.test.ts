@@ -13,7 +13,7 @@ import {
   stageUploads,
 } from "../../../lib/uploads";
 import { createRun, sitePaths } from "../../../lib/runstate";
-import { handleUpload, readBoundedBody } from "./route";
+import { handleUpload, readBoundedBody } from "./route-runtime";
 
 const temporaryDirectories: string[] = [];
 const testRunIds: string[] = [];

@@ -9,6 +9,7 @@ import {
   runGuardedMutation,
   type GateRunner,
 } from "./siteMutation";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
 
 const SITES_ROOT = path.join(process.cwd(), "sites");
 const MOTION_ID_PATTERN =
@@ -151,6 +152,7 @@ function motionPaths(testSitesRoot: string | undefined, runId: string) {
     ? path.join(testSitesRoot, safeRunId)
     : path.join(/* turbopackIgnore: true */ SITES_ROOT, safeRunId);
   return {
+    root,
     html: path.join(root, "site", "index.html"),
     manifest: path.join(root, "site", "motion.json"),
     manifestScript: path.join(root, "site", "motion-manifest.js"),
@@ -259,8 +261,10 @@ export async function mutateSiteMotion(
   const files = motionPaths(options.sitesRoot, runId);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.manifest, files.manifestScript, files.history, files.gates],
     gateRunner: options.gateRunner,
+    gateRequest: knownMutationGateRequest("motion"),
     mutate: async () => {
       const [manifest, history, html] = await Promise.all([
         readManifest(files.manifest),
@@ -322,8 +326,10 @@ export async function revertSiteMotion(runId: string, options: MotionSiteOptions
   const files = motionPaths(options.sitesRoot, runId);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.manifest, files.manifestScript, files.history, files.gates],
     gateRunner: options.gateRunner,
+    gateRequest: knownMutationGateRequest("motion"),
     mutate: async () => {
       const history = await readHistory(files.history);
       if (history.cursor === 0) throw new MotionValidationError("no motion edit to revert");

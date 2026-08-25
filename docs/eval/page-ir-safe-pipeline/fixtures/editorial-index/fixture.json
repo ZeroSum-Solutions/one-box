@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "editorial-index",
+  "purpose": "editorial-index",
+  "providerMode": "recorded-or-stubbed",
+  "inputs": [
+    {
+      "path": "brief.json",
+      "sha256": "26da2304b6e6134842cc7f5fbcec29ec9f618b7e5c7abdf7ec8270fae0442da9"
+    },
+    {
+      "path": "page-ir.json",
+      "sha256": "3bf2117c1680c065fbe52bdef4abdc33c185e6507fd5c123aef3ad7fe7863df1"
+    }
+  ]
+}

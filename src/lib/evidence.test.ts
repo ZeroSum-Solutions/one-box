@@ -1,13 +1,16 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { compile } from "tailwindcss";
 import postcss from "postcss";
 import { chromium } from "playwright";
 import { buildSite } from "./builder";
-import { createRun, sitePaths } from "./runstate";
+import { buildAndPublishSiteFixture } from "../../test-support/buildSiteFixture";
+import { candidatePaths, createRun, saveArtifact, sitePaths } from "./runstate";
 import { withSiteAuthorityLock } from "./siteMutation";
+import { candidateBuildSha256 } from "./liveBundle";
 import {
   assertCanonicalTokenInventory,
   buildCssArchitecture,
@@ -28,11 +31,32 @@ import {
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     temporaryDirectories.splice(0).map((directory) =>
       fs.rm(directory, { recursive: true, force: true })
     )
   );
+});
+
+it("hashes promoted files with the candidate manifest's deterministic ordering", async () => {
+  const site = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-evidence-hash-"));
+  temporaryDirectories.push(site);
+  await fs.writeFile(path.join(site, "ScrollTrigger.min.js"), "vendor");
+  await fs.writeFile(path.join(site, "index.html"), "site");
+
+  const records = await Promise.all(
+    ["ScrollTrigger.min.js", "index.html"].map(async (filePath) => {
+      const bytes = await fs.readFile(path.join(site, filePath));
+      return {
+        path: filePath,
+        sizeBytes: bytes.byteLength,
+        sha256: createHash("sha256").update(bytes).digest("hex"),
+      };
+    }),
+  );
+
+  expect(await computeSiteBuildSha256(site)).toBe(candidateBuildSha256(records));
 });
 import {
   DesignTokensSchema,
@@ -437,7 +461,53 @@ describe("evidence artifact derivation", () => {
     30_000
   );
 
+  it("compiles an authorized build into the unserved candidate root", async () => {
+    const runId = await createRun({ pipelineVersion: "legacy-v1" });
+    const runRoot = sitePaths(runId).root;
+    const candidate = candidatePaths(runId);
+    temporaryDirectories.push(runRoot);
+    const skeleton = {
+      sections: [
+        { id: "nav", name: "Navigation", purpose: "wayfinding", contentNeeds: [] },
+        { id: "hero", name: "Hero", purpose: "conversion", contentNeeds: [] },
+        { id: "contact", name: "Contact", purpose: "conversion", contentNeeds: [] },
+        { id: "footer", name: "Footer", purpose: "chrome", contentNeeds: [] },
+      ],
+    };
+    const copy = {
+      sections: {
+        nav: { logo: "Northstar", phone: "555-0100" },
+        hero: { headline: "Proof first", sub: "Ready", cta: "Start", "image-alt": "Field work" },
+        contact: { headline: "Contact", sub: "Ready", cta: "Start" },
+        footer: { tagline: "Northstar" },
+      },
+    };
+    await saveArtifact(runId, "intake.json", intake);
+    await saveArtifact(runId, "tokens.json", tokens);
+    await saveArtifact(runId, "skeleton.json", skeleton);
+    await saveArtifact(runId, "copy.json", copy);
+
+    await buildSite({
+      runId,
+      intake,
+      tokens,
+      skeleton,
+      copy,
+      assets: {},
+    });
+
+    expect(await fs.readFile(path.join(candidate.site, "index.html"), "utf8"))
+      .toContain('data-project-target="website"');
+    expect(JSON.parse(await fs.readFile(candidate.provenance, "utf8"))).toMatchObject({
+      runId,
+      state: "ready-for-gates",
+      layoutAuthority: "template-v1",
+    });
+    await expect(fs.stat(sitePaths(runId).site)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("records passing visual QA at desktop, tablet, and mobile widths", async () => {
+    vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "1");
     const runId = await createRun({ pipelineVersion: "legacy-v1" });
     const runRoot = sitePaths(runId).root;
     const site = sitePaths(runId).site;
@@ -456,7 +526,7 @@ describe("evidence artifact derivation", () => {
     };
     const inventory = buildTokenInventory(runtimeTokens, 1, ["fixture"]);
     const plan = buildTailwindPlan(inventory, 1);
-    await buildSite({
+    await buildAndPublishSiteFixture({
       runId,
       intake,
       tokens: runtimeTokens,
@@ -510,6 +580,71 @@ describe("evidence artifact derivation", () => {
     expect(qa.checks.find((check) => check.area === "color-scheme")?.status).toBe("pass");
     expect(qa.checks.find((check) => check.area === "reduced-motion")?.status).toBe("pass");
     expect(qa.buildSha256).toMatch(/^[a-f0-9]{64}$/);
+  }, 30_000);
+
+  it("uses a compiled PageIR action anchor as the bounded interaction target", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    const runRoot = sitePaths(runId).root;
+    const site = sitePaths(runId).site;
+    temporaryDirectories.push(runRoot);
+    await fs.mkdir(site, { recursive: true });
+    await fs.writeFile(
+      path.join(site, "index.html"),
+      `<!doctype html><html><head><style>
+        html,body { margin: 0; background: #fff; color: #000; }
+        a[data-edit-id] { display: inline-block; color: #000; background: #fff; }
+        a[data-edit-id]:hover { background: #ddd; }
+        a[data-edit-id]:focus-visible { outline: 3px solid #000; }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0s; transition-duration: 0s; } }
+      </style></head><body><main><a data-edit-id="primary-action" href="#contact">Start</a><section id="contact">Contact</section></main></body></html>`,
+    );
+
+    const qa = await runThreeWidthVisualQa(runId, site, 1);
+
+    expect(qa.checks.find((check) => check.area === "hover")?.status).toBe(
+      "pass",
+    );
+    expect(qa.checks.find((check) => check.area === "focus")?.status).toBe(
+      "pass",
+    );
+    expect(
+      qa.checks.find((check) => check.area === "color-scheme")?.status,
+    ).toBe("pass");
+  }, 30_000);
+
+  it("prioritizes the primary CTA over an earlier generic editable link", async () => {
+    const runId = await createRun();
+    const runRoot = sitePaths(runId).root;
+    const site = sitePaths(runId).site;
+    temporaryDirectories.push(runRoot);
+    await fs.mkdir(site, { recursive: true });
+    await fs.writeFile(
+      path.join(site, "index.html"),
+      `<!doctype html><html><head><style>
+        html,body { margin: 0; background: #fff; color: #000; }
+        a { display: inline-block; color: #000; background: #fff; }
+        .secondary:hover { background: #ddd; }
+        .secondary:focus-visible { outline: 3px solid #000; }
+        .hero__cta:focus { outline: none; }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0s; transition-duration: 0s; } }
+      </style></head><body><main>
+        <a class="secondary" data-edit-id="secondary-link" href="#details">Details</a>
+        <a class="hero__cta" href="#contact">Start</a>
+        <section id="details">Details</section><section id="contact">Contact</section>
+      </main></body></html>`,
+    );
+
+    const qa = await runThreeWidthVisualQa(runId, site, 1);
+
+    expect(qa.checks.find((check) => check.area === "hover")?.status).toBe(
+      "fail",
+    );
+    expect(qa.checks.find((check) => check.area === "focus")?.status).toBe(
+      "fail",
+    );
   }, 30_000);
 
   it("rejects empty, duplicate, and screenshot-free visual QA", () => {

@@ -1,0 +1,1 @@
+export const INTAKE_MESSAGE_MAX_CHARS = 60_000;

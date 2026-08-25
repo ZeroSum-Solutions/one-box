@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "fixtureId": "saas-marketing",
+  "purpose": "saas-marketing",
+  "fixtureSourceKind": "synthetic-evaluation",
+  "customerApproval": "not-applicable",
+  "audience": "A fictional operations lead evaluating workflow software.",
+  "objective": "Move from product promise to capabilities, integrations, pricing, and a product-tour action.",
+  "syntheticFacts": [
+    "Evaluation-only product named Relayboard.",
+    "The described workflow and pricing are fictional."
+  ],
+  "referenceState": {
+    "mode": "selected",
+    "sourceAliases": [
+      "ref-saas"
+    ]
+  },
+  "expectedSectionIds": [
+    "product-hero",
+    "features",
+    "integrations",
+    "pricing"
+  ],
+  "primaryConversion": {
+    "label": "Open the synthetic product tour",
+    "kind": "external",
+    "actionId": "primary-conversion",
+    "targetNodeId": "primary-action"
+  },
+  "expectedCoreSelectors": [
+    "header",
+    "nav",
+    "main",
+    "footer",
+    "#product-hero",
+    "#features",
+    "#integrations",
+    "#pricing"
+  ],
+  "expectedActionSelectors": [
+    "[data-edit-id=\"primary-action\"]"
+  ],
+  "forbiddenOutcomes": [
+    "Invented customer facts or testimonials",
+    "Frozen local-service topology for a non-brochure purpose",
+    "Copied reference branding or composition",
+    "Pixel-prescribed layout expectations"
+  ],
+  "viewports": [
+    {
+      "id": "desktop",
+      "width": 1440,
+      "height": 900
+    },
+    {
+      "id": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    {
+      "id": "mobile",
+      "width": 390,
+      "height": 844
+    }
+  ]
+}

@@ -4,8 +4,13 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { chromium, type Page } from "playwright";
+import type { Locator, Page } from "playwright";
 import { withSiteAuthorityLock } from "./siteMutation";
+import { launchEvaluationAwareBrowser } from "./evaluationBrowser";
+import {
+  candidateBuildSha256,
+  LIVE_BUNDLE_METADATA_DIR,
+} from "./liveBundle";
 import {
   CssArchitectureSchema,
   DesignResearchLedgerSchema,
@@ -558,18 +563,42 @@ export function buildVisualQa(
 /** Exercise the static build at the three required widths plus interaction,
  * color-scheme, and reduced-motion states. Screenshots are run-relative paths
  * so the evidence record stays portable between the two Macs. */
-const QA_TARGET_SELECTOR =
-  ".hero__cta:visible, main .btn:visible, .nav__cta:visible";
+const QA_TARGET_SELECTORS = [
+  ".hero__cta:visible",
+  "main .btn:visible",
+  ".nav__cta:visible",
+  "main a[data-edit-id]:visible",
+] as const;
 
 async function boundedVisibleQaTarget(page: Page) {
-  const target = page.locator(QA_TARGET_SELECTOR).first();
-  try {
-    await target.waitFor({ state: "visible", timeout: 2_000 });
-    await target.scrollIntoViewIfNeeded({ timeout: 2_000 });
-    return target;
-  } catch {
-    return null;
+  for (const selector of QA_TARGET_SELECTORS) {
+    const target = page.locator(selector).first();
+    try {
+      if ((await target.count()) === 0) continue;
+      await target.waitFor({ state: "visible", timeout: 2_000 });
+      await target.scrollIntoViewIfNeeded({ timeout: 2_000 });
+      return target;
+    } catch {
+      // Continue to the next lower-priority target class.
+    }
   }
+  return null;
+}
+
+async function movePointerOutsideTarget(page: Page, target: Locator) {
+  const box = await target.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error("visible QA target bounds are unavailable");
+  const point = [
+    { x: 0, y: 0 },
+    { x: viewport.width - 1, y: 0 },
+    { x: 0, y: viewport.height - 1 },
+    { x: viewport.width - 1, y: viewport.height - 1 },
+  ].find(({ x, y }) =>
+    x < box.x || x >= box.x + box.width || y < box.y || y >= box.y + box.height
+  );
+  if (!point) throw new Error("visible QA target covers the interaction viewport");
+  await page.mouse.move(point.x, point.y);
 }
 
 async function runThreeWidthVisualQaUnlocked(
@@ -586,7 +615,7 @@ async function runThreeWidthVisualQaUnlocked(
   await fs.mkdir(qaDirectory, { recursive: true });
   const url = `file://${path.join(siteDirectory, "index.html")}`;
   const buildSha256 = await computeSiteBuildSha256(siteDirectory);
-  const browser = await chromium.launch();
+  const browser = await launchEvaluationAwareBrowser();
   const checks: VisualQa["checks"] = [];
   try {
     for (const viewport of [
@@ -635,6 +664,8 @@ async function runThreeWidthVisualQaUnlocked(
           boxShadow: style.boxShadow,
         };
       });
+      await movePointerOutsideTarget(interactionPage, visibleTarget);
+      await interactionPage.waitForTimeout(250);
       const beforeHover = await visualState();
       await visibleTarget.hover({ timeout: 2_000 });
       await interactionPage.waitForTimeout(250);
@@ -784,25 +815,40 @@ export function runThreeWidthVisualQa(
 export async function computeSiteBuildSha256(
   siteDirectory: string
 ): Promise<string> {
-  const hash = createHash("sha256");
+  const files: Array<{ path: string; sizeBytes: number; sha256: string }> = [];
   async function visit(directory: string): Promise<void> {
     const entries = (await fs.readdir(directory, { withFileTypes: true })).sort(
-      (left, right) => left.name.localeCompare(right.name)
+      (left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0
     );
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
-      const relative = path.relative(siteDirectory, absolute);
+      const relative = path
+        .relative(siteDirectory, absolute)
+        .split(path.sep)
+        .join("/");
+      if (
+        directory === siteDirectory &&
+        entry.name === LIVE_BUNDLE_METADATA_DIR
+      ) {
+        if (!entry.isDirectory()) {
+          throw new Error("live bundle metadata must be a directory");
+        }
+        continue;
+      }
       if (entry.isDirectory()) await visit(absolute);
       else if (entry.isFile()) {
-        hash.update(relative);
-        hash.update("\0");
-        hash.update(await fs.readFile(absolute));
-        hash.update("\0");
-      }
+        const bytes = await fs.readFile(absolute);
+        files.push({
+          path: relative,
+          sizeBytes: bytes.byteLength,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+        });
+      } else throw new Error(`live site path is not regular: ${relative}`);
     }
   }
   await visit(siteDirectory);
-  return hash.digest("hex");
+  files.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  return candidateBuildSha256(files);
 }
 
 /**

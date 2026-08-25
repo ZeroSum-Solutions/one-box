@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "backlogVersion": "1.0.0",
+  "status": "ready",
+  "prd": "docs/specs/2026-08-22-page-ir-safe-pipeline-prd.md",
+  "evalManifest": "docs/eval/page-ir-safe-pipeline/manifest.json",
+  "tickets": [
+    { "id": "OBX-001", "title": "Enforce Website-only production intake", "priority": "P0", "epic": "Scope", "dependsOn": [], "file": "OBX-001-website-only-production.md" },
+    { "id": "OBX-002", "title": "Quarantine legacy non-website runs without data loss", "priority": "P1", "epic": "Scope", "dependsOn": ["OBX-001"], "file": "OBX-002-legacy-target-compatibility.md" },
+    { "id": "OBX-010", "title": "Define the candidate lifecycle and manifest contract", "priority": "P0", "epic": "Candidate", "dependsOn": [], "file": "OBX-010-candidate-contract.md" },
+    { "id": "OBX-011", "title": "Run the full gate suite against an explicit candidate root", "priority": "P0", "epic": "Candidate", "dependsOn": ["OBX-010"], "file": "OBX-011-candidate-gate-target.md" },
+    { "id": "OBX-012", "title": "Move initial build and rebuild behind gate-before-publish", "priority": "P0", "epic": "Candidate", "dependsOn": ["OBX-010", "OBX-011"], "file": "OBX-012-gate-before-publish.md" },
+    { "id": "OBX-013", "title": "Repair candidates without touching the live site", "priority": "P0", "epic": "Candidate", "dependsOn": ["OBX-012"], "file": "OBX-013-candidate-repair.md" },
+    { "id": "OBX-014", "title": "Promote candidates atomically and invalidate visual approval", "priority": "P0", "epic": "Candidate", "dependsOn": ["OBX-012", "OBX-013"], "file": "OBX-014-atomic-promotion.md" },
+    { "id": "OBX-015", "title": "Recover safely from crashes and concurrent writers", "priority": "P0", "epic": "Candidate", "dependsOn": ["OBX-013", "OBX-014"], "file": "OBX-015-recovery-concurrency.md" },
+    { "id": "OBX-020", "title": "Add closed Reference, Layout, and Page IR v1 contracts", "priority": "P0", "epic": "Page IR", "dependsOn": ["OBX-001"], "file": "OBX-020-page-ir-contracts.md" },
+    { "id": "OBX-021", "title": "Derive Page IR from approved version-bound inputs", "priority": "P0", "epic": "Page IR", "dependsOn": ["OBX-020"], "file": "OBX-021-page-ir-derivation.md" },
+    { "id": "OBX-022", "title": "Compile Page IR deterministically to a static website", "priority": "P0", "epic": "Page IR", "dependsOn": ["OBX-020"], "file": "OBX-022-deterministic-compiler.md" },
+    { "id": "OBX-023", "title": "Enforce one immutable layout authority and explicit fallback", "priority": "P0", "epic": "Page IR", "dependsOn": ["OBX-021", "OBX-022"], "file": "OBX-023-layout-authority.md" },
+    { "id": "OBX-024", "title": "Integrate Page IR checkpoints into the resumable pipeline", "priority": "P0", "epic": "Pipeline", "dependsOn": ["OBX-013", "OBX-014", "OBX-023"], "file": "OBX-024-pipeline-integration.md" },
+    { "id": "OBX-025", "title": "Guarantee stable editor IDs and source provenance", "priority": "P1", "epic": "Page IR", "dependsOn": ["OBX-022"], "file": "OBX-025-stable-editor-ids.md" },
+    { "id": "OBX-029", "title": "Audit and close generated-site mutation write-arounds", "priority": "P0", "epic": "Editing", "dependsOn": [], "file": "OBX-029-mutation-authority-audit.md" },
+    { "id": "OBX-030", "title": "Define capability-aware after-edit gate routing", "priority": "P0", "epic": "Editing", "dependsOn": ["OBX-020"], "file": "OBX-030-mutation-gate-matrix.md" },
+    { "id": "OBX-031", "title": "Make Page IR edits authoritative and fully transactional", "priority": "P0", "epic": "Editing", "dependsOn": ["OBX-015", "OBX-024", "OBX-025", "OBX-029", "OBX-030"], "file": "OBX-031-unified-mutation-authority.md" },
+    { "id": "OBX-040", "title": "Build the credential-free Phase 1 evaluation harness", "priority": "P0", "epic": "Evaluation", "dependsOn": ["OBX-010", "OBX-020"], "file": "OBX-040-eval-harness.md" },
+    { "id": "OBX-041", "title": "Freeze the six-purpose quality corpus and human rubric", "priority": "P1", "epic": "Evaluation", "dependsOn": ["OBX-021", "OBX-022", "OBX-040"], "file": "OBX-041-quality-corpus.md" },
+    { "id": "OBX-042", "title": "Turn UX review notes into regression and reproduction tests", "priority": "P1", "epic": "Evaluation", "dependsOn": ["OBX-001", "OBX-031", "OBX-040"], "file": "OBX-042-ux-regressions.md" },
+    { "id": "OBX-050", "title": "Add Page IR rollout controls and candidate observability", "priority": "P0", "epic": "Rollout", "dependsOn": ["OBX-024", "OBX-025", "OBX-031", "OBX-040"], "file": "OBX-050-rollout-observability.md" },
+    { "id": "OBX-051", "title": "Run production qualification and record the owner decision", "priority": "P0", "epic": "Rollout", "dependsOn": ["OBX-015", "OBX-041", "OBX-042", "OBX-050"], "file": "OBX-051-production-qualification.md" }
+  ]
+}

@@ -20,7 +20,7 @@ import {
 } from "@/components/resumeRun";
 import type {
   PipelineEvent,
-  ProjectTarget,
+  ProductionProjectTarget,
   ResearchConfiguration,
   UploadMetadata,
 } from "@/lib/contracts";
@@ -224,7 +224,11 @@ function reducer(state: OneBoxState, action: Action): OneBoxState {
         terminal = "complete";
         settled = true;
       }
-      if (ev.type === "paused" || ev.type === "reference-paused") {
+      if (
+        ev.type === "paused" ||
+        ev.type === "reference-paused" ||
+        ev.type === "page-ir-source-paused"
+      ) {
         evidenceUrl = ev.workspaceUrl;
         terminal = "paused";
         settled = true;
@@ -417,7 +421,8 @@ async function sendMessage(
 export default function Home() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [input, setInput] = useState("");
-  const [projectTarget, setProjectTarget] = useState<ProjectTarget>("website");
+  const [projectTarget, setProjectTarget] =
+    useState<ProductionProjectTarget>("website");
   const [research, setResearch] = useState<ResearchConfiguration>(
     () => researchConfigurationForCapability(false)
   );
@@ -577,7 +582,7 @@ export default function Home() {
     const attempt = state.activeAttempt;
     if (!attempt || state.isStreaming) return;
     setInput(attempt.prompt);
-    setProjectTarget(attempt.context.projectTarget);
+    setProjectTarget("website");
     setResearch({
       ...attempt.context.research,
       referoDesignEvidence:
@@ -607,7 +612,7 @@ export default function Home() {
       : state.messages;
     if (attempt) {
       setInput(attempt.prompt);
-      setProjectTarget(attempt.context.projectTarget);
+      setProjectTarget("website");
       setResearch({
         ...attempt.context.research,
         referoDesignEvidence:

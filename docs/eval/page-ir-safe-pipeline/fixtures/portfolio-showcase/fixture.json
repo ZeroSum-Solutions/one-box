@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "portfolio-showcase",
+  "purpose": "portfolio-showcase",
+  "providerMode": "recorded-or-stubbed",
+  "inputs": [
+    {
+      "path": "brief.json",
+      "sha256": "609b1db2865797cea749506330a19510868d8b7a726a2a09ca3c81654ac52169"
+    },
+    {
+      "path": "page-ir.json",
+      "sha256": "c0ecf649d04bd37778febe4773c60e8782b5e77e53f1fa3a5c8d886c995b0736"
+    }
+  ]
+}

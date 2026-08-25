@@ -253,6 +253,35 @@ describe("reference picker route", () => {
     expect(response.status).toBe(403);
   });
 
+  it("rejects a non-Website selection before changing picker state", async () => {
+    const runId = await fixtureRun();
+    await saveArtifact(
+      runId,
+      ARTIFACTS.intake,
+      IntakeSchema.parse({
+        businessName: "Legacy App",
+        category: "service",
+        location: "Austin, TX",
+        services: ["Help"],
+        primaryAction: "quote",
+        projectTarget: "web-app",
+      })
+    );
+
+    const response = await POST(
+      request(runId, { action: "select", selectedId: "recommended" }),
+      context(runId)
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-project-target",
+      projectTarget: "web-app",
+    });
+    expect((await loadRun(runId)).referenceSelection?.status).toBe("pending");
+    expect(referenceStageMocks.stageLockCandidates).not.toHaveBeenCalled();
+  });
+
   it("reserves a reroll before a generation failure and does not refund it", async () => {
     const runId = await fixtureRun();
     await savePickerIntake(runId);

@@ -8,11 +8,19 @@ import {
   generateProjectImage,
   listProjectImages,
   placeLibraryImage,
+  readProjectImages,
   type ImageLibrary,
 } from "../../../../lib/imageLibrary";
 import { ImageGenerationBudgetError } from "../../../../lib/imageGenerationBudget";
 import { isLocalApiAuthorized } from "../../../../lib/localApiAuth";
 import { BlockingMutationError } from "../../../../lib/siteMutation";
+import {
+  assertWebsiteProductionRun,
+  classifyPersistedIntakeCompatibility,
+  websiteOnlyProductionResponse,
+} from "../../../../lib/productionTarget";
+import { ARTIFACTS } from "../../../../lib/contracts";
+import { loadArtifact, loadRun } from "../../../../lib/runstate";
 
 export const maxDuration = 300;
 
@@ -27,6 +35,8 @@ function serializeLibrary(runId: string, library: ImageLibrary) {
 }
 
 function errorResponse(error: unknown) {
+  const targetResponse = websiteOnlyProductionResponse(error);
+  if (targetResponse) return targetResponse;
   if (error instanceof ZodError) {
     return Response.json(
       { error: error.issues.map((issue) => issue.message).join("; ") },
@@ -73,9 +83,21 @@ export async function GET(
   }
   try {
     const { id } = await context.params;
-    const library = await listProjectImages(id);
+    if (!/^[a-z0-9_-]{4,40}$/i.test(id)) {
+      return Response.json({ error: "bad run id" }, { status: 400 });
+    }
+    const rawIntake = await loadArtifact(id, ARTIFACTS.intake);
+    const compatibility =
+      rawIntake === null || rawIntake === undefined
+        ? undefined
+        : classifyPersistedIntakeCompatibility(rawIntake);
+    const pageIr = (await loadRun(id)).layoutAuthority === "page-ir-v1";
+    const library = compatibility?.readOnly
+      ? await readProjectImages(id)
+      : await listProjectImages(id);
     return Response.json({
-      models: IMAGE_MODELS,
+      models: compatibility?.readOnly || pageIr ? [] : IMAGE_MODELS,
+      compatibility,
       library: serializeLibrary(id, library),
     });
   } catch (error) {
@@ -95,7 +117,20 @@ export async function POST(
   }
   try {
     const { id } = await context.params;
+    if (!/^[a-z0-9_-]{4,40}$/i.test(id)) {
+      return Response.json({ error: "bad run id" }, { status: 400 });
+    }
     const body = AssetMutationRequestSchema.parse(await request.json());
+    await assertWebsiteProductionRun(id);
+    if ((await loadRun(id)).layoutAuthority === "page-ir-v1") {
+      return Response.json(
+        {
+          code: "unsupported-page-ir-capability",
+          error: "Asset mutations are not represented by Page IR v1",
+        },
+        { status: 409 },
+      );
+    }
 
     if (body.action === "place") {
       const result = await placeLibraryImage(id, body.assetId, body.editId);

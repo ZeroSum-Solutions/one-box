@@ -1,7 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { POST } from "./route";
+import fs from "node:fs/promises";
+import { afterEach, describe, expect, it } from "vitest";
+import { GET, POST } from "./route";
+import { ARTIFACTS, IntakeSchema } from "../../../../lib/contracts";
+import { createRun, saveArtifact, sitePaths } from "../../../../lib/runstate";
 
 const context = { params: Promise.resolve({ id: "asset-test" }) };
+const runIds: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    runIds.splice(0).map((runId) =>
+      fs.rm(sitePaths(runId).root, { recursive: true, force: true })
+    )
+  );
+});
 
 function request(body: unknown, authorized = true) {
   return new Request("http://localhost:3000/api/assets/asset-test", {
@@ -71,4 +83,174 @@ describe("project assets API", () => {
     );
     expect(response.status).toBe(400);
   });
+
+  it("rejects non-Website asset placement before library mutation", async () => {
+    const runId = await createRun();
+    runIds.push(runId);
+    await saveArtifact(runId, ARTIFACTS.intake, IntakeSchema.parse({
+      businessName: "Legacy App",
+      category: "service",
+      location: "Austin, TX",
+      services: ["Help"],
+      primaryAction: "quote",
+      projectTarget: "web-app",
+    }));
+    const response = await POST(
+      new Request(`http://localhost:3000/api/assets/${runId}`, {
+        method: "POST",
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "place",
+          assetId: "asset-legacy",
+          editId: "hero.image",
+        }),
+      }),
+      { params: Promise.resolve({ id: runId }) },
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "unsupported-project-target", projectTarget: "web-app" });
+  });
+
+  it("rejects Page IR asset generation before ledger, staging, or provider work", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    runIds.push(runId);
+    const response = await POST(
+      new Request(`http://localhost:3000/api/assets/${runId}`, {
+        method: "POST",
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "generate",
+          requestId: "00000000-0000-4000-8000-000000000230",
+          prompt: "A Page IR hero",
+          model: "higgsfield:gpt_image_2",
+          aspectRatio: "1:1",
+          quality: "high",
+          meteredConsent: true,
+        }),
+      }),
+      { params: Promise.resolve({ id: runId }) },
+    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-page-ir-capability",
+    });
+    const roots = sitePaths(runId);
+    await expect(
+      fs.stat(`${roots.root}/image-generation-ledger.json`),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.stat(`${roots.root}/image-staging`)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("does not advertise generation models for a Page IR run", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    runIds.push(runId);
+    const roots = sitePaths(runId);
+    await fs.mkdir(roots.site, { recursive: true });
+    await fs.writeFile(roots.site + "/index.html", "<!doctype html><title>Page IR</title>");
+
+    const response = await GET(
+      new Request(`http://localhost:3000/api/assets/${runId}`, {
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          "sec-fetch-site": "same-origin",
+        },
+      }),
+      { params: Promise.resolve({ id: runId }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ models: [] });
+  });
+
+  it.each(["generate", "regenerate"] as const)(
+    "rejects non-Website asset %s before claims, reservation, staging, or provider work",
+    async (action) => {
+      const runId = await createRun();
+      runIds.push(runId);
+      await saveArtifact(
+        runId,
+        ARTIFACTS.intake,
+        IntakeSchema.parse({
+          businessName: "Legacy App",
+          category: "service",
+          location: "Austin, TX",
+          services: ["Help"],
+          primaryAction: "quote",
+          projectTarget: "ios-app",
+        }),
+      );
+      const roots = sitePaths(runId);
+      await fs.writeFile(
+        `${roots.root}/image-generation-ledger.json`,
+        '{"version":1,"capCredits":14,"entries":[]}\n',
+      );
+      const ledgerBefore = await fs.readFile(
+        `${roots.root}/image-generation-ledger.json`,
+      );
+      const response = await POST(
+        new Request(`http://localhost:3000/api/assets/${runId}`, {
+          method: "POST",
+          headers: {
+            host: "localhost:3000",
+            origin: "http://localhost:3000",
+            "sec-fetch-site": "same-origin",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(
+            action === "generate"
+              ? {
+                  action,
+                  requestId: "00000000-0000-4000-8000-000000000220",
+                  prompt: "A legacy app hero",
+                  model: "higgsfield:gpt_image_2",
+                  aspectRatio: "1:1",
+                  quality: "high",
+                  meteredConsent: true,
+                }
+              : {
+                  action,
+                  requestId: "00000000-0000-4000-8000-000000000221",
+                  assetId: "asset-legacy",
+                  meteredConsent: true,
+                },
+          ),
+        }),
+        { params: Promise.resolve({ id: runId }) },
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "unsupported-project-target",
+        projectTarget: "ios-app",
+      });
+      expect(
+        await fs.readFile(`${roots.root}/image-generation-ledger.json`),
+      ).toEqual(ledgerBefore);
+      await expect(
+        fs.stat(`${roots.root}/image-generation-claims`),
+      ).rejects.toMatchObject({ code: "ENOENT" });
+      await expect(fs.stat(`${roots.root}/image-staging`)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+    },
+  );
 });

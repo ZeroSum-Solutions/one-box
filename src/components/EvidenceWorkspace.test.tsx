@@ -1,11 +1,19 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import type { WorkflowArtifactVersion } from "../lib/contracts";
+import {
+  WorkflowArtifactVersionSchema,
+  type WorkflowArtifactVersion,
+} from "../lib/contracts";
 import {
   ArtifactPreview,
   EvidenceWorkspace,
   artifactUrl,
+  isPageIrSourceReviewActive,
+  mergeEvidenceWorkspaceResponse,
+  pageIrSourceApprovalReady,
   syncHumanVisualReviewDraft,
+  syncPageIrSourceReviewDraft,
+  type PageIrSourceReviewView,
 } from "./EvidenceWorkspace";
 import type { RunState } from "../lib/contracts";
 
@@ -224,7 +232,9 @@ describe("EvidenceWorkspace artifact previews", () => {
     const css = render({ ...base, artifactType: "css-architecture", artifact: { sourceTailwindPlanVersion: 2, cssVariableHierarchy: ["tokens"], tokenToComponentUsage: { "--color-primary": ["button"] }, justifiedExceptions: [], generatedCssPath: "site/tailwind-utilities.css" } });
     expect(css).toContain("versioned CSS architecture JSON");
     expect(css).toContain("Generated Tailwind theme source (@theme mapping)");
-    expect(css).toContain("/api/sites/run-test/tailwind-theme.css");
+    expect(css).toContain(
+      "/api/sites/run-test/evidence/approved/runtime-tailwind-theme.css",
+    );
     expect(css).toContain("Compiled Tailwind utility output");
     expect(css).toContain("/api/sites/run-test/tailwind-utilities.css");
 
@@ -405,6 +415,391 @@ describe("EvidenceWorkspace with no draft for the current stage", () => {
     const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
 
     expect(html).toContain("Resume generation");
+  });
+});
+
+describe("EvidenceWorkspace legacy compatibility", () => {
+  it("labels a legacy target read-only while keeping preview and export available", () => {
+    const run = {
+      id: "legacy-run",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "evidence", artifacts: [] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace
+        initialRun={run}
+        compatibility={{
+          mode: "legacy-read-only",
+          projectTarget: "web-app",
+          label: "legacy/experimental",
+          readOnly: true,
+          message:
+            "Legacy/experimental and read-only in Phase 1; preview/export available; start a new Website project for generation/edit.",
+        }}
+      />,
+    );
+
+    expect(html).toContain("legacy/experimental");
+    expect(html).toContain("read-only in Phase 1");
+    expect(html).toContain(`/api/evidence/${run.id}/export`);
+    expect(html).toContain(`/preview/${run.id}`);
+    expect(html).not.toContain("Resume generation");
+    expect(html).not.toContain("Approve &amp; continue");
+    expect(html).not.toContain("Review note");
+  });
+});
+
+const pageIrBuildRun = {
+  id: "page-ir-run",
+  createdAt: "2026-08-23T12:00:00.000Z",
+  pipelineVersion: "evidence-gated-v2",
+  layoutAuthority: "page-ir-v1",
+  stages: {},
+  costUsd: 0,
+  costCapUsd: 3,
+  modelSlugs: {},
+  referenceMode: "none",
+  evidenceWorkflow: { currentStage: "build", artifacts: [] },
+} as unknown as RunState;
+
+function sourceReview(
+  state: PageIrSourceReviewView["state"],
+  payloadSha256 = "a".repeat(64),
+): PageIrSourceReviewView {
+  const reviewed = state === "approved";
+  return {
+    schemaVersion: 1,
+    bundleVersion: 1,
+    payloadSha256,
+    state,
+    latestTransition: {
+      at: "2026-08-23T12:00:00.000Z",
+      actorKind: state === "draft" ? "system" : "human",
+      actorName: state === "draft" ? "page-ir-source-bundle" : "Devin",
+      ...(state === "rejected" ? { note: "The source chain is wrong." } : {}),
+    },
+    upstreamBindings: [
+      "evidence",
+      "design-contract",
+      "token-inventory",
+      "tailwind-plan",
+      "css-architecture",
+    ].map((kind, index) => ({
+      kind: kind as PageIrSourceReviewView["upstreamBindings"][number]["kind"],
+      version: 1,
+      sha256: String(index + 1).repeat(64),
+    })),
+    sources: {
+      layoutDecision: {
+        version: 1,
+        sha256: "6".repeat(64),
+        value: { schemaVersion: 1, purpose: "brochure-local-service" } as PageIrSourceReviewView["sources"]["layoutDecision"]["value"],
+      },
+      content: {
+        version: 2,
+        sha256: "7".repeat(64),
+        value: { schemaVersion: 1, sourceLayoutDecisionVersion: 1, content: [], actions: [] },
+      },
+      assets: {
+        version: 3,
+        sha256: "8".repeat(64),
+        value: { schemaVersion: 1, sourceLayoutDecisionVersion: 1, assets: [] },
+      },
+    },
+    ...(reviewed
+      ? {
+          humanReview: {
+            reviewerName: "Devin",
+            reviewedAt: "2026-08-23T12:00:00.000Z",
+            payloadSha256,
+            criteria: {
+              layoutDecision: "pass",
+              content: "pass",
+              assets: "pass",
+              upstreamBindings: "pass",
+              sourceChain: "pass",
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+describe("EvidenceWorkspace PageIR Source Bundle review", () => {
+  it("keeps PageIR build in source review while the Source Bundle projection is missing", () => {
+    const placeholder = WorkflowArtifactVersionSchema.parse({
+      version: 1,
+      createdAt: "2026-08-23T12:01:00.000Z",
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-23T12:01:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "f".repeat(64),
+        checks: (
+          ["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const
+        ).map((area) => ({
+          area,
+          status: "pending" as const,
+          ...(["desktop", "tablet", "mobile"].includes(area)
+            ? { evidencePath: `evidence/qa/pending-${area}.png` }
+            : {}),
+        })),
+      },
+    });
+    const run = {
+      ...pageIrBuildRun,
+      evidenceWorkflow: { currentStage: "build", artifacts: [placeholder] },
+    } as unknown as RunState;
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+
+    expect(isPageIrSourceReviewActive(run, null, false)).toBe(true);
+    expect(html).toContain("PageIR Source Bundle");
+    expect(html).not.toContain('href="/?run=page-ir-run"');
+    expect(html).not.toContain("Submit for review");
+    expect(html).not.toContain("Open build preview");
+    expect(html).not.toContain("Named human Source Bundle review");
+  });
+
+  it("merges workflow and PageIR source review from evidence response snapshots", () => {
+    const currentReview = sourceReview("draft");
+    const approvedReview = sourceReview("approved");
+    const workflow = { currentStage: "build", artifacts: [] } as RunState["evidenceWorkflow"];
+    const refreshed = mergeEvidenceWorkspaceResponse(pageIrBuildRun, currentReview, {
+      workflow,
+      pageIrSourceReview: approvedReview,
+    });
+    expect(refreshed).toEqual({
+      run: { ...pageIrBuildRun, evidenceWorkflow: workflow },
+      pageIrSourceReview: approvedReview,
+    });
+    expect(mergeEvidenceWorkspaceResponse(pageIrBuildRun, currentReview, { workflow })).toEqual({
+      run: { ...pageIrBuildRun, evidenceWorkflow: workflow },
+      pageIrSourceReview: currentReview,
+    });
+    expect(mergeEvidenceWorkspaceResponse(pageIrBuildRun, approvedReview, {
+      workflow,
+      pageIrSourceReview: null,
+    })).toEqual({
+      run: { ...pageIrBuildRun, evidenceWorkflow: workflow },
+      pageIrSourceReview: null,
+    });
+    expect(mergeEvidenceWorkspaceResponse(pageIrBuildRun, currentReview, {})).toBeNull();
+  });
+
+  it("suppresses Source Bundle review while an earlier approved gate is being browsed", () => {
+    const review = sourceReview("in-review");
+    expect(isPageIrSourceReviewActive(pageIrBuildRun, review, false)).toBe(true);
+    expect(isPageIrSourceReviewActive(pageIrBuildRun, review, true)).toBe(false);
+  });
+
+  it("renders the separate review checkpoint inside Build without a seventh rail item", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("draft")} />
+    );
+
+    expect(html).toContain("PageIR Source Bundle");
+    expect(html.match(/gate-rail__item/g)).toHaveLength(6);
+    expect(html).toContain("Build");
+  });
+
+  it("renders a draft as read-only named review and hides generic approval and editing", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("draft")} />
+    );
+
+    expect(html).toContain("Begin named human review");
+    expect(html).toContain("Reviewer name");
+    expect(html).toContain("Layout decision");
+    expect(html).toContain("Content source");
+    expect(html).toContain("Assets source");
+    expect(html).toContain("Reject Source Bundle");
+    expect(html).not.toContain("Approve &amp; continue");
+    expect(html).not.toContain("Review note");
+    expect(html).not.toContain("Edit current artifact JSON");
+  });
+
+  it("locks the in-review reviewer and starts all five confirmations plus attestation unchecked", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("in-review")} />
+    );
+
+    expect(html).toContain("Reviewer: Devin");
+    for (const label of [
+      "Layout decision",
+      "Content",
+      "Assets",
+      "Upstream bindings",
+      "Source chain",
+    ]) expect(html).toContain(label);
+    expect(html).toContain("I attest that I am the named human reviewer");
+    expect(html).not.toContain('checked=""');
+    expect(html).toContain('disabled=""');
+  });
+
+  it("requires all five confirmations plus explicit attestation for approval", () => {
+    const draft = syncPageIrSourceReviewDraft(undefined, "a".repeat(64));
+    expect(pageIrSourceApprovalReady(draft)).toBe(false);
+    draft.confirmations = {
+      layoutDecision: true,
+      content: true,
+      assets: true,
+      upstreamBindings: true,
+      sourceChain: true,
+    };
+    expect(pageIrSourceApprovalReady(draft)).toBe(false);
+    draft.humanAttestation = true;
+    expect(pageIrSourceApprovalReady(draft)).toBe(true);
+  });
+
+  it("resets reviewer, confirmations, attestation, and rejection note when the payload hash changes", () => {
+    const dirty = syncPageIrSourceReviewDraft(undefined, "a".repeat(64));
+    dirty.reviewerName = "Devin";
+    dirty.confirmations.layoutDecision = true;
+    dirty.humanAttestation = true;
+    dirty.rejectionNote = "Reject it";
+
+    expect(syncPageIrSourceReviewDraft(dirty, "a".repeat(64))).toBe(dirty);
+    expect(syncPageIrSourceReviewDraft(dirty, "b".repeat(64))).toEqual({
+      payloadSha256: "b".repeat(64),
+      reviewerName: "",
+      confirmations: {
+        layoutDecision: false,
+        content: false,
+        assets: false,
+        upstreamBindings: false,
+        sourceChain: false,
+      },
+      humanAttestation: false,
+      rejectionNote: "",
+    });
+  });
+
+  it("shows approved named-human proof and resumes via the truthful main timeline", () => {
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview("approved")} />
+    );
+
+    expect(html).toContain("Reviewed by Devin");
+    expect(html).toContain("2026-08-23");
+    expect(html).toContain("aaaaaaaaaaaa");
+    expect(html).toContain('href="/?run=page-ir-run"');
+    expect(html).not.toContain("Approve PageIR Source Bundle");
+  });
+
+  it("yields an approved Source Bundle panel to the current human visual-QA review", () => {
+    const realChecks = (
+      ["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const
+    ).map((area) => ({
+      area,
+      status: "pass" as const,
+      ...(["desktop", "tablet", "mobile"].includes(area)
+        ? { evidencePath: `evidence/qa/v1/${area}.png` }
+        : {}),
+    }));
+    const visualQa = WorkflowArtifactVersionSchema.parse({
+      version: 1,
+      createdAt: "2026-08-23T12:01:00.000Z",
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-23T12:01:00.000Z" },
+        { state: "in-review", at: "2026-08-23T12:02:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "f".repeat(64),
+        checks: realChecks,
+      },
+    });
+    const run = {
+      ...pageIrBuildRun,
+      evidenceWorkflow: { currentStage: "build", artifacts: [visualQa] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace
+        initialRun={run}
+        initialPageIrSourceReview={sourceReview("approved")}
+      />
+    );
+
+    expect(html).toContain("Human visual review");
+    expect(html).toContain("Brief fidelity");
+    expect(html).toContain("Source Bundle approved by Devin");
+    expect(html).not.toContain("Begin named human review");
+    expect(html).not.toContain("Approve PageIR Source Bundle");
+    expect(html).not.toContain("Reject Source Bundle");
+  });
+
+  it("keeps an approved Source Bundle active while visual QA is only the pending placeholder", () => {
+    const pendingChecks = (
+      ["desktop", "tablet", "mobile", "hover", "focus", "color-scheme", "reduced-motion"] as const
+    ).map((area) => ({
+      area,
+      status: "pending" as const,
+      ...(["desktop", "tablet", "mobile"].includes(area)
+        ? { evidencePath: `evidence/qa/pending-${area}.png` }
+        : {}),
+    }));
+    const placeholder = WorkflowArtifactVersionSchema.parse({
+      version: 1,
+      createdAt: "2026-08-23T12:01:00.000Z",
+      artifactType: "visual-qa",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-23T12:01:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256: "f".repeat(64),
+        checks: pendingChecks,
+      },
+    });
+    const run = {
+      ...pageIrBuildRun,
+      evidenceWorkflow: { currentStage: "build", artifacts: [placeholder] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(
+      <EvidenceWorkspace
+        initialRun={run}
+        initialPageIrSourceReview={sourceReview("approved")}
+      />
+    );
+
+    expect(html).toContain("Reviewed by Devin");
+    expect(html).toContain('href="/?run=page-ir-run"');
+    expect(html).not.toContain("Submit for review");
+    expect(html).not.toContain("Human visual review");
+  });
+
+  it("blocks rejected and superseded bundles without approve or resume actions", () => {
+    for (const state of ["rejected", "superseded"] as const) {
+      const html = renderToStaticMarkup(
+        <EvidenceWorkspace initialRun={pageIrBuildRun} initialPageIrSourceReview={sourceReview(state)} />
+      );
+      expect(html).toContain("Start a new run");
+      expect(html).not.toContain("Approve PageIR Source Bundle");
+      expect(html).not.toContain("Resume generation");
+      expect(html).not.toContain('href="/?run=page-ir-run"');
+    }
+  });
+
+  it("preserves template markup exactly when the additive projection is null", () => {
+    const templateRun = { ...pageIrBuildRun, layoutAuthority: "template-v1" } as RunState;
+    const before = renderToStaticMarkup(<EvidenceWorkspace initialRun={templateRun} />);
+    const after = renderToStaticMarkup(
+      <EvidenceWorkspace initialRun={templateRun} initialPageIrSourceReview={null} />
+    );
+    expect(after).toBe(before);
+    expect(after).not.toContain("PageIR Source Bundle");
   });
 });
 

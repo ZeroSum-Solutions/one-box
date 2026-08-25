@@ -11,7 +11,8 @@
  * Run from the repo root: node scripts/smoke/gates-smoke.mjs
  */
 import { registerHooks } from "node:module";
-import { writeFile, mkdir, readFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { lstat, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { chromium } from "playwright";
@@ -38,11 +39,12 @@ registerHooks({
   },
 });
 
-const { buildSite } = await import("../../src/lib/builder.ts");
+process.env.ONEBOX_TEST_FIXTURE_PUBLISH = "1";
+const { buildAndPublishSiteFixture } = await import("../../test-support/buildSiteFixture.ts");
 const { runGates } = await import("../../src/lib/gates.ts");
 
 const ROOT = process.cwd();
-const RUN_ID = "smoke-fixture";
+const RUN_ID = `smoke-${randomBytes(12).toString("hex")}`;
 
 // ---------- fixtures (hardcoded — see WAVE-NOTES-buildgate.md for the field
 // conventions these follow: CSS var names tokens.css.tpl/site.css expect,
@@ -202,14 +204,39 @@ const HERO_PNG_BASE64 =
 // ---------- run ----------
 
 async function main() {
-  const runRoot = path.join(ROOT, "sites", RUN_ID);
-  await mkdir(runRoot, { recursive: true });
+  const sitesRoot = path.join(ROOT, "sites");
+  await mkdir(sitesRoot, { recursive: true });
+  const sitesStat = await lstat(sitesRoot);
+  if (sitesStat.isSymbolicLink() || !sitesStat.isDirectory()) {
+    throw new Error("smoke fixture sites root must be a physical directory");
+  }
 
-  const heroImagePath = path.join(runRoot, "_fixture-hero.png");
-  await writeFile(heroImagePath, Buffer.from(HERO_PNG_BASE64, "base64"));
+  const runRoot = path.join(sitesRoot, RUN_ID);
+  await mkdir(runRoot);
+  try {
+    await runFixture(runRoot);
+  } finally {
+    await rm(runRoot, { recursive: true, force: true });
+  }
+}
+
+async function runFixture(runRoot) {
+  const runStat = await lstat(runRoot);
+  if (runStat.isSymbolicLink() || !runStat.isDirectory()) {
+    throw new Error("smoke fixture run root must be a physical directory");
+  }
+  const assetsRoot = path.join(runRoot, "assets");
+  await mkdir(assetsRoot);
+  const assetsStat = await lstat(assetsRoot);
+  if (assetsStat.isSymbolicLink() || !assetsStat.isDirectory()) {
+    throw new Error("smoke fixture assets root must be a physical directory");
+  }
+
+  const heroImagePath = path.join(assetsRoot, "_fixture-hero.png");
+  await writeFile(heroImagePath, Buffer.from(HERO_PNG_BASE64, "base64"), { flag: "wx" });
 
   console.log(`[gates-smoke] building ${RUN_ID}...`);
-  const manifest = await buildSite({
+  const manifest = await buildAndPublishSiteFixture({
     runId: RUN_ID,
     intake,
     tokens,
@@ -228,10 +255,8 @@ async function main() {
   // tokens.json alongside the build — runGates() reads runRoot/tokens.json
   // (ARTIFACTS.tokens) for the token-drift/color-role-compliance gates on
   // every call, including the afterEdit path an edit-and-save mutation
-  // triggers. buildSite() only ever consumes `tokens`, it never persists
-  // the artifact itself, so any fixture consumer that skips this write (as
-  // this script did) leaves every downstream sites/smoke-fixture copy
-  // missing the file runGates() unconditionally requires.
+  // triggers. The fixture helper persists this artifact before compilation;
+  // this explicit write documents the live gate's run-root dependency.
   await writeFile(path.join(runRoot, "tokens.json"), JSON.stringify(tokens, null, 2));
 
   const siteDir = path.join(runRoot, "site");

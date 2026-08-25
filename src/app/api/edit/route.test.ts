@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   applyElementHtmlEdit: vi.fn(),
@@ -7,9 +7,21 @@ const mocks = vi.hoisted(() => ({
   generateImage: vi.fn(),
   reserveImageGeneration: vi.fn(),
   finishImageGeneration: vi.fn(),
+  readImageGenerationLedger: vi.fn(),
   loadArtifact: vi.fn(),
   loadRun: vi.fn(),
   listProjectImages: vi.fn(),
+  readValidatedGeneratedImageStaging: vi.fn(),
+  atomicWriteGeneratedSiteFile: vi.fn(),
+  withSiteAuthorityLock: vi.fn(),
+  readFile: vi.fn(),
+  unlink: vi.fn(),
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("node:fs/promises")>()),
+  readFile: mocks.readFile,
+  unlink: mocks.unlink,
 }));
 
 vi.mock("../../../lib/elementEditor", async (importOriginal) => {
@@ -25,20 +37,80 @@ vi.mock("../../../lib/imageGenerationBudget", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../lib/imageGenerationBudget")>()),
   reserveImageGeneration: mocks.reserveImageGeneration,
   finishImageGeneration: mocks.finishImageGeneration,
+  readImageGenerationLedger: mocks.readImageGenerationLedger,
 }));
 vi.mock("../../../lib/runstate", () => ({
   sitePaths: () => ({ root: "/unused", site: "/unused/site" }),
   loadArtifact: mocks.loadArtifact,
   loadRun: mocks.loadRun,
+  RunNotFoundError: class RunNotFoundError extends Error {
+    readonly runId: string;
+
+    constructor(runId: string) {
+      super(`run not found: ${runId}`);
+      this.name = "RunNotFoundError";
+      this.runId = runId;
+    }
+  },
 }));
-vi.mock("../../../lib/imageLibrary", () => ({
+vi.mock("../../../lib/imageLibrary", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../lib/imageLibrary")>()),
   listProjectImages: mocks.listProjectImages,
+  readValidatedGeneratedImageStaging:
+    mocks.readValidatedGeneratedImageStaging,
+}));
+vi.mock("../../../lib/siteMutation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../lib/siteMutation")>()),
+  atomicWriteGeneratedSiteFile: mocks.atomicWriteGeneratedSiteFile,
+  withSiteAuthorityLock: mocks.withSiteAuthorityLock,
 }));
 
 import { POST } from "./route";
 import { ImageGenerationBudgetError } from "../../../lib/imageGenerationBudget";
+import { RunNotFoundError } from "../../../lib/runstate";
+import {
+  knownMutationGateRequest,
+  unknownMutationGateRequest,
+} from "../../../lib/mutationGateMatrix";
 
 const originalToken = process.env.ONE_BOX_API_TOKEN;
+
+beforeEach(() => {
+  mocks.loadArtifact.mockResolvedValue({
+    projectTarget: "website",
+    colors: [],
+    fonts: [],
+  });
+  mocks.loadRun.mockResolvedValue({
+    layoutAuthority: "template-v1",
+    costUsd: 0,
+  });
+  mocks.readFile.mockResolvedValue(
+    '<div data-edit-id="hero.image" data-aspect="16:9"><img src="old.jpg" alt="Old"></div>',
+  );
+  mocks.unlink.mockResolvedValue(undefined);
+  mocks.readImageGenerationLedger.mockResolvedValue({
+    version: 1,
+    capCredits: 14,
+    entries: [],
+  });
+  mocks.withSiteAuthorityLock.mockImplementation(
+    async (_runId, operation: () => Promise<unknown>) => operation(),
+  );
+  mocks.readValidatedGeneratedImageStaging.mockImplementation(
+    async (_runId, requestId: string) => ({
+      buffer: Buffer.from([137, 80, 78, 71]),
+      metadata: {
+        mimeType: "image/png",
+        extension: "png",
+        dimensions: { width: 1, height: 1 },
+      },
+      stagingPath: `/unused/image-staging/${requestId}.download`,
+      relativePath: `assets/generated/${requestId}.png`,
+      finalPath: `/unused/site/assets/generated/${requestId}.png`,
+    }),
+  );
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -87,6 +159,97 @@ describe("edit route authorization", () => {
     const bearer = request({ Authorization: "Bearer route-test-token" });
     expect((await POST(bearer.request)).status).toBe(400);
     expect(bearer.json).toHaveBeenCalledOnce();
+    expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-Website edit before model, provider, or mutation work", async () => {
+    mocks.loadArtifact.mockResolvedValue({ projectTarget: "web-app" });
+    mocks.applyElementHtmlEdit.mockResolvedValue({ gates: [] });
+    mocks.loadRun.mockResolvedValue({ costUsd: 0 });
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.title",
+        instruction: "Change the heading",
+      }),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-project-target",
+      projectTarget: "web-app",
+    });
+    expect(mocks.generateJson).not.toHaveBeenCalled();
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+    expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
+  it("rejects Page IR arbitrary/image edits before model, provider, or mutation work", async () => {
+    mocks.loadArtifact.mockResolvedValue({ projectTarget: "website" });
+    mocks.loadRun.mockResolvedValue({
+      layoutAuthority: "page-ir-v1",
+      costUsd: 0,
+    });
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.image",
+        instruction: "Generate a replacement image",
+        imageIntent: true,
+        requestId: "00000000-0000-4000-8000-000000000009",
+      }),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "unsupported-page-ir-capability",
+    });
+    expect(mocks.generateJson).not.toHaveBeenCalled();
+    expect(mocks.estimateImageCredits).not.toHaveBeenCalled();
+    expect(mocks.reserveImageGeneration).not.toHaveBeenCalled();
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+    expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
+  it("returns a structured 404 when the requested run is missing", async () => {
+    mocks.loadArtifact.mockResolvedValue(undefined);
+    mocks.loadRun.mockRejectedValue(new RunNotFoundError("missing-run"));
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "missing-run",
+        editId: "hero.title",
+        instruction: "Change the heading",
+      }),
+    }));
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "run not found" });
+    expect(mocks.generateJson).not.toHaveBeenCalled();
+    expect(mocks.generateImage).not.toHaveBeenCalled();
     expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
   });
 
@@ -140,6 +303,9 @@ describe("edit route authorization", () => {
       ok: true,
       imageCredits: { used: 7, cap: 14 },
     });
+    expect(mocks.applyElementHtmlEdit.mock.calls[0]?.[3]).toMatchObject({
+      gateRequest: knownMutationGateRequest("asset"),
+    });
   });
 
   it("rejects a capped image request before provider generation", async () => {
@@ -179,6 +345,101 @@ describe("edit route authorization", () => {
     }));
     expect(response.status).toBe(429);
     expect(mocks.generateImage).not.toHaveBeenCalled();
+  });
+
+  it("rejects a missing image target before estimate, reservation, or provider work", async () => {
+    mocks.loadArtifact.mockResolvedValue({
+      imageryBrief: {
+        subject: "field technician",
+        lighting: "natural",
+        grade: "neutral",
+        framing: "wide",
+        avoid: [],
+      },
+      colors: [],
+    });
+    mocks.readFile.mockResolvedValue(
+      '<div data-edit-id="other.image"><img src="old.jpg" alt="Old"></div>',
+    );
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.image",
+        instruction: "Field work",
+        imageIntent: true,
+        requestId: "00000000-0000-4000-8000-000000000146",
+      }),
+    }));
+
+    expect(response.status).toBe(404);
+    expect(mocks.estimateImageCredits).not.toHaveBeenCalled();
+    expect(mocks.reserveImageGeneration).not.toHaveBeenCalled();
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+    expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
+  it("revalidates the image target after paid provider work before publishing live bytes", async () => {
+    mocks.loadArtifact.mockResolvedValue({
+      imageryBrief: {
+        subject: "field technician",
+        lighting: "natural",
+        grade: "neutral",
+        framing: "wide",
+        avoid: [],
+      },
+      colors: [],
+    });
+    mocks.estimateImageCredits.mockResolvedValue(2);
+    mocks.reserveImageGeneration.mockResolvedValue({
+      usedCredits: 2,
+      capCredits: 14,
+    });
+    mocks.generateImage.mockResolvedValue({
+      path: "/unused/image-staging/request.download",
+      url: "https://image.example/result.png",
+    });
+    mocks.applyElementHtmlEdit.mockImplementation(
+      async (_runId, _editId, transform) => {
+        await transform(
+          '<div data-edit-id="hero.image"><p>The image was removed concurrently</p></div>',
+        );
+        return { gates: [] };
+      },
+    );
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "run1",
+        editId: "hero.image",
+        instruction: "Field work",
+        imageIntent: true,
+        requestId: "00000000-0000-4000-8000-000000000147",
+      }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.generateImage).toHaveBeenCalledOnce();
+    expect(mocks.finishImageGeneration).toHaveBeenCalledWith(
+      "/unused/image-generation-ledger.json",
+      "00000000-0000-4000-8000-000000000147",
+      "completed",
+    );
+    expect(mocks.atomicWriteGeneratedSiteFile).not.toHaveBeenCalled();
   });
 
   // Proves the container-edit descendant-preservation contract named in
@@ -260,6 +521,9 @@ describe("edit route authorization", () => {
     expect(response.status).toBe(200);
     const body = await response.json();
     expect(body).toMatchObject({ ok: true, editId: "why-us", gatesClean: true });
+    expect(mocks.applyElementHtmlEdit.mock.calls[0]?.[3]).toMatchObject({
+      gateRequest: unknownMutationGateRequest(),
+    });
   });
 
   // B3: a referenceAssetId must actually reach generation and influence its

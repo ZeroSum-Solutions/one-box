@@ -1,0 +1,2 @@
+:root { --ds-smoke: 1; }
+@theme inline { --spacing-smoke: var(--ds-smoke); }

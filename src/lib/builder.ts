@@ -1,25 +1,39 @@
 /**
- * Renders the FROZEN templates/local-service/ skeleton into a static site
- * under sites/<runId>/site/. Parameterizes tokens + copy + skeleton — never
- * invents structure (audit B6). See WAVE-NOTES-buildgate.md for the full
- * field contract (CSS var naming, CopyDoc key convention, deviations).
+ * Renders the FROZEN templates/local-service/ skeleton into an unserved
+ * candidate under sites/<runId>/candidate/site/. Parameterizes tokens + copy
+ * + skeleton — never invents structure (audit B6). See
+ * WAVE-NOTES-buildgate.md for the full field contract (CSS var naming,
+ * CopyDoc key convention, deviations).
  *
- * Path resolution is self-contained (no import from ./runstate): that
- * module is owned by a different wave and did not exist yet at the time
- * this file was written, and buildSite must work standalone for
- * scripts/smoke/gates-smoke.mjs regardless of build order across waves.
+ * Production compilation requires a durable run and matching durable input
+ * artifacts. Standalone consumers must use the explicitly test-only fixture
+ * helper; production code never publishes from this module.
  */
 import { execFile } from "node:child_process";
-import { mkdir, readFile, writeFile, copyFile, rename, rm, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { constants } from "node:fs";
+import fs from "node:fs/promises";
+import { mkdir, open, readFile, writeFile, copyFile, rename, rm, stat, lstat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { compile } from "tailwindcss";
+import * as cheerio from "cheerio";
+import { z } from "zod";
 import { collectDefinedCssVars, findUnresolvedCssVarRefs } from "./cssVars";
+import { assertWebsiteProductionTarget } from "./productionTarget";
 
 const execFileAsync = promisify(execFile);
 import {
   SITES_DIR,
   SITE_DIR,
+  ARTIFACTS,
+  CandidateGateReceiptV1Schema,
+  MAX_CANDIDATE_BYTES,
+  CandidateProvenanceV1Schema,
+  CopyDocSchema,
+  DesignTokensSchema,
+  IntakeSchema,
+  SkeletonSpecSchema,
   SiteManifestSchema,
   RunStateSchema,
   workflowArtifactApprovalState,
@@ -27,11 +41,38 @@ import {
   type SkeletonSpec,
   type CopyDoc,
   type Intake,
+  type RunState,
+  type CandidateProvenanceV1,
+  type CandidateGateReceiptV1,
   type SiteManifest,
 } from "./contracts";
+import {
+  candidateManifestSha256,
+  createCandidateManifest,
+  inspectCandidate,
+  transitionCandidateProvenance,
+  validateCandidateInventory,
+} from "./candidate";
+import {
+  assertRunLayoutAuthority,
+  candidatePaths,
+  claimBuildGateRepair,
+  loadRun,
+  releaseBuildGateRepair,
+  sitePaths,
+} from "./runstate";
+import { runCandidateGates, type CandidateGateRunResult } from "./gates";
+import {
+  assertSiteAuthorityHeld,
+  withSiteAuthorityLock,
+} from "./siteAuthority";
 
 const TEMPLATE_DIR = path.join(process.cwd(), "templates", "local-service");
 const RUN_ID_RE = /^[a-z0-9_-]{4,40}$/i;
+const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
+const NONBLOCK = constants.O_NONBLOCK ?? 0;
+const READ_FLAGS = constants.O_RDONLY | NOFOLLOW | NONBLOCK;
+const MAX_BUILD_METADATA_BYTES = 8 * 1024 * 1024;
 
 // Sections the template always renders regardless of skeleton content (nav
 // and footer are chrome, hero and contact carry the primary conversion
@@ -69,13 +110,858 @@ export async function compileTailwindUtilities(
 
 export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
   const runId = assertSafeRunId(input.runId);
+  assertWebsiteProductionTarget(input.intake.projectTarget);
+  await assertBuildAuthorized(sitePaths(runId).root, runId);
+  return withSiteAuthorityLock(runId, () => buildSiteUnderAuthority(input, runId));
+}
+
+async function buildSiteUnderAuthority(
+  input: BuildSiteInput,
+  runId: string,
+): Promise<SiteManifest> {
+  assertWebsiteProductionTarget(input.intake.projectTarget);
   const runRoot = path.join(/*turbopackIgnore: true*/ process.cwd(), SITES_DIR, runId);
-  await assertBuildAuthorized(runRoot);
-  const publishDir = path.join(/*turbopackIgnore: true*/ runRoot, SITE_DIR);
-  // Build into a staging directory and swap it in at the end (ENG-005).
-  // Writing into the live directory meant a rebuild dismantled the site that
-  // was being served, and a build that failed halfway left it that way.
-  const siteDir = `${publishDir}.building`;
+  const run = await loadBuildAuthorization(runRoot, runId);
+  const authorizedInputs = await authorizeBuildInputs(runRoot, input);
+  const paths = candidatePaths(runId);
+  const stagingRoot = `${paths.root}.building-${process.pid}-${Date.now()}`;
+  const siteDir = path.join(stagingRoot, SITE_DIR);
+  await rm(stagingRoot, { recursive: true, force: true });
+  try {
+    const siteManifest = await compileSiteToDirectory(
+      input,
+      siteDir,
+      authorizedInputs.heroImage,
+    );
+    const candidateManifest = await createCandidateManifest(siteDir);
+    const createdAt = new Date().toISOString();
+    const preparing = CandidateProvenanceV1Schema.parse({
+      schemaVersion: 1,
+      candidateId: "candidate-v1",
+      runId,
+      createdAt,
+      state: "preparing",
+      history: [{ state: "preparing", at: createdAt }],
+      inputArtifactHashes: authorizedInputs.inputArtifactHashes,
+      layoutAuthority: run.layoutAuthority,
+      compilerVersion: "template-compiler@1",
+    });
+    const ready = transitionCandidateProvenance(
+      preparing,
+      "ready-for-gates",
+      new Date().toISOString(),
+      {
+        candidateManifestSha256: candidateManifestSha256(candidateManifest),
+        buildSha256: candidateManifest.buildSha256,
+      },
+    );
+    await writeFile(
+      path.join(stagingRoot, "manifest.json"),
+      JSON.stringify(candidateManifest, null, 2),
+      "utf8",
+    );
+    await writeFile(
+      path.join(stagingRoot, "provenance.json"),
+      JSON.stringify(ready, null, 2),
+      "utf8",
+    );
+    await replaceDirectory(stagingRoot, paths.root);
+    return siteManifest;
+  } catch (error) {
+    await rm(stagingRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export type CandidateGateDisposition = CandidateGateRunResult & {
+  state: "failed" | "promotable";
+};
+
+const CANDIDATE_REPAIR_PATHS = ["index.html", "tokens.css"] as const;
+export const CANDIDATE_REPAIR_TEXT_MAX_BYTES = 1024 * 1024;
+const CANDIDATE_REPAIR_REQUEST_MAX_BYTES =
+  CANDIDATE_REPAIR_TEXT_MAX_BYTES - 4096;
+
+export const CandidateRepairPlanSchema = z
+  .object({
+    files: z
+      .array(
+        z
+          .object({
+            path: z.enum(CANDIDATE_REPAIR_PATHS),
+            content: z.string().max(CANDIDATE_REPAIR_TEXT_MAX_BYTES),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(CANDIDATE_REPAIR_PATHS.length),
+  })
+  .strict()
+  .superRefine((plan, context) => {
+    const seen = new Set<string>();
+    for (const [index, file] of plan.files.entries()) {
+      if (seen.has(file.path)) {
+        context.addIssue({
+          code: "custom",
+          path: ["files", index, "path"],
+          message: `duplicate candidate repair path: ${file.path}`,
+        });
+      }
+      seen.add(file.path);
+    }
+    const totalBytes = plan.files.reduce(
+      (total, file) => total + Buffer.byteLength(file.content, "utf8"),
+      0,
+    );
+    if (totalBytes > CANDIDATE_REPAIR_TEXT_MAX_BYTES) {
+      context.addIssue({
+        code: "custom",
+        path: ["files"],
+        message: "candidate repair output exceeds the aggregate repair byte limit",
+      });
+    }
+  });
+export type CandidateRepairPlan = z.infer<typeof CandidateRepairPlanSchema>;
+
+export type CandidateRepairRequest = Readonly<{
+  failures: Readonly<CandidateGateReceiptV1["reports"]>;
+  files: ReadonlyArray<{
+    path: (typeof CANDIDATE_REPAIR_PATHS)[number];
+    content: string;
+  }>;
+}>;
+
+export type CandidateRepairProvider = (
+  request: CandidateRepairRequest,
+) => Promise<unknown>;
+
+type FailedCandidateSnapshot = {
+  paths: ReturnType<typeof candidatePaths>;
+  provenance: CandidateProvenanceV1;
+  manifest: NonNullable<
+    Extract<Awaited<ReturnType<typeof inspectCandidate>>, { status: "present" }>["manifest"]
+  >;
+  receipt: CandidateGateReceiptV1;
+  provenanceBytes: Buffer;
+  manifestBytes: Buffer;
+  receiptBytes: Buffer;
+  siteFiles: Map<string, Buffer>;
+};
+
+async function readFailedCandidateSnapshot(
+  runId: string,
+): Promise<FailedCandidateSnapshot> {
+  const paths = candidatePaths(runId);
+  await assertBuildAuthorized(sitePaths(runId).root, runId);
+  const inspection = await inspectCandidate(runId);
+  if (
+    inspection.status !== "present" ||
+    !inspection.manifest ||
+    inspection.provenance.state !== "failed"
+  ) {
+    throw new Error("candidate repair requires one validated failed candidate");
+  }
+  if (inspection.provenance.history.at(-2)?.state !== "ready-for-gates") {
+    throw new Error("candidate repair requires a failed full-suite disposition");
+  }
+
+  const provenanceBytes = await readStableBuildInput(
+    paths.provenance,
+    "candidate repair provenance",
+    MAX_BUILD_METADATA_BYTES,
+  );
+  const manifestBytes = await readStableBuildInput(
+    paths.manifest,
+    "candidate repair manifest",
+    MAX_BUILD_METADATA_BYTES,
+  );
+  const receiptBytes = await readStableBuildInput(
+    paths.gates,
+    "candidate repair gate receipt",
+    MAX_BUILD_METADATA_BYTES,
+  );
+  const receipt = CandidateGateReceiptV1Schema.parse(
+    JSON.parse(receiptBytes.toString("utf8")),
+  );
+  if (
+    receipt.runId !== runId ||
+    receipt.candidateManifestSha256 !==
+      inspection.provenance.candidateManifestSha256 ||
+    receipt.buildSha256 !== inspection.provenance.buildSha256
+  ) {
+    throw new Error("candidate repair receipt does not match the compiled candidate");
+  }
+  const failures = receipt.reports.filter(
+    (report) => report.blocking && !report.pass,
+  );
+  if (failures.length === 0) {
+    throw new Error("candidate repair requires a blocking gate failure");
+  }
+
+  const siteFiles = new Map<string, Buffer>();
+  for (const file of inspection.manifest.files) {
+    const absolute = path.join(paths.site, ...file.path.split("/"));
+    const bytes = await readStableBuildInput(
+      absolute,
+      `candidate repair source ${file.path}`,
+      MAX_CANDIDATE_BYTES,
+    );
+    if (bytes.byteLength !== file.sizeBytes || sha256(bytes) !== file.sha256) {
+      throw new Error(`candidate repair source changed: ${file.path}`);
+    }
+    siteFiles.set(file.path, bytes);
+  }
+  for (const required of CANDIDATE_REPAIR_PATHS) {
+    if (!siteFiles.has(required)) {
+      throw new Error(`candidate repair artifact is missing: ${required}`);
+    }
+  }
+  const requestBytes =
+    CANDIDATE_REPAIR_PATHS.reduce(
+      (total, repairPath) => total + siteFiles.get(repairPath)!.byteLength,
+      0,
+    ) + Buffer.byteLength(JSON.stringify(failures), "utf8");
+  if (requestBytes > CANDIDATE_REPAIR_REQUEST_MAX_BYTES) {
+    throw new Error("candidate repair input bytes exceed the repair limit");
+  }
+
+  return {
+    paths,
+    provenance: inspection.provenance,
+    manifest: inspection.manifest,
+    receipt,
+    provenanceBytes,
+    manifestBytes,
+    receiptBytes,
+    siteFiles,
+  };
+}
+
+function createCandidateRepairRequest(
+  snapshot: FailedCandidateSnapshot,
+): CandidateRepairRequest {
+  const request: CandidateRepairRequest = Object.freeze({
+    failures: Object.freeze(
+      snapshot.receipt.reports.filter(
+        (report) => report.blocking && !report.pass,
+      ),
+    ),
+    files: Object.freeze(
+      CANDIDATE_REPAIR_PATHS.map((repairPath) =>
+        Object.freeze({
+          path: repairPath,
+          content: snapshot.siteFiles.get(repairPath)!.toString("utf8"),
+        }),
+      ),
+    ),
+  });
+  if (
+    Buffer.byteLength(JSON.stringify(request), "utf8") >
+    CANDIDATE_REPAIR_REQUEST_MAX_BYTES
+  ) {
+    throw new Error("candidate repair provider request bytes exceed the repair limit");
+  }
+  return request;
+}
+
+function snapshotsMatch(
+  current: FailedCandidateSnapshot,
+  expected: FailedCandidateSnapshot,
+): boolean {
+  if (
+    !current.provenanceBytes.equals(expected.provenanceBytes) ||
+    !current.manifestBytes.equals(expected.manifestBytes) ||
+    !current.receiptBytes.equals(expected.receiptBytes) ||
+    current.siteFiles.size !== expected.siteFiles.size
+  ) {
+    return false;
+  }
+  for (const [relativePath, bytes] of expected.siteFiles) {
+    if (!current.siteFiles.get(relativePath)?.equals(bytes)) return false;
+  }
+  return true;
+}
+
+function nextCandidateTimestamp(provenance: CandidateProvenanceV1): string {
+  const last = Date.parse(provenance.history.at(-1)!.at);
+  return new Date(Math.max(Date.now(), last)).toISOString();
+}
+
+function htmlElementShape(html: string): string {
+  const $ = cheerio.load(html);
+  return $("*")
+    .toArray()
+    .map((element) => {
+      const ancestors = $(element)
+        .parents()
+        .toArray()
+        .reverse()
+        .map((ancestor) => $(ancestor).prop("tagName"))
+        .join("/");
+      return `${ancestors}/${$(element).prop("tagName")}`;
+    })
+    .join("\0");
+}
+
+function htmlElementAddress(
+  $: ReturnType<typeof cheerio.load>,
+  element: Parameters<ReturnType<typeof cheerio.load>>[0],
+): string {
+  return [...$(element).parents().toArray().reverse(), ...$(element).toArray()]
+    .map((node) => `${$(node).prop("tagName")}:${$(node).prevAll().length}`)
+    .join("/");
+}
+
+function htmlAttributeInventory(
+  html: string,
+  predicate: (name: string, value: string) => boolean,
+): string[] {
+  const $ = cheerio.load(html);
+  const inventory: string[] = [];
+  $("*").each((_, element) => {
+    for (const [name, value] of Object.entries($(element).attr() ?? {}).sort()) {
+      if (predicate(name.toLowerCase(), value)) {
+        inventory.push(`${htmlElementAddress($, element)}\0${name.toLowerCase()}\0${value}`);
+      }
+    }
+  });
+  return inventory;
+}
+
+const URL_BEARING_HTML_ATTRIBUTES = new Set([
+  "archive",
+  "action",
+  "background",
+  "cite",
+  "codebase",
+  "data",
+  "formaction",
+  "href",
+  "manifest",
+  "ping",
+  "poster",
+  "src",
+  "srcset",
+  "xlink:href",
+]);
+
+function htmlElementInventory(html: string, selector: string): string[] {
+  const $ = cheerio.load(html);
+  return $(selector)
+    .toArray()
+    .map((element) => $.html(element));
+}
+
+function assertHtmlRepairIsClosed(original: string, proposed: string): void {
+  if (htmlElementShape(proposed) !== htmlElementShape(original)) {
+    throw new Error("candidate repair HTML structure changed");
+  }
+
+  const editIds = (html: string) => {
+    const $ = cheerio.load(html);
+    return $("[data-edit-id]")
+      .toArray()
+      .map(
+        (element) =>
+          `${htmlElementAddress($, element)}\0${$(element).attr("data-edit-id")}`,
+      );
+  };
+  if (JSON.stringify(editIds(proposed)) !== JSON.stringify(editIds(original))) {
+    throw new Error("candidate repair changed required data-edit-id structure");
+  }
+
+  for (const selector of ["script", "style", "meta[http-equiv=refresh]"]) {
+    if (
+      JSON.stringify(htmlElementInventory(proposed, selector)) !==
+      JSON.stringify(htmlElementInventory(original, selector))
+    ) {
+      throw new Error(`candidate repair changed protected ${selector} content`);
+    }
+  }
+
+  const protectedAttribute = (name: string) => {
+    if (name.startsWith("on") || name === "srcdoc" || name === "style") return true;
+    return URL_BEARING_HTML_ATTRIBUTES.has(name);
+  };
+  if (
+    JSON.stringify(htmlAttributeInventory(proposed, protectedAttribute)) !==
+    JSON.stringify(htmlAttributeInventory(original, protectedAttribute))
+  ) {
+    throw new Error("candidate repair changed a protected URL or script attribute");
+  }
+}
+
+function closedCssShape(css: string): string {
+  const withoutComments = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  if (
+    /(?:@|\\|url\s*\(|image-set\s*\(|expression\s*\(|javascript:|<\/style)/i
+      .test(withoutComments)
+  ) {
+    throw new Error("candidate repair CSS contains a remote or executable expansion");
+  }
+  const rules: Array<{ selector: string; properties: string[] }> = [];
+  const rule = /([^{}]+)\{([^{}]*)\}/g;
+  let cursor = 0;
+  let match: RegExpExecArray | null;
+  while ((match = rule.exec(withoutComments)) !== null) {
+    if (withoutComments.slice(cursor, match.index).trim()) {
+      throw new Error("candidate repair CSS structure is not closed");
+    }
+    const selector = match[1].trim().replace(/\s+/g, " ");
+    if (!selector || selector.startsWith("@")) {
+      throw new Error("candidate repair CSS selector is invalid");
+    }
+    const properties = match[2]
+      .split(";")
+      .map((declaration) => declaration.trim())
+      .filter(Boolean)
+      .map((declaration) => {
+        const separator = declaration.indexOf(":");
+        const property = declaration.slice(0, separator).trim();
+        if (separator <= 0 || !/^--[a-z0-9-]+$/i.test(property)) {
+          throw new Error("candidate repair CSS declaration structure changed");
+        }
+        return property;
+      });
+    rules.push({ selector, properties });
+    cursor = rule.lastIndex;
+  }
+  if (rules.length === 0 || withoutComments.slice(cursor).trim()) {
+    throw new Error("candidate repair CSS structure is not closed");
+  }
+  return JSON.stringify(rules);
+}
+
+function validateCandidateRepairPlan(
+  snapshot: FailedCandidateSnapshot,
+  plan: CandidateRepairPlan,
+): boolean {
+  let changed = false;
+  for (const file of plan.files) {
+    const original = snapshot.siteFiles.get(file.path)!.toString("utf8");
+    if (file.path === "index.html") {
+      assertHtmlRepairIsClosed(original, file.content);
+    } else if (closedCssShape(file.content) !== closedCssShape(original)) {
+      throw new Error("candidate repair CSS structure changed");
+    }
+    changed ||= file.content !== original;
+  }
+  return changed;
+}
+
+async function stageCandidateRepairBundle(
+  snapshot: FailedCandidateSnapshot,
+  plan: CandidateRepairPlan,
+  stagingRoot: string,
+): Promise<void> {
+  const stagingSite = path.join(stagingRoot, SITE_DIR);
+  const replacements = new Map<string, Buffer>(
+    plan.files.map((file) => [file.path, Buffer.from(file.content, "utf8")]),
+  );
+  await fs.mkdir(stagingSite, { recursive: true });
+  for (const file of snapshot.manifest.files) {
+    const target = path.join(stagingSite, ...file.path.split("/"));
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, replacements.get(file.path) ?? snapshot.siteFiles.get(file.path)!, {
+      flag: "wx",
+    });
+  }
+
+  const manifest = await createCandidateManifest(stagingSite);
+  const preparingAt = nextCandidateTimestamp(snapshot.provenance);
+  const preparing = CandidateProvenanceV1Schema.parse({
+    ...snapshot.provenance,
+    state: "preparing",
+    history: [
+      ...snapshot.provenance.history,
+      { state: "preparing", at: preparingAt },
+    ],
+    candidateManifestSha256: candidateManifestSha256(manifest),
+    buildSha256: manifest.buildSha256,
+    gateReportSha256: undefined,
+  });
+  const ready = transitionCandidateProvenance(
+    preparing,
+    "ready-for-gates",
+    nextCandidateTimestamp(preparing),
+    {
+      candidateManifestSha256: candidateManifestSha256(manifest),
+      buildSha256: manifest.buildSha256,
+    },
+  );
+  await fs.writeFile(
+    path.join(stagingRoot, "manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    { flag: "wx" },
+  );
+  await fs.writeFile(
+    path.join(stagingRoot, "provenance.json"),
+    JSON.stringify(ready, null, 2),
+    { flag: "wx" },
+  );
+}
+
+async function commitCandidateRepairBundle(
+  stagingRoot: string,
+  targetRoot: string,
+  snapshot: FailedCandidateSnapshot,
+): Promise<void> {
+  const backupRoot = `${targetRoot}.repair-backup-${process.pid}-${Date.now()}`;
+  await fs.rename(targetRoot, backupRoot);
+  try {
+    const entries = (await fs.readdir(backupRoot)).sort();
+    if (JSON.stringify(entries) !== JSON.stringify(["gates.json", "manifest.json", "provenance.json", "site"])) {
+      throw new Error("candidate repair source root changed before commit");
+    }
+    const backupSite = path.join(backupRoot, SITE_DIR);
+    await validateCandidateInventory(backupSite, snapshot.manifest);
+    for (const [relativePath, expected] of [
+      ["manifest.json", snapshot.manifestBytes],
+      ["provenance.json", snapshot.provenanceBytes],
+      ["gates.json", snapshot.receiptBytes],
+    ] as const) {
+      const observed = await readStableBuildInput(
+        path.join(backupRoot, relativePath),
+        `candidate repair retired ${relativePath}`,
+        MAX_BUILD_METADATA_BYTES,
+      );
+      if (!observed.equals(expected)) {
+        throw new Error(`candidate repair source changed before commit: ${relativePath}`);
+      }
+    }
+    await fs.rename(stagingRoot, targetRoot);
+  } catch (error) {
+    try {
+      await fs.rename(backupRoot, targetRoot);
+    } catch (restoreError) {
+      throw new AggregateError(
+        [error, restoreError],
+        "candidate repair commit and restoration both failed",
+      );
+    }
+    throw error;
+  }
+  await fs.rm(backupRoot, { recursive: true, force: true }).catch((error) => {
+    console.warn("[builder] candidate repair backup cleanup failed", error);
+  });
+}
+
+async function atomicWriteCandidateProvenance(
+  filePath: string,
+  provenance: CandidateProvenanceV1,
+): Promise<void> {
+  const temporary = path.join(
+    path.dirname(path.dirname(filePath)),
+    `.candidate-provenance.${process.pid}.${Date.now()}.tmp`,
+  );
+  try {
+    await fs.writeFile(temporary, JSON.stringify(provenance, null, 2), "utf8");
+    await fs.rename(temporary, filePath);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+function isEnoent(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ENOENT"
+  );
+}
+
+async function readOptionalStableBuildInput(
+  filePath: string,
+  label: string,
+  maxBytes: number,
+): Promise<Buffer | undefined> {
+  try {
+    return await readStableBuildInput(filePath, label, maxBytes);
+  } catch (error) {
+    if (isEnoent(error)) return undefined;
+    throw error;
+  }
+}
+
+async function restoreCandidateReceipt(
+  runRoot: string,
+  receiptPath: string,
+  priorBytes: Buffer | undefined,
+): Promise<void> {
+  if (!priorBytes) {
+    await fs.rm(receiptPath, { force: true });
+    return;
+  }
+  const temporary = path.join(
+    runRoot,
+    `.candidate-receipt-restore.${process.pid}.${Date.now()}.tmp`,
+  );
+  try {
+    await fs.writeFile(temporary, priorBytes, { flag: "wx" });
+    await fs.rename(temporary, receiptPath);
+  } finally {
+    await fs.rm(temporary, { force: true });
+  }
+}
+
+export function gateBuiltCandidate(
+  runId: string,
+): Promise<CandidateGateDisposition> {
+  return withSiteAuthorityLock(runId, () =>
+    gateBuiltCandidateUnderSiteAuthority(runId),
+  );
+}
+
+export async function gateBuiltCandidateUnderSiteAuthority(
+  runId: string,
+): Promise<CandidateGateDisposition> {
+  assertSiteAuthorityHeld(runId);
+  const inspection = await inspectCandidate(runId);
+  if (
+    inspection.status !== "present" ||
+    !inspection.manifest ||
+    inspection.provenance.state !== "ready-for-gates"
+  ) {
+    throw new Error("candidate must be ready-for-gates before disposition");
+  }
+  const paths = candidatePaths(runId);
+  const provenanceBefore = await readStableBuildInput(
+    paths.provenance,
+    "candidate provenance",
+    MAX_BUILD_METADATA_BYTES,
+  );
+  const priorReceipt = await readOptionalStableBuildInput(
+    paths.gates,
+    "candidate gate receipt",
+    MAX_BUILD_METADATA_BYTES,
+  );
+  let result: CandidateGateRunResult;
+  try {
+    result = await runCandidateGates(runId);
+  } catch (error) {
+    await atomicWriteCandidateProvenance(
+      inspection.paths.provenance,
+      transitionCandidateProvenance(
+        inspection.provenance,
+        "failed",
+        new Date().toISOString(),
+      ),
+    );
+    throw error;
+  }
+  try {
+    const receiptBytes = await readStableBuildInput(
+      paths.gates,
+      "candidate gate receipt",
+      MAX_BUILD_METADATA_BYTES,
+    );
+    const receipt = CandidateGateReceiptV1Schema.parse(
+      JSON.parse(receiptBytes.toString("utf8")),
+    );
+    if (
+      sha256(receiptBytes) !== result.gateReportSha256 ||
+      JSON.stringify(receipt) !== JSON.stringify(result.receipt) ||
+      receipt.runId !== runId ||
+      receipt.candidateManifestSha256 !==
+        inspection.provenance.candidateManifestSha256 ||
+      receipt.buildSha256 !== inspection.provenance.buildSha256
+    ) {
+      throw new Error("candidate gate receipt does not match the compiled candidate");
+    }
+    const state = receipt.reports.some(
+      (report) => report.blocking && !report.pass,
+    )
+      ? "failed"
+      : "promotable";
+    const provenance = transitionCandidateProvenance(
+      inspection.provenance,
+      state,
+      new Date().toISOString(),
+      { gateReportSha256: result.gateReportSha256 },
+    );
+    if (
+      !(await readStableBuildInput(
+        paths.provenance,
+        "candidate provenance",
+        MAX_BUILD_METADATA_BYTES,
+      ))
+        .equals(provenanceBefore) ||
+      !(await readStableBuildInput(
+        paths.gates,
+        "candidate gate receipt",
+        MAX_BUILD_METADATA_BYTES,
+      ))
+        .equals(receiptBytes)
+    ) {
+      throw new Error("candidate disposition inputs changed before publication");
+    }
+    await atomicWriteCandidateProvenance(paths.provenance, provenance);
+    return { ...result, receipt, state };
+  } catch (error) {
+    await restoreCandidateReceipt(
+      sitePaths(runId).root,
+      paths.gates,
+      priorReceipt,
+    );
+    throw error;
+  }
+}
+
+type PreparedCandidateRepair = {
+  snapshot: FailedCandidateSnapshot;
+  request: CandidateRepairRequest;
+};
+
+async function prepareCandidateRepairUnderAuthority(
+  runId: string,
+): Promise<PreparedCandidateRepair | undefined> {
+  await assertBuildAuthorized(sitePaths(runId).root, runId);
+  const run = await loadRun(runId);
+  if ((run.stages.built.gateRepairAttempts ?? 0) > 0) return undefined;
+  const snapshot = await readFailedCandidateSnapshot(runId);
+  const request = createCandidateRepairRequest(snapshot);
+  const claimed = await claimBuildGateRepair(runId);
+  return claimed ? { snapshot, request } : undefined;
+}
+
+export async function repairFailedCandidate(
+  runId: string,
+  provider: CandidateRepairProvider,
+): Promise<CandidateGateDisposition | undefined> {
+  const prepared = await withSiteAuthorityLock(runId, () =>
+    prepareCandidateRepairUnderAuthority(runId),
+  );
+  if (!prepared) return undefined;
+  let plan: CandidateRepairPlan;
+  try {
+    plan = CandidateRepairPlanSchema.parse(await provider(prepared.request));
+  } catch (error) {
+    try {
+      await withSiteAuthorityLock(runId, () => releaseBuildGateRepair(runId));
+    } catch (releaseError) {
+      throw new AggregateError(
+        [error, releaseError],
+        "candidate repair failed and its allowance could not be released",
+      );
+    }
+    throw error;
+  }
+  return withSiteAuthorityLock(runId, () =>
+    commitCandidateRepairUnderAuthority(runId, prepared.snapshot, plan),
+  );
+}
+
+async function commitCandidateRepairUnderAuthority(
+  runId: string,
+  snapshot: FailedCandidateSnapshot,
+  plan: CandidateRepairPlan,
+): Promise<CandidateGateDisposition | undefined> {
+  const stagingRoot = `${snapshot.paths.root}.repairing-${process.pid}-${Date.now()}`;
+  let repairCompleted = false;
+  try {
+    if (!validateCandidateRepairPlan(snapshot, plan)) {
+      await releaseBuildGateRepair(runId);
+      return undefined;
+    }
+    await fs.rm(stagingRoot, { recursive: true, force: true });
+    await stageCandidateRepairBundle(snapshot, plan, stagingRoot);
+
+    const current = await readFailedCandidateSnapshot(runId);
+    if (!snapshotsMatch(current, snapshot)) {
+      throw new Error("candidate changed during repair");
+    }
+    await commitCandidateRepairBundle(stagingRoot, snapshot.paths.root, snapshot);
+    repairCompleted = true;
+  } catch (error) {
+    if (!repairCompleted) {
+      try {
+        await releaseBuildGateRepair(runId);
+      } catch (releaseError) {
+        throw new AggregateError(
+          [error, releaseError],
+          "candidate repair failed and its allowance could not be released",
+        );
+      }
+    }
+    throw error;
+  } finally {
+    await fs.rm(stagingRoot, { recursive: true, force: true }).catch(() => {});
+  }
+
+  try {
+    return await gateBuiltCandidateUnderSiteAuthority(runId);
+  } catch (error) {
+    try {
+      const provenanceBytes = await readStableBuildInput(
+        snapshot.paths.provenance,
+        "repaired candidate provenance",
+        MAX_BUILD_METADATA_BYTES,
+      );
+      const provenance = CandidateProvenanceV1Schema.parse(
+        JSON.parse(provenanceBytes.toString("utf8")),
+      );
+      if (provenance.state === "ready-for-gates") {
+        await fs.rm(snapshot.paths.gates, { force: true });
+        await atomicWriteCandidateProvenance(
+          snapshot.paths.provenance,
+          transitionCandidateProvenance(
+            provenance,
+            "failed",
+            nextCandidateTimestamp(provenance),
+          ),
+        );
+      }
+    } catch (failClosedError) {
+      throw new AggregateError(
+        [error, failClosedError],
+        "repaired candidate failed and its failed disposition could not be persisted",
+      );
+    }
+    throw error;
+  }
+}
+
+export function gateAndRepairBuiltCandidate(
+  runId: string,
+  provider: CandidateRepairProvider,
+): Promise<{
+  disposition: CandidateGateDisposition;
+  repairCompleted: boolean;
+}> {
+  return (async () => {
+    const initial = await gateBuiltCandidate(runId);
+    if (initial.state === "promotable") {
+      return { disposition: initial, repairCompleted: false };
+    }
+    let repaired;
+    try {
+      repaired = await repairFailedCandidate(runId, provider);
+    } catch (error) {
+      throw new CandidateRepairError(
+        error instanceof Error ? error.message : String(error),
+        { cause: error },
+      );
+    }
+    return {
+      disposition: repaired ?? initial,
+      repairCompleted: repaired !== undefined,
+    };
+  })();
+}
+
+export class CandidateRepairError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "CandidateRepairError";
+  }
+}
+
+async function compileSiteToDirectory(
+  input: BuildSiteInput,
+  siteDir: string,
+  heroImage?: { sourcePath: string; bytes: Buffer },
+): Promise<SiteManifest> {
   await rm(siteDir, { recursive: true, force: true }); // discard a crashed build's leftovers
   await mkdir(path.join(siteDir, "assets"), { recursive: true });
 
@@ -143,7 +1029,7 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
 
   const phone = resolvePhone(input.intake, input.copy);
   const heroMediaHtml = await renderHeroMedia({
-    heroImagePath: input.assets.heroImagePath,
+    heroImage,
     siteDir,
     copy: input.copy,
     intake: input.intake,
@@ -187,27 +1073,17 @@ export async function buildSite(input: BuildSiteInput): Promise<SiteManifest> {
     complete: true,
   });
   await writeManifest(siteDir, manifest);
-  await publishBuild(siteDir, publishDir);
   return manifest;
 }
 
-/**
- * Swaps the staged build over the live one.
- *
- * Two renames rather than one, because POSIX rename() refuses to replace a
- * non-empty directory. The live copy is moved aside first and only deleted
- * once the new one is in place; if the second rename fails, the old site is
- * put back. A build that fails must leave the previous site serving — that is
- * the entire reason the staging directory exists.
- */
-export async function publishBuild(stagingDir: string, publishDir: string): Promise<void> {
-  const retired = `${publishDir}.retired-${process.pid}`;
-  const hadPrevious = await stat(publishDir).then(() => true).catch(() => false);
-  if (hadPrevious) await rename(publishDir, retired);
+async function replaceDirectory(stagingDir: string, targetDir: string): Promise<void> {
+  const retired = `${targetDir}.retired-${process.pid}-${Date.now()}`;
+  const hadPrevious = await stat(targetDir).then(() => true).catch(() => false);
+  if (hadPrevious) await rename(targetDir, retired);
   try {
-    await rename(stagingDir, publishDir);
+    await rename(stagingDir, targetDir);
   } catch (error) {
-    if (hadPrevious) await rename(retired, publishDir).catch(() => {});
+    if (hadPrevious) await rename(retired, targetDir).catch(() => {});
     throw error;
   }
   if (hadPrevious) await rm(retired, { recursive: true, force: true });
@@ -239,23 +1115,210 @@ export function decorateTargetMarkup(
     );
 }
 
-export async function assertBuildAuthorized(runRoot: string): Promise<void> {
-  let raw: string;
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, child]) => [key, canonicalize(child)]),
+    );
+  }
+  return value;
+}
+
+function sha256(bytes: string | Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+async function readStableBuildInput(
+  filePath: string,
+  label: string,
+  maxBytes: number,
+): Promise<Buffer> {
+  const initial = await lstat(filePath, { bigint: true });
+  if (initial.isSymbolicLink() || !initial.isFile() || initial.nlink > BigInt(1)) {
+    throw new Error(`${label} must be one regular non-linked file`);
+  }
+  const handle = await open(filePath, READ_FLAGS);
   try {
-    raw = await readFile(path.join(runRoot, "run.json"), "utf8");
-  } catch (error) {
+    const opened = await handle.stat({ bigint: true });
     if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ENOENT"
+      !opened.isFile() ||
+      opened.nlink > BigInt(1) ||
+      opened.dev !== initial.dev ||
+      opened.ino !== initial.ino ||
+      opened.size !== initial.size
     ) {
-      return; // standalone builder fixture, not a durable pipeline run
+      throw new Error(`${label} changed before compilation`);
+    }
+    if (opened.size > BigInt(maxBytes)) {
+      throw new Error(`${label} exceeds the stable read size limit`);
+    }
+    const sizeBytes = Number(opened.size);
+    const bytes = Buffer.allocUnsafe(sizeBytes);
+    let offset = 0;
+    while (offset < sizeBytes) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        offset,
+        sizeBytes - offset,
+        offset,
+      );
+      if (bytesRead === 0) {
+        throw new Error(`${label} changed during compilation authorization`);
+      }
+      offset += bytesRead;
+    }
+    const after = await handle.stat({ bigint: true });
+    if (
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size
+    ) {
+      throw new Error(`${label} changed during compilation authorization`);
+    }
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function authorizeBuildInputs(
+  runRoot: string,
+  input: BuildSiteInput,
+): Promise<{
+  inputArtifactHashes: Array<{ path: string; sha256: string }>;
+  heroImage?: { sourcePath: string; bytes: Buffer };
+}> {
+  const jsonInputs = [
+    { path: ARTIFACTS.copy, schema: CopyDocSchema, value: input.copy },
+    { path: ARTIFACTS.intake, schema: IntakeSchema, value: input.intake },
+    { path: ARTIFACTS.skeleton, schema: SkeletonSpecSchema, value: input.skeleton },
+    { path: ARTIFACTS.tokens, schema: DesignTokensSchema, value: input.tokens },
+  ] as const;
+  const hashes: Array<{ path: string; sha256: string }> = [];
+  for (const artifact of jsonInputs) {
+    const bytes = await readStableBuildInput(
+      path.join(runRoot, artifact.path),
+      `build input ${artifact.path}`,
+      MAX_BUILD_METADATA_BYTES,
+    );
+    const persisted = artifact.schema.parse(JSON.parse(bytes.toString("utf8")));
+    const supplied = artifact.schema.parse(artifact.value);
+    if (
+      JSON.stringify(canonicalize(persisted)) !==
+      JSON.stringify(canonicalize(supplied))
+    ) {
+      throw new Error(`build input ${artifact.path} does not match its durable artifact`);
+    }
+    hashes.push({ path: artifact.path, sha256: sha256(bytes) });
+  }
+  if (input.tailwindThemeCss) {
+    const bytes = await readStableBuildInput(
+      path.join(runRoot, ARTIFACTS.tailwindTheme),
+      `build input ${ARTIFACTS.tailwindTheme}`,
+      MAX_BUILD_METADATA_BYTES,
+    );
+    if (bytes.toString("utf8") !== input.tailwindThemeCss) {
+      throw new Error(
+        `build input ${ARTIFACTS.tailwindTheme} does not match its durable artifact`,
+      );
+    }
+    hashes.push({ path: ARTIFACTS.tailwindTheme, sha256: sha256(bytes) });
+  }
+  let heroImage: { sourcePath: string; bytes: Buffer } | undefined;
+  if (input.assets.heroImagePath) {
+    const absoluteHero = path.resolve(input.assets.heroImagePath);
+    const relativeHero = path.relative(runRoot, absoluteHero).split(path.sep).join("/");
+    if (
+      relativeHero.startsWith("../") ||
+      relativeHero === ".." ||
+      !relativeHero.startsWith("assets/")
+    ) {
+      throw new Error("hero image must be a run-owned asset");
+    }
+    await assertRunOwnedPathHasNoLinkedDirectory(
+      runRoot,
+      absoluteHero,
+      "hero image",
+    );
+    const bytes = await readStableBuildInput(
+      absoluteHero,
+      "hero image",
+      MAX_CANDIDATE_BYTES,
+    );
+    await assertRunOwnedPathHasNoLinkedDirectory(
+      runRoot,
+      absoluteHero,
+      "hero image",
+    );
+    hashes.push({ path: relativeHero, sha256: sha256(bytes) });
+    heroImage = { sourcePath: absoluteHero, bytes };
+  }
+  hashes.sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  );
+  return { inputArtifactHashes: hashes, heroImage };
+}
+
+async function assertRunOwnedPathHasNoLinkedDirectory(
+  runRoot: string,
+  absolutePath: string,
+  label: string,
+): Promise<void> {
+  const relative = path.relative(runRoot, absolutePath);
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(`${label} must remain inside run authority`);
+  }
+  const segments = relative.split(path.sep).filter(Boolean);
+  let current = runRoot;
+  for (const segment of segments.slice(0, -1)) {
+    current = path.join(current, segment);
+    const observed = await lstat(current, { bigint: true });
+    if (observed.isSymbolicLink()) {
+      throw new Error(`${label} directory must not be a symlink`);
+    }
+    if (!observed.isDirectory()) {
+      throw new Error(`${label} parent must be a directory`);
+    }
+  }
+}
+
+export async function assertBuildAuthorized(
+  runRoot: string,
+  runId: string,
+): Promise<void> {
+  await loadBuildAuthorization(runRoot, runId);
+}
+
+async function loadBuildAuthorization(
+  runRoot: string,
+  runId: string,
+): Promise<RunState> {
+  let bytes: Buffer;
+  try {
+    bytes = await readStableBuildInput(
+      path.join(runRoot, "run.json"),
+      "durable run authorization",
+      MAX_BUILD_METADATA_BYTES,
+    );
+  } catch (error) {
+    if (isEnoent(error)) {
+      throw new Error("durable run authorization is required");
     }
     throw error;
   }
-  const run = RunStateSchema.parse(JSON.parse(raw));
-  if (run.pipelineVersion === "legacy-v1") return;
+  const run = RunStateSchema.parse(JSON.parse(bytes.toString("utf8")));
+  if (run.id !== runId) {
+    throw new Error("durable run authorization does not match requested run");
+  }
+  assertRunLayoutAuthority(run, "template-v1", "current template builder");
+  if (run.pipelineVersion === "legacy-v1") return run;
   const approvedCss = run.evidenceWorkflow.artifacts.some(
     (artifact) =>
       artifact.artifactType === "css-architecture" &&
@@ -266,6 +1329,7 @@ export async function assertBuildAuthorized(runRoot: string): Promise<void> {
       "evidence-gated-v2 build blocked: approve evidence, contract, tokens, Tailwind, and CSS architecture first"
     );
   }
+  return run;
 }
 
 // ---------- manifest ----------
@@ -523,7 +1587,7 @@ function pxToRem(px: number): string {
 // ---------- hero media ----------
 
 async function renderHeroMedia(opts: {
-  heroImagePath?: string;
+  heroImage?: { sourcePath: string; bytes: Buffer };
   siteDir: string;
   copy: CopyDoc;
   intake: Intake;
@@ -533,12 +1597,12 @@ async function renderHeroMedia(opts: {
   const alt = escapeHtml(
     firstNonEmpty(field(opts.copy, "hero", "image-alt"), `${opts.intake.businessName} team at work`)
   );
-  if (!opts.heroImagePath) {
+  if (!opts.heroImage) {
     return `<div class="hero__media hero__media--placeholder" data-edit-id="hero.image" role="img" aria-label="${alt}"></div>`;
   }
-  const ext = path.extname(opts.heroImagePath) || ".jpg";
+  const ext = path.extname(opts.heroImage.sourcePath) || ".jpg";
   const relPath = `assets/hero${ext}`;
-  await copyFile(opts.heroImagePath, path.join(opts.siteDir, relPath));
+  await writeFile(path.join(opts.siteDir, relPath), opts.heroImage.bytes);
   await compressHeroInPlace(path.join(opts.siteDir, relPath));
   opts.assetEntries.push({ path: relPath, kind: "image", generatedBy: "intake:hero-image" });
   opts.files.push(relPath);

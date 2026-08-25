@@ -12,6 +12,7 @@ import {
 import {
   EvidenceWorkflowError,
   advanceEvidenceWorkflow,
+  assertVisualQaApprovedForBuild,
   artifactApprovalState,
   claimBuildGateRepair,
   releaseBuildGateRepair,
@@ -206,6 +207,23 @@ afterEach(async () => {
 });
 
 describe("evidence workflow persistence", () => {
+  it("blocks release when an approved visual QA artifact has a non-pass check", async () => {
+    const { runId, visualQa } = await createVisualQaDraftRun();
+    await reviewAndApprove(runId, visualQa);
+    await corruptPersistedRun(runId, (run) => {
+      const artifact = run.evidenceWorkflow.artifacts.find(
+        (entry) => entry.artifactType === "visual-qa",
+      );
+      const checks = artifact?.artifact.checks as Array<{ status: string }>;
+      checks[0].status = "pending";
+    });
+
+    const state = await loadRun(runId);
+    expect(() =>
+      assertVisualQaApprovedForBuild(state, "0".repeat(64)),
+    ).toThrow(/current promoted build requires/i);
+  });
+
   it("defaults persisted pre-version runs to legacy and new runs to gated", async () => {
     const newRunId = await createTestRun();
     expect((await loadRun(newRunId)).pipelineVersion).toBe("evidence-gated-v2");
@@ -321,7 +339,7 @@ describe("evidence workflow persistence", () => {
 
   it("blocks a gated build until CSS architecture is approved", async () => {
     const runId = await createTestRun();
-    await expect(assertBuildAuthorized(sitePaths(runId).root)).rejects.toThrow(
+    await expect(assertBuildAuthorized(sitePaths(runId).root, runId)).rejects.toThrow(
       /build blocked/
     );
 
@@ -331,7 +349,9 @@ describe("evidence workflow persistence", () => {
       await reviewAndApprove(runId, artifact);
       await advanceEvidenceWorkflow(runId, EVIDENCE_WORKFLOW_STAGES[index + 1]);
     }
-    await expect(assertBuildAuthorized(sitePaths(runId).root)).resolves.toBeUndefined();
+    await expect(
+      assertBuildAuthorized(sitePaths(runId).root, runId),
+    ).resolves.toBeUndefined();
   });
 
   it("rejects nonexistent and mismatched predecessor versions", async () => {

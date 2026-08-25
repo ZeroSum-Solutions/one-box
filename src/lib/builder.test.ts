@@ -1,8 +1,157 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { deriveTextMuted, findDanglingTokenRefs, publishBuild } from "./builder";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildSite, deriveTextMuted, findDanglingTokenRefs } from "./builder";
+import {
+  buildAndPublishSiteFixture,
+  publishBuildFixture,
+} from "../../test-support/buildSiteFixture";
+import { candidatePaths, createRun, sitePaths } from "./runstate";
+
+describe("Website-only builds", () => {
+  it.each(["web-app", "ios-app"] as const)(
+    "rejects %s before creating a staging directory",
+    async (projectTarget) => {
+      const runId = `obx001-${projectTarget}`;
+      const staging = path.join(process.cwd(), "sites", runId, "site.building");
+      await fs.rm(path.dirname(staging), { recursive: true, force: true });
+
+      await expect(
+        buildSite({
+          runId,
+          intake: { projectTarget },
+        } as Parameters<typeof buildSite>[0])
+      ).rejects.toMatchObject({
+        code: "unsupported-project-target",
+        projectTarget,
+      });
+      await expect(fs.stat(staging)).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  );
+
+  it("fails closed before writing when durable run authorization is absent", async () => {
+    const runId = `obx012-auth-${process.pid}`;
+    const runRoot = path.join(process.cwd(), "sites", runId);
+    await fs.rm(runRoot, { recursive: true, force: true });
+
+    await expect(
+      buildSite({
+        runId,
+        intake: { projectTarget: "website" },
+      } as Parameters<typeof buildSite>[0])
+    ).rejects.toThrow("durable run authorization is required");
+    await expect(fs.stat(runRoot)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.each(["symbolic", "hard"] as const)(
+    "rejects a %s-linked durable run authorization before candidate output",
+    async (linkKind) => {
+      const sourceRunId = `obx012-auth-src-${linkKind}-${process.pid}`;
+      const runId = `obx012-auth-${linkKind}-${process.pid}`;
+      const sourceRoot = sitePaths(sourceRunId).root;
+      const runRoot = sitePaths(runId).root;
+      await fs.rm(sourceRoot, { recursive: true, force: true });
+      await fs.rm(runRoot, { recursive: true, force: true });
+      try {
+        await createRun({ id: sourceRunId, pipelineVersion: "legacy-v1" });
+        await fs.mkdir(runRoot, { recursive: true });
+        const sourceRunFile = path.join(sourceRoot, "run.json");
+        const runFile = path.join(runRoot, "run.json");
+        if (linkKind === "symbolic") {
+          await fs.symlink(sourceRunFile, runFile);
+        } else {
+          await fs.link(sourceRunFile, runFile);
+        }
+
+        await expect(
+          buildSite({
+            runId,
+            intake: { projectTarget: "website" },
+          } as Parameters<typeof buildSite>[0]),
+        ).rejects.toThrow(/regular non-linked file/);
+        await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+          code: "ENOENT",
+        });
+        expect(await fs.readdir(runRoot)).toEqual(["run.json"]);
+      } finally {
+        await fs.rm(runRoot, { recursive: true, force: true });
+        await fs.rm(sourceRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it("rejects durable authorization for a different run before candidate output", async () => {
+    const runId = `obx012-auth-mismatch-${process.pid}`;
+    const runRoot = sitePaths(runId).root;
+    await fs.rm(runRoot, { recursive: true, force: true });
+    try {
+      await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+      const runFile = path.join(runRoot, "run.json");
+      const persisted = JSON.parse(await fs.readFile(runFile, "utf8"));
+      persisted.id = `other-${process.pid}`;
+      await fs.writeFile(runFile, JSON.stringify(persisted, null, 2), "utf8");
+
+      await expect(
+        buildSite({
+          runId,
+          intake: { projectTarget: "website" },
+        } as Parameters<typeof buildSite>[0]),
+      ).rejects.toThrow(/does not match requested run/);
+      await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+        code: "ENOENT",
+      });
+      expect((await fs.readdir(runRoot)).sort()).toEqual([
+        ".run-state-lock",
+        "run.json",
+      ]);
+    } finally {
+      await fs.rm(runRoot, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    [
+      "build and publish",
+      () => buildAndPublishSiteFixture({} as Parameters<typeof buildSite>[0]),
+    ],
+    [
+      "publish",
+      () => publishBuildFixture("unused-staging", "unused-publish"),
+    ],
+  ])("requires explicit fixture authorization to %s", async (_label, invoke) => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "");
+    try {
+      await expect(invoke()).rejects.toThrow(
+        "test-only builder fixture requires explicit authorization",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each([
+    [
+      "build and publish",
+      () => buildAndPublishSiteFixture({} as Parameters<typeof buildSite>[0]),
+    ],
+    [
+      "publish",
+      () => publishBuildFixture("unused-staging", "unused-publish"),
+    ],
+  ])("makes the fixture %s helper unreachable in production", async (_label, invoke) => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "1");
+    try {
+      await expect(invoke()).rejects.toThrow(
+        "test-only builder fixture is disabled in production",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
 
 // ENG-008. A generated site shipped `--border-subtle: 1px solid
 // var(--color-stone-grey)` against a --color-stone-grey that no token defined.
@@ -140,11 +289,15 @@ describe("deriveTextMuted", () => {
   });
 });
 
-describe("publishBuild", () => {
+describe("publishBuildFixture", () => {
   const roots: string[] = [];
-  afterEach(async () =>
-    Promise.all(roots.splice(0).map((r) => fs.rm(r, { recursive: true, force: true })))
-  );
+  beforeEach(() => vi.stubEnv("ONEBOX_TEST_FIXTURE_PUBLISH", "1"));
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await Promise.all(
+      roots.splice(0).map((r) => fs.rm(r, { recursive: true, force: true })),
+    );
+  });
 
   async function staged(previous?: string) {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-publish-"));
@@ -163,7 +316,7 @@ describe("publishBuild", () => {
 
   it("publishes a first build", async () => {
     const { publishDir, stagingDir } = await staged();
-    await publishBuild(stagingDir, publishDir);
+    await publishBuildFixture(stagingDir, publishDir);
     expect(await fs.readFile(path.join(publishDir, "index.html"), "utf8")).toBe("new");
   });
 
@@ -171,7 +324,7 @@ describe("publishBuild", () => {
     // A plain copy-over would leave stale.css behind, still served and still
     // listed by nothing — the manifest would disagree with the directory.
     const { root, publishDir, stagingDir } = await staged("old");
-    await publishBuild(stagingDir, publishDir);
+    await publishBuildFixture(stagingDir, publishDir);
     expect(await fs.readFile(path.join(publishDir, "index.html"), "utf8")).toBe("new");
     expect(await fs.readdir(publishDir)).toEqual(["index.html"]);
     expect(await fs.readdir(root)).toEqual(["site"]); // staging and retired both gone
@@ -179,9 +332,41 @@ describe("publishBuild", () => {
 
   it("leaves the previous build serving when the staged one never arrives", async () => {
     // The property the staging directory exists for: buildSite throws before
-    // it ever calls publishBuild, so the live site is untouched.
+    // it ever calls publishBuildFixture, so the live site is untouched.
     const { publishDir } = await staged("old");
-    await expect(publishBuild(path.join(publishDir, "..", "nope"), publishDir)).rejects.toThrow();
+    await expect(publishBuildFixture(path.join(publishDir, "..", "nope"), publishDir)).rejects.toThrow();
     expect(await fs.readFile(path.join(publishDir, "index.html"), "utf8")).toBe("old");
+  });
+
+  it("preserves the retired snapshot and reports both errors when publish and restore fail", async () => {
+    const { publishDir, stagingDir } = await staged("old");
+    const retired = `${publishDir}.retired-${process.pid}`;
+    const publishError = new Error("staging rename failed");
+    const restoreError = new Error("retired restore failed");
+    const rename = vi.fn(async (from: string, to: string) => {
+      if (from === stagingDir && to === publishDir) throw publishError;
+      if (from === retired && to === publishDir) throw restoreError;
+      await fs.rename(from, to);
+    });
+
+    let caught: unknown;
+    try {
+      await publishBuildFixture(stagingDir, publishDir, { rename });
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect((caught as AggregateError).errors).toEqual([
+      publishError,
+      restoreError,
+    ]);
+    expect(await fs.readFile(path.join(retired, "index.html"), "utf8")).toBe(
+      "old",
+    );
+    await expect(fs.stat(publishDir)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(path.join(stagingDir, "index.html"), "utf8")).toBe(
+      "new",
+    );
   });
 });

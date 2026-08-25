@@ -53,6 +53,7 @@ next-env.d.ts
 # local evaluation runs contain sealed blind mappings and coordinator-only state
 /docs/eval/baseline/runs/
 /docs/eval/model-routing/runs/
+/docs/eval/page-ir-safe-pipeline/runs/
 spikes/layout-ir/out/
 spikes/layout-ir/shots/
 spikes/layout-ir/verify-report.json

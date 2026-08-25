@@ -1,0 +1,365 @@
+{
+  "schemaVersion": 1,
+  "target": "website",
+  "referenceContract": {
+    "schemaVersion": 1,
+    "selection": {
+      "mode": "selected",
+      "sources": [
+        {
+          "id": "ref-saas",
+          "kind": "refero-style",
+          "role": "primary"
+        }
+      ]
+    },
+    "preserveTraits": [
+      "Purpose-led hierarchy",
+      "Client-owned synthesis"
+    ],
+    "rhythm": "alternating",
+    "density": "comfortable",
+    "surfaceArc": [
+      "base",
+      "raised",
+      "contrast"
+    ],
+    "mediaTreatment": "contained",
+    "componentAnatomy": [
+      "headline",
+      "supporting-copy",
+      "primary-action",
+      "proof"
+    ],
+    "rejects": [
+      "Frozen local-service section order",
+      "Copied reference branding"
+    ],
+    "motion": {
+      "intent": "subtle",
+      "reducedMotion": "static"
+    }
+  },
+  "layoutProgram": {
+    "schemaVersion": 1,
+    "rootNodeId": "document",
+    "nodes": [
+      {
+        "id": "document",
+        "kind": "document",
+        "childIds": [
+          "header",
+          "main",
+          "footer"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "stack"
+          },
+          "large": {
+            "flow": "stack"
+          }
+        }
+      },
+      {
+        "id": "header",
+        "kind": "landmark",
+        "landmark": "header",
+        "childIds": [
+          "navigation"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "row"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "navigation",
+        "kind": "landmark",
+        "landmark": "navigation",
+        "childIds": [
+          "nav-action"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "row"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "nav-action",
+        "kind": "slot",
+        "slotType": "action"
+      },
+      {
+        "id": "main",
+        "kind": "landmark",
+        "landmark": "main",
+        "childIds": [
+          "product-hero",
+          "features",
+          "integrations",
+          "pricing"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "stack"
+          },
+          "large": {
+            "flow": "stack"
+          }
+        }
+      },
+      {
+        "id": "product-hero",
+        "kind": "section",
+        "childIds": [
+          "page-heading",
+          "intro-copy",
+          "primary-action"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "grid",
+            "columns": 3
+          }
+        }
+      },
+      {
+        "id": "page-heading",
+        "kind": "slot",
+        "slotType": "heading",
+        "level": 1
+      },
+      {
+        "id": "intro-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "primary-action",
+        "kind": "slot",
+        "slotType": "action"
+      },
+      {
+        "id": "features",
+        "kind": "section",
+        "childIds": [
+          "features-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "grid",
+            "columns": 2
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "features-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "integrations",
+        "kind": "section",
+        "childIds": [
+          "integrations-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "grid",
+            "columns": 2
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "integrations-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "pricing",
+        "kind": "section",
+        "childIds": [
+          "pricing-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "grid",
+            "columns": 2
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "pricing-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "footer",
+        "kind": "landmark",
+        "landmark": "footer",
+        "childIds": [
+          "footer-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "footer-copy",
+        "kind": "slot",
+        "slotType": "text"
+      }
+    ]
+  },
+  "content": [
+    {
+      "id": "page-title",
+      "kind": "heading",
+      "text": "saas-marketing synthetic evaluation"
+    },
+    {
+      "id": "intro-text",
+      "kind": "text",
+      "text": "Move from product promise to capabilities, integrations, pricing, and a product-tour action."
+    },
+    {
+      "id": "conversion-label",
+      "kind": "text",
+      "text": "Open the synthetic product tour"
+    },
+    {
+      "id": "footer-text",
+      "kind": "text",
+      "text": "Synthetic fixture only; not approved customer content."
+    },
+    {
+      "id": "features-content",
+      "kind": "text",
+      "text": "Synthetic evaluation content for features."
+    },
+    {
+      "id": "integrations-content",
+      "kind": "text",
+      "text": "Synthetic evaluation content for integrations."
+    },
+    {
+      "id": "pricing-content",
+      "kind": "text",
+      "text": "Synthetic evaluation content for pricing."
+    }
+  ],
+  "tokens": [],
+  "assets": [],
+  "actions": [
+    {
+      "id": "primary-conversion",
+      "kind": "external",
+      "href": "https://example.com/synthetic-evaluation"
+    }
+  ],
+  "slotBindings": [
+    {
+      "nodeId": "nav-action",
+      "kind": "action",
+      "labelContentId": "conversion-label",
+      "actionId": "primary-conversion"
+    },
+    {
+      "nodeId": "page-heading",
+      "kind": "heading",
+      "contentId": "page-title"
+    },
+    {
+      "nodeId": "intro-copy",
+      "kind": "text",
+      "contentId": "intro-text"
+    },
+    {
+      "nodeId": "primary-action",
+      "kind": "action",
+      "labelContentId": "conversion-label",
+      "actionId": "primary-conversion"
+    },
+    {
+      "nodeId": "features-copy",
+      "kind": "text",
+      "contentId": "features-content"
+    },
+    {
+      "nodeId": "integrations-copy",
+      "kind": "text",
+      "contentId": "integrations-content"
+    },
+    {
+      "nodeId": "pricing-copy",
+      "kind": "text",
+      "contentId": "pricing-content"
+    },
+    {
+      "nodeId": "footer-copy",
+      "kind": "text",
+      "contentId": "footer-text"
+    }
+  ],
+  "nodeTokenBindings": [],
+  "accessibility": {
+    "language": "en-US",
+    "titleContentId": "page-title",
+    "navigationNodeId": "navigation",
+    "mainNodeId": "main",
+    "skipToNodeId": "product-hero"
+  }
+}

@@ -34,11 +34,12 @@ function renderComposer(referoDesignEvidenceAvailable = true) {
 }
 
 describe("IntakeComposer", () => {
-  it("renders one prompt surface with exactly three persistent actions", () => {
+  it("renders one prompt surface with progressive upload, target, research, and start actions", () => {
     const html = renderComposer();
     expect(html).toContain('class="intake-composer"');
     expect(html).toContain('aria-label="Describe your project"');
-    expect(html).toContain('rows="6"');
+    expect(html).toContain('maxLength="60000"');
+    expect(html).toContain('rows="4"');
     expect(html).toContain('aria-label="Add files"');
     expect(html).toContain('class="intake-target__summary"');
     expect(html).toContain('class="btn-primary intake-composer__send"');
@@ -50,8 +51,9 @@ describe("IntakeComposer", () => {
     const html = renderComposer();
     expect(html).toContain("A responsive public-facing site for marketing, information, lead generation, or sales.");
     expect(html).toContain("Next.js and Tailwind CSS");
-    expect(html).toContain("An interactive browser product with screens, workflows, and application behavior.");
-    expect(html).toContain("A touch-first iPhone experience with mobile navigation and platform-appropriate interactions.");
+    expect(html).not.toContain("Web app");
+    expect(html).not.toContain("iOS");
+    expect(html.match(/name="project-target"/g)).toHaveLength(1);
     expect(html).toContain("Research settings");
     expect(html).toContain("Gather the research lanes selected below before the build.");
     expect(html).toContain("Business and competitor context");
@@ -77,11 +79,11 @@ describe("IntakeComposer", () => {
     expect(GUIDANCE_PROMPTS).toEqual([
       "Tell us about the company you run or want to build.",
       "Share anything that will help us understand it.",
-      "Choose Website, Web app, or iOS app.",
+      "Website is the production target for Phase 1.",
       "Try Research to sharpen the result.",
       "Add any files you want us to use.",
     ]);
-    expect(boundedComposerHeight(80, 900)).toEqual({ height: 144, overflow: false });
+    expect(boundedComposerHeight(80, 900)).toEqual({ height: 120, overflow: false });
     expect(boundedComposerHeight(700, 900)).toEqual({ height: 360, overflow: true });
     expect(boundedComposerHeight(700, 320)).toEqual({ height: 160, overflow: true });
   });

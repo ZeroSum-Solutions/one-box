@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AssetControls,
+  blockingPlacementFailure,
   classifyAssetTarget,
   retainGenerationAttempt,
 } from "./AssetControls";
@@ -35,6 +36,23 @@ describe("AssetControls", () => {
     };
     expect(retainGenerationAttempt(first, changedDraft)).toBe(first);
     expect(retainGenerationAttempt(null, changedDraft)).toBe(changedDraft);
+  });
+
+  it("reports the named blocking gates instead of completing a rejected placement", () => {
+    expect(
+      blockingPlacementFailure([
+        { gate: "contrast", pass: false, blocking: true },
+        { gate: "perf-budget", pass: false, blocking: false },
+        { gate: "axe", pass: true, blocking: true },
+      ]),
+    ).toBe(
+      "Image placement was blocked because contrast did not pass. The selected image was not replaced.",
+    );
+    expect(
+      blockingPlacementFailure([
+        { gate: "perf-budget", pass: false, blocking: false },
+      ]),
+    ).toBeNull();
   });
 
   it("accepts image targets without broadening non-image selection authority", () => {

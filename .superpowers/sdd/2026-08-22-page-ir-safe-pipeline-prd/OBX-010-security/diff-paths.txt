@@ -1,0 +1,8 @@
+docs/architecture/README.md
+docs/tickets/page-ir-safe-pipeline/OBX-010-candidate-contract.md
+src/app/api/sites/[id]/[...path]/route.test.ts
+src/lib/candidate.test.ts
+src/lib/candidate.ts
+src/lib/contracts.test.ts
+src/lib/contracts.ts
+src/lib/runstate.ts

@@ -14,12 +14,104 @@ import {
   parseWorkbenchState,
   panelWidthBounds,
   persistWorkbenchState,
+  previewIframeSandbox,
+  previewIframeKey,
   readEditorStateMessage,
+  resolvePreviewCompatibility,
   restoreWorkbenchState,
+  shouldAcceptEditorStateMessage,
   workbenchSizeForWidth,
   DEFAULT_WORKBENCH_STATE,
   type PersistedWorkbenchState,
 } from "./previewState";
+
+describe("preview compatibility policy", () => {
+  const websiteCompatibility = {
+    mode: "phase-1-website",
+    projectTarget: "website",
+    label: "website",
+    readOnly: false,
+    message: null,
+  };
+  const legacyCompatibility = {
+    mode: "legacy-read-only",
+    projectTarget: "web-app",
+    label: "legacy/experimental",
+    readOnly: true,
+    message:
+      "Legacy/experimental and read-only in Phase 1; preview/export available; start a new Website project for generation/edit.",
+  };
+
+  it("enables editing only for a valid Website compatibility response", () => {
+    expect(
+      resolvePreviewCompatibility(true, {
+        compatibility: websiteCompatibility,
+      }),
+    ).toEqual({
+      status: "active",
+      editingAvailable: true,
+      compatibility: websiteCompatibility,
+      notice: null,
+    });
+  });
+
+  it("keeps valid legacy compatibility view-only with its notice", () => {
+    expect(
+      resolvePreviewCompatibility(true, {
+        compatibility: legacyCompatibility,
+      }),
+    ).toEqual({
+      status: "legacy",
+      editingAvailable: false,
+      compatibility: legacyCompatibility,
+      notice: legacyCompatibility.message,
+    });
+  });
+
+  it("fails closed with an actionable notice for missing or malformed 200 payloads", () => {
+    for (const payload of [
+      {},
+      { compatibility: { ...websiteCompatibility, readOnly: "no" } },
+      { compatibility: { ...legacyCompatibility, projectTarget: "website" } },
+    ]) {
+      const state = resolvePreviewCompatibility(true, payload);
+      expect(state.status).toBe("error");
+      expect(state.editingAvailable).toBe(false);
+      expect(state.notice).toMatch(/compatibility.*could not be confirmed/i);
+    }
+  });
+
+  it("fails closed with the same notice for non-OK responses and fetch failures", () => {
+    for (const payload of [
+      { error: "not found" },
+      null,
+    ]) {
+      const state = resolvePreviewCompatibility(false, payload);
+      expect(state.status).toBe("error");
+      expect(state.editingAvailable).toBe(false);
+      expect(state.notice).toMatch(/preview remains available/i);
+    }
+  });
+
+  it("keeps the loading iframe on the strict sandbox until compatibility resolves", () => {
+    expect(previewIframeSandbox("loading", "view")).toBe("allow-scripts");
+    expect(previewIframeSandbox("active", "edit")).toBe("allow-scripts");
+    expect(previewIframeSandbox("active", "view")).toBe(
+      "allow-scripts allow-forms allow-popups allow-downloads",
+    );
+    expect(
+      previewIframeKey(0, "view", previewIframeSandbox("loading", "view")),
+    ).not.toBe(
+      previewIframeKey(0, "view", previewIframeSandbox("active", "view")),
+    );
+  });
+
+  it("accepts editor-state messages only in an authorized edit session", () => {
+    expect(shouldAcceptEditorStateMessage(false, "view")).toBe(false);
+    expect(shouldAcceptEditorStateMessage(true, "view")).toBe(false);
+    expect(shouldAcceptEditorStateMessage(true, "edit")).toBe(true);
+  });
+});
 
 describe("preview editor message guard", () => {
   const valid = {

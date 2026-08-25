@@ -16,6 +16,10 @@ import {
 import { isLocalApiAuthorized } from "../../../../lib/localApiAuth";
 import { stageLockCandidates } from "../../../../lib/referenceStage";
 import { withFileLock } from "../../../../lib/fileLock";
+import {
+  assertWebsiteProductionRun,
+  websiteOnlyProductionResponse,
+} from "../../../../lib/productionTarget";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
@@ -87,6 +91,7 @@ export async function POST(
   }
 
   try {
+    await assertWebsiteProductionRun(id);
     const input = parsed.data;
     if (input.action === "select") {
       const selection = await withRunTransaction(id, async (transaction) => {
@@ -205,6 +210,8 @@ export async function POST(
       }
     );
   } catch (error) {
+    const targetResponse = websiteOnlyProductionResponse(error);
+    if (targetResponse) return targetResponse;
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });
     }

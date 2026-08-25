@@ -1,0 +1,344 @@
+{
+  "schemaVersion": 1,
+  "target": "website",
+  "referenceContract": {
+    "schemaVersion": 1,
+    "selection": {
+      "mode": "explicit-none",
+      "reason": "No visual reference is selected so editorial hierarchy is derived from the brief."
+    },
+    "preserveTraits": [
+      "Purpose-led hierarchy"
+    ],
+    "rhythm": "alternating",
+    "density": "dense",
+    "surfaceArc": [
+      "base",
+      "raised",
+      "contrast"
+    ],
+    "mediaTreatment": "contained",
+    "componentAnatomy": [
+      "headline",
+      "supporting-copy",
+      "primary-action",
+      "proof"
+    ],
+    "rejects": [
+      "Frozen local-service section order",
+      "Copied reference branding"
+    ],
+    "motion": {
+      "intent": "subtle",
+      "reducedMotion": "static"
+    }
+  },
+  "layoutProgram": {
+    "schemaVersion": 1,
+    "rootNodeId": "document",
+    "nodes": [
+      {
+        "id": "document",
+        "kind": "document",
+        "childIds": [
+          "header",
+          "main",
+          "footer"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "stack"
+          },
+          "large": {
+            "flow": "stack"
+          }
+        }
+      },
+      {
+        "id": "header",
+        "kind": "landmark",
+        "landmark": "header",
+        "childIds": [
+          "navigation"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "row"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "navigation",
+        "kind": "landmark",
+        "landmark": "navigation",
+        "childIds": [
+          "nav-action"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "row"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "nav-action",
+        "kind": "slot",
+        "slotType": "action"
+      },
+      {
+        "id": "main",
+        "kind": "landmark",
+        "landmark": "main",
+        "childIds": [
+          "editorial-index",
+          "latest-stories",
+          "topic-collections"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "stack"
+          },
+          "large": {
+            "flow": "stack"
+          }
+        }
+      },
+      {
+        "id": "editorial-index",
+        "kind": "section",
+        "childIds": [
+          "page-heading",
+          "intro-copy",
+          "primary-action"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "grid",
+            "columns": 3
+          }
+        }
+      },
+      {
+        "id": "page-heading",
+        "kind": "slot",
+        "slotType": "heading",
+        "level": 1
+      },
+      {
+        "id": "intro-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "primary-action",
+        "kind": "slot",
+        "slotType": "action"
+      },
+      {
+        "id": "latest-stories",
+        "kind": "section",
+        "childIds": [
+          "latest-stories-copy",
+          "latest-stories-list"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "grid",
+            "columns": 2
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "latest-stories-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "latest-stories-list",
+        "kind": "slot",
+        "slotType": "list",
+        "ordered": false
+      },
+      {
+        "id": "topic-collections",
+        "kind": "section",
+        "childIds": [
+          "topic-collections-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "grid",
+            "columns": 2
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "topic-collections-copy",
+        "kind": "slot",
+        "slotType": "text"
+      },
+      {
+        "id": "footer",
+        "kind": "landmark",
+        "landmark": "footer",
+        "childIds": [
+          "footer-copy"
+        ],
+        "responsive": {
+          "small": {
+            "flow": "stack"
+          },
+          "medium": {
+            "flow": "row"
+          },
+          "large": {
+            "flow": "row"
+          }
+        }
+      },
+      {
+        "id": "footer-copy",
+        "kind": "slot",
+        "slotType": "text"
+      }
+    ]
+  },
+  "content": [
+    {
+      "id": "page-title",
+      "kind": "heading",
+      "text": "editorial-index synthetic evaluation"
+    },
+    {
+      "id": "intro-text",
+      "kind": "text",
+      "text": "Prioritize scanning, story discovery, and entry into a featured synthetic issue."
+    },
+    {
+      "id": "conversion-label",
+      "kind": "text",
+      "text": "Read the synthetic issue"
+    },
+    {
+      "id": "footer-text",
+      "kind": "text",
+      "text": "Synthetic fixture only; not approved customer content."
+    },
+    {
+      "id": "latest-stories-content",
+      "kind": "text",
+      "text": "Synthetic evaluation content for latest-stories."
+    },
+    {
+      "id": "latest-story-items",
+      "kind": "list",
+      "items": [
+        "Synthetic field report",
+        "Synthetic interview",
+        "Synthetic analysis"
+      ]
+    },
+    {
+      "id": "topic-collections-content",
+      "kind": "text",
+      "text": "Synthetic evaluation content for topic-collections."
+    }
+  ],
+  "tokens": [],
+  "assets": [],
+  "actions": [
+    {
+      "id": "primary-conversion",
+      "kind": "external",
+      "href": "https://example.com/synthetic-evaluation"
+    }
+  ],
+  "slotBindings": [
+    {
+      "nodeId": "nav-action",
+      "kind": "action",
+      "labelContentId": "conversion-label",
+      "actionId": "primary-conversion"
+    },
+    {
+      "nodeId": "page-heading",
+      "kind": "heading",
+      "contentId": "page-title"
+    },
+    {
+      "nodeId": "intro-copy",
+      "kind": "text",
+      "contentId": "intro-text"
+    },
+    {
+      "nodeId": "primary-action",
+      "kind": "action",
+      "labelContentId": "conversion-label",
+      "actionId": "primary-conversion"
+    },
+    {
+      "nodeId": "latest-stories-copy",
+      "kind": "text",
+      "contentId": "latest-stories-content"
+    },
+    {
+      "nodeId": "latest-stories-list",
+      "kind": "list",
+      "contentId": "latest-story-items"
+    },
+    {
+      "nodeId": "topic-collections-copy",
+      "kind": "text",
+      "contentId": "topic-collections-content"
+    },
+    {
+      "nodeId": "footer-copy",
+      "kind": "text",
+      "contentId": "footer-text"
+    }
+  ],
+  "nodeTokenBindings": [],
+  "accessibility": {
+    "language": "en-US",
+    "titleContentId": "page-title",
+    "navigationNodeId": "navigation",
+    "mainNodeId": "main",
+    "skipToNodeId": "editorial-index"
+  }
+}

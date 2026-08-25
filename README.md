@@ -115,12 +115,19 @@ npm run build               # Next.js production build
 npm run test:smoke          # deterministic generated-site gates
 npm run test:e2e:intake     # rendered intake/upload acceptance
 npm run test:e2e:preview    # rendered View/Edit workbench acceptance
+npm run test:e2e:page-ir    # merge-blocking intake, workbench, and rollout UI
 npm run test:e2e:motion     # isolated GSAP lifecycle/reduced-motion matrix
 npm run test:e2e:token-motion # integrated token/motion workbench matrix
 npm run test:e2e:full-unit  # live full-run terminal-state tests
 npm run test:eval           # offline frozen-comparison harness tests
 npm run eval:baseline:verify # verify frozen brief, rubric, and hashes
 ```
+
+Page IR rollout is default-off. Set `ONE_BOX_PAGE_IR_ROLLOUT=1` to select
+`page-ir-v1` for newly created runs. Set `ONE_BOX_PAGE_IR_KILL_SWITCH=1` to
+select `template-v1` for new runs even when rollout is enabled. The decision is
+captured at run creation; changing either variable never changes an existing
+run's authority or artifacts.
 
 The live full-run harness uses real model and provider calls, so run it only
 after approving that spend. It stops with exit code 2 whenever an evidence
@@ -152,9 +159,10 @@ and each approval advances a persisted workflow gate. `/preview/<id>` serves a
 sandboxed generated site; structured and natural-language edits share the same
 per-run lock, history, validation, and rollback path.
 
-The intake keeps attachment, Website/Web app/iOS target, research, and paid
-fallback choices inside the composer. Failed chat and upload attempts retain
-their local context for Retry or Edit. Stable attempt and upload-batch IDs make
+The intake keeps attachment, the Phase 1 Website target, research, and paid
+fallback choices inside one composer. The prompt begins at 120px, grows to
+`min(360px, 50dvh)`, and scrolls internally without hiding Start. Failed chat
+and upload attempts retain their local context for Retry or Edit. Stable attempt and upload-batch IDs make
 those retries idempotent, so an ambiguous response cannot create a second run or
 stage the same file batch twice; completed intake retries also bypass another
 model call. The preview workbench persists exact
@@ -165,8 +173,10 @@ that run's directory; the server advertises only implemented models, requires
 explicit metered consent, keeps provider work outside the long-held site
 mutation lock, replays an ambiguous generation request without reserving credits
 or calling the provider twice, and reconciles interrupted ledger, catalog, and
-file transitions. Cross-process filesystem claims protect each of these durable
-retry boundaries.
+file transitions. A blocking placement gate names the failed gate, keeps the
+selection operable, and does not reload the preview or report a completed
+mutation. Cross-process filesystem claims protect each of these durable retry
+boundaries.
 
 Run reconnects project the append-only event audit into the current journey:
 superseded errors and earlier approval pauses remain on disk but do not render
@@ -175,6 +185,29 @@ a reconnect cannot miss the terminal checkpoint. A failed pipeline exposes a
 return-to-intake action that restores the submitted prompt and settings; claimed
 uploads must be selected again. Blocking build gates get one bounded repair
 attempt before the run fails closed instead of spending repeatedly on reload.
+
+Build events distinguish candidate creation, repair, gate, promotion, and
+recovery outcomes and include a bounded operator next step. A provenance event
+links the input artifacts, Page IR, compiler, candidate manifest/build, gate
+receipt, promoted build, and named-human review hashes. Preview is exposed only
+after promotion has completed.
+
+Template fallback is always explicit and creates a separate linked run. From a
+trusted local client, request it for a failed Page IR run with:
+
+```bash
+curl -X POST \
+  -H 'Origin: http://127.0.0.1:3000' \
+  -H 'Sec-Fetch-Site: same-origin' \
+  -H 'Content-Type: application/json' \
+  --data '{}' \
+  http://127.0.0.1:3000/api/runs/RUN_ID/fallback
+```
+
+The server owns the bounded fallback reason. It preserves the source run,
+failed Page IR artifacts, and recorded failure; it never relabels the source
+run or silently serves the template path. The source event log records the
+linked child and reason, so reconnecting operators can open the separate run.
 
 Automated visual QA remains a mechanical render check. Final visual approval is
 a separate named human review covering brief fidelity, hierarchy, composition,

@@ -11,11 +11,14 @@ import {
   generateProjectImage,
   listProjectImages,
   placeLibraryImage,
+  readValidatedGeneratedImageStaging,
   reclaimObservedGenerationClaim,
 } from "./imageLibrary";
 import { readImageGenerationLedger } from "./imageGenerationBudget";
 import { RunNotFoundError } from "./runstate";
-import { withSiteAuthorityLock } from "./siteMutation";
+import { BlockingMutationError, withSiteAuthorityLock } from "./siteMutation";
+import { knownMutationGateRequest } from "./mutationGateMatrix";
+import type { MutationGateRequestV1 } from "./contracts";
 
 const roots: string[] = [];
 const execFileAsync = promisify(execFile);
@@ -138,6 +141,7 @@ describe("project image library", () => {
     let providerSawPending = false;
     let providerCouldAcquireSiteLock = false;
     let approvalInvalidations = 0;
+    const gateRequests: MutationGateRequestV1[] = [];
     const result = await generateProjectImage(
       {
         runId,
@@ -151,6 +155,10 @@ describe("project image library", () => {
       },
       {
         sitesRoot,
+        gateRunner: async (_runId, options) => {
+          gateRequests.push(options.afterEdit);
+          return [];
+        },
         now: () => new Date("2026-08-14T12:00:00.000Z"),
         estimate: async () => 2,
         invalidateApproval: async () => {
@@ -198,7 +206,102 @@ describe("project image library", () => {
       source: { kind: "generated", targetEditId: "hero.image" },
       approvalInvalidatedAt: expect.any(String),
     });
-    expect(approvalInvalidations).toBe(1);
+    expect(approvalInvalidations).toBe(0);
+    expect(gateRequests).toEqual([knownMutationGateRequest("asset")]);
+  });
+
+  it("rolls back rejected publication and retries completed staging without another provider call", async () => {
+    const { sitesRoot, runId, site } = await fixture();
+    const root = path.join(sitesRoot, runId);
+    const source = (await listProjectImages(runId, sitesRoot)).items[0];
+    const requestId = "00000000-0000-4000-8000-000000000138";
+    const catalogPath = path.join(root, "image-library.json");
+    const gatesPath = path.join(root, "gates.json");
+    const stagingPath = path.join(root, "image-staging", `${requestId}.download`);
+    const finalPath = path.join(site, "assets", "generated", `${requestId}.png`);
+    const originalGates = Buffer.from("[]\n");
+    await fs.writeFile(gatesPath, originalGates);
+
+    let pendingCatalog = Buffer.alloc(0);
+    let providerCalls = 0;
+    let rejectPublication = true;
+    let approvalInvalidations = 0;
+    const request = {
+      runId,
+      requestId,
+      prompt: "Regenerate the hero without bypassing candidate gates",
+      model: IMAGE_MODELS[0].id,
+      aspectRatio: "1:1" as const,
+      quality: "high" as const,
+      meteredConsent: true as const,
+      sourceAssetId: source.id,
+    };
+    const dependencies = {
+      sitesRoot,
+      estimate: async () => 2,
+      invalidateApproval: async () => {
+        approvalInvalidations += 1;
+        return true;
+      },
+      gateRunner: async () => [
+        {
+          gate: "generated_image_fixture",
+          pass: !rejectPublication,
+          blocking: true,
+          details: rejectPublication ? ["reject staged image"] : [],
+          ranAt: "2026-08-14T12:00:00.000Z",
+        },
+      ],
+      generate: async (options: { outPath: string }) => {
+        providerCalls += 1;
+        await fs.mkdir(path.dirname(options.outPath), { recursive: true });
+        await fs.writeFile(
+          options.outPath,
+          Buffer.from(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+            "base64",
+          ),
+        );
+        pendingCatalog = await fs.readFile(catalogPath);
+        return { path: options.outPath, url: "https://provider.example/result.png" };
+      },
+    };
+
+    await expect(generateProjectImage(request, dependencies)).rejects.toBeInstanceOf(
+      BlockingMutationError,
+    );
+    expect(await fs.readFile(catalogPath)).toEqual(pendingCatalog);
+    expect(await fs.readFile(gatesPath)).toEqual(originalGates);
+    await expect(fs.readFile(finalPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(stagingPath)).toHaveLength(68);
+    expect(
+      (await readImageGenerationLedger(path.join(root, "image-generation-ledger.json")))
+        .entries.find((entry) => entry.requestId === requestId),
+    ).toMatchObject({ status: "completed", credits: 2 });
+    expect(approvalInvalidations).toBe(0);
+
+    rejectPublication = false;
+    const retried = await generateProjectImage(request, {
+      ...dependencies,
+      estimate: async () => {
+        throw new Error("retry must not estimate again");
+      },
+      generate: async () => {
+        providerCalls += 1;
+        return { error: "retry must not call provider" };
+      },
+    });
+
+    expect(retried.item).toMatchObject({
+      status: "completed",
+      outputPath: `site/assets/generated/${requestId}.png`,
+      source: { parentAssetId: source.id },
+      approvalInvalidatedAt: expect.any(String),
+    });
+    expect(providerCalls).toBe(1);
+    expect(await fs.readFile(finalPath)).toHaveLength(68);
+    await expect(fs.readFile(stagingPath)).rejects.toMatchObject({ code: "ENOENT" });
+    expect(approvalInvalidations).toBe(0);
   });
 
   it("keeps failed generations visible with prompt, credits, error, and lineage", async () => {
@@ -230,6 +333,55 @@ describe("project image library", () => {
       outputPath: null,
       source: { parentAssetId: legacy.id },
     });
+  });
+
+  it("does not treat stale deterministic staging as the current provider result", async () => {
+    const { sitesRoot, runId, site } = await fixture();
+    const requestId = "00000000-0000-4000-8000-000000000141";
+    const stagingPath = path.join(
+      sitesRoot,
+      runId,
+      "image-staging",
+      `${requestId}.download`,
+    );
+    await fs.mkdir(path.dirname(stagingPath), { recursive: true });
+    await fs.writeFile(
+      stagingPath,
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+
+    const result = await generateProjectImage(
+      {
+        runId,
+        requestId,
+        prompt: "A provider response that did not write its output",
+        model: IMAGE_MODELS[0].id,
+        aspectRatio: "1:1",
+        quality: "high",
+        meteredConsent: true,
+      },
+      {
+        sitesRoot,
+        estimate: async () => 1,
+        generate: async (options) => ({
+          path: options.outPath,
+          url: "https://provider.example/missing.png",
+        }),
+      },
+    );
+
+    expect(result.item).toMatchObject({
+      status: "failed",
+      error: expect.stringMatching(/unsupported image format/i),
+      outputPath: null,
+    });
+    await expect(
+      fs.readFile(path.join(site, "assets", "generated", `${requestId}.png`)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(fs.readFile(stagingPath)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("rejects missing metered consent before estimate, reservation, or provider work", async () => {
@@ -487,7 +639,7 @@ describe("project image library", () => {
     expect(ledger.entries[0].credits).toBe(8);
   }, 20_000);
 
-  it("retries approval invalidation after run state is restored", async () => {
+  it("uses the guarded mutation invalidator instead of the legacy image hook", async () => {
     const { sitesRoot, runId } = await fixture();
     const request = {
       runId,
@@ -521,7 +673,7 @@ describe("project image library", () => {
         throw new RunNotFoundError(runId);
       },
     });
-    expect(unavailable.item.approvalInvalidatedAt).toBeNull();
+    expect(unavailable.item.approvalInvalidatedAt).toEqual(expect.any(String));
 
     let restoredInvalidations = 0;
     const replayed = await generateProjectImage(request, {
@@ -532,7 +684,7 @@ describe("project image library", () => {
       },
     });
     expect(replayed.item.approvalInvalidatedAt).toEqual(expect.any(String));
-    expect(restoredInvalidations).toBe(1);
+    expect(restoredInvalidations).toBe(0);
     expect(providerCalls).toBe(1);
   });
 
@@ -630,6 +782,171 @@ describe("project image library", () => {
     );
   });
 
+  it("leaves a fresh catalogless inline reservation in flight", async () => {
+    const { sitesRoot, runId } = await fixture();
+    const root = path.join(sitesRoot, runId);
+    const requestId = "00000000-0000-4000-8000-000000000148";
+    await fs.writeFile(
+      path.join(root, "image-generation-ledger.json"),
+      JSON.stringify({
+        version: 1,
+        capCredits: 14,
+        entries: [
+          {
+            requestId,
+            editId: "hero.image",
+            instructionSha256: "e".repeat(64),
+            model: "gpt_image_2",
+            credits: 2,
+            status: "reserved",
+            reservedAt: new Date().toISOString(),
+          },
+        ],
+      }),
+    );
+
+    await listProjectImages(runId, sitesRoot);
+
+    expect(
+      (await readImageGenerationLedger(
+        path.join(root, "image-generation-ledger.json"),
+      )).entries[0],
+    ).toMatchObject({ status: "reserved" });
+  });
+
+  it("never promotes valid or partial staging from the image-library read path", async () => {
+    const { sitesRoot, runId, site } = await fixture();
+    const root = path.join(sitesRoot, runId);
+    const library = await listProjectImages(runId, sitesRoot);
+    const timestamp = new Date(
+      Date.now() - IMAGE_GENERATION_STALE_MS - 1_000,
+    ).toISOString();
+    const validId = "00000000-0000-4000-8000-000000000139";
+    const partialId = "00000000-0000-4000-8000-000000000140";
+    const pendingItem = (id: string) => ({
+      id,
+      status: "pending",
+      prompt: "A staged provider result awaiting guarded publication",
+      model: IMAGE_MODELS[0].id,
+      provider: "higgsfield",
+      aspectRatio: "1:1",
+      quality: "high",
+      dimensions: null,
+      mimeType: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      credits: 1,
+      error: null,
+      outputPath: null,
+      approvalInvalidatedAt: null,
+      source: {
+        kind: "generated",
+        parentAssetId: null,
+        targetEditId: null,
+        originalPath: null,
+      },
+      usage: [],
+    });
+    await fs.writeFile(
+      path.join(root, "image-library.json"),
+      JSON.stringify({
+        version: 1,
+        items: [pendingItem(validId), pendingItem(partialId), ...library.items],
+      }),
+    );
+    await fs.writeFile(
+      path.join(root, "image-generation-ledger.json"),
+      JSON.stringify({
+        version: 1,
+        capCredits: 14,
+        entries: [validId, partialId].map((requestId) => ({
+          requestId,
+          editId: "image-library",
+          instructionSha256: "d".repeat(64),
+          model: "gpt_image_2",
+          credits: 1,
+          status: "reserved",
+          reservedAt: timestamp,
+        })),
+      }),
+    );
+    const staging = path.join(root, "image-staging");
+    await fs.mkdir(staging, { recursive: true });
+    await fs.writeFile(
+      path.join(staging, `${validId}.download`),
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
+    await fs.writeFile(
+      path.join(staging, `${partialId}.download`),
+      Buffer.from([137, 80, 78, 71]),
+    );
+
+    const reconciled = await listProjectImages(runId, sitesRoot);
+
+    expect(reconciled.items.find((item) => item.id === validId)).toMatchObject({
+      status: "failed",
+      outputPath: null,
+    });
+    expect(reconciled.items.find((item) => item.id === partialId)).toMatchObject({
+      status: "failed",
+      outputPath: null,
+    });
+    await expect(
+      fs.readFile(path.join(site, "assets", "generated", `${validId}.png`)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      fs.readFile(path.join(site, "assets", "generated", `${partialId}.png`)),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(await fs.readFile(path.join(staging, `${validId}.download`))).toHaveLength(68);
+    expect(await fs.readFile(path.join(staging, `${partialId}.download`))).toEqual(
+      Buffer.from([137, 80, 78, 71]),
+    );
+  });
+
+  it("validates regular staging bytes and rejects partial files and symlinks", async () => {
+    const { sitesRoot, runId } = await fixture();
+    const root = path.join(sitesRoot, runId);
+    const staging = path.join(root, "image-staging");
+    const validId = "00000000-0000-4000-8000-000000000143";
+    const partialId = "00000000-0000-4000-8000-000000000144";
+    const symlinkId = "00000000-0000-4000-8000-000000000145";
+    const png = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    );
+    await fs.mkdir(staging, { recursive: true });
+    await fs.writeFile(path.join(staging, `${validId}.download`), png);
+    await fs.writeFile(path.join(staging, `${partialId}.download`), png.subarray(0, 12));
+    const symlinkTarget = path.join(root, "provider-output.png");
+    await fs.writeFile(symlinkTarget, png);
+    await fs.symlink(symlinkTarget, path.join(staging, `${symlinkId}.download`));
+
+    await expect(
+      readValidatedGeneratedImageStaging(runId, validId, sitesRoot),
+    ).resolves.toMatchObject({
+      relativePath: `assets/generated/${validId}.png`,
+      metadata: {
+        mimeType: "image/png",
+        dimensions: { width: 1, height: 1 },
+      },
+    });
+    await expect(
+      readValidatedGeneratedImageStaging(runId, partialId, sitesRoot),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/unsupported image format/i),
+      status: 502,
+    });
+    await expect(
+      readValidatedGeneratedImageStaging(runId, symlinkId, sitesRoot),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/regular file/i),
+      status: 502,
+    });
+  });
+
   it("checks exact catalog capacity before reserving generation credits", async () => {
     const { sitesRoot, runId } = await fixture();
     const root = path.join(sitesRoot, runId);
@@ -704,7 +1021,9 @@ describe("project image library", () => {
     const library = await listProjectImages(runId, sitesRoot);
     const completedId = "00000000-0000-4000-8000-000000000129";
     const orphanId = "00000000-0000-4000-8000-000000000130";
-    const timestamp = new Date().toISOString();
+    const timestamp = new Date(
+      Date.now() - IMAGE_GENERATION_STALE_MS - 1_000,
+    ).toISOString();
     await fs.writeFile(
       catalogPath,
       JSON.stringify({
@@ -887,17 +1206,21 @@ describe("project image library", () => {
     const alternate = (await listProjectImages(runId, sitesRoot)).items.find(
       (item) => item.outputPath === "site/assets/alternate.png",
     )!;
+    const gateRequests: MutationGateRequestV1[] = [];
     const placed = await placeLibraryImage(runId, alternate.id, "hero.image", {
       sitesRoot,
-      gateRunner: async () => [
-        {
-          gate: "fixture",
-          pass: true,
-          blocking: true,
-          details: [],
-          ranAt: "2026-08-14T00:00:00.000Z",
-        },
-      ],
+      gateRunner: async (_runId, options) => {
+        gateRequests.push(options.afterEdit);
+        return [
+          {
+            gate: "fixture",
+            pass: true,
+            blocking: true,
+            details: [],
+            ranAt: "2026-08-14T00:00:00.000Z",
+          },
+        ];
+      },
     });
     expect(placed.item.usage).toEqual([
       { editId: "hero.image", src: "assets/alternate.png" },
@@ -905,5 +1228,6 @@ describe("project image library", () => {
     expect(await fs.readFile(path.join(site, "index.html"), "utf8")).toContain(
       'src="assets/alternate.png"',
     );
+    expect(gateRequests).toEqual([knownMutationGateRequest("asset")]);
   });
 });

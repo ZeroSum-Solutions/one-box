@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "brochure-local-service",
+  "purpose": "brochure-local-service",
+  "providerMode": "recorded-or-stubbed",
+  "inputs": [
+    {
+      "path": "brief.json",
+      "sha256": "e0b1d469a92bb7758c40d1ef0592cfa41439bf2eaa366508c18198364a8c203d"
+    },
+    {
+      "path": "page-ir.json",
+      "sha256": "a5e2ea6cd1ba5d518b1a157af8ad942c93da3af4322121a301c4c4a8b3a4e18c"
+    }
+  ]
+}

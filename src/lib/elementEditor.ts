@@ -4,6 +4,14 @@ import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 import { z } from "zod";
 import { inventoryFromHtml } from "./assistant";
+import { MutationGateRequestV1Schema } from "./contracts";
+import {
+  knownMutationGateRequest,
+  mixedMutationGateRequest,
+  normalizeMutationGateRequest,
+  unknownMutationGateRequest,
+  type MutationGateRequest,
+} from "./mutationGateMatrix";
 import {
   atomicWrite,
   assertSafeRunId,
@@ -75,6 +83,7 @@ const ElementHistoryEntrySchema = z.object({
   previousHtml: z.string(),
   nextHtml: z.string(),
   at: z.string(),
+  gateRequest: MutationGateRequestV1Schema.optional(),
 });
 const ElementHistorySchema = z.object({
   version: z.literal(1),
@@ -331,6 +340,7 @@ function editorPaths(runId: string, testSitesRoot?: string) {
     ? path.join(testSitesRoot, safeRunId)
     : path.join(/* turbopackIgnore: true */ SITES_ROOT, safeRunId);
   return {
+    root,
     index: path.join(root, "site", "index.html"),
     history: path.join(root, "element-history.json"),
     gates: path.join(root, "gates.json"),
@@ -357,6 +367,23 @@ export interface ElementEditorOptions {
 
 export interface HtmlEditOptions extends ElementEditorOptions {
   snapshotPaths?: string[];
+  gateRequest: MutationGateRequest;
+}
+
+function gateRequestForStructuredPatch(patch: ElementPatch): MutationGateRequest {
+  const capabilities = new Set<
+    "content" | "token-style" | "structure" | "link-action"
+  >();
+  if (patch.text !== undefined) capabilities.add("content");
+  if (patch.typography !== undefined) capabilities.add("token-style");
+  if (patch.move !== undefined) capabilities.add("structure");
+  if (patch.href !== undefined || patch.buttonAction !== undefined) {
+    capabilities.add("link-action");
+  }
+  const classified = [...capabilities];
+  return classified.length === 1
+    ? knownMutationGateRequest(classified[0])
+    : mixedMutationGateRequest(classified);
 }
 
 export async function elementHistoryState(
@@ -402,7 +429,7 @@ export async function applyStructuredElementEdit(
     runId,
     editId,
     (previousHtml) => applyElementPatchToHtml(previousHtml, editId, patch),
-    options,
+    { ...options, gateRequest: gateRequestForStructuredPatch(patch) },
   );
 }
 
@@ -411,11 +438,13 @@ export async function applyElementHtmlEdit(
   runId: string,
   editId: string,
   transform: (previousHtml: string) => Promise<string> | string,
-  options: HtmlEditOptions = {},
+  options: HtmlEditOptions,
 ) {
   const files = editorPaths(runId, options.sitesRoot);
+  const gateRequest = normalizeMutationGateRequest(options.gateRequest);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [
       files.index,
       files.history,
@@ -423,6 +452,7 @@ export async function applyElementHtmlEdit(
       ...(options.snapshotPaths ?? []),
     ],
     gateRunner: options.gateRunner,
+    gateRequest,
     mutate: async () => {
       const [previousHtml, history] = await Promise.all([
         fs
@@ -448,6 +478,7 @@ export async function applyElementHtmlEdit(
             previousHtml,
             nextHtml,
             at: new Date().toISOString(),
+            gateRequest,
           },
         ],
         cursor: history.cursor + 1,
@@ -473,8 +504,10 @@ export async function moveElementHistory(
   const files = editorPaths(runId, options.sitesRoot);
   const result = await runGuardedMutation({
     runId,
+    runRoot: files.root,
     snapshotPaths: [files.index, files.history, files.gates],
     gateRunner: options.gateRunner,
+    gateRequest: (value) => value.gateRequest,
     mutate: async () => {
       const history = await readHistory(files.history);
       if (action === "undo" && history.cursor === 0)
@@ -491,14 +524,23 @@ export async function moveElementHistory(
         cursor: history.cursor + (action === "undo" ? -1 : 1),
       };
       await atomicWrite(files.index, html);
-      return nextHistory;
+      return {
+        history: nextHistory,
+        gateRequest: entry.gateRequest
+          ? normalizeMutationGateRequest(entry.gateRequest)
+          : unknownMutationGateRequest(),
+      };
     },
     commit: (committed) =>
-      atomicWrite(files.history, `${JSON.stringify(committed, null, 2)}\n`),
+      atomicWrite(
+        files.history,
+        `${JSON.stringify(committed.history, null, 2)}\n`,
+      ),
   });
   return {
-    canUndo: result.value.cursor > 0,
-    canRedo: result.value.cursor < result.value.entries.length,
+    canUndo: result.value.history.cursor > 0,
+    canRedo:
+      result.value.history.cursor < result.value.history.entries.length,
     gates: result.reports,
   };
 }

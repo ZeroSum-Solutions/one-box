@@ -1,0 +1,5 @@
+# OBX-031: deterministic 12-hex transaction identifiers in crash-recovery fixtures.
+331bd50ff02e0789e72a92e9e62f111d781cee8c:src/lib/candidateRecovery.test.ts:generic-api-key:252
+331bd50ff02e0789e72a92e9e62f111d781cee8c:src/lib/candidateRecovery.test.ts:generic-api-key:293
+331bd50ff02e0789e72a92e9e62f111d781cee8c:src/lib/candidateRecovery.test.ts:generic-api-key:330
+331bd50ff02e0789e72a92e9e62f111d781cee8c:src/lib/candidateRecovery.test.ts:generic-api-key:430

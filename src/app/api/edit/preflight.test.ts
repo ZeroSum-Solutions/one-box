@@ -107,7 +107,7 @@ describe("edit route classify-then-apply preflight", () => {
       },
     });
     expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
-    expect(mocks.loadRun).not.toHaveBeenCalled();
+    expect(mocks.loadRun).toHaveBeenCalledWith("run1");
   });
 
   it("returns a redirect without entering the mutation transaction until it is confirmed", async () => {
@@ -129,7 +129,7 @@ describe("edit route classify-then-apply preflight", () => {
       },
     });
     expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
-    expect(mocks.loadRun).not.toHaveBeenCalled();
+    expect(mocks.loadRun).toHaveBeenCalledWith("run1");
   });
 
   it("enters the existing mutation transaction after a redirect is confirmed", async () => {

@@ -1,0 +1,3 @@
+command: gitleaks detect --source . --no-banner --redact --log-opts 7b19cd0bdd946ed875fc1a647e82cdfae088b228..d1f59e318d55287803441e71db5cd2d777fe91de
+1 commits scanned; 14239 bytes scanned
+no leaks found; exit 0

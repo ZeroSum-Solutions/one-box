@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "ref": "d1f59e318d55287803441e71db5cd2d777fe91de",
+  "base": {
+    "status": "AVAILABLE",
+    "value": "7b19cd0bdd946ed875fc1a647e82cdfae088b228",
+    "unavailable_reason": null,
+    "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/range.txt:1-2"}]
+  },
+  "scope": {
+    "changed_paths": [
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md",
+      "docs/architecture/README.md",
+      "docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md",
+      "src/lib/builder.ts",
+      "src/lib/builderHeroAuthorization.test.ts",
+      "src/lib/pipeline.ts",
+      "src/lib/pipelineStaleVisualQa.test.ts"
+    ],
+    "captured_diff_paths": [
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md",
+      ".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md",
+      "docs/architecture/README.md",
+      "docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md",
+      "src/lib/builder.ts",
+      "src/lib/builderHeroAuthorization.test.ts",
+      "src/lib/pipeline.ts",
+      "src/lib/pipelineStaleVisualQa.test.ts"
+    ],
+    "path_classification": [
+      {"path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md","surfaces":[],"evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-report.md:257"}]},
+      {"path":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md","surfaces":[],"evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md:110"}]},
+      {"path":"docs/architecture/README.md","surfaces":[],"evidence":[{"class":"STATIC","citation":"docs/architecture/README.md:121"}]},
+      {"path":"docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md","surfaces":[],"evidence":[{"class":"STATIC","citation":"docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md:66"}]},
+      {"path":"src/lib/builder.ts","surfaces":["authorization","untrusted-input"],"evidence":[{"class":"STATIC","citation":"src/lib/builder.ts:503"}]},
+      {"path":"src/lib/builderHeroAuthorization.test.ts","surfaces":["authorization","untrusted-input"],"evidence":[{"class":"STATIC","citation":"src/lib/builderHeroAuthorization.test.ts:96"}]},
+      {"path":"src/lib/pipeline.ts","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"src/lib/pipeline.ts:919"}]},
+      {"path":"src/lib/pipelineStaleVisualQa.test.ts","surfaces":["authorization"],"evidence":[{"class":"STATIC","citation":"src/lib/pipelineStaleVisualQa.test.ts:114"}]}
+    ],
+    "sensitive_surfaces": ["authorization","untrusted-input"],
+    "diff_command_id": "CMD-001",
+    "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-paths.txt:1-8"}]
+  },
+  "commands": [
+    {
+      "id": "CMD-001",
+      "purpose": "diff",
+      "command": "git diff --name-only 7b19cd0bdd946ed875fc1a647e82cdfae088b228...d1f59e318d55287803441e71db5cd2d777fe91de",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "7b19cd0bdd946ed875fc1a647e82cdfae088b228...d1f59e318d55287803441e71db5cd2d777fe91de",
+      "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-paths.txt:1-8"}],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-002",
+      "purpose": "secrets-scan",
+      "command": "gitleaks detect --source . --no-banner --redact --log-opts 7b19cd0bdd946ed875fc1a647e82cdfae088b228..d1f59e318d55287803441e71db5cd2d777fe91de",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "7b19cd0bdd946ed875fc1a647e82cdfae088b228..d1f59e318d55287803441e71db5cd2d777fe91de",
+      "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/gitleaks.txt:1-3"}],
+      "unavailable_reason": null
+    }
+  ],
+  "exports": {
+    "state": "NONE",
+    "items": [],
+    "evidence": [{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-review.md:31-35"}],
+    "unavailable_reason": null
+  },
+  "secrets_scan": {
+    "result": "PASS",
+    "command_id": "CMD-002",
+    "scope": "RANGE",
+    "comparison": "7b19cd0bdd946ed875fc1a647e82cdfae088b228..d1f59e318d55287803441e71db5cd2d777fe91de",
+    "evidence": [{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/gitleaks.txt:1-3"}],
+    "unavailable_reason": null
+  },
+  "export_policy": {
+    "result": "PASS",
+    "evidence": [{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-review.md:31-35"}],
+    "unavailable_reason": null
+  },
+  "coverage": [
+    {"surface":"prompt-injection","state":"NOT-APPLICABLE","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-review.md:24-26"}],"unavailable_reason":null},
+    {"surface":"secrets","state":"REVIEWED","evidence":[{"class":"COMMAND","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/gitleaks.txt:1-3"}],"unavailable_reason":null},
+    {"surface":"authentication","state":"NOT-APPLICABLE","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-review.md:3-5"}],"unavailable_reason":null},
+    {"surface":"authorization","state":"REVIEWED","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-review.md:7-14"}],"unavailable_reason":null},
+    {"surface":"untrusted-input","state":"REVIEWED","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-review.md:16-22"}],"unavailable_reason":null},
+    {"surface":"export","state":"NOT-APPLICABLE","evidence":[{"class":"STATIC","citation":".superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-012-fix-round-3-security/diff-review.md:31-35"}],"unavailable_reason":null}
+  ],
+  "findings": [],
+  "verdict": "PASS"
+}

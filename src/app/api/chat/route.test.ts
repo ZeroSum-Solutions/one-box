@@ -7,7 +7,7 @@ import {
   handleChat,
   startPipelineFromIntake,
   type StartPipelineResult,
-} from "./route";
+} from "./route-runtime";
 import {
   assertPromptOmitsUploadMetadata,
   copyFactsForPrompt,
@@ -20,10 +20,12 @@ const ATTEMPT_ID = "018f3f39-d1e2-7c3a-9b4d-5e6f708192a3";
 afterEach(() => {
   vi.restoreAllMocks();
   delete process.env.ONE_BOX_API_TOKEN;
+  delete process.env.ONE_BOX_PAGE_IR_ROLLOUT;
+  delete process.env.ONE_BOX_PAGE_IR_KILL_SWITCH;
 });
 
 const context = {
-  projectTarget: "ios-app" as const,
+  projectTarget: "website" as const,
   research: {
     enabled: true,
     businessIntelligence: false,
@@ -44,6 +46,16 @@ const context = {
 };
 
 describe("chat intake request", () => {
+  it("accepts a detailed 30,482-character website brief", () => {
+    const request = buildChatRequest(
+      [{ id: "message-long-brief", role: "user", content: "a".repeat(30_482) }],
+      context,
+      ATTEMPT_ID
+    );
+
+    expect(ChatRequestSchema.safeParse(request).success).toBe(true);
+  });
+
   it("rejects hostile and missing-Origin POSTs before body or model work", async () => {
     for (const origin of ["https://hostile.example", null]) {
       let pulls = 0;
@@ -75,6 +87,41 @@ describe("chat intake request", () => {
       expect(pulls).toBe(pullsBefore);
       expect(model).not.toHaveBeenCalled();
     }
+  });
+
+  it("rejects a hostile same-origin Host authority before body or model work", async () => {
+    let pulls = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulls += 1;
+        controller.enqueue(new TextEncoder().encode("{}"));
+        controller.close();
+      },
+    });
+    const request = new Request("http://rebound.example/api/chat", {
+      method: "POST",
+      headers: {
+        Host: "rebound.example",
+        Origin: "http://rebound.example",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body,
+      duplex: "half",
+    } as RequestInit & { duplex: "half" });
+    await Promise.resolve();
+    const pullsBefore = pulls;
+    const model = vi.fn();
+
+    const response = await handleChat(request, {
+      streamText: model as unknown as NonNullable<
+        Parameters<typeof handleChat>[1]
+      >["streamText"],
+    });
+
+    expect(response.status).toBe(403);
+    expect(pulls).toBe(pullsBefore);
+    expect(model).not.toHaveBeenCalled();
   });
 
   it("allows a valid local bearer without Origin to reach request validation", async () => {
@@ -165,7 +212,62 @@ describe("chat intake request", () => {
     expect(model).not.toHaveBeenCalled();
   });
 
-  it("replays a completed attempt even when current runtime configuration is missing", async () => {
+  it.each(["web-app", "ios-app"] as const)(
+    "rejects forged %s production intake before attempts, configuration, or model work",
+    async (projectTarget) => {
+      const model = vi.fn(() => ({
+        toUIMessageStreamResponse: () => Response.json({ started: false }),
+      }));
+      const inspectIntakeAttempt = vi.fn();
+      const reserveIntakeAttempt = vi.fn().mockResolvedValue({
+        state: "reserved",
+        runId: "forged-target-run",
+      });
+      const preflight = vi.fn().mockReturnValue({
+        ok: true,
+        blocking: [],
+        advisory: [],
+      });
+      const response = await handleChat(
+        new Request("http://localhost:3000/api/chat", {
+          method: "POST",
+          headers: {
+            Host: "localhost:3000",
+            Origin: "http://localhost:3000",
+            "Sec-Fetch-Site": "same-origin",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(
+            buildChatRequest(
+              [{ id: "message-1", role: "user", content: "Build Acme" }],
+              { ...context, projectTarget },
+              ATTEMPT_ID
+            )
+          ),
+        }),
+        {
+          streamText: model as never,
+          inspectIntakeAttempt: inspectIntakeAttempt as never,
+          reserveIntakeAttempt: reserveIntakeAttempt as never,
+          preflight,
+        }
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toEqual({
+        code: "unsupported-project-target",
+        error: "Phase 1 production supports Website projects only.",
+        projectTarget,
+        action: "Start a new Website project to generate, retry, or rebuild.",
+      });
+      expect(inspectIntakeAttempt).not.toHaveBeenCalled();
+      expect(reserveIntakeAttempt).not.toHaveBeenCalled();
+      expect(preflight).not.toHaveBeenCalled();
+      expect(model).not.toHaveBeenCalled();
+    }
+  );
+
+  it("accepts a valid same-origin Start replay even when current runtime configuration is missing", async () => {
     const model = vi.fn();
     const preflight = vi.fn();
     const response = await handleChat(
@@ -218,7 +320,7 @@ describe("chat intake request", () => {
         certifications: [],
         claims: [],
         vibeWords: [],
-        projectTarget: "ios-app",
+        projectTarget: "website",
         research: context.research,
         uploads: [],
       },
@@ -339,7 +441,7 @@ describe("chat intake request", () => {
       authoritativeUploads
     );
 
-    expect(intake.projectTarget).toBe("ios-app");
+    expect(intake.projectTarget).toBe("website");
     expect(intake.research).toEqual(context.research);
     expect(intake.uploads).toEqual(authoritativeUploads);
     expect(intake.uploads[0].fileName).not.toBe(context.uploads[0].fileName);
@@ -408,7 +510,7 @@ describe("chat intake request", () => {
       certifications: [],
       claims: [],
       vibeWords: [],
-      projectTarget: "ios-app" as const,
+      projectTarget: "website" as const,
       research: context.research,
       uploads: [],
     };
@@ -444,6 +546,131 @@ describe("chat intake request", () => {
     expect(ensureRun).toHaveBeenCalledOnce();
     expect(claimUploadSession).toHaveBeenCalledOnce();
   });
+
+  it("captures the current rollout decision independently for each new production run", async () => {
+    process.env.ONE_BOX_PAGE_IR_ROLLOUT = "1";
+    const ensureRun = vi.fn().mockResolvedValue("page-ir-run");
+    const dependencies = {
+      ensureRun,
+      claimUploadSession: vi.fn().mockResolvedValue([]),
+      removeRun: vi.fn(),
+      runIntakeAttempt: async (
+        attemptId: string,
+        _fingerprint: string,
+        operation: (runId: string) => Promise<StartPipelineResult>,
+      ) => operation(
+        attemptId === ATTEMPT_ID ? "page-ir-run" : "template-run",
+      ),
+      startStage: vi.fn(),
+      saveArtifact: vi.fn(),
+      finishStage: vi.fn(),
+    };
+
+    await startPipelineFromIntake(
+      {
+        businessName: "Acme",
+        category: "fiber installer",
+        location: "Reno, NV",
+        services: ["Installation"],
+        primaryAction: "quote",
+        certifications: [],
+        claims: [],
+        vibeWords: [],
+        projectTarget: "website",
+        research: context.research,
+        uploads: [],
+      },
+      context,
+      ATTEMPT_ID,
+      "a".repeat(64),
+      dependencies,
+    );
+
+    expect(ensureRun).toHaveBeenNthCalledWith(1, "page-ir-run", {
+      referencePickerEnabled: false,
+      newRunRolloutDecision: {
+        schemaVersion: 1,
+        rolloutEnabled: true,
+        killSwitchEngaged: false,
+        layoutAuthority: "page-ir-v1",
+        reason: "rollout-enabled",
+      },
+    });
+
+    process.env.ONE_BOX_PAGE_IR_KILL_SWITCH = "1";
+    await startPipelineFromIntake(
+      {
+        businessName: "Beta",
+        category: "fiber installer",
+        location: "Reno, NV",
+        services: ["Installation"],
+        primaryAction: "quote",
+        certifications: [],
+        claims: [],
+        vibeWords: [],
+        projectTarget: "website",
+        research: context.research,
+        uploads: [],
+      },
+      context,
+      "018f3f39-d1e2-7c3a-9b4d-5e6f708192a4",
+      "b".repeat(64),
+      dependencies,
+    );
+    expect(ensureRun).toHaveBeenNthCalledWith(2, "template-run", {
+      referencePickerEnabled: false,
+      newRunRolloutDecision: {
+        schemaVersion: 1,
+        rolloutEnabled: true,
+        killSwitchEngaged: true,
+        layoutAuthority: "template-v1",
+        reason: "kill-switch",
+      },
+    });
+  });
+
+  it.each(["web-app", "ios-app"] as const)(
+    "defends exported pipeline start against %s before reserving a run",
+    async (projectTarget) => {
+      const dependencies = {
+        ensureRun: vi.fn(),
+        claimUploadSession: vi.fn(),
+        removeRun: vi.fn(),
+        runIntakeAttempt: vi.fn(),
+        startStage: vi.fn(),
+        saveArtifact: vi.fn(),
+        finishStage: vi.fn(),
+      };
+
+      await expect(
+        startPipelineFromIntake(
+          {
+            businessName: "Acme",
+            category: "service",
+            location: "Reno, NV",
+            services: ["Installation"],
+            primaryAction: "quote",
+            certifications: [],
+            claims: [],
+            vibeWords: [],
+            projectTarget,
+            research: context.research,
+            uploads: [],
+          },
+          { ...context, projectTarget } as never,
+          ATTEMPT_ID,
+          "a".repeat(64),
+          dependencies as never
+        )
+      ).rejects.toMatchObject({
+        code: "unsupported-project-target",
+        projectTarget,
+      });
+      expect(dependencies.runIntakeAttempt).not.toHaveBeenCalled();
+      expect(dependencies.ensureRun).not.toHaveBeenCalled();
+      expect(dependencies.saveArtifact).not.toHaveBeenCalled();
+    }
+  );
 
   it("short-circuits a completed replay before model work", async () => {
     const model = vi.fn();

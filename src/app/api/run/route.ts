@@ -6,6 +6,10 @@ import { z } from "zod";
 import { runPipeline } from "../../../lib/pipeline";
 import type { PipelineEvent } from "../../../lib/contracts";
 import { isLocalApiAuthorized } from "../../../lib/localApiAuth";
+import {
+  assertWebsiteProductionRun,
+  websiteOnlyProductionResponse,
+} from "../../../lib/productionTarget";
 
 export const maxDuration = 600;
 export const dynamic = "force-dynamic";
@@ -25,6 +29,13 @@ export async function POST(req: Request) {
     return Response.json({ error: "bad runId" }, { status: 400 });
   }
   const { runId } = parsed.data;
+  try {
+    await assertWebsiteProductionRun(runId);
+  } catch (error) {
+    const response = websiteOnlyProductionResponse(error);
+    if (response) return response;
+    throw error;
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({

@@ -4,6 +4,7 @@ import {
   EVIDENCE_WORKFLOW_STAGES,
   ARTIFACTS,
   HumanVisualReviewCriteriaSchema,
+  PageIrSourceBundleReviewCriteriaV1Schema,
   WorkflowArtifactDraftSchema,
   type HumanVisualReview,
   type WorkflowArtifactType,
@@ -31,8 +32,26 @@ import {
 import { withSiteAuthorityLock } from "../../../../lib/siteMutation";
 import { runGates } from "../../../../lib/gates";
 import { requiredReferenceContext } from "../../../../lib/referenceContext";
+import {
+  assertWebsiteProductionRun,
+  classifyPersistedIntakeCompatibility,
+  type PersistedIntakeCompatibility,
+  websiteOnlyProductionResponse,
+} from "../../../../lib/productionTarget";
+import {
+  loadPageIrSourceBundleForReview,
+  loadPersistedPageIr,
+  transitionPageIrSourceBundleReview,
+} from "../../../../lib/pageIrPipeline";
+import {
+  candidateManifestSha256,
+  inspectPromotedLiveBundle,
+} from "../../../../lib/candidate";
+import { toPageIrSourceReviewView } from "../../../../components/pageIrSourceReview";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
+const PAYLOAD_SHA256 = z.string().regex(/^[a-f0-9]{64}$/);
+const REVIEWER_NAME = z.string().trim().min(1).max(120);
 
 const ActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("submit"), note: z.string().max(2_000).optional() }),
@@ -60,6 +79,24 @@ const ActionSchema = z.discriminatedUnion("action", [
       "visual QA versions are server-generated"
     ),
   }),
+  z.object({
+    action: z.literal("begin-page-ir-source-bundle-review"),
+    payloadSha256: PAYLOAD_SHA256,
+    reviewerName: REVIEWER_NAME,
+  }).strict(),
+  z.object({
+    action: z.literal("approve-page-ir-source-bundle"),
+    payloadSha256: PAYLOAD_SHA256,
+    reviewerName: REVIEWER_NAME,
+    humanAttestation: z.literal(true),
+    criteria: PageIrSourceBundleReviewCriteriaV1Schema,
+  }).strict(),
+  z.object({
+    action: z.literal("reject-page-ir-source-bundle"),
+    payloadSha256: PAYLOAD_SHA256,
+    reviewerName: REVIEWER_NAME,
+    note: z.string().trim().min(1).max(2_000),
+  }).strict(),
 ]);
 
 function humanReviewPassed(review: Pick<HumanVisualReview, "criteria">): boolean {
@@ -93,10 +130,142 @@ function latestCurrentArtifact(run: Awaited<ReturnType<typeof loadRun>>) {
     .sort((left, right) => right.version - left.version)[0];
 }
 
-function responsePayload(run: Awaited<ReturnType<typeof loadRun>>) {
+type CurrentVisualQaArtifact = Extract<
+  NonNullable<ReturnType<typeof latestCurrentArtifact>>,
+  { artifactType: "visual-qa" }
+>;
+
+async function assertPageIrVisualQaReviewAuthority(
+  runId: string,
+  run: Awaited<ReturnType<typeof loadRun>>,
+  visualQa: CurrentVisualQaArtifact,
+): Promise<void> {
+  if (run.layoutAuthority !== "page-ir-v1") return;
+
+  let sourceReview;
+  try {
+    sourceReview = await loadPageIrSourceBundleForReview(runId);
+  } catch {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires a current approved Source Bundle",
+    );
+  }
+  if (sourceReview.reviewState !== "approved") {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires a current approved Source Bundle",
+    );
+  }
+  if (visualQa.artifact.checks.some((check) => check.status === "pending")) {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires real visual QA with no pending checks",
+    );
+  }
+
+  let persistedPageIr;
+  try {
+    persistedPageIr = await loadPersistedPageIr(runId);
+  } catch {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires valid current persisted PageIR",
+    );
+  }
+
+  let live;
+  try {
+    live = await inspectPromotedLiveBundle(runId);
+  } catch {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires valid canonical promoted live metadata",
+    );
+  }
+  if (live.status !== "present") {
+    throw new EvidenceWorkflowError(
+      "PageIR visual QA review requires canonical promoted live",
+    );
+  }
+  const visualQaBuildSha256 = visualQa.artifact.buildSha256;
+  const liveCandidateManifestSha256 = candidateManifestSha256(live.manifest);
+  if (
+    live.manifest.buildSha256 !== visualQaBuildSha256 ||
+    live.provenance.buildSha256 !== visualQaBuildSha256 ||
+    live.provenance.promotedBuildSha256 !== visualQaBuildSha256 ||
+    live.receipt.buildSha256 !== visualQaBuildSha256
+  ) {
+    throw new EvidenceWorkflowError(
+      "PageIR promoted live build does not match the current visual QA artifact",
+    );
+  }
+  if (
+    !live.provenance.pageIrSha256 ||
+    live.provenance.pageIrSha256 !== persistedPageIr.pageIrSha256
+  ) {
+    throw new EvidenceWorkflowError(
+      "PageIR promoted live provenance does not match the current persisted PageIR",
+    );
+  }
+  if (
+    !live.provenance.candidateManifestSha256 ||
+    live.provenance.candidateManifestSha256 !== liveCandidateManifestSha256 ||
+    live.receipt.candidateManifestSha256 !== liveCandidateManifestSha256
+  ) {
+    throw new EvidenceWorkflowError(
+      "PageIR promoted live candidate manifest bindings do not match",
+    );
+  }
+}
+
+function isMissingPageIrSourceBundle(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === "ENOENT"
+  );
+}
+
+async function pageIrSourceReview(
+  run: Awaited<ReturnType<typeof loadRun>>,
+) {
+  if (run.layoutAuthority !== "page-ir-v1") return null;
+  try {
+    return toPageIrSourceReviewView(
+      await loadPageIrSourceBundleForReview(run.id),
+    );
+  } catch (error) {
+    if (isMissingPageIrSourceBundle(error)) return null;
+    throw error;
+  }
+}
+
+async function pageIrPreviewUrl(
+  run: Awaited<ReturnType<typeof loadRun>>,
+): Promise<string | null> {
+  if (run.layoutAuthority === "template-v1") {
+    return run.stages.built.status === "done" ? `/preview/${run.id}` : null;
+  }
+  try {
+    const live = await inspectPromotedLiveBundle(run.id);
+    return live.status === "present" ? `/preview/${run.id}` : null;
+  } catch {
+    return null;
+  }
+}
+
+async function responsePayload(
+  run: Awaited<ReturnType<typeof loadRun>>,
+  compatibility?: PersistedIntakeCompatibility,
+) {
   const currentArtifact = latestCurrentArtifact(run);
+  const [sourceReview, previewUrl] = await Promise.all([
+    pageIrSourceReview(run),
+    pageIrPreviewUrl(run),
+  ]);
   return {
     runId: run.id,
+    layoutAuthority: run.layoutAuthority,
+    pageIrSourceReview: sourceReview,
+    projectTarget: compatibility?.projectTarget,
+    compatibility,
     pipelineVersion: run.pipelineVersion,
     workflow: run.evidenceWorkflow,
     currentArtifact,
@@ -105,8 +274,7 @@ function responsePayload(run: Awaited<ReturnType<typeof loadRun>>) {
       : null,
     resumeUrl: "/api/run",
     resumeMethod: "POST",
-    previewUrl:
-      run.stages.built.status === "done" ? `/preview/${run.id}` : null,
+    previewUrl,
   };
 }
 
@@ -153,7 +321,15 @@ export async function GET(
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   try {
-    return Response.json(responsePayload(await loadRun(id)));
+    const [run, rawIntake] = await Promise.all([
+      loadRun(id),
+      loadArtifact(id, ARTIFACTS.intake),
+    ]);
+    const compatibility =
+      rawIntake === null || rawIntake === undefined
+        ? undefined
+        : classifyPersistedIntakeCompatibility(rawIntake);
+    return Response.json(await responsePayload(run, compatibility));
   } catch (error) {
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });
@@ -181,6 +357,7 @@ export async function POST(
   }
 
   try {
+    await assertWebsiteProductionRun(id);
     const before = await loadRun(id);
     if (before.pipelineVersion !== "evidence-gated-v2") {
       return Response.json(
@@ -190,7 +367,41 @@ export async function POST(
     }
     const current = latestCurrentArtifact(before);
     const input = parsed.data;
-    if (input.action === "advance") {
+    if (
+      input.action === "begin-page-ir-source-bundle-review" ||
+      input.action === "approve-page-ir-source-bundle" ||
+      input.action === "reject-page-ir-source-bundle"
+    ) {
+      const nextState = input.action === "begin-page-ir-source-bundle-review"
+        ? "in-review"
+        : input.action === "approve-page-ir-source-bundle"
+          ? "approved"
+          : "rejected";
+      try {
+        await transitionPageIrSourceBundleReview(
+          id,
+          input.payloadSha256,
+          nextState,
+          {
+            actorKind: "human",
+            actorName: input.reviewerName,
+            ...(input.action === "approve-page-ir-source-bundle"
+              ? {
+                  humanAttestation: input.humanAttestation,
+                  criteria: input.criteria,
+                }
+              : {}),
+            ...(input.action === "reject-page-ir-source-bundle"
+              ? { note: input.note }
+              : {}),
+          },
+        );
+      } catch (error) {
+        throw new EvidenceWorkflowError(
+          error instanceof Error ? error.message : "PageIR Source Bundle review failed",
+        );
+      }
+    } else if (input.action === "advance") {
       await advanceEvidenceWorkflow(id, input.nextStage);
     } else if (input.action === "save-version") {
       await withRunTransaction(id, async (transaction) => {
@@ -291,6 +502,11 @@ export async function POST(
           ) {
             throw new EvidenceWorkflowError("visual QA must be in review before human review");
           }
+          await assertPageIrVisualQaReviewAuthority(
+            id,
+            transaction.state,
+            transactionCurrent,
+          );
           const referenceContext = input.criteria.designAndReferenceAlignment.referenceContext;
           if (referenceContext !== expectedReferenceContext) {
             throw new EvidenceWorkflowError(
@@ -368,7 +584,38 @@ export async function POST(
           "visual QA rejection requires a structured named human visual review"
         );
       }
-      if (nextState === "approved" && current.artifactType === "design-contract") {
+      if (
+        input.action === "submit" &&
+        before.layoutAuthority === "page-ir-v1" &&
+        current.artifactType === "visual-qa"
+      ) {
+        await withSiteAuthorityLock(id, () =>
+          withRunTransaction(id, async (transaction) => {
+            const transactionCurrent = latestCurrentArtifact(transaction.state);
+            if (
+              !transactionCurrent ||
+              transactionCurrent.artifactType !== "visual-qa" ||
+              transactionCurrent.version !== current.version ||
+              artifactApprovalState(transactionCurrent) !== "draft"
+            ) {
+              throw new EvidenceWorkflowError(
+                "visual QA revision changed before submission",
+              );
+            }
+            await assertPageIrVisualQaReviewAuthority(
+              id,
+              transaction.state,
+              transactionCurrent,
+            );
+            await transaction.transitionEvidenceArtifactApproval(
+              "visual-qa",
+              transactionCurrent.version,
+              "in-review",
+              { actor: "workspace-user", note: input.note },
+            );
+          })
+        );
+      } else if (nextState === "approved" && current.artifactType === "design-contract") {
         await withRunTransaction(id, async (transaction) => {
           const transactionCurrent = latestCurrentArtifact(transaction.state);
           if (!transactionCurrent || transactionCurrent.artifactType !== "design-contract" || transactionCurrent.version !== current.version) {
@@ -399,8 +646,10 @@ export async function POST(
         );
       }
     }
-    return Response.json(responsePayload(await loadRun(id)));
+    return Response.json(await responsePayload(await loadRun(id)));
   } catch (error) {
+    const targetResponse = websiteOnlyProductionResponse(error);
+    if (targetResponse) return targetResponse;
     if (error instanceof RunNotFoundError) {
       return Response.json({ error: "run not found" }, { status: 404 });
     }

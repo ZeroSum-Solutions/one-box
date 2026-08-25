@@ -1,0 +1,457 @@
+{
+  "schemaVersion": 1,
+  "registryVersion": "1.8.0",
+  "status": "frozen",
+  "evaluationManifest": {
+    "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+    "lockPath": "docs/eval/page-ir-safe-pipeline/manifest.lock.json",
+    "contractVersion": "1.0.0",
+    "sha256": "cc51b40767e5f40019f97351a1d90d248ee363750cff95f1817ef325dd9fdeac"
+  },
+  "ticketContract": {
+    "manifestPath": "docs/tickets/page-ir-safe-pipeline/manifest.json",
+    "ticketDirectory": "docs/tickets/page-ir-safe-pipeline",
+    "traceabilityPath": "docs/eval/page-ir-safe-pipeline/traceability.md"
+  },
+  "evaluations": {
+    "EVAL-SCOPE-001": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-SCOPE-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/app/api/chat/route.test.ts",
+        "src/app/api/run/route.test.ts",
+        "src/lib/contracts.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-SCOPE-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/app/api/legacyCompatibility.test.ts",
+        "src/lib/productionFixtureBoundary.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-001": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pageIrContracts.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrContracts.test.ts",
+        "src/lib/pageIrCompiler.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-003": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pageIrContracts.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-IR-004": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pageIrDerivation.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-COMP-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrCompiler.test.ts",
+        "src/lib/pageIrQualityCorpus.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-COMP-002": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-LAY-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/layoutAuthority.test.ts",
+        "src/lib/layoutAuthorityRunstate.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-LAY-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/layoutAuthorityRunstate.test.ts",
+        "src/app/api/runs/[id]/fallback/route.test.ts",
+        "src/lib/uploadsFallback.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
+    },
+    "EVAL-CAND-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
+    },
+    "EVAL-CAND-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/gates.candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
+    },
+    "EVAL-CAND-004": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/candidatePromotion.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-005": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/candidate.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-006": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/candidateRecovery.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-007": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/siteAuthority.test.ts",
+        "src/lib/runstate.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-CAND-008": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidatePromotion.test.ts",
+        "src/lib/pipelineStaleVisualQa.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-EDIT-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/mutationGateMatrix.test.ts",
+        "src/lib/gates.afterEdit.integration.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
+    },
+    "EVAL-EDIT-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/siteMutation.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-EDIT-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/pipelineStaleVisualQa.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-EDIT-004": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/pageIrPipeline.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
+    },
+    "EVAL-REPLAY-001": {
+      "kind": "credential-free-tests",
+      "testFiles": ["src/lib/pipelineReplay.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-REPLAY-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/intakeAttempts.test.ts",
+        "src/lib/pipelineReplay.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-001": {
+      "kind": "browser-corpus-tests",
+      "testFiles": ["src/lib/pageIrQualityCorpus.web001.integration.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-002": {
+      "kind": "browser-corpus-tests",
+      "testFiles": ["src/lib/pageIrQualityCorpus.web002.integration.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-WEB-003": {
+      "kind": "browser-corpus-tests",
+      "testFiles": ["src/lib/pageIrQualityCorpus.web003.integration.test.ts"],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-UX-001": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-002": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-003": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-004": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-005": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-UX-006": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-QUAL-001": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-human-review"
+    },
+    "EVAL-QUAL-002": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-human-review"
+    },
+    "EVAL-QUAL-003": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-human-review"
+    },
+    "EVAL-OPS-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/rolloutObservability.test.ts",
+        "src/lib/pageIrController.test.ts",
+        "src/app/api/runs/[id]/fallback/route.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-OPS-002": {
+      "kind": "coordinator-evidence",
+      "evaluator": "rendered-evidence"
+    },
+    "EVAL-OPS-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/rolloutObservability.test.ts",
+        "src/lib/layoutAuthorityRunstate.test.ts",
+        "src/app/api/chat/route.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-OPS-004": {
+      "kind": "coordinator-evidence",
+      "evaluator": "qualification-contract"
+    },
+    "EVAL-SEC-001": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/localApiAuth.test.ts",
+        "src/app/api/chat/route.test.ts",
+        "src/app/api/uploads/route.test.ts",
+        "src/app/api/evidence/[id]/route.test.ts",
+        "src/app/api/edit/route.test.ts",
+        "src/app/api/assets/[id]/route.test.ts",
+        "src/components/preview/previewState.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
+    },
+    "EVAL-SEC-002": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/candidate.test.ts",
+        "src/lib/candidatePromotion.test.ts",
+        "src/lib/siteAuthority.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all"
+    },
+    "EVAL-SEC-003": {
+      "kind": "credential-free-tests",
+      "testFiles": [
+        "src/lib/pageIrContracts.test.ts",
+        "src/lib/pageIrCompiler.test.ts",
+        "src/lib/candidate.test.ts",
+        "src/lib/candidatePromotion.test.ts",
+        "src/lib/candidateRecovery.test.ts",
+        "src/lib/gates.candidate.test.ts",
+        "src/lib/gates.candidate.integration.test.ts",
+        "src/lib/pipelineReplay.test.ts",
+        "src/lib/localApiAuth.test.ts",
+        "src/lib/siteAuthority.test.ts"
+      ],
+      "credentialPolicy": "absent",
+      "networkPolicy": "deny-all",
+      "browserPolicy": "frozen-chromium"
+    }
+  },
+  "providerCredentialDenylist": [
+    "OPENROUTER_API_KEY",
+    "FIRECRAWL_API_KEY",
+    "REFERO_MCP_TOKEN",
+    "GOOGLE_MAPS_API_KEY",
+    "ONE_BOX_REFERO_OAUTH_STORE"
+  ],
+  "renderedProviderPolicy": {
+    "responses": "recorded-or-stubbed",
+    "maximumMeteredCalls": 0,
+    "network": "loopback-only"
+  },
+  "requiredArtifacts": {
+    "qualification": [
+      "run-manifest.json",
+      "inputs/",
+      "page-ir.json",
+      "candidate-manifest.json",
+      "gate-reports.json",
+      "provenance.json",
+      "site/",
+      "screenshots/desktop.png",
+      "screenshots/tablet.png",
+      "screenshots/mobile.png",
+      "human-visual-review.json"
+    ],
+    "browser": [
+      "browser-evidence.json",
+      "screenshots/desktop.png",
+      "screenshots/tablet.png",
+      "screenshots/mobile.png"
+    ]
+  },
+  "viewportsPointer": {
+    "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+    "jsonPointer": "/viewports"
+  },
+  "thresholdPointers": {
+    "composer": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/composer"
+    },
+    "failedCandidateRetention": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/failedCandidateRetention"
+    },
+    "accessibility": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/accessibility"
+    },
+    "performanceQualification": {
+      "path": "docs/eval/page-ir-safe-pipeline/manifest.json",
+      "jsonPointer": "/thresholds/performanceQualification"
+    }
+  },
+  "browserContract": {
+    "revision": "1234",
+    "executableRelativePath": "chrome-headless-shell-mac-arm64/chrome-headless-shell",
+    "bundleSha256": "c246aa23d79deac8e8a590a65c8726eb8787fcd16400b0195cd16a113aac76a9",
+    "fileCount": 20,
+    "symlinkCount": 0,
+    "totalBytes": 205522835
+  },
+  "runtimeContract": {
+    "platform": "darwin",
+    "arch": "arm64",
+    "nodeVersion": "26.7.0",
+    "nodeExecutable": "/opt/homebrew/Cellar/node/26.7.0/bin/node",
+    "nodeExecutableSha256": "1ef99ea25fe70c9b67e7efe768ef8ee22148d3cabc703db6131b57aeb617d040",
+    "gitExecutable": "/usr/bin/git",
+    "gitExecutableSha256": "179301dcb41ea78accc3fa0048a7e6f6710d891945a751a34addd622020c1818",
+    "npmBundleRoot": "/opt/homebrew/lib/node_modules/npm",
+    "npmCliRelativePath": "bin/npm-cli.js",
+    "npmBundleSha256": "b9deab18dd33d9f8a58231476294ed7db2eda2246094abad521911505eacf444",
+    "npmFileCount": 1962,
+    "npmSymlinkCount": 9,
+    "npmTotalBytes": 12964239
+  },
+  "fixtureContract": {
+    "schemaVersion": 1,
+    "fixtureVersion": "1.0.0",
+    "requiredFields": [
+      "schemaVersion",
+      "id",
+      "purpose",
+      "providerMode",
+      "inputs"
+    ],
+    "purposes": [
+      "brochure-local-service",
+      "portfolio-showcase",
+      "saas-marketing",
+      "editorial-index",
+      "campaign-landing",
+      "institutional-presence"
+    ],
+    "manifestSha256ByPurpose": {
+      "brochure-local-service": "3ff832cbfa0b1983be1b34cc517191fd7961524d74cc9dc0b34565acb3e97a25",
+      "portfolio-showcase": "e6b409abe4e096f87f976d38e7b649cafc6e857d8e0997c0511b74ee337a7aac",
+      "saas-marketing": "2823774013756a762db74ef64424e11e056bc241d2f25309ed23b1c70db1b025",
+      "editorial-index": "784e7ab6358cb48a7d60d39d7fd9129b098a52c11e1eead525653c05369f571a",
+      "campaign-landing": "0e405f174aafbbad649407f2c13fed0bd96a8901be6e8f3eeae5c975776b3810",
+      "institutional-presence": "0790173be13451272b6603dc8cc597086553eedb110eeaf56eeace0ef9cc0de5"
+    },
+    "buildSha256ByPurpose": {
+      "brochure-local-service": "bca0bcc73b11bad7059c3c67ac0e8861a4d5974c1946a7afa55ac9c85c19dc0f",
+      "portfolio-showcase": "26a510e2b5027071085c1b9ca3429eb5adc6916a45d4471d120d1ce4377aee29",
+      "saas-marketing": "25989d3f5d51de3a340d148789c6aa3e33a1b54cbbaa5b86108a9b89e4640ffa",
+      "editorial-index": "36dc530ba24b62539cd500bdfd11160b1c574680bb428e7ddcbb86d78a344f02",
+      "campaign-landing": "05d4f3f7e5444d9df94608ef9f4809c57bd18fd940f44bf4df712dcf40a25018",
+      "institutional-presence": "baa6902080d60668f1cca618a5f90997bf799aecfc4ec9428379dda025e5064b"
+    }
+  }
+}

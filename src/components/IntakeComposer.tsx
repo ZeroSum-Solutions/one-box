@@ -8,16 +8,17 @@ import {
   type KeyboardEvent,
 } from "react";
 import type {
-  ProjectTarget,
+  ProductionProjectTarget,
   ResearchConfiguration,
   UploadMetadata,
 } from "@/lib/contracts";
+import { INTAKE_MESSAGE_MAX_CHARS } from "../lib/intakeLimits";
 import { IntakeControls } from "./IntakeControls";
 
 export const GUIDANCE_PROMPTS = [
   "Tell us about the company you run or want to build.",
   "Share anything that will help us understand it.",
-  "Choose Website, Web app, or iOS app.",
+  "Website is the production target for Phase 1.",
   "Try Research to sharpen the result.",
   "Add any files you want us to use.",
 ] as const;
@@ -26,11 +27,11 @@ interface IntakeComposerProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  projectTarget: ProjectTarget;
+  projectTarget: ProductionProjectTarget;
   research: ResearchConfiguration;
   uploads: UploadMetadata[];
   uploadSession: string | null;
-  onProjectTargetChange: (target: ProjectTarget) => void;
+  onProjectTargetChange: (target: ProductionProjectTarget) => void;
   onResearchChange: (research: ResearchConfiguration) => void;
   onUploadsChange: (uploads: UploadMetadata[]) => void;
   onUploadSessionChange: (handle: string | null) => void;
@@ -47,7 +48,7 @@ export function boundedComposerHeight(
   viewportHeight: number
 ): { height: number; overflow: boolean } {
   const maximum = Math.max(120, Math.min(360, Math.floor(viewportHeight * 0.5)));
-  const minimum = Math.min(144, maximum);
+  const minimum = 120;
   return {
     height: Math.max(minimum, Math.min(scrollHeight, maximum)),
     overflow: scrollHeight > maximum,
@@ -135,7 +136,8 @@ export function IntakeComposer({
         onPaste={stopGuidance}
         onKeyDown={handleKeyDown}
         placeholder={GUIDANCE_PROMPTS[guidanceIndex]}
-        rows={6}
+        maxLength={INTAKE_MESSAGE_MAX_CHARS}
+        rows={4}
         disabled={disabled}
         aria-label="Describe your project"
       />

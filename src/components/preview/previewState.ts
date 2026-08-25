@@ -1,3 +1,5 @@
+import type { PersistedIntakeCompatibility } from "@/lib/productionTarget";
+
 export type PreviewMode = "view" | "edit";
 export type WorkbenchSize = "normal" | "expanded" | "collapsed";
 export type PreviewBreakpoint = "mobile" | "tablet" | "desktop";
@@ -110,12 +112,149 @@ export const DEFAULT_WORKBENCH_STATE: PersistedWorkbenchState = {
   previewPreset: null,
 };
 
+const LEGACY_COMPATIBILITY_MESSAGE =
+  "Legacy/experimental and read-only in Phase 1; preview/export available; start a new Website project for generation/edit.";
+
+export const PREVIEW_COMPATIBILITY_ERROR_MESSAGE =
+  "Editing is unavailable because this project's compatibility could not be confirmed. Preview remains available. Reload this page to retry, or start a new Website project for generation/edit.";
+
+export type PreviewCompatibilityState =
+  | {
+      status: "loading";
+      editingAvailable: false;
+      compatibility: null;
+      notice: null;
+    }
+  | {
+      status: "active";
+      editingAvailable: true;
+      compatibility: Extract<
+        PersistedIntakeCompatibility,
+        { mode: "phase-1-website" }
+      >;
+      notice: null;
+    }
+  | {
+      status: "legacy";
+      editingAvailable: false;
+      compatibility: Extract<
+        PersistedIntakeCompatibility,
+        { mode: "legacy-read-only" }
+      >;
+      notice: typeof LEGACY_COMPATIBILITY_MESSAGE;
+    }
+  | {
+      status: "error";
+      editingAvailable: false;
+      compatibility: null;
+      notice: typeof PREVIEW_COMPATIBILITY_ERROR_MESSAGE;
+    };
+
+export const INITIAL_PREVIEW_COMPATIBILITY_STATE: PreviewCompatibilityState = {
+  status: "loading",
+  editingAvailable: false,
+  compatibility: null,
+  notice: null,
+};
+
+export function previewIframeSandbox(
+  compatibilityStatus: PreviewCompatibilityState["status"],
+  mode: PreviewMode,
+) {
+  return compatibilityStatus === "loading" || mode === "edit"
+    ? "allow-scripts"
+    : "allow-scripts allow-forms allow-popups allow-downloads";
+}
+
+export function previewIframeKey(
+  version: number,
+  mode: PreviewMode,
+  sandbox: string,
+) {
+  return `${version}:${mode}:${sandbox}`;
+}
+
+export function shouldAcceptEditorStateMessage(
+  interactive: boolean,
+  mode: PreviewMode,
+) {
+  return interactive && mode === "edit";
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, keys: string[]) {
   return Object.keys(value).every((key) => keys.includes(key));
+}
+
+function readCompatibility(
+  payload: unknown,
+): PersistedIntakeCompatibility | null {
+  if (!isRecord(payload) || !isRecord(payload.compatibility)) return null;
+  const compatibility = payload.compatibility;
+  if (
+    !hasOnlyKeys(compatibility, [
+      "mode",
+      "projectTarget",
+      "label",
+      "readOnly",
+      "message",
+    ])
+  ) {
+    return null;
+  }
+  if (
+    compatibility.mode === "phase-1-website" &&
+    compatibility.projectTarget === "website" &&
+    compatibility.label === "website" &&
+    compatibility.readOnly === false &&
+    compatibility.message === null
+  ) {
+    return compatibility as PersistedIntakeCompatibility;
+  }
+  if (
+    compatibility.mode === "legacy-read-only" &&
+    (compatibility.projectTarget === "web-app" ||
+      compatibility.projectTarget === "ios-app") &&
+    compatibility.label === "legacy/experimental" &&
+    compatibility.readOnly === true &&
+    compatibility.message === LEGACY_COMPATIBILITY_MESSAGE
+  ) {
+    return compatibility as PersistedIntakeCompatibility;
+  }
+  return null;
+}
+
+/** Turns untrusted evidence JSON into a closed preview authorization state. */
+export function resolvePreviewCompatibility(
+  responseOk: boolean,
+  payload: unknown,
+): Exclude<PreviewCompatibilityState, { status: "loading" }> {
+  const compatibility = responseOk ? readCompatibility(payload) : null;
+  if (!compatibility) {
+    return {
+      status: "error",
+      editingAvailable: false,
+      compatibility: null,
+      notice: PREVIEW_COMPATIBILITY_ERROR_MESSAGE,
+    };
+  }
+  if (compatibility.readOnly) {
+    return {
+      status: "legacy",
+      editingAvailable: false,
+      compatibility,
+      notice: compatibility.message,
+    };
+  }
+  return {
+    status: "active",
+    editingAvailable: true,
+    compatibility,
+    notice: null,
+  };
 }
 
 function isSelection(value: unknown): value is PreviewSelection {

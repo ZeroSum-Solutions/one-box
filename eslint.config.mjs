@@ -14,6 +14,7 @@ const eslintConfig = defineConfig([
     // Generated static-site output (including vendored GSAP) is linted at its
     // source/template boundary, not after copying into ignored run folders.
     "sites/**",
+    "test-support/fixtures/preview-workbench/site/**",
     // Git-ignored third-party grading references (never shipped code) — ESLint
     // walks the filesystem regardless of .gitignore.
     "references/**",

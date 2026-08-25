@@ -91,6 +91,86 @@ is unmistakably incomplete rather than plausible. Covered by three
 `publishBuild` tests, including replace-not-merge (a copy-over would leave
 stale files the manifest no longer lists).
 
+OBX-012 supersedes that interim publication boundary. Production `buildSite`
+now requires a durable authorized run, compiles into the fixed unserved
+`candidate/site/` root, and stops at `ready-for-gates`. The old directory-swap
+behavior survives only in the guarded test fixture helper. The candidate runs
+the full candidate gate suite and becomes `failed` or `promotable`; neither
+outcome mutates the live site, and promotion remains a separate OBX-014
+operation.
+
+OBX-014 now implements that separate operation. Promotion revalidates the exact
+promotable candidate under the shared site-authority lock, swaps one durable
+`site/` bundle containing closed `.one-box/` manifest/provenance/gate metadata,
+and only after the authoritative commit supersedes the prior visual decision
+and creates a pending visual-QA version bound to the promoted hash. The run-root
+`gates.json` is now only a derived compatibility projection; release, evidence
+export, client handoff, promoted preview gate status, and promoted edit baselines
+validate the canonical bundle rather than this projection. Outward actions also
+require a named human review bound to the promoted build hash. OBX-024 still owns
+calling this operation from the resumable pipeline, and OBX-015 owns startup
+crash recovery.
+
+OBX-015 now closes that recovery boundary. Resume first runs deterministic
+candidate and promotion-footprint recovery under the shared site authority.
+Only exact hash-bound candidate state or one exact transaction generation is
+resumed; clean promotable state remains parked, while invalid/ambiguous state is
+abandoned or blocked with a bounded durable reason. Promotion recovery restores
+the prior site or completes only an already-committed promoted bundle, reconciles
+visual QA idempotently before retired cleanup, and preserves last-known-good
+bytes whenever live authority is ambiguous. Build, gate disposition, repair
+commit, cleanup, promotion, editing, tokens, assets, motion, and generated-site
+reads now serialize through one documented site-authority-first lock order.
+Fresh-process exits at every promotion fault step, repeated recovery, reader
+contention, and cross-process lock contention are covered by regression tests.
+
+OBX-020 now defines the previously missing production Page IR contract boundary
+in `src/lib/contracts.ts`. Numeric-v1 Reference, Layout, and Website-only Page IR
+schemas are recursively strict and bounded. The layout is a normalized,
+single-parent graph with one required document, header, navigation, main, footer,
+and H1; Page IR registries validate every slot, content, token, image, action, and
+accessibility reference before compilation. Interactions are limited to scroll,
+call, email, and public HTTPS actions, and unrecognized executable or path-bearing
+field shapes fail closed. This resolves only the schema authority: derivation,
+deterministic compilation, runtime persistence/promotion, and authoritative edits
+remain owned by OBX-021, OBX-022, OBX-024, and OBX-031.
+
+OBX-021 now closes the approved-input derivation seam in
+`src/lib/pageIrDerivation.ts`. The pure synchronous boundary accepts exactly one
+approved, positive-version, exact-byte binding for each of the eight fixed
+source kinds, hashes all source bytes before parsing, and rejects unknown,
+duplicate, missing, cross-run, stale-chain, or misattributed inputs. It parses
+the five existing evidence/design/token/CSS contracts plus closed numeric-v1
+layout, content, and image artifacts, then assembles and revalidates Page IR.
+Supported semantic tokens project deterministically to safe IDs and collision
+fails closed. The returned Page IR hash uses canonical recursively sorted object
+keys while preserving array order; fixed-order lineage carries source versions,
+hashes, purpose, and safe Refero alias/trait attribution without a timestamp.
+This does not claim human qualitative eval passage and does not read, persist,
+compile, promote, or edit an artifact; those remain later ticket boundaries.
+
+OBX-022 introduced the pure `page-ir-static@1` compiler boundary; the shipped
+contract is now `page-ir-static@3`. It reparses
+numeric-v1 Page IR, requires the exact referenced in-memory image set, binds
+media type, byte count, SHA-256, and image magic, clones input bytes, and returns
+only sorted `index.html`, `site.css`, `tokens.css`, and canonical asset files plus
+a deterministic candidate manifest. Graph child order, not registry order,
+controls semantic HTML; content and attributes are escaped, actions remain
+usable as anchors without JavaScript, and Page IR data cannot author CSS or
+executable source. The compiler has no filesystem, network, provider, latest-
+alias, persistence, candidate-lifecycle, or publication authority. Canonical
+Page IR hashing moved to the pure `src/lib/pageIrHash.ts` authority shared with
+derivation.
+
+This closes mechanical determinism, not visual qualification: Page IR v1 has
+token IDs/categories but no approved values or contrast roles, so the current
+compiler uses fixed safe compiler-owned canvas, color, typography, and category
+fallbacks. Human `EVAL-WEB-001` and visual-quality
+qualification remain separate named-human gates backed by the frozen six-purpose
+packets. The current compiler emits the closed canvas and token declarations needed
+by the no-JavaScript and token-drift checks; OBX-024 routes those checks against the
+unserved Page IR candidate before atomic promotion.
+
 **ENG-009** — root cause was in the *writers*, not the workspace: `crawlSite`
 and `capture()` record **absolute** filesystem paths in the scan artifact, and
 the workspace concatenated them into `/api/sites/<id>//Users/…`. Fixed at the
@@ -230,6 +310,21 @@ Recorded because they recur.
 ---
 
 ## Next
+
+### OBX-023 — layout authority and explicit fallback boundary
+
+- **Implemented:** immutable persisted `template-v1 | page-ir-v1` authority,
+  rollout-gated Page IR creation, candidate provenance cross-binding, and
+  fail-closed guards on the current template builder/pipeline and candidate
+  inspection, recovery, promotion, and promoted-live reads.
+- **Implemented:** a private durable, nonterminal fallback transaction claim
+  reserves one exact child while the failed source remains unlinked. The source
+  link commits only after the origin-bearing template child has complete,
+  validated intake and claimed upload bytes; path/size/SHA and nonlink checks
+  run before the claim and again before commit. Retries converge on the claim's
+  child across every pre-link crash boundary.
+- **Not included:** Page IR persistence/routing (OBX-024), fallback UI/API or
+  environment flags (OBX-050), and Page IR editing (OBX-031).
 
 1. Trial several more Refero style directions against the same frozen brief
    (`spikes/refero-baseline/BRIEF.md`) to test the convergence prediction in

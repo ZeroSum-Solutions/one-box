@@ -1,0 +1,8 @@
+Command: git diff --name-only cfe3a68f03f63c1d57b21e077e67cc4e945fa9ff...56774c68c71a31a01b87b6f6ea04125202608754
+Exit: 0
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/OBX-002-report.md
+.superpowers/sdd/2026-08-22-page-ir-safe-pipeline-prd/progress.md
+docs/architecture/README.md
+src/app/preview/[id]/page.tsx
+src/components/preview/previewState.test.ts
+src/components/preview/previewState.ts

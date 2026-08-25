@@ -1,0 +1,29 @@
+{
+  "businessName": "FiberLink Pro",
+  "category": "fiber optic installer",
+  "location": "Austin, TX",
+  "services": [
+    "Residential fiber installation",
+    "Business fiber installation",
+    "Network troubleshooting",
+    "Fiber splicing"
+  ],
+  "phone": "(512) 555-0142",
+  "serviceArea": "Austin, Round Rock, Cedar Park, Georgetown",
+  "yearsInBusiness": "12",
+  "certifications": [
+    "BICSI certified",
+    "Licensed low-voltage contractor"
+  ],
+  "claims": [
+    "Same-week installation",
+    "12 years serving Central Texas"
+  ],
+  "primaryAction": "call",
+  "projectTarget": "website",
+  "vibeWords": [
+    "reliable",
+    "fast",
+    "no-nonsense"
+  ]
+}

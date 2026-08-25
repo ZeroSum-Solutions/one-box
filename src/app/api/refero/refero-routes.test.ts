@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleReferoCallback } from "./callback/route";
-import { handleReferoConnect } from "./connect/route";
+import { handleReferoCallback } from "./callback/route-runtime";
+import { handleReferoConnect } from "./connect/route-runtime";
 
 describe("Refero OAuth routes", () => {
   it("denies non-loopback authorization starts before network work", async () => {

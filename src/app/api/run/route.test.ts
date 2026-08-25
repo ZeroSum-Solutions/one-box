@@ -1,3 +1,4 @@
+import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { runPipeline } = vi.hoisted(() => ({
@@ -9,6 +10,10 @@ const { runPipeline } = vi.hoisted(() => ({
 vi.mock("../../../lib/pipeline", () => ({ runPipeline }));
 
 import { POST } from "./route";
+import { ARTIFACTS, IntakeSchema } from "../../../lib/contracts";
+import { createRun, saveArtifact, sitePaths } from "../../../lib/runstate";
+
+const runIds: string[] = [];
 
 function request(body = '{"runId":"run-test"}', origin?: string) {
   return new Request("http://localhost:3000/api/run", {
@@ -22,9 +27,14 @@ function request(body = '{"runId":"run-test"}', origin?: string) {
   });
 }
 
-afterEach(() => {
+afterEach(async () => {
   runPipeline.mockClear();
   vi.unstubAllEnvs();
+  await Promise.all(
+    runIds.splice(0).map((runId) =>
+      fs.rm(sitePaths(runId).root, { recursive: true, force: true })
+    )
+  );
 });
 
 describe("POST /api/run", () => {
@@ -48,6 +58,37 @@ describe("POST /api/run", () => {
     expect((await POST(bearerRequest)).status).toBe(200);
     expect(runPipeline).toHaveBeenCalledOnce();
   });
+
+  it.each(["web-app", "ios-app"] as const)(
+    "rejects a persisted %s run before opening a stream or calling the pipeline",
+    async (projectTarget) => {
+      const runId = await createRun();
+      runIds.push(runId);
+      await saveArtifact(
+        runId,
+        ARTIFACTS.intake,
+        IntakeSchema.parse({
+          businessName: "Legacy Co",
+          category: "service",
+          location: "Reno, NV",
+          services: ["Help"],
+          primaryAction: "quote",
+          projectTarget,
+        })
+      );
+
+      const response = await POST(
+        request(JSON.stringify({ runId }), "http://localhost:3000")
+      );
+
+      expect(response.status).toBe(409);
+      await expect(response.json()).resolves.toMatchObject({
+        code: "unsupported-project-target",
+        projectTarget,
+      });
+      expect(runPipeline).not.toHaveBeenCalled();
+    }
+  );
 
   it("emits one safe terminal event when the pipeline fails before reporting progress", async () => {
     runPipeline.mockRejectedValueOnce(new Error("private internal path"));
