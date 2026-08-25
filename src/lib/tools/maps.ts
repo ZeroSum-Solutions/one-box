@@ -23,7 +23,7 @@ import {
   postJson,
   requireFirecrawlKey,
 } from "./firecrawl";
-import { findPlace, mapsConfigured, mapsSearchUrl } from "./places";
+import { findPlace, placesConfigured, mapsSearchUrl } from "./places";
 import type { CrawlProvenance, Place } from "../contracts";
 
 const RESULTS_PER_QUERY = 10;
@@ -352,7 +352,7 @@ export async function findCompetitors(
   // Places verification runs only when the Maps lane is wired. Concurrent —
   // these are independent lookups and each is a network round-trip.
   let mapsNote: string | undefined;
-  if (mapsConfigured() && competitors.length > 0) {
+  if (placesConfigured() && competitors.length > 0) {
     const verdicts = await Promise.all(
       competitors.map((c) => verifyWithPlaces(c, opts.location, runId))
     );
@@ -363,8 +363,8 @@ export async function findCompetitors(
       competitors[i].kind = "business";
       competitors[i].kindReason = `Google Places confirms a local business at this domain (${v.place.address})`;
     });
-  } else if (!mapsConfigured()) {
-    mapsNote = "GOOGLE_MAPS_API_KEY is not set — map embed and Places verification skipped";
+  } else if (!placesConfigured()) {
+    mapsNote = "GOOGLE_PLACES_API_KEY is not set — Places verification skipped; map embed is configured independently";
   }
 
   return { competitors, excluded, mapsNote };

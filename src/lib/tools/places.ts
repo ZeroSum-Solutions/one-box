@@ -5,8 +5,8 @@
  *   1. mapsSearchUrl() / mapsPlaceUrl() — plain google.com/maps links. No key,
  *      no billing, no network call. Every competitor always gets one.
  *   2. findPlace() / embedSearchUrl() — Places API (New) + Maps Embed API.
- *      Metered, needs GOOGLE_MAPS_API_KEY. Absent key = undefined, never a
- *      throw: a missing map degrades the scan card, it does not fail the run.
+ *      They use separate credentials. Absent keys never throw: a missing map
+ *      degrades the scan card, it does not fail the run.
  *
  * WHY a second Google key: the vault's `google_api_key` is an AI-Studio key
  * scoped to generativelanguage.googleapis.com. Verified 2026-08-13 — Places,
@@ -44,12 +44,12 @@ const FIELD_MASK = [
   "places.userRatingCount",
 ].join(",");
 
-export function mapsApiKey(): string | undefined {
-  return process.env.GOOGLE_MAPS_API_KEY || undefined;
+export function placesApiKey(): string | undefined {
+  return process.env.GOOGLE_PLACES_API_KEY || undefined;
 }
 
-export function mapsConfigured(): boolean {
-  return !!mapsApiKey();
+export function placesConfigured(): boolean {
+  return !!placesApiKey();
 }
 
 // ---------- tier 1: key-free links ----------
@@ -74,7 +74,7 @@ export function mapsPlaceUrl(place: Place): string {
 /** Maps Embed API iframe src showing the local market for this category.
  * Free per Google's Embed API terms, but still key-gated. */
 export function embedSearchUrl(query: string): string | undefined {
-  const key = mapsApiKey();
+  const key = process.env.GOOGLE_MAPS_EMBED_API_KEY || undefined;
   if (!key) return undefined;
   return `${MAPS_EMBED_BASE}/search?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}`;
 }
@@ -124,8 +124,8 @@ export async function findPlace(
   runId?: string,
   maxResults = 3
 ): Promise<FindPlaceResult> {
-  const key = mapsApiKey();
-  if (!key) return { places: [], unavailable: "GOOGLE_MAPS_API_KEY is not set" };
+  const key = placesApiKey();
+  if (!key) return { places: [], unavailable: "GOOGLE_PLACES_API_KEY is not set" };
 
   let res: Response;
   try {
@@ -136,7 +136,7 @@ export async function findPlace(
         "X-Goog-Api-Key": key,
         "X-Goog-FieldMask": FIELD_MASK,
       },
-      body: JSON.stringify({ textQuery: query, maxResultCount: maxResults }),
+      body: JSON.stringify({ textQuery: query, pageSize: maxResults }),
     });
   } catch (err) {
     return { places: [], unavailable: err instanceof Error ? err.message : String(err) };
@@ -153,11 +153,7 @@ export async function findPlace(
   }
 
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    return {
-      places: [],
-      unavailable: `places searchText ${res.status}: ${detail.slice(0, 200)}`,
-    };
+    return { places: [], unavailable: `places searchText unavailable (${res.status})` };
   }
 
   const json = (await res.json().catch(() => ({}))) as { places?: RawPlace[] };
