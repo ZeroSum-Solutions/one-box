@@ -26,6 +26,15 @@ export interface MarketIntel {
   strippedMapKeys: Set<string>;
 }
 
+function mapForDisplay(map: CardMap): CardMap {
+  return {
+    ...(map.embedQuery ? { embedQuery: map.embedQuery } : {}),
+    fallbackUrl: map.fallbackUrl,
+    pins: map.pins,
+    ...(map.note !== undefined ? { note: map.note } : {}),
+  };
+}
+
 /** Historic runs (recorded before `roster`/`market` existed) carry the same
  * ranked operators as numbered body text and their site URLs as sibling links.
  * Normalising them into ScanRosterItem lets one component render both eras
@@ -62,7 +71,7 @@ export function collectMarketIntel(timeline: TimelineItem[]): MarketIntel | null
       intel.roster = event.roster;
       intel.market = event.market;
       intel.lede = event.body?.split("\n")[0];
-      if (event.map) intel.map = event.map;
+      if (event.map) intel.map = mapForDisplay(event.map);
       // The whole card is represented by the panel: its body is the lede, its
       // only link is the Yelp search the panel already offers.
       intel.consumedKeys.add(key);
@@ -73,7 +82,7 @@ export function collectMarketIntel(timeline: TimelineItem[]): MarketIntel | null
       const legacy = legacyRosterFromBody(event.body, event.links);
       if (legacy) {
         intel.roster = legacy;
-        if (event.map) intel.map = event.map;
+        if (event.map) intel.map = mapForDisplay(event.map);
         intel.consumedKeys.add(key);
         continue;
       }
@@ -83,7 +92,7 @@ export function collectMarketIntel(timeline: TimelineItem[]): MarketIntel | null
     // roster and the map across two). Take the map, leave the card — it still
     // carries screenshots and links of its own.
     if (event.map && !intel.map) {
-      intel.map = event.map;
+      intel.map = mapForDisplay(event.map);
       intel.strippedMapKeys.add(key);
     }
   }

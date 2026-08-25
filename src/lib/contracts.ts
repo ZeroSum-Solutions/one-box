@@ -4240,11 +4240,12 @@ export interface CardLink {
   external?: boolean;
 }
 
-/** Map payload for the competitive-scan card. `embedUrl` is present only when
- * the Maps lane is configured; `note` explains its absence so a missing map
- * reads as "not wired" rather than "broken". */
+/** Map payload for the competitive-scan card. `embedQuery` is a key-free
+ * descriptor present only when the Maps Embed lane is configured; `note`
+ * explains its absence so a missing map reads as "not wired" rather than
+ * "broken". */
 export interface CardMap {
-  embedUrl?: string;
+  embedQuery?: string;
   /** Key-free Google Maps link — always usable. */
   fallbackUrl: string;
   pins: Array<{ name: string; lat: number; lng: number }>;

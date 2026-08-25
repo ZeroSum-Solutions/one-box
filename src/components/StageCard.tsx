@@ -360,10 +360,16 @@ function LegacyScanRows({ rows, links }: { rows: LegacyScanEntry[]; links?: Card
   );
 }
 
-/** The embed only renders when a Maps Platform key produced an embedUrl.
+export function mapFrameSrc(map: CardMap): string | undefined {
+  if (!map.embedQuery) return undefined;
+  return `/api/maps/embed?q=${encodeURIComponent(map.embedQuery)}`;
+}
+
+/** The embed only renders when the pipeline emitted a key-free embed query.
  * Without one the card says so plainly and still offers a working map link —
  * a missing map must never read as "these businesses have no location". */
 export function CardMapView({ map }: { map: CardMap }) {
+  const frameSrc = mapFrameSrc(map);
   return (
     <div className="stage-card__map">
       <div className="stage-card__map-head">
@@ -374,13 +380,13 @@ export function CardMapView({ map }: { map: CardMap }) {
         </span>
       </div>
       <div className="stage-card__map-body">
-        {map.embedUrl ? (
+        {frameSrc ? (
           <iframe
             className="stage-card__map-frame"
-            src={map.embedUrl}
+            src={frameSrc}
             title="Competitor locations"
             loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
+            referrerPolicy="origin"
             allowFullScreen
           />
         ) : (

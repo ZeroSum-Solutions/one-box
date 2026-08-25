@@ -68,7 +68,8 @@ import {
 import { ConfigError, preflight } from "./preflight";
 import { findCompetitors } from "./tools/maps";
 import { fetchYelpMarket } from "./tools/yelp";
-import { embedSearchUrl, mapsSearchUrl } from "./tools/places";
+import { embedSearchQuery, MapEmbedQuerySchema } from "./tools/mapEmbed";
+import { mapsSearchUrl } from "./tools/places";
 import { crawlSite } from "./tools/crawl";
 import { capture } from "./tools/capture";
 import {
@@ -449,15 +450,30 @@ function replayEventKey(event: PipelineEvent): string {
   return JSON.stringify(event);
 }
 
+function mapSafeReplayEvent(event: PipelineEvent): PipelineEvent {
+  if (event.type !== "card" || !event.map) return event;
+  const parsedQuery = MapEmbedQuerySchema.safeParse(event.map.embedQuery);
+  return {
+    ...event,
+    map: {
+      ...(parsedQuery.success ? { embedQuery: parsedQuery.data } : {}),
+      fallbackUrl: event.map.fallbackUrl,
+      pins: event.map.pins,
+      ...(event.map.note !== undefined ? { note: event.map.note } : {}),
+    },
+  };
+}
+
 /** events.jsonl remains the complete audit record. Reconnect consumers need a
  * current journey instead: one copy of each narrative card and only the latest
  * terminal outcome, so an old repaired error never masquerades as current. */
 export function projectPipelineReplayEvents(
   events: PipelineEvent[]
 ): PipelineEvent[] {
+  const replayEvents = events.map(mapSafeReplayEvent);
   let latestTerminalIndex = -1;
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
+  for (let index = replayEvents.length - 1; index >= 0; index -= 1) {
+    const event = replayEvents[index];
     if (
       event.type === "paused" ||
       event.type === "page-ir-source-paused" ||
@@ -468,7 +484,7 @@ export function projectPipelineReplayEvents(
       break;
     }
   }
-  const onlyObservabilityAfterTerminal = latestTerminalIndex >= 0 && events
+  const onlyObservabilityAfterTerminal = latestTerminalIndex >= 0 && replayEvents
     .slice(latestTerminalIndex + 1)
     .every(
       (event) =>
@@ -478,13 +494,13 @@ export function projectPipelineReplayEvents(
         event.type === "cost",
     );
   if (
-    latestTerminalIndex !== events.length - 1 &&
+    latestTerminalIndex !== replayEvents.length - 1 &&
     !onlyObservabilityAfterTerminal
   ) {
     latestTerminalIndex = -1;
   }
   const seenCards = new Set<string>();
-  return events.filter((event, index) => {
+  return replayEvents.filter((event, index) => {
     if (
       event.type === "paused" ||
       event.type === "page-ir-source-paused" ||
@@ -1621,7 +1637,7 @@ export async function stageScan(
       .filter((c) => c.place)
       .map((c) => ({ name: c.place!.name, lat: c.place!.lat, lng: c.place!.lng }));
     const joinedMap: CardMap = {
-      embedUrl: embedSearchUrl(marketQuery),
+      embedQuery: embedSearchQuery(marketQuery),
       fallbackUrl: mapsSearchUrl(marketQuery),
       pins: joinedPins,
       note:
@@ -1860,7 +1876,7 @@ export async function stageScan(
     map: mapJoinedToRoster
       ? undefined
       : {
-          embedUrl: embedSearchUrl(marketQuery),
+          embedQuery: embedSearchQuery(marketQuery),
           fallbackUrl: mapsSearchUrl(marketQuery),
           pins: scan.competitors
             .filter((c) => c.place)
