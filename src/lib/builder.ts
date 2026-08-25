@@ -28,6 +28,7 @@ import {
   SITE_DIR,
   ARTIFACTS,
   CandidateGateReceiptV1Schema,
+  MAX_CANDIDATE_BYTES,
   CandidateProvenanceV1Schema,
   CopyDocSchema,
   DesignTokensSchema,
@@ -71,6 +72,7 @@ const RUN_ID_RE = /^[a-z0-9_-]{4,40}$/i;
 const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
 const NONBLOCK = constants.O_NONBLOCK ?? 0;
 const READ_FLAGS = constants.O_RDONLY | NOFOLLOW | NONBLOCK;
+const MAX_BUILD_METADATA_BYTES = 8 * 1024 * 1024;
 
 // Sections the template always renders regardless of skeleton content (nav
 // and footer are chrome, hero and contact carry the primary conversion
@@ -266,14 +268,17 @@ async function readFailedCandidateSnapshot(
   const provenanceBytes = await readStableBuildInput(
     paths.provenance,
     "candidate repair provenance",
+    MAX_BUILD_METADATA_BYTES,
   );
   const manifestBytes = await readStableBuildInput(
     paths.manifest,
     "candidate repair manifest",
+    MAX_BUILD_METADATA_BYTES,
   );
   const receiptBytes = await readStableBuildInput(
     paths.gates,
     "candidate repair gate receipt",
+    MAX_BUILD_METADATA_BYTES,
   );
   const receipt = CandidateGateReceiptV1Schema.parse(
     JSON.parse(receiptBytes.toString("utf8")),
@@ -299,6 +304,7 @@ async function readFailedCandidateSnapshot(
     const bytes = await readStableBuildInput(
       absolute,
       `candidate repair source ${file.path}`,
+      MAX_CANDIDATE_BYTES,
     );
     if (bytes.byteLength !== file.sizeBytes || sha256(bytes) !== file.sha256) {
       throw new Error(`candidate repair source changed: ${file.path}`);
@@ -422,6 +428,23 @@ function htmlAttributeInventory(
   return inventory;
 }
 
+const URL_BEARING_HTML_ATTRIBUTES = new Set([
+  "archive",
+  "action",
+  "background",
+  "cite",
+  "codebase",
+  "data",
+  "formaction",
+  "href",
+  "manifest",
+  "ping",
+  "poster",
+  "src",
+  "srcset",
+  "xlink:href",
+]);
+
 function htmlElementInventory(html: string, selector: string): string[] {
   const $ = cheerio.load(html);
   return $(selector)
@@ -456,35 +479,15 @@ function assertHtmlRepairIsClosed(original: string, proposed: string): void {
     }
   }
 
-  const dangerousAttribute = (name: string, value: string) => {
+  const protectedAttribute = (name: string) => {
     if (name.startsWith("on") || name === "srcdoc" || name === "style") return true;
-    if (
-      [
-        "href",
-        "src",
-        "srcset",
-        "action",
-        "formaction",
-        "poster",
-        "data",
-        "ping",
-        "background",
-        "manifest",
-        "cite",
-        "xlink:href",
-        "archive",
-        "codebase",
-      ].includes(name) && /(?:https?:|\/\/|javascript:|data:)/i.test(value)
-    ) {
-      return true;
-    }
-    return name === "style" && /(?:url\s*\(|expression\s*\(|javascript:)/i.test(value);
+    return URL_BEARING_HTML_ATTRIBUTES.has(name);
   };
   if (
-    JSON.stringify(htmlAttributeInventory(proposed, dangerousAttribute)) !==
-    JSON.stringify(htmlAttributeInventory(original, dangerousAttribute))
+    JSON.stringify(htmlAttributeInventory(proposed, protectedAttribute)) !==
+    JSON.stringify(htmlAttributeInventory(original, protectedAttribute))
   ) {
-    throw new Error("candidate repair introduced a script or remote request attribute");
+    throw new Error("candidate repair changed a protected URL or script attribute");
   }
 }
 
@@ -620,6 +623,7 @@ async function commitCandidateRepairBundle(
       const observed = await readStableBuildInput(
         path.join(backupRoot, relativePath),
         `candidate repair retired ${relativePath}`,
+        MAX_BUILD_METADATA_BYTES,
       );
       if (!observed.equals(expected)) {
         throw new Error(`candidate repair source changed before commit: ${relativePath}`);
@@ -670,9 +674,10 @@ function isEnoent(error: unknown): boolean {
 async function readOptionalStableBuildInput(
   filePath: string,
   label: string,
+  maxBytes: number,
 ): Promise<Buffer | undefined> {
   try {
-    return await readStableBuildInput(filePath, label);
+    return await readStableBuildInput(filePath, label, maxBytes);
   } catch (error) {
     if (isEnoent(error)) return undefined;
     throw error;
@@ -724,10 +729,12 @@ export async function gateBuiltCandidateUnderSiteAuthority(
   const provenanceBefore = await readStableBuildInput(
     paths.provenance,
     "candidate provenance",
+    MAX_BUILD_METADATA_BYTES,
   );
   const priorReceipt = await readOptionalStableBuildInput(
     paths.gates,
     "candidate gate receipt",
+    MAX_BUILD_METADATA_BYTES,
   );
   let result: CandidateGateRunResult;
   try {
@@ -747,6 +754,7 @@ export async function gateBuiltCandidateUnderSiteAuthority(
     const receiptBytes = await readStableBuildInput(
       paths.gates,
       "candidate gate receipt",
+      MAX_BUILD_METADATA_BYTES,
     );
     const receipt = CandidateGateReceiptV1Schema.parse(
       JSON.parse(receiptBytes.toString("utf8")),
@@ -773,9 +781,17 @@ export async function gateBuiltCandidateUnderSiteAuthority(
       { gateReportSha256: result.gateReportSha256 },
     );
     if (
-      !(await readStableBuildInput(paths.provenance, "candidate provenance"))
+      !(await readStableBuildInput(
+        paths.provenance,
+        "candidate provenance",
+        MAX_BUILD_METADATA_BYTES,
+      ))
         .equals(provenanceBefore) ||
-      !(await readStableBuildInput(paths.gates, "candidate gate receipt"))
+      !(await readStableBuildInput(
+        paths.gates,
+        "candidate gate receipt",
+        MAX_BUILD_METADATA_BYTES,
+      ))
         .equals(receiptBytes)
     ) {
       throw new Error("candidate disposition inputs changed before publication");
@@ -880,6 +896,7 @@ async function commitCandidateRepairUnderAuthority(
       const provenanceBytes = await readStableBuildInput(
         snapshot.paths.provenance,
         "repaired candidate provenance",
+        MAX_BUILD_METADATA_BYTES,
       );
       const provenance = CandidateProvenanceV1Schema.parse(
         JSON.parse(provenanceBytes.toString("utf8")),
@@ -1117,6 +1134,7 @@ function sha256(bytes: string | Uint8Array): string {
 async function readStableBuildInput(
   filePath: string,
   label: string,
+  maxBytes: number,
 ): Promise<Buffer> {
   const initial = await lstat(filePath, { bigint: true });
   if (initial.isSymbolicLink() || !initial.isFile() || initial.nlink > BigInt(1)) {
@@ -1134,7 +1152,24 @@ async function readStableBuildInput(
     ) {
       throw new Error(`${label} changed before compilation`);
     }
-    const bytes = await handle.readFile();
+    if (opened.size > BigInt(maxBytes)) {
+      throw new Error(`${label} exceeds the stable read size limit`);
+    }
+    const sizeBytes = Number(opened.size);
+    const bytes = Buffer.allocUnsafe(sizeBytes);
+    let offset = 0;
+    while (offset < sizeBytes) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        offset,
+        sizeBytes - offset,
+        offset,
+      );
+      if (bytesRead === 0) {
+        throw new Error(`${label} changed during compilation authorization`);
+      }
+      offset += bytesRead;
+    }
     const after = await handle.stat({ bigint: true });
     if (
       after.dev !== opened.dev ||
@@ -1167,6 +1202,7 @@ async function authorizeBuildInputs(
     const bytes = await readStableBuildInput(
       path.join(runRoot, artifact.path),
       `build input ${artifact.path}`,
+      MAX_BUILD_METADATA_BYTES,
     );
     const persisted = artifact.schema.parse(JSON.parse(bytes.toString("utf8")));
     const supplied = artifact.schema.parse(artifact.value);
@@ -1182,6 +1218,7 @@ async function authorizeBuildInputs(
     const bytes = await readStableBuildInput(
       path.join(runRoot, ARTIFACTS.tailwindTheme),
       `build input ${ARTIFACTS.tailwindTheme}`,
+      MAX_BUILD_METADATA_BYTES,
     );
     if (bytes.toString("utf8") !== input.tailwindThemeCss) {
       throw new Error(
@@ -1201,7 +1238,21 @@ async function authorizeBuildInputs(
     ) {
       throw new Error("hero image must be a run-owned asset");
     }
-    const bytes = await readStableBuildInput(absoluteHero, "hero image");
+    await assertRunOwnedPathHasNoLinkedDirectory(
+      runRoot,
+      absoluteHero,
+      "hero image",
+    );
+    const bytes = await readStableBuildInput(
+      absoluteHero,
+      "hero image",
+      MAX_CANDIDATE_BYTES,
+    );
+    await assertRunOwnedPathHasNoLinkedDirectory(
+      runRoot,
+      absoluteHero,
+      "hero image",
+    );
     hashes.push({ path: relativeHero, sha256: sha256(bytes) });
     heroImage = { sourcePath: absoluteHero, bytes };
   }
@@ -1209,6 +1260,33 @@ async function authorizeBuildInputs(
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
   return { inputArtifactHashes: hashes, heroImage };
+}
+
+async function assertRunOwnedPathHasNoLinkedDirectory(
+  runRoot: string,
+  absolutePath: string,
+  label: string,
+): Promise<void> {
+  const relative = path.relative(runRoot, absolutePath);
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(`${label} must remain inside run authority`);
+  }
+  const segments = relative.split(path.sep).filter(Boolean);
+  let current = runRoot;
+  for (const segment of segments.slice(0, -1)) {
+    current = path.join(current, segment);
+    const observed = await lstat(current, { bigint: true });
+    if (observed.isSymbolicLink()) {
+      throw new Error(`${label} directory must not be a symlink`);
+    }
+    if (!observed.isDirectory()) {
+      throw new Error(`${label} parent must be a directory`);
+    }
+  }
 }
 
 export async function assertBuildAuthorized(
@@ -1227,6 +1305,7 @@ async function loadBuildAuthorization(
     bytes = await readStableBuildInput(
       path.join(runRoot, "run.json"),
       "durable run authorization",
+      MAX_BUILD_METADATA_BYTES,
     );
   } catch (error) {
     if (isEnoent(error)) {

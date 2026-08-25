@@ -853,6 +853,33 @@ export async function runPipeline(
     run.layoutAuthority === "page-ir-v1" &&
     candidate.status === "present" &&
     candidate.provenance.state === "failed";
+  const hasRecordedCompletion = history.some(
+    (event) => event.type === "complete",
+  );
+  let exactPromotedTemplateLive = false;
+  if (
+    run.layoutAuthority === "template-v1" &&
+    candidate.status === "present" &&
+    candidate.provenance.state === "promoted" &&
+    hasRecordedCompletion
+  ) {
+    const live = await (
+      dependencies.inspectPromotedLiveBundle ?? inspectPromotedLiveBundle
+    )(runId);
+    exactPromotedTemplateLive =
+      live.status === "present" &&
+      live.provenance.state === "promoted" &&
+      live.provenance.candidateManifestSha256 ===
+        candidate.provenance.candidateManifestSha256 &&
+      live.provenance.gateReportSha256 ===
+        candidate.provenance.gateReportSha256 &&
+      live.manifest.buildSha256 === candidate.provenance.buildSha256 &&
+      live.provenance.buildSha256 === candidate.provenance.buildSha256 &&
+      live.provenance.promotedBuildSha256 === live.manifest.buildSha256 &&
+      live.receipt.candidateManifestSha256 ===
+        candidate.provenance.candidateManifestSha256 &&
+      live.receipt.buildSha256 === candidate.provenance.buildSha256;
+  }
   let exactPromotedPageIrLive = false;
   if (
     run.layoutAuthority === "page-ir-v1" &&
@@ -892,12 +919,10 @@ export async function runPipeline(
         live.receipt.buildSha256 === candidate.provenance.buildSha256;
     }
   }
-  const hasRecordedCompletion = history.some(
-    (event) => event.type === "complete",
-  );
   const recordedLiveCompletion =
     hasRecordedCompletion &&
     (exactPromotedPageIrLive ||
+      exactPromotedTemplateLive ||
       (run.layoutAuthority === "template-v1" &&
         run.pipelineVersion === "legacy-v1" &&
         candidate.status === "absent"));

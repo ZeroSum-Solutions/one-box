@@ -563,18 +563,26 @@ export function buildVisualQa(
 /** Exercise the static build at the three required widths plus interaction,
  * color-scheme, and reduced-motion states. Screenshots are run-relative paths
  * so the evidence record stays portable between the two Macs. */
-const QA_TARGET_SELECTOR =
-  ".hero__cta:visible, main .btn:visible, .nav__cta:visible, main a[data-edit-id]:visible";
+const QA_TARGET_SELECTORS = [
+  ".hero__cta:visible",
+  "main .btn:visible",
+  ".nav__cta:visible",
+  "main a[data-edit-id]:visible",
+] as const;
 
 async function boundedVisibleQaTarget(page: Page) {
-  const target = page.locator(QA_TARGET_SELECTOR).first();
-  try {
-    await target.waitFor({ state: "visible", timeout: 2_000 });
-    await target.scrollIntoViewIfNeeded({ timeout: 2_000 });
-    return target;
-  } catch {
-    return null;
+  for (const selector of QA_TARGET_SELECTORS) {
+    const target = page.locator(selector).first();
+    try {
+      if ((await target.count()) === 0) continue;
+      await target.waitFor({ state: "visible", timeout: 2_000 });
+      await target.scrollIntoViewIfNeeded({ timeout: 2_000 });
+      return target;
+    } catch {
+      // Continue to the next lower-priority target class.
+    }
   }
+  return null;
 }
 
 async function runThreeWidthVisualQaUnlocked(

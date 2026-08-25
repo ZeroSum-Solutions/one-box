@@ -615,6 +615,38 @@ describe("evidence artifact derivation", () => {
     ).toBe("pass");
   }, 30_000);
 
+  it("prioritizes the primary CTA over an earlier generic editable link", async () => {
+    const runId = await createRun();
+    const runRoot = sitePaths(runId).root;
+    const site = sitePaths(runId).site;
+    temporaryDirectories.push(runRoot);
+    await fs.mkdir(site, { recursive: true });
+    await fs.writeFile(
+      path.join(site, "index.html"),
+      `<!doctype html><html><head><style>
+        html,body { margin: 0; background: #fff; color: #000; }
+        a { display: inline-block; color: #000; background: #fff; }
+        .secondary:hover { background: #ddd; }
+        .secondary:focus-visible { outline: 3px solid #000; }
+        .hero__cta:focus { outline: none; }
+        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0s; transition-duration: 0s; } }
+      </style></head><body><main>
+        <a class="secondary" data-edit-id="secondary-link" href="#details">Details</a>
+        <a class="hero__cta" href="#contact">Start</a>
+        <section id="details">Details</section><section id="contact">Contact</section>
+      </main></body></html>`,
+    );
+
+    const qa = await runThreeWidthVisualQa(runId, site, 1);
+
+    expect(qa.checks.find((check) => check.area === "hover")?.status).toBe(
+      "fail",
+    );
+    expect(qa.checks.find((check) => check.area === "focus")?.status).toBe(
+      "fail",
+    );
+  }, 30_000);
+
   it("rejects empty, duplicate, and screenshot-free visual QA", () => {
     const base = buildVisualQa(1);
     expect(() => VisualQaSchema.parse({ ...base, checks: [] })).toThrow();

@@ -45,7 +45,7 @@ Score each dimension from 0 to 4 and cite visible evidence.
 - Any broken blocking gate.
 - Missing desktop, tablet, or mobile evidence.
 - A fixture whose section order/topology is materially the frozen local-service shape
-  when the fixture purpose is not brochure/presence.
+  when the fixture purpose is not `brochure-local-service`.
 - Copied reference branding or composition without documented synthesis.
 - Hidden paid fallback or missing source/build provenance.
 - A Web app or iOS deliverable represented as supported Phase 1 output.

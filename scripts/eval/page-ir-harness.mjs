@@ -210,6 +210,26 @@ function waitForChild(child, stderrChunks) {
   });
 }
 
+async function rejectOutboundSnapshotSymlinks(snapshotRoot) {
+  async function visit(directory) {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    for (const entry of entries) {
+      const absolute = path.join(directory, entry.name);
+      const stat = await fs.lstat(absolute);
+      if (stat.isSymbolicLink()) {
+        const target = await fs.readlink(absolute);
+        const resolved = path.resolve(directory, target);
+        if (resolved !== snapshotRoot && !resolved.startsWith(`${snapshotRoot}${path.sep}`)) {
+          fail(`execution snapshot symlink escapes authority: ${path.relative(snapshotRoot, absolute)}`);
+        }
+      } else if (stat.isDirectory()) {
+        await visit(absolute);
+      }
+    }
+  }
+  await visit(snapshotRoot);
+}
+
 export async function createGitExecutionSnapshot(root, gitSha, runtimeContract) {
   if (!/^[a-f0-9]{40}$/.test(gitSha ?? "")) fail("execution snapshot Git authority is invalid");
   const runtime = await validateCoordinatorRuntime(runtimeContract);
@@ -233,6 +253,7 @@ export async function createGitExecutionSnapshot(root, gitSha, runtimeContract) 
     if (archiveExit.code !== 0 || extractExit.code !== 0) {
       fail(`unable to create immutable Git execution snapshot: ${Buffer.concat([...archiveErrors, ...extractErrors]).toString("utf8").slice(0, 2000)}`);
     }
+    await rejectOutboundSnapshotSymlinks(snapshotRoot);
     const installErrors = [];
     const install = spawn(
       runtime.nodeExecutable,

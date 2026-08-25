@@ -49,6 +49,7 @@ export {
 
 export const MAX_CANDIDATE_BYTES = CONTRACT_MAX_CANDIDATE_BYTES;
 export const CANDIDATE_DIAGNOSTIC_RETENTION_MS = 24 * 60 * 60 * 1000;
+export const CANDIDATE_RECOVERY_RECORD_MAX_BYTES = 16 * 1024;
 
 const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const NOFOLLOW = constants.O_NOFOLLOW ?? 0;
@@ -326,19 +327,20 @@ async function lstatMaybe(filePath: string): Promise<BigIntStats | undefined> {
 async function readRegularFile(
   filePath: string,
   label: string,
+  maxBytes = MAX_CANDIDATE_BYTES,
 ): Promise<Buffer> {
   const initial = await fs.lstat(filePath, { bigint: true });
   if (initial.isSymbolicLink()) throw new Error(`${label} must not be a symlink`);
   if (!initial.isFile()) throw new Error(`${label} must be a regular file`);
   if (initial.nlink > BigInt(1)) throw new Error(`${label} must not be a hardlink`);
-  if (initial.size > BigInt(MAX_CANDIDATE_BYTES)) {
-    throw new Error(`${label} exceeds the candidate diagnostic size limit`);
+  if (initial.size > BigInt(maxBytes)) {
+    throw new Error(`${label} exceeds its size limit`);
   }
   const handle = await fs.open(filePath, READ_FLAGS);
   try {
     const opened = await handle.stat({ bigint: true });
-    if (opened.size > BigInt(MAX_CANDIDATE_BYTES)) {
-      throw new Error(`${label} exceeds the candidate diagnostic size limit`);
+    if (opened.size > BigInt(maxBytes)) {
+      throw new Error(`${label} exceeds its size limit`);
     }
     if (
       !opened.isFile() ||
@@ -348,7 +350,19 @@ async function readRegularFile(
     ) {
       throw new Error(`${label} changed before read`);
     }
-    const bytes = await handle.readFile();
+    const sizeBytes = Number(opened.size);
+    const bytes = Buffer.allocUnsafe(sizeBytes);
+    let offset = 0;
+    while (offset < sizeBytes) {
+      const { bytesRead } = await handle.read(
+        bytes,
+        offset,
+        sizeBytes - offset,
+        offset,
+      );
+      if (bytesRead === 0) throw new Error(`${label} changed while read`);
+      offset += bytesRead;
+    }
     const after = await handle.stat({ bigint: true });
     if (!sameFile(opened, after) || opened.size !== after.size) {
       throw new Error(`${label} changed while read`);
@@ -370,10 +384,12 @@ export async function validateCandidateInputArtifactHashes(
   for (const input of inputs) {
     let bytes: Buffer;
     try {
+      await assertRunOwnedInputPath(runRoot, input.path);
       bytes = await readRegularFile(
         path.join(runRoot, ...input.path.split("/")),
         `candidate input ${input.path}`,
       );
+      await assertRunOwnedInputPath(runRoot, input.path);
     } catch (error) {
       if (isEnoent(error)) {
         throw new Error(`bound gate input is missing: ${input.path}`);
@@ -384,6 +400,24 @@ export async function validateCandidateInputArtifactHashes(
       throw new Error(
         `candidate gate input SHA-256 does not match provenance: ${input.path}`,
       );
+    }
+  }
+}
+
+async function assertRunOwnedInputPath(
+  runRoot: string,
+  relativePath: string,
+): Promise<void> {
+  const segments = relativePath.split("/");
+  let current = runRoot;
+  for (const segment of segments.slice(0, -1)) {
+    current = path.join(current, segment);
+    const observed = await fs.lstat(current, { bigint: true });
+    if (observed.isSymbolicLink()) {
+      throw new Error(`candidate input directory is a symlink: ${relativePath}`);
+    }
+    if (!observed.isDirectory()) {
+      throw new Error(`candidate input parent is not a directory: ${relativePath}`);
     }
   }
 }
@@ -664,10 +698,14 @@ export async function loadCandidateRecoveryRecord(
   runId: string,
 ): Promise<CandidateRecoveryRecord | undefined> {
   try {
-    return CandidateRecoveryRecordSchema.parse(JSON.parse(await fs.readFile(
+    const bytes = await readRegularFile(
       path.join(sitePaths(runId).root, "candidate-recovery.json"),
-      "utf8",
-    )));
+      "candidate recovery record",
+      CANDIDATE_RECOVERY_RECORD_MAX_BYTES,
+    );
+    return CandidateRecoveryRecordSchema.parse(
+      JSON.parse(bytes.toString("utf8")),
+    );
   } catch (error) {
     if (isEnoent(error)) return undefined;
     throw error;
@@ -1739,6 +1777,10 @@ async function readPromotableCandidateSnapshot(
   if (receipt.reports.some((report) => report.blocking && !report.pass)) {
     throw new Error("blocking candidate gate prevents promotion");
   }
+  await validateCandidateInputArtifactHashes(
+    runId,
+    provenance.inputArtifactHashes,
+  );
   await validateCandidateInventory(paths.site, manifest);
   return {
     manifest,

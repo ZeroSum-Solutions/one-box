@@ -834,7 +834,9 @@ describe("candidate gates", () => {
       {
         tokensCss: [
           "/* --compiler-canvas: #ffffff; */",
+          "/* --color-spoof: #172033; --font-spoof: ui-sans-serif; */",
           'body::before { content: "--compiler-color: #172033;"; }',
+          'body::after { content: "--color-spoof: #ffffff; --font-spoof: ui-sans-serif;"; }',
           ":root { --payload: url(data:text/plain;--compiler-font:ui-sans-serif;); }",
         ].join("\n"),
       },
@@ -1874,6 +1876,24 @@ describe("failed candidate repair", () => {
       "remote request",
       "index.html",
       (content: string) => content.replace("tel:5550100", "https://attacker.example/collect"),
+    ],
+    [
+      "relative URL change",
+      "index.html",
+      (content: string) =>
+        content.replace('href="tokens.css"', 'href="other.css"'),
+    ],
+    [
+      "same-origin URL change",
+      "index.html",
+      (content: string) =>
+        content.replace('href="tokens.css"', 'href="/collect.css"'),
+    ],
+    [
+      "non-HTTP URL change",
+      "index.html",
+      (content: string) =>
+        content.replace('href="tel:5550100"', 'href="mailto:collect@example.com"'),
     ],
     [
       "event handler",

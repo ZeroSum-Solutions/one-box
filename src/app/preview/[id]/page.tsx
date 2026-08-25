@@ -26,11 +26,14 @@ import {
   nearestPreviewBreakpoint,
   panelWidthForBreakpoint,
   panelWidthBounds,
+  previewIframeKey,
+  previewIframeSandbox,
   previewWidthForBreakpoint,
   persistWorkbenchState,
   readEditorStateMessage,
   resolvePreviewCompatibility,
   restoreWorkbenchState,
+  shouldAcceptEditorStateMessage,
   workbenchSizeForWidth,
   type EditorInteractionState,
   type PersistedWorkbenchState,
@@ -175,6 +178,12 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
 
   const restored = isWorkbenchStateRestoredForRun(restoredRunId, id);
   const interactive = restored && compatibilityState.editingAvailable;
+  const effectiveMode: PreviewMode = interactive ? workbench.mode : "view";
+  const safeIframeSrc = `/api/sites/${encodeURIComponent(id)}/index.html${effectiveMode === "edit" ? "?edit=1" : ""}`;
+  const iframeSandbox = previewIframeSandbox(
+    compatibilityState.status,
+    effectiveMode,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -280,6 +289,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
   useEffect(() => {
     function handleMessage(event: MessageEvent) {
       if (
+        !shouldAcceptEditorStateMessage(interactive, effectiveMode) ||
         !isTrustedEditorMessage(
           event.source,
           iframeRef.current?.contentWindow,
@@ -369,7 +379,7 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
     }
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, []);
+  }, [effectiveMode, interactive]);
 
   function setMode(mode: PreviewMode) {
     setSelection(null);
@@ -681,9 +691,6 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
         : "100%",
   } as CSSProperties;
   const panelBounds = panelWidthBounds(workspaceWidth);
-  const effectiveMode: PreviewMode = interactive ? workbench.mode : "view";
-  const safeIframeSrc = `/api/sites/${encodeURIComponent(id)}/index.html${effectiveMode === "edit" ? "?edit=1" : ""}`;
-
   return (
     <main
       ref={workspaceRef}
@@ -772,15 +779,11 @@ export default function PreviewPage(props: PageProps<"/preview/[id]">) {
           )}
           {restored ? (
             <iframe
-              key={`${iframeVersion}:${effectiveMode}`}
+              key={previewIframeKey(iframeVersion, effectiveMode, iframeSandbox)}
               ref={iframeRef}
               className="preview-frame"
               src={safeIframeSrc}
-              sandbox={
-                effectiveMode === "view"
-                  ? "allow-scripts allow-forms allow-popups allow-downloads"
-                  : "allow-scripts"
-              }
+              sandbox={iframeSandbox}
               title={`${effectiveMode === "view" ? "View" : "Edit"} site preview`}
             />
           ) : (

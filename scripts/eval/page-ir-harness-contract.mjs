@@ -879,6 +879,37 @@ export async function validatePageIrHarnessContract(repositoryRoot) {
   const productRequirements = parseProductRequirements(
     await readRepositoryFile(root, ticketManifest.prd, "product requirements"),
   );
+  const qualificationRubric = (
+    await readRepositoryFile(
+      root,
+      "docs/eval/page-ir-safe-pipeline/rubric.md",
+      "qualification rubric",
+    )
+  ).toString("utf8");
+  const automaticRejectionStart = qualificationRubric.indexOf("## Automatic rejection\n");
+  const automaticRejectionEnd = automaticRejectionStart < 0
+    ? -1
+    : qualificationRubric.indexOf("\n## ", automaticRejectionStart + 1);
+  const automaticRejectionLines = automaticRejectionStart < 0
+    ? []
+    : qualificationRubric
+      .slice(
+        automaticRejectionStart,
+        automaticRejectionEnd < 0 ? qualificationRubric.length : automaticRejectionEnd,
+      )
+      .split("\n");
+  const topologyRuleStart = "- A fixture whose section order/topology is materially the frozen local-service shape";
+  const topologyRuleIndexes = automaticRejectionLines.flatMap((line, index) =>
+    line === topologyRuleStart ? [index] : []
+  );
+  if (
+    topologyRuleIndexes.length !== 1 ||
+    automaticRejectionLines[topologyRuleIndexes[0] + 1] !==
+      "  when the fixture purpose is not `brochure-local-service`." ||
+    qualificationRubric.includes("brochure/presence")
+  ) {
+    fail("qualification rubric must exempt only brochure-local-service from the local-service topology rejection");
+  }
   const fronts = await readFrontMatters(root, registry, ticketById);
   validateOwnerOrder(manifest, evaluationById, ticketById);
   const traceRows = parseTraceability(

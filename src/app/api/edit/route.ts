@@ -15,7 +15,12 @@ import {
   type DesignTokens,
   ReferenceStyleDigestSchema,
 } from "../../../lib/contracts";
-import { sitePaths, loadArtifact, loadRun } from "../../../lib/runstate";
+import {
+  sitePaths,
+  loadArtifact,
+  loadRun,
+  RunNotFoundError,
+} from "../../../lib/runstate";
 import { generateJson } from "../../../lib/openrouter";
 import {
   estimateImageCredits,
@@ -177,14 +182,19 @@ export async function POST(req: Request) {
   if (!/^[a-z0-9_-]{4,40}$/i.test(runId)) {
     return Response.json({ error: "bad runId" }, { status: 400 });
   }
+  let run;
   try {
     await assertWebsiteProductionRun(runId);
+    run = await loadRun(runId);
   } catch (error) {
     const response = websiteOnlyProductionResponse(error);
     if (response) return response;
+    if (error instanceof RunNotFoundError) {
+      return Response.json({ error: "run not found" }, { status: 404 });
+    }
     throw error;
   }
-  if ((await loadRun(runId)).layoutAuthority === "page-ir-v1") {
+  if (run.layoutAuthority === "page-ir-v1") {
     return Response.json(
       {
         code: "unsupported-page-ir-capability",
@@ -636,6 +646,9 @@ export async function POST(req: Request) {
     }
     if (error instanceof ImageLibraryError) {
       return Response.json({ error: error.message }, { status: error.status });
+    }
+    if (error instanceof RunNotFoundError) {
+      return Response.json({ error: "run not found" }, { status: 404 });
     }
     throw error;
   }

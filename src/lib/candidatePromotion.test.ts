@@ -1207,6 +1207,54 @@ describe("candidate promotion", () => {
     expect(candidate.status === "present" && candidate.provenance.state).toBe("promotable");
   });
 
+  it("rejects promotion when a provenance-bound durable input is stale", async () => {
+    const prepared = await fixture();
+    const liveBefore = await fs.readFile(path.join(prepared.roots.site, "index.html"));
+    const approvalBefore = await snapshotApproval(prepared.runId);
+    await fs.writeFile(
+      path.join(prepared.roots.root, "intake.json"),
+      '{"businessName":"changed after gates"}\n',
+    );
+
+    await expect(promoteCandidate(prepared.runId)).rejects.toThrow(
+      /input|SHA-256|provenance/i,
+    );
+
+    expect(await fs.readFile(path.join(prepared.roots.site, "index.html")))
+      .toEqual(liveBefore);
+    expect(await snapshotApproval(prepared.runId)).toEqual(approvalBefore);
+    await expect(candidateModule.inspectCandidate(prepared.runId)).resolves.toMatchObject({
+      status: "present",
+      provenance: { state: "promotable" },
+    });
+  });
+
+  it("revalidates provenance-bound durable inputs after staging and before commit", async () => {
+    const prepared = await fixture();
+    const liveBefore = await fs.readFile(path.join(prepared.roots.site, "index.html"));
+    const approvalBefore = await snapshotApproval(prepared.runId);
+
+    await expect(
+      promoteCandidate(prepared.runId, {
+        injectFault: async (step) => {
+          if (step !== "after-staging") return;
+          await fs.writeFile(
+            path.join(prepared.roots.root, "intake.json"),
+            '{"businessName":"changed during promotion"}\n',
+          );
+        },
+      }),
+    ).rejects.toThrow(/input|SHA-256|provenance/i);
+
+    expect(await fs.readFile(path.join(prepared.roots.site, "index.html")))
+      .toEqual(liveBefore);
+    expect(await snapshotApproval(prepared.runId)).toEqual(approvalBefore);
+    await expect(candidateModule.inspectCandidate(prepared.runId)).resolves.toMatchObject({
+      status: "present",
+      provenance: { state: "promotable" },
+    });
+  });
+
   it("rejects a gate receipt bound to different build bytes before live mutation", async () => {
     const prepared = await fixture();
     const mismatched = {

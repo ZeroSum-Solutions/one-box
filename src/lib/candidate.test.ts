@@ -15,6 +15,7 @@ import {
   inspectCandidate,
   recoverCandidateState,
   transitionCandidateProvenance,
+  validateCandidateInputArtifactHashes,
   validateCandidateInventory,
 } from "./candidate";
 import {
@@ -366,6 +367,25 @@ describe("candidate inventory", () => {
 });
 
 describe("candidate inspection and transitions", () => {
+  it("rejects a bound nested input reached through a symlinked directory", async () => {
+    const runId = testRunId("candidate-input-parent-link");
+    const outside = await temporarySite();
+    const bytes = Buffer.from("outside-hero-bytes");
+    await fs.writeFile(path.join(outside, "hero.jpg"), bytes);
+    const assets = path.join(sitePaths(runId).root, "assets");
+    await fs.mkdir(assets);
+    await fs.symlink(outside, path.join(assets, "nested"));
+
+    await expect(
+      validateCandidateInputArtifactHashes(runId, [
+        {
+          path: "assets/nested/hero.jpg",
+          sha256: sha256(bytes),
+        },
+      ]),
+    ).rejects.toThrow(/input|symlink|authority|unavailable/i);
+  });
+
   it("rejects provenance growth between lstat and open before reading its body", async () => {
     const runId = testRunId("candidate-provenance-grow");
     const { paths } = await createReadyCandidate(runId);
@@ -390,6 +410,40 @@ describe("candidate inspection and transitions", () => {
 
     await expect(inspectCandidate(runId)).rejects.toThrow(/changed before read/);
     expect(bodyReadAttempted).toBe(false);
+  });
+
+  it("does not use an unbounded read when provenance grows after the opened stat", async () => {
+    const runId = testRunId("candidate-post-stat-grow");
+    const { paths } = await createReadyCandidate(runId);
+    const realOpen = fs.open.bind(fs);
+    let armed = true;
+    let unboundedReadAttempted = false;
+    vi.spyOn(fs, "open").mockImplementation(async (filePath, flags, mode) => {
+      const opened = await realOpen(filePath, flags, mode);
+      if (String(filePath) !== paths.provenance || !armed) return opened;
+      armed = false;
+      const realStat = opened.stat.bind(opened);
+      const realReadFile = opened.readFile.bind(opened);
+      let firstStat = true;
+      opened.stat = (async (options) => {
+        const observed = await realStat(options);
+        if (firstStat) {
+          firstStat = false;
+          const grow = await realOpen(paths.provenance, "a");
+          await grow.writeFile(" ");
+          await grow.close();
+        }
+        return observed;
+      }) as typeof opened.stat;
+      opened.readFile = (async (...args: Parameters<typeof realReadFile>) => {
+        unboundedReadAttempted = true;
+        return realReadFile(...args);
+      }) as typeof opened.readFile;
+      return opened;
+    });
+
+    await expect(inspectCandidate(runId)).rejects.toThrow(/changed while read/);
+    expect(unboundedReadAttempted).toBe(false);
   });
 
   it("reads and verifies a ready candidate without writing recovery state", async () => {

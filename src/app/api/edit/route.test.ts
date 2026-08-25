@@ -43,6 +43,15 @@ vi.mock("../../../lib/runstate", () => ({
   sitePaths: () => ({ root: "/unused", site: "/unused/site" }),
   loadArtifact: mocks.loadArtifact,
   loadRun: mocks.loadRun,
+  RunNotFoundError: class RunNotFoundError extends Error {
+    readonly runId: string;
+
+    constructor(runId: string) {
+      super(`run not found: ${runId}`);
+      this.name = "RunNotFoundError";
+      this.runId = runId;
+    }
+  },
 }));
 vi.mock("../../../lib/imageLibrary", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../lib/imageLibrary")>()),
@@ -58,6 +67,7 @@ vi.mock("../../../lib/siteMutation", async (importOriginal) => ({
 
 import { POST } from "./route";
 import { ImageGenerationBudgetError } from "../../../lib/imageGenerationBudget";
+import { RunNotFoundError } from "../../../lib/runstate";
 import {
   knownMutationGateRequest,
   unknownMutationGateRequest,
@@ -66,6 +76,15 @@ import {
 const originalToken = process.env.ONE_BOX_API_TOKEN;
 
 beforeEach(() => {
+  mocks.loadArtifact.mockResolvedValue({
+    projectTarget: "website",
+    colors: [],
+    fonts: [],
+  });
+  mocks.loadRun.mockResolvedValue({
+    layoutAuthority: "template-v1",
+    costUsd: 0,
+  });
   mocks.readFile.mockResolvedValue(
     '<div data-edit-id="hero.image" data-aspect="16:9"><img src="old.jpg" alt="Old"></div>',
   );
@@ -204,6 +223,32 @@ describe("edit route authorization", () => {
     expect(mocks.generateJson).not.toHaveBeenCalled();
     expect(mocks.estimateImageCredits).not.toHaveBeenCalled();
     expect(mocks.reserveImageGeneration).not.toHaveBeenCalled();
+    expect(mocks.generateImage).not.toHaveBeenCalled();
+    expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
+  });
+
+  it("returns a structured 404 when the requested run is missing", async () => {
+    mocks.loadArtifact.mockResolvedValue(undefined);
+    mocks.loadRun.mockRejectedValue(new RunNotFoundError("missing-run"));
+
+    const response = await POST(new Request("http://localhost:3000/api/edit", {
+      method: "POST",
+      headers: {
+        Host: "localhost:3000",
+        Origin: "http://localhost:3000",
+        "Sec-Fetch-Site": "same-origin",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        runId: "missing-run",
+        editId: "hero.title",
+        instruction: "Change the heading",
+      }),
+    }));
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: "run not found" });
+    expect(mocks.generateJson).not.toHaveBeenCalled();
     expect(mocks.generateImage).not.toHaveBeenCalled();
     expect(mocks.applyElementHtmlEdit).not.toHaveBeenCalled();
   });

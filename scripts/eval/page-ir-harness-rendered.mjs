@@ -4,6 +4,7 @@ import fs from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import {
   inspectPageIrBrowserAuthority,
   launchPageIrCredentialFreeBrowserServer,
@@ -214,7 +215,8 @@ export function renderedSandboxProfile({
     "(allow signal (target same-sandbox))", "(allow sysctl-read)",
     "(allow mach-lookup)", "(allow file-read*)",
     "(deny file-read* (subpath \"/Users\"))", "(deny file-read* (subpath \"/Volumes\"))",
-    "(deny file-read* (subpath \"/private/tmp\"))", "(deny file-read* (subpath \"/private/var/folders\"))",
+    "(deny file-read* (subpath \"/private/tmp\"))", "(deny file-read* (subpath \"/private/var/tmp\"))",
+    "(deny file-read* (subpath \"/private/var/folders\"))", "(deny file-read* (subpath \"/var/tmp\"))",
     "(deny network*)",
     ...(networkMode === "server" ? [
       `(allow network-inbound (local tcp "localhost:${listenPort}"))`,
@@ -426,6 +428,10 @@ async function closeNetServer(server) {
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
+function isExplicitNoIpv6BindError(error) {
+  return error?.code === "EADDRNOTAVAIL" || error?.code === "EAFNOSUPPORT";
+}
+
 export async function reserveRenderedAppPort() {
   const ipv4Probe = net.createServer();
   let ipv6Guard;
@@ -439,10 +445,16 @@ export async function reserveRenderedAppPort() {
       throw new Error("rendered coordinator did not select a TCP loopback port");
     }
     ipv6Guard = net.createServer((socket) => socket.destroy());
-    await new Promise((resolve, reject) => {
-      ipv6Guard.once("error", reject);
-      ipv6Guard.listen(address.port, "::1", resolve);
-    });
+    try {
+      await new Promise((resolve, reject) => {
+        ipv6Guard.once("error", reject);
+        ipv6Guard.listen(address.port, "::1", resolve);
+      });
+    } catch (error) {
+      await closeNetServer(ipv6Guard).catch(() => {});
+      ipv6Guard = undefined;
+      if (!isExplicitNoIpv6BindError(error)) throw error;
+    }
     await closeNetServer(ipv4Probe);
     let closed = false;
     return {
@@ -477,7 +489,7 @@ export async function executeProductionRenderedEvidence({
   if (process.platform !== "darwin") throw new Error("rendered evidence requires the macOS sandbox boundary");
   snapshotRoot = await fs.realpath(snapshotRoot);
   const browser = await inspectPageIrBrowserAuthority();
-  if (JSON.stringify(browser.binding) !== JSON.stringify(browserAuthority)) {
+  if (!isDeepStrictEqual(browser.binding, browserAuthority)) {
     throw new Error("rendered Chromium bundle does not match the frozen authority");
   }
   const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-rendered-"));

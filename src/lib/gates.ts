@@ -985,11 +985,9 @@ interface AllowedTokens {
 function parseAllowedTokens(cssText: string): AllowedTokens {
   const colorRgb = new Set<string>(["rgba(0, 0, 0, 0)", "transparent", "currentcolor"]);
   const fontFirstFamilies = new Set<string>();
-  const declRe = /(--[\w-]+)\s*:\s*([^;]+);/g;
-  let m: RegExpExecArray | null;
-  while ((m = declRe.exec(cssText))) {
-    const [, name, rawValue] = m;
-    const value = rawValue.trim();
+  for (const [name, values] of declaredCustomProperties(cssText)) {
+    const value = values.at(-1);
+    if (!value) continue;
     if (name.startsWith("--color-")) {
       const rgb = colorToRgbString(value);
       if (rgb) colorRgb.add(rgb);

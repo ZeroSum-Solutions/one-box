@@ -173,6 +173,36 @@ test("bounded contract reads reject symlinks, hardlinks, and oversized files", a
   await assert.rejects(readBoundedRegularFile(source, "oversized", 100), /byte bound/i);
 });
 
+test("qualification rubric exempts only the exact brochure-local-service fixture", async (context) => {
+  const root = await copyContractRoot(context);
+  const rubricPath = path.join(root, "docs/eval/page-ir-safe-pipeline/rubric.md");
+  const rubric = await fs.readFile(rubricPath, "utf8");
+  await fs.writeFile(
+    rubricPath,
+    rubric.replace("not `brochure-local-service`", "not brochure/presence"),
+  );
+
+  await assert.rejects(
+    validatePageIrHarnessContract(root),
+    /qualification rubric.*brochure-local-service/i,
+  );
+
+  const decoyRoot = await copyContractRoot(context);
+  const decoyRubricPath = path.join(decoyRoot, "docs/eval/page-ir-safe-pipeline/rubric.md");
+  await fs.writeFile(
+    decoyRubricPath,
+    `${rubric.replace(
+      "when the fixture purpose is not `brochure-local-service`.",
+      "when the fixture purpose is not `institutional-presence`.",
+    )}\nNote: when the fixture purpose is not \`brochure-local-service\`.\n`,
+  );
+  await assert.rejects(
+    validatePageIrHarnessContract(decoyRoot),
+    /qualification rubric.*brochure-local-service/i,
+  );
+  await assert.doesNotReject(validatePageIrHarnessContract(REPOSITORY_ROOT));
+});
+
 test("repository reads reject a parent directory replaced after inspection", async (context) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-contract-parent-"));
   context.after(() => fs.rm(root, { recursive: true, force: true }));

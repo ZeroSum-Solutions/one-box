@@ -4,6 +4,7 @@ import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { inflateSync } from "node:zlib";
 
 const RESULT_STATES = new Set(["PASS", "FAIL", "BLOCKED", "NOT_RUN"]);
@@ -27,7 +28,9 @@ const DARWIN_SANDBOX_PROFILE_PREFIX = [
   "(deny file-read* (subpath \"/Users\"))",
   "(deny file-read* (subpath \"/Volumes\"))",
   "(deny file-read* (subpath \"/private/tmp\"))",
+  "(deny file-read* (subpath \"/private/var/tmp\"))",
   "(deny file-read* (subpath \"/private/var/folders\"))",
+  "(deny file-read* (subpath \"/var/tmp\"))",
   "(deny network*)",
 ];
 const BROWSER_VIEWPORTS = Object.freeze([
@@ -730,7 +733,7 @@ async function verifyImmutableEvidencePackets(
       !Object.hasOwn(expectedBuildBindings, entry.name) ||
       !exactKeys(evidence?.fixtureBinding, ["fixtureId", "fixtureManifestSha256", "buildSha256"]) ||
       !validBrowserAuthority(evidence?.browserBinding) ||
-      JSON.stringify(evidence.browserBinding) !== JSON.stringify(expectedBrowserAuthority) ||
+      !isDeepStrictEqual(evidence.browserBinding, expectedBrowserAuthority) ||
       evidence?.qualificationChecks !== true ||
       evidence?.fixtureBinding?.fixtureId !== entry.name ||
       evidence?.fixtureBinding?.fixtureManifestSha256 !== expectedFixtureBindings[entry.name] ||
@@ -1338,7 +1341,7 @@ export async function loadQualificationPreReviewPacket(packetDirectory, { expect
   if (evidence.fixtureBinding?.fixtureId !== manifest.fixtureId ||
     evidence.fixtureBinding?.fixtureManifestSha256 !== manifest.hashes.fixtureManifestSha256 ||
     evidence.fixtureBinding?.buildSha256 !== manifest.hashes.buildSha256 ||
-    JSON.stringify(evidence.browserBinding) !== JSON.stringify(runManifest.browserAuthority)) {
+    !isDeepStrictEqual(evidence.browserBinding, runManifest.browserAuthority)) {
     fail("qualification browser evidence authority is invalid");
   }
   const browserFiles = new Map([["browser-evidence.json", evidenceBytes], ["candidate-manifest.json", candidateBytes]]);

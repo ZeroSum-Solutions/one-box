@@ -1,4 +1,3 @@
-import next from "next";
 import { startTrustedRenderedServer } from "./page-ir-harness-rendered-server-runtime.mjs";
 
 const nonce = process.env.ONEBOX_RENDERED_SERVER_NONCE;
@@ -10,12 +9,15 @@ const running = await startTrustedRenderedServer({
   nonce,
   port,
   publishAuthority: (authority) => process.stdout.write(`${JSON.stringify(authority)}\n`),
-  createApp: ({ hostname, port }) => next({
-    dev: false,
-    dir: process.cwd(),
-    hostname,
-    port,
-  }),
+  async loadApp({ hostname, port }) {
+    const { default: next } = await import("next");
+    return next({
+      dev: false,
+      dir: process.cwd(),
+      hostname,
+      port,
+    });
+  },
 });
 
 async function shutdown() {

@@ -185,25 +185,52 @@ test("credential-free sites workspace cannot follow a symlink outside its author
   await assert.rejects(fs.stat(escapedFile), { code: "ENOENT" });
 });
 
-test("credential-free sites workspace rejects a pre-seeded hardlink", async (context) => {
+test("credential-free child cannot hardlink and overwrite a file outside its workspace", async (context) => {
   const root = await isolatedEvaluationRoot(context);
-  const outside = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-eval-workspace-hardlink-"));
-  context.after(() => fs.rm(outside, { recursive: true, force: true }));
-  await fs.mkdir(path.join(root, "sites"));
-  const outsideFile = path.join(outside, "authority.txt");
+  const outsideFile = path.join(root, "authority.txt");
   await fs.writeFile(outsideFile, "unchanged");
-  await fs.link(outsideFile, path.join(root, "sites/linked.txt"));
-  await assert.rejects(executeEvaluation({
+  const result = await executeEvaluation({
     root,
     workspaceRoot: path.join(root, "sites"),
     evaluationId: "EVAL-SEC-003",
     commands: [{
       id: "sites-hardlink-escape",
-      argv: [process.execPath, "-e", "require('node:fs').writeFileSync('sites/linked.txt','changed')"],
+      argv: [process.execPath, "-e", [
+        "const fs=require('node:fs');",
+        "fs.linkSync('authority.txt','sites/linked.txt');",
+        "fs.writeFileSync('sites/linked.txt','changed');",
+      ].join("")],
     }],
     timeoutMs: 5_000,
-  }), /workspace.*must not already exist/i);
+  });
+  assert.equal(result.state, "FAIL");
+  assert.notEqual(result.commands[0]?.exitCode, 0);
+  assert.match(result.commands[0]?.stderr ?? "", /EPERM|operation not permitted/i);
+  assert.equal((await fs.stat(path.join(root, "sites"))).isDirectory(), true);
   assert.equal(await fs.readFile(outsideFile, "utf8"), "unchanged");
+});
+
+test("credential-free child cannot read private var tmp outside its authority", {
+  skip: process.platform !== "darwin",
+}, async (context) => {
+  const root = await isolatedEvaluationRoot(context);
+  const outside = await fs.mkdtemp("/private/var/tmp/one-box-eval-read-");
+  context.after(() => fs.rm(outside, { recursive: true, force: true }));
+  const sentinel = path.join(outside, "sentinel.txt");
+  await fs.writeFile(sentinel, "outside");
+
+  const result = await executeEvaluation({
+    root,
+    evaluationId: "EVAL-SEC-003",
+    commands: [{
+      id: "private-var-tmp-read",
+      argv: [process.execPath, "-e", `require('node:fs').readFileSync(${JSON.stringify(sentinel)})`],
+    }],
+    timeoutMs: 5_000,
+  });
+
+  assert.equal(result.state, "FAIL");
+  assert.notEqual(result.commands[0]?.exitCode, 0);
 });
 
 test("preparation publishes one immutable closed input run and rejects bad fixtures", async (context) => {

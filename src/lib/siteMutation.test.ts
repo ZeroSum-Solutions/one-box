@@ -6,15 +6,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   invalidateApprovedVisualQaUnderSiteAuthority: vi.fn(),
   layoutAuthority: "template-v1" as "template-v1" | "page-ir-v1",
+  runMissing: false,
   mutationRoot: `${process.cwd()}/sites/.tmp-onebox-site-mutation-locks`,
 }));
 
-vi.mock("./runstate", () => ({
+vi.mock("./runstate", () => {
+  class RunNotFoundError extends Error {}
+  return {
   invalidateApprovedVisualQaUnderSiteAuthority:
     mocks.invalidateApprovedVisualQaUnderSiteAuthority,
-  RunNotFoundError: class RunNotFoundError extends Error {},
+  RunNotFoundError,
   LayoutAuthorityMismatchError: class LayoutAuthorityMismatchError extends Error {},
-  loadRun: async () => ({ layoutAuthority: mocks.layoutAuthority }),
+  loadRun: async () => {
+    if (mocks.runMissing) throw new RunNotFoundError();
+    return { layoutAuthority: mocks.layoutAuthority };
+  },
   assertRunLayoutAuthority: (
     state: { layoutAuthority: string },
     expected: string,
@@ -32,7 +38,8 @@ vi.mock("./runstate", () => ({
     provenance: `${mocks.mutationRoot}/${runId}/candidate/provenance.json`,
     gates: `${mocks.mutationRoot}/${runId}/candidate/gates.json`,
   }),
-}));
+  };
+});
 
 import {
   atomicWrite,
@@ -69,6 +76,7 @@ async function workspaceTempDirectory(prefix: string): Promise<string> {
 afterEach(async () => {
   mocks.invalidateApprovedVisualQaUnderSiteAuthority.mockReset();
   mocks.layoutAuthority = "template-v1";
+  mocks.runMissing = false;
   await Promise.all(
     tempDirectories.splice(0).map((directory) =>
       fs.rm(directory, { recursive: true, force: true })
@@ -97,6 +105,30 @@ describe("generated-site mutation write authority", () => {
         gateRunner: async () => [],
       }),
     ).rejects.toThrow(/Page IR.*typed IR mutation/i);
+
+    expect(mutate).not.toHaveBeenCalled();
+    expect(await fs.readFile(target, "utf8")).toBe("before");
+  });
+
+  it("rejects mutation when canonical run authority metadata is missing", async () => {
+    const runId = "authority-missing-run-state";
+    const runRoot = path.join(mocks.mutationRoot, runId);
+    const target = path.join(runRoot, "site", "index.html");
+    tempDirectories.push(runRoot);
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, "before");
+    mocks.runMissing = true;
+    const mutate = vi.fn(async () => atomicWrite(target, "after"));
+
+    await expect(
+      runGuardedMutation({
+        runId,
+        snapshotPaths: [target],
+        gateRequest: contentGateRequest,
+        mutate,
+        gateRunner: async () => [],
+      }),
+    ).rejects.toThrow();
 
     expect(mutate).not.toHaveBeenCalled();
     expect(await fs.readFile(target, "utf8")).toBe("before");

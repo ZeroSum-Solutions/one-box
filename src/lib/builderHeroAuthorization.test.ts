@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -94,6 +95,38 @@ const copy = {
 };
 
 describe("hero build authorization", () => {
+  it("rejects a hero reached through a symlinked intermediate directory", async () => {
+    const runId = await createRun({ pipelineVersion: "legacy-v1" });
+    const runRoot = sitePaths(runId).root;
+    runRoots.push(runRoot);
+    const externalRoot = await fs.mkdtemp(path.join(os.tmpdir(), "onebox-hero-authority-"));
+    runRoots.push(externalRoot);
+    const externalHero = path.join(externalRoot, "hero.jpg");
+    await fs.writeFile(externalHero, "external-hero-bytes");
+    await fs.mkdir(path.join(runRoot, "assets"), { recursive: true });
+    await fs.symlink(externalRoot, path.join(runRoot, "assets", "nested"));
+    await saveArtifact(runId, "intake.json", intake);
+    await saveArtifact(runId, "tokens.json", tokens);
+    await saveArtifact(runId, "skeleton.json", skeleton);
+    await saveArtifact(runId, "copy.json", copy);
+
+    await expect(
+      buildSite({
+        runId,
+        intake,
+        tokens,
+        skeleton,
+        copy,
+        assets: {
+          heroImagePath: path.join(runRoot, "assets", "nested", "hero.jpg"),
+        },
+      }),
+    ).rejects.toThrow(/hero|run-owned|symlink|authority/i);
+    await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("writes the authorized hero bytes when the source path is substituted before rendering", async () => {
     const runId = await createRun({ pipelineVersion: "legacy-v1" });
     const runRoot = sitePaths(runId).root;

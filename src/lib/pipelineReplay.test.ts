@@ -1419,6 +1419,30 @@ describe("pipeline replay", () => {
     expect(executePipeline).not.toHaveBeenCalled();
   });
 
+  it("replays a recorded template completion when its promoted live bundle is exact", async () => {
+    const harness = pageIrCompletionHarness();
+    harness.run.id = "template-promoted-run";
+    harness.run.layoutAuthority = "template-v1";
+    const complete: PipelineEvent = {
+      type: "complete",
+      runId: harness.run.id,
+      previewUrl: `/preview/${harness.run.id}`,
+    };
+    harness.dependencies.readEvents.mockResolvedValue([complete]);
+    const emit = vi.fn();
+
+    await runPipeline(harness.run.id, emit, harness.dependencies as never);
+
+    expect(emit).toHaveBeenCalledWith(complete);
+    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
+    expect(harness.dependencies.inspectPromotedLiveBundle).toHaveBeenCalledOnce();
+    expect(harness.dependencies.appendEvent).not.toHaveBeenCalledWith(
+      harness.run.id,
+      expect.objectContaining({ type: "error" }),
+    );
+    expect(harness.executePipeline).not.toHaveBeenCalled();
+  });
+
   it("does not report a promotable candidate as a completed live build", async () => {
     const run = pendingRun("promotable-run");
     run.pipelineVersion = "legacy-v1";

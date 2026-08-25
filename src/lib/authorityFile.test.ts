@@ -38,4 +38,29 @@ describe("bounded site-authority file reads", () => {
       await fs.rm(root, { recursive: true, force: true });
     }
   });
+
+  it("does not delegate bounded authority reads to an unbounded readFile call", async () => {
+    const runId = `authority-read-bounded-${process.pid}`;
+    await createRun({ id: runId, pipelineVersion: "legacy-v1" });
+    const root = sitePaths(runId).root;
+    const target = path.join(root, "page-ir-edit-history.json");
+    await fs.writeFile(target, "trusted-input");
+    const originalOpen = fs.open.bind(fs);
+    vi.spyOn(fs, "open").mockImplementation(async (filePath, flags, mode) => {
+      const handle = await originalOpen(filePath, flags, mode);
+      return Object.assign(handle, {
+        readFile: vi.fn(async () => {
+          throw new Error("unbounded readFile must not be used");
+        }),
+      });
+    });
+
+    try {
+      await expect(withSiteAuthorityLock(runId, () =>
+        readOptionalBoundedAuthorityFile(target, 1024, "Page IR transaction input")
+      )).resolves.toEqual(Buffer.from("trusted-input"));
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
 });

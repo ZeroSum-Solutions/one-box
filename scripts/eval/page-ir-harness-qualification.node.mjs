@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -11,6 +12,8 @@ import {
   runDetachedQualificationWorker,
 } from "./page-ir-harness-qualification.mjs";
 import { writeImmutableEvaluationPacket } from "./page-ir-harness-runner.mjs";
+
+const qualificationAdapter = await import("./page-ir-harness-qualification.mjs");
 
 const CORPUS = [
   "brochure-local-service",
@@ -27,6 +30,41 @@ const HASHES = {
   mechanicalChecksSha256: "d".repeat(64),
   browserEvidenceSha256: "e".repeat(64),
 };
+
+test("qualification materializer sandbox denies private var tmp outside its authority", {
+  skip: process.platform !== "darwin",
+}, async (context) => {
+  assert.equal(typeof qualificationAdapter.materializerSandboxProfile, "function");
+  const root = path.resolve(import.meta.dirname, "../..");
+  const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-materializer-profile-"));
+  const outside = await fs.mkdtemp("/private/var/tmp/one-box-materializer-read-");
+  context.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
+  context.after(() => fs.rm(outside, { recursive: true, force: true }));
+  const sentinel = path.join(outside, "sentinel.txt");
+  await fs.writeFile(sentinel, "outside");
+  const profile = qualificationAdapter.materializerSandboxProfile({
+    snapshotRoot: root,
+    inputsRoot: path.join(root, "docs/eval/page-ir-safe-pipeline/fixtures"),
+    temporaryRoot: await fs.realpath(temporaryRoot),
+    outputRoot: path.join(root, ".qualification-output/profile-test"),
+  });
+  const child = spawn("/usr/bin/sandbox-exec", [
+    "-p", profile,
+    process.execPath,
+    "-e",
+    `require('node:fs').readFileSync(${JSON.stringify(sentinel)})`,
+  ], { cwd: root, stdio: ["ignore", "ignore", "pipe"] });
+  const stderr = [];
+  child.stderr.on("data", (chunk) => stderr.push(chunk));
+  const exitCode = await new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", resolve);
+  });
+
+  assert.notEqual(exitCode, 0, Buffer.concat(stderr).toString("utf8"));
+  assert.match(profile, /subpath \"\/private\/var\/tmp\"/);
+  assert.match(profile, /subpath \"\/var\/tmp\"/);
+});
 const CURRENT_HASHES_BY_FIXTURE = Object.fromEntries(
   CORPUS.map((fixtureId) => [fixtureId, HASHES]),
 );

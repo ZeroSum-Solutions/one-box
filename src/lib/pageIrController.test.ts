@@ -11,7 +11,10 @@ function candidate(state: "ready-for-gates" | "failed" | "promotable" | "promote
     manifest: { buildSha256: HASH },
     provenance: {
       state,
+      layoutAuthority: "page-ir-v1",
+      compilerVersion: "page-ir-static@3",
       pageIrSha256: OTHER_HASH,
+      editorSourceMap: { pageIrSha256: OTHER_HASH },
       buildSha256: HASH,
       candidateManifestSha256: "c".repeat(64),
       gateReportSha256: state === "ready-for-gates" ? undefined : "d".repeat(64),
@@ -192,6 +195,28 @@ describe("PageIR build controller", () => {
     },
   );
 
+  it("rematerializes a present candidate from an obsolete compiler before gating", async () => {
+    const dependencies = dependenciesFor("ready-for-gates");
+    const stale = {
+      ...candidate("ready-for-gates"),
+      provenance: {
+        ...candidate("ready-for-gates").provenance,
+        compilerVersion: "page-ir-static@2",
+        editorSourceMap: undefined,
+      },
+    };
+    dependencies.inspectCandidate
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValue(candidate("ready-for-gates"));
+
+    await expect(
+      executePageIrBuildController("run-page-ir", vi.fn(), dependencies),
+    ).resolves.toEqual({ status: "visual-review" });
+
+    expect(dependencies.materializePageIrCandidate).toHaveBeenCalledOnce();
+    expect(dependencies.gateBuiltCandidate).toHaveBeenCalledOnce();
+  });
+
   it("parks blocking PageIR gates without consuming a repair attempt or touching promotion", async () => {
     const dependencies = dependenciesFor("ready-for-gates");
     const built = { status: "running", gateRepairAttempts: 0 };
@@ -288,6 +313,36 @@ describe("PageIR build controller", () => {
       status: "failed",
       nextAction: expect.stringContaining("explicit template fallback"),
     }));
+  });
+
+  it("fails the build stage when materialization does not leave a candidate", async () => {
+    const dependencies = dependenciesFor("ready-for-gates");
+    dependencies.inspectCandidate.mockResolvedValue({ status: "absent" });
+
+    await expect(
+      executePageIrBuildController("run-page-ir", vi.fn(), dependencies),
+    ).rejects.toThrow("candidate is missing after materialization");
+
+    expect(dependencies.failStage).toHaveBeenCalledWith(
+      "run-page-ir",
+      "built",
+      "PageIR candidate is missing after materialization",
+    );
+  });
+
+  it("fails the build stage when promotion does not leave an exact live bundle", async () => {
+    const dependencies = dependenciesFor("promoted");
+    dependencies.inspectPromotedLiveBundle.mockResolvedValue({ status: "absent" });
+
+    await expect(
+      executePageIrBuildController("run-page-ir", vi.fn(), dependencies),
+    ).rejects.toThrow("exact promoted PageIR live bundle is not valid");
+
+    expect(dependencies.failStage).toHaveBeenCalledWith(
+      "run-page-ir",
+      "built",
+      "exact promoted PageIR live bundle is not valid",
+    );
   });
 
   it("emits ordered hash-bearing checkpoints before the human visual pause", async () => {

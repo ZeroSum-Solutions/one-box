@@ -54,7 +54,20 @@ export async function readOptionalBoundedAuthorityFile(
     ) {
       throw new Error(`${label} changed before read: ${path.basename(target)}`);
     }
-    const bytes = await handle.readFile();
+    const bytes = Buffer.alloc(Number(opened.size));
+    let offset = 0;
+    while (offset < bytes.length) {
+      const { bytesRead } = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (bytesRead === 0) {
+        throw new Error(`${label} changed while read: ${path.basename(target)}`);
+      }
+      offset += bytesRead;
+    }
+    const growthProbe = Buffer.alloc(1);
+    const { bytesRead: extraBytesRead } = await handle.read(growthProbe, 0, 1, bytes.length);
+    if (extraBytesRead !== 0) {
+      throw new Error(`${label} changed while read: ${path.basename(target)}`);
+    }
     const after = await handle.stat({ bigint: true });
     if (!sameFile(opened, after) || opened.size !== after.size) {
       throw new Error(`${label} changed while read: ${path.basename(target)}`);

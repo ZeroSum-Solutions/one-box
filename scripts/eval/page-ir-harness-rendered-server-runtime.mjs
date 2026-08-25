@@ -1,11 +1,11 @@
 import http from "node:http";
 
-export async function startTrustedRenderedServer({ nonce, port, publishAuthority, createApp }) {
+export async function startTrustedRenderedServer({ nonce, port, publishAuthority, loadApp }) {
   if (!/^[a-f0-9]{64}$/.test(nonce ?? "")) throw new Error("rendered server nonce is invalid");
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("rendered server port is invalid");
   }
-  if (typeof publishAuthority !== "function" || typeof createApp !== "function") {
+  if (typeof publishAuthority !== "function" || typeof loadApp !== "function") {
     throw new Error("rendered server lifecycle dependencies are invalid");
   }
   let requestHandler;
@@ -36,7 +36,7 @@ export async function startTrustedRenderedServer({ nonce, port, publishAuthority
 
   let app;
   try {
-    app = createApp({ hostname: "127.0.0.1", port: address.port });
+    app = await loadApp({ hostname: "127.0.0.1", port: address.port });
     await app.prepare();
     requestHandler = app.getRequestHandler();
     if (typeof requestHandler !== "function") throw new Error("rendered server request handler is invalid");

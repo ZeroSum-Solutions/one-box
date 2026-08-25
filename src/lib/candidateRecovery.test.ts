@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   candidateManifestSha256,
   createCandidateManifest,
+  loadCandidateRecoveryRecord,
   recoverCandidateState,
   transitionCandidateProvenance,
 } from "./candidate";
@@ -27,6 +30,7 @@ import { buildCssArchitecture, buildTailwindPlan, buildTokenInventory } from "./
 const runIds: string[] = [];
 const externalRoots: string[] = [];
 const inputBytes = Buffer.from('{"fixture":"candidate-recovery"}\n');
+const execFileAsync = promisify(execFile);
 
 function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
@@ -221,6 +225,54 @@ afterEach(async () => {
 });
 
 describe("candidate crash recovery", () => {
+  it("rejects a symlinked candidate recovery record", async () => {
+    const runId = await createTestRun("recovery-record-symlink");
+    const root = sitePaths(runId).root;
+    const target = path.join(root, "recovery-target.json");
+    await fs.writeFile(target, "{}\n");
+    await fs.symlink(target, path.join(root, "candidate-recovery.json"));
+
+    await expect(loadCandidateRecoveryRecord(runId)).rejects.toThrow(/symlink|regular/i);
+  });
+
+  it("rejects a hardlinked candidate recovery record", async () => {
+    const runId = await createTestRun("recovery-record-hardlink");
+    const root = sitePaths(runId).root;
+    const target = path.join(root, "recovery-target.json");
+    await fs.writeFile(target, "{}\n");
+    await fs.link(target, path.join(root, "candidate-recovery.json"));
+
+    await expect(loadCandidateRecoveryRecord(runId)).rejects.toThrow(/hardlink|regular/i);
+  });
+
+  it("rejects an oversized candidate recovery record before reading it", async () => {
+    const runId = await createTestRun("recovery-record-oversize");
+    const record = path.join(sitePaths(runId).root, "candidate-recovery.json");
+    const sparse = await fs.open(record, "w");
+    await sparse.truncate(16 * 1024 + 1);
+    await sparse.close();
+
+    await expect(loadCandidateRecoveryRecord(runId)).rejects.toThrow(/size limit|exceeds/i);
+  });
+
+  it("rejects a FIFO candidate recovery record without waiting for a writer", async () => {
+    const runId = await createTestRun("recovery-record-fifo");
+    const record = path.join(sitePaths(runId).root, "candidate-recovery.json");
+    await execFileAsync("mkfifo", [record]);
+    const read = loadCandidateRecoveryRecord(runId);
+    const outcome = await Promise.race([
+      read.then(() => "resolved", () => "rejected"),
+      new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 100)),
+    ]);
+    if (outcome === "timeout") {
+      await fs.writeFile(record, "{}\n");
+      await read.catch(() => undefined);
+    }
+
+    expect(outcome).toBe("rejected");
+    await expect(read).rejects.toThrow(/regular file/i);
+  });
+
   it("removes a pre-authority journal staging footprint without touching candidate or live", async () => {
     const runId = await createTestRun("pir-preparing");
     const preparingRoot = path.join(

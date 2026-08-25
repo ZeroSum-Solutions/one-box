@@ -40,6 +40,7 @@ import {
 import {
   materializePersistedPageIrCandidateFromAuthorityUnderSiteAuthority,
 } from "./pageIrAssets";
+import { PAGE_IR_COMPILER_VERSION } from "./pageIrCompiler";
 import {
   loadArtifact,
   loadRun,
@@ -480,7 +481,12 @@ export async function executePageIrBuildController(
   );
 
   let inspection = await dependencies.inspectCandidate(runId);
-  if (inspection.status === "absent") {
+  const requiresMaterialization =
+    inspection.status === "absent" ||
+    (inspection.status === "present" &&
+      (inspection.provenance.compilerVersion !== PAGE_IR_COMPILER_VERSION ||
+        !inspection.provenance.editorSourceMap));
+  if (requiresMaterialization) {
     let materialized;
     try {
       materialized = await dependencies.materializePageIrCandidate(
@@ -505,10 +511,14 @@ export async function executePageIrBuildController(
     inspection = await dependencies.inspectCandidate(runId);
   }
   if (inspection.status !== "present") {
-    throw new Error("PageIR candidate is missing after materialization");
+    const message = "PageIR candidate is missing after materialization";
+    await dependencies.failStage(runId, "built", message);
+    throw new Error(message);
   }
   if (inspection.provenance.pageIrSha256 !== persisted.pageIrSha256) {
-    throw new Error("PageIR candidate does not bind the persisted PageIR");
+    const message = "PageIR candidate does not bind the persisted PageIR";
+    await dependencies.failStage(runId, "built", message);
+    throw new Error(message);
   }
 
   if (inspection.provenance.state === "failed") {
@@ -599,11 +609,15 @@ export async function executePageIrBuildController(
     live.provenance.pageIrSha256 !== persisted.pageIrSha256 ||
     live.provenance.promotedBuildSha256 !== live.manifest.buildSha256
   ) {
-    throw new Error("exact promoted PageIR live bundle is not valid");
+    const message = "exact promoted PageIR live bundle is not valid";
+    await dependencies.failStage(runId, "built", message);
+    throw new Error(message);
   }
   const visualQa = await dependencies.materializePromotedPageIrVisualQa(runId);
   if (visualQa.artifact.buildSha256 !== live.manifest.buildSha256) {
-    throw new Error("promoted visual QA is not bound to the exact live build");
+    const message = "promoted visual QA is not bound to the exact live build";
+    await dependencies.failStage(runId, "built", message);
+    throw new Error(message);
   }
   const runAfterQa = await dependencies.loadRun(runId);
   if (runAfterQa.stages.built.status !== "done") {

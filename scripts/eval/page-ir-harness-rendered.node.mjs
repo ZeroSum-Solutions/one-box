@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import http from "node:http";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -103,6 +105,85 @@ test("rendered build denies all network", () => {
 
   assert.match(profile, /\(deny network\*\)/);
   assert.doesNotMatch(profile, /allow network/);
+});
+
+test("rendered sandboxes deny private var tmp outside their authority", {
+  skip: process.platform !== "darwin",
+}, async (context) => {
+  const root = path.resolve(import.meta.dirname, "../..");
+  const temporaryRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-rendered-sandbox-"));
+  const outside = await fs.mkdtemp("/private/var/tmp/one-box-rendered-read-");
+  context.after(() => fs.rm(temporaryRoot, { recursive: true, force: true }));
+  context.after(() => fs.rm(outside, { recursive: true, force: true }));
+  const sentinel = path.join(outside, "sentinel.txt");
+  await fs.writeFile(sentinel, "outside");
+  const profile = renderedSandboxProfile({
+    snapshotRoot: root,
+    temporaryRoot: await fs.realpath(temporaryRoot),
+    browserBundleRoot: root,
+    writeRoots: [],
+    networkMode: "build",
+  });
+
+  const result = await runCaptured("private-var-tmp-read", [
+    process.execPath,
+    "-e",
+    `require('node:fs').readFileSync(${JSON.stringify(sentinel)})`,
+  ], { cwd: root, env: process.env, timeoutMs: 5_000, sandboxProfile: profile });
+
+  assert.notEqual(result.exitCode, 0);
+  assert.match(profile, /subpath \"\/private\/var\/tmp\"/);
+  assert.match(profile, /subpath \"\/var\/tmp\"/);
+});
+
+function fakeNetServer({ port, error }) {
+  const server = new EventEmitter();
+  server.listening = false;
+  server.listen = (_requestedPort, _host, callback) => queueMicrotask(() => {
+    if (error) {
+      server.emit("error", Object.assign(new Error(error), { code: error }));
+      return;
+    }
+    server.listening = true;
+    callback();
+  });
+  server.address = () => ({ address: "127.0.0.1", family: "IPv4", port });
+  server.close = (callback) => {
+    server.listening = false;
+    callback?.();
+  };
+  return server;
+}
+
+test("rendered app port tolerates only explicit no-IPv6 guard failures", async () => {
+  const originalCreateServer = net.createServer;
+  const servers = [
+    fakeNetServer({ port: 43123 }),
+    fakeNetServer({ error: "EADDRNOTAVAIL" }),
+  ];
+  net.createServer = () => servers.shift();
+  let authority;
+  try {
+    authority = await reserveRenderedAppPort();
+    assert.equal(authority.port, 43123);
+  } finally {
+    net.createServer = originalCreateServer;
+    await authority?.close();
+  }
+});
+
+test("rendered app port preserves EADDRINUSE opposite-family protection", async () => {
+  const originalCreateServer = net.createServer;
+  const servers = [
+    fakeNetServer({ port: 43123 }),
+    fakeNetServer({ error: "EADDRINUSE" }),
+  ];
+  net.createServer = () => servers.shift();
+  try {
+    await assert.rejects(reserveRenderedAppPort(), { code: "EADDRINUSE" });
+  } finally {
+    net.createServer = originalCreateServer;
+  }
 });
 
 test("rendered browser journeys receive only the delegated loopback endpoint", () => {

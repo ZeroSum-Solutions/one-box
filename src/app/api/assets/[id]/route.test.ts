@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
-import { POST } from "./route";
+import { GET, POST } from "./route";
 import { ARTIFACTS, IntakeSchema } from "../../../../lib/contracts";
 import { createRun, saveArtifact, sitePaths } from "../../../../lib/runstate";
 
@@ -154,6 +154,31 @@ describe("project assets API", () => {
     await expect(fs.stat(`${roots.root}/image-staging`)).rejects.toMatchObject({
       code: "ENOENT",
     });
+  });
+
+  it("does not advertise generation models for a Page IR run", async () => {
+    const runId = await createRun({
+      layoutAuthority: "page-ir-v1",
+      pageIrRolloutPermitted: true,
+    });
+    runIds.push(runId);
+    const roots = sitePaths(runId);
+    await fs.mkdir(roots.site, { recursive: true });
+    await fs.writeFile(roots.site + "/index.html", "<!doctype html><title>Page IR</title>");
+
+    const response = await GET(
+      new Request(`http://localhost:3000/api/assets/${runId}`, {
+        headers: {
+          host: "localhost:3000",
+          origin: "http://localhost:3000",
+          "sec-fetch-site": "same-origin",
+        },
+      }),
+      { params: Promise.resolve({ id: runId }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ models: [] });
   });
 
   it.each(["generate", "regenerate"] as const)(

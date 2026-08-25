@@ -47,6 +47,46 @@ test("execution snapshots contain committed source with lockfile-installed depen
   await assert.rejects(fs.stat(snapshot.root), { code: "ENOENT" });
 });
 
+test("execution snapshots reject outbound symlinks before npm can mutate their targets", async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-snapshot-symlink-"));
+  const repository = path.join(root, "repository");
+  const outside = path.join(root, "outside");
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  await fs.mkdir(repository);
+  await fs.mkdir(outside);
+  const sentinel = path.join(outside, "sentinel.txt");
+  await fs.writeFile(sentinel, "unchanged");
+  await fs.writeFile(path.join(repository, "package.json"), `${JSON.stringify({
+    name: "snapshot-symlink-probe",
+    version: "1.0.0",
+  }, null, 2)}\n`);
+  await fs.writeFile(path.join(repository, "package-lock.json"), `${JSON.stringify({
+    name: "snapshot-symlink-probe",
+    version: "1.0.0",
+    lockfileVersion: 3,
+    requires: true,
+    packages: { "": { name: "snapshot-symlink-probe", version: "1.0.0" } },
+  }, null, 2)}\n`);
+  await fs.symlink(outside, path.join(repository, "node_modules"), "dir");
+  await execFileAsync("git", ["init", "--quiet"], { cwd: repository });
+  await execFileAsync("git", ["add", "."], { cwd: repository });
+  await execFileAsync("git", [
+    "-c", "user.name=OneBox Test", "-c", "user.email=onebox-test.invalid",
+    "commit", "--quiet", "-m", "snapshot fixture",
+  ], { cwd: repository });
+  const { stdout: headOutput } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repository });
+  const registry = JSON.parse(await fs.readFile(
+    path.join(ROOT, "docs/eval/page-ir-safe-pipeline/harness-registry.json"),
+    "utf8",
+  ));
+
+  await assert.rejects(
+    createGitExecutionSnapshot(repository, headOutput.trim(), registry.runtimeContract),
+    /snapshot symlink escapes authority/i,
+  );
+  assert.equal(await fs.readFile(sentinel, "utf8"), "unchanged");
+});
+
 test("command evidence remains present until atomic publication completes", async (context) => {
   const resultsRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-command-publish-"));
   context.after(() => fs.rm(resultsRoot, { recursive: true, force: true }));

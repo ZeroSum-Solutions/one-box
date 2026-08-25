@@ -140,7 +140,7 @@ export function runDetachedQualificationWorker(argv, {
   });
 }
 
-function materializerSandboxProfile({ snapshotRoot, inputsRoot, temporaryRoot, outputRoot }) {
+export function materializerSandboxProfile({ snapshotRoot, inputsRoot, temporaryRoot, outputRoot }) {
   for (const directory of [snapshotRoot, inputsRoot, temporaryRoot, outputRoot]) {
     if (!path.isAbsolute(directory) || /["\0\r\n]/.test(directory)) {
       throw new Error("qualification materializer sandbox authority is invalid");
@@ -159,7 +159,8 @@ function materializerSandboxProfile({ snapshotRoot, inputsRoot, temporaryRoot, o
     "(version 1)", "(deny default)", "(allow process*)", "(allow sysctl-read)",
     "(allow mach-lookup)", "(allow file-read*)",
     "(deny file-read* (subpath \"/Users\"))", "(deny file-read* (subpath \"/Volumes\"))",
-    "(deny file-read* (subpath \"/private/tmp\"))", "(deny file-read* (subpath \"/private/var/folders\"))",
+    "(deny file-read* (subpath \"/private/tmp\"))", "(deny file-read* (subpath \"/private/var/tmp\"))",
+    "(deny file-read* (subpath \"/private/var/folders\"))", "(deny file-read* (subpath \"/var/tmp\"))",
     "(deny network*)",
     ...[...ancestors].map((directory) => `(allow file-read-metadata (literal "${directory}"))`),
     ...readRoots.flatMap((directory) => [

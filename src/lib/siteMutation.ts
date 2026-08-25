@@ -385,10 +385,10 @@ export function runGuardedMutation<T>(options: GuardedMutationOptions<T>): Promi
         );
       }
     } catch (error) {
-      // Existing isolated mutation tests and custom-root callers may not have
-      // durable run state. A durable Page IR run, when present, must fail
-      // before snapshots or user mutation code can execute.
-      if (!(error instanceof RunNotFoundError)) throw error;
+      // Root-injected test and tooling callers have an explicit gate runner and
+      // cannot reach canonical generated-site state. Canonical mutations must
+      // always be backed by durable run authority.
+      if (!(error instanceof RunNotFoundError) || siteAuthority.canonical) throw error;
     }
     const gateRunner: GateRunner = options.gateRunner ??
       ((gateRunId, gateOptions) =>

@@ -1110,6 +1110,7 @@ export function assertVisualQaApprovedForBuild(
     visualQa.artifactType !== "visual-qa" ||
     artifactApprovalState(visualQa) !== "approved" ||
     visualQa.artifact.buildSha256 !== buildSha256 ||
+    visualQa.artifact.checks.some((check) => check.status !== "pass") ||
     review?.reviewerKind !== "human" ||
     review.humanAttestation !== true ||
     review.buildSha256 !== buildSha256 ||

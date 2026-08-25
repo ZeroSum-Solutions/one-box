@@ -129,6 +129,7 @@ vi.mock("../../../lib/openrouter", () => ({
 
 import { POST } from "./route";
 import { readImageGenerationLedger } from "../../../lib/imageGenerationBudget";
+import { createRun } from "../../../lib/runstate";
 
 const runId = "inline-image-route-test";
 const requestId = "00000000-0000-4000-8000-000000000142";
@@ -182,6 +183,7 @@ beforeEach(async () => {
   state.publicationGate = null;
   state.publicationObserved = null;
   await fs.rm(root, { recursive: true, force: true });
+  await createRun({ id: runId, pipelineVersion: "legacy-v1" });
   await fs.mkdir(path.join(site, "assets"), { recursive: true });
   await Promise.all([
     fs.writeFile(indexPath, originalHtml),

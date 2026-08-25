@@ -1,10 +1,46 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildSite } from "./builder";
 import { DesignTokensSchema, IntakeSchema } from "./contracts";
 import { candidatePaths, createRun, saveArtifact, sitePaths } from "./runstate";
 import { withSiteAuthorityLock } from "./siteAuthority";
+
+const buildReadRace = vi.hoisted(() => ({
+  armed: false,
+  filePath: "",
+  unboundedReadAttempted: false,
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  const open: typeof actual.open = async (filePath, flags, mode) => {
+    const opened = await actual.open(filePath, flags, mode);
+    if (!buildReadRace.armed || String(filePath) !== buildReadRace.filePath) {
+      return opened;
+    }
+    buildReadRace.armed = false;
+    const realStat = opened.stat.bind(opened);
+    const realReadFile = opened.readFile.bind(opened);
+    let firstStat = true;
+    opened.stat = (async (options) => {
+      const observed = await realStat(options);
+      if (firstStat) {
+        firstStat = false;
+        const grow = await actual.open(buildReadRace.filePath, "a");
+        await grow.writeFile(" ");
+        await grow.close();
+      }
+      return observed;
+    }) as typeof opened.stat;
+    opened.readFile = (async (...args: Parameters<typeof realReadFile>) => {
+      buildReadRace.unboundedReadAttempted = true;
+      return realReadFile(...args);
+    }) as typeof opened.readFile;
+    return opened;
+  };
+  return { ...actual, default: { ...actual, open }, open };
+});
 
 const runIds: string[] = [];
 const intake = IntakeSchema.parse({
@@ -49,12 +85,83 @@ const copy = {
 };
 
 afterEach(async () => {
+  vi.restoreAllMocks();
+  buildReadRace.armed = false;
+  buildReadRace.filePath = "";
+  buildReadRace.unboundedReadAttempted = false;
   await Promise.all(runIds.splice(0).map((runId) =>
     fs.rm(sitePaths(runId).root, { recursive: true, force: true }),
   ));
 });
 
 describe("builder site authority", () => {
+  it("rejects oversized durable JSON before allocating or parsing it", async () => {
+    const runId = await createRun({ pipelineVersion: "legacy-v1" });
+    runIds.push(runId);
+    for (const [name, value] of [
+      ["intake.json", intake],
+      ["tokens.json", tokens],
+      ["skeleton.json", skeleton],
+      ["copy.json", copy],
+    ] as const) await saveArtifact(runId, name, value);
+    await fs.truncate(
+      path.join(sitePaths(runId).root, "copy.json"),
+      8 * 1024 * 1024 + 1,
+    );
+
+    await expect(
+      buildSite({ runId, intake, tokens, skeleton, copy, assets: {} }),
+    ).rejects.toThrow(/build input copy\.json exceeds the stable read size limit/);
+    await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("rejects an oversized hero image before allocating its persisted size", async () => {
+    const runId = await createRun({ pipelineVersion: "legacy-v1" });
+    runIds.push(runId);
+    for (const [name, value] of [
+      ["intake.json", intake],
+      ["tokens.json", tokens],
+      ["skeleton.json", skeleton],
+      ["copy.json", copy],
+    ] as const) await saveArtifact(runId, name, value);
+    const heroImagePath = path.join(sitePaths(runId).root, "assets", "hero.png");
+    await fs.mkdir(path.dirname(heroImagePath), { recursive: true });
+    await fs.writeFile(heroImagePath, "png");
+    await fs.truncate(heroImagePath, 100 * 1024 * 1024 + 1);
+
+    await expect(
+      buildSite({
+        runId,
+        intake,
+        tokens,
+        skeleton,
+        copy,
+        assets: { heroImagePath },
+      }),
+    ).rejects.toThrow(/hero image exceeds the stable read size limit/);
+    await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
+  it("does not use an unbounded read when run authorization grows after the opened stat", async () => {
+    const runId = await createRun({ pipelineVersion: "legacy-v1" });
+    runIds.push(runId);
+    const runFile = path.join(sitePaths(runId).root, "run.json");
+    buildReadRace.filePath = runFile;
+    buildReadRace.armed = true;
+
+    await expect(
+      buildSite({ runId, intake, tokens, skeleton, copy, assets: {} }),
+    ).rejects.toThrow(/changed during compilation authorization/);
+    expect(buildReadRace.unboundedReadAttempted).toBe(false);
+    await expect(fs.stat(candidatePaths(runId).root)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
+
   it("rejects PageIR authority before creating template candidate bytes", async () => {
     const runId = await createRun({
       pipelineVersion: "legacy-v1",

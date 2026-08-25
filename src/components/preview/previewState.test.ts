@@ -14,9 +14,12 @@ import {
   parseWorkbenchState,
   panelWidthBounds,
   persistWorkbenchState,
+  previewIframeSandbox,
+  previewIframeKey,
   readEditorStateMessage,
   resolvePreviewCompatibility,
   restoreWorkbenchState,
+  shouldAcceptEditorStateMessage,
   workbenchSizeForWidth,
   DEFAULT_WORKBENCH_STATE,
   type PersistedWorkbenchState,
@@ -88,6 +91,25 @@ describe("preview compatibility policy", () => {
       expect(state.editingAvailable).toBe(false);
       expect(state.notice).toMatch(/preview remains available/i);
     }
+  });
+
+  it("keeps the loading iframe on the strict sandbox until compatibility resolves", () => {
+    expect(previewIframeSandbox("loading", "view")).toBe("allow-scripts");
+    expect(previewIframeSandbox("active", "edit")).toBe("allow-scripts");
+    expect(previewIframeSandbox("active", "view")).toBe(
+      "allow-scripts allow-forms allow-popups allow-downloads",
+    );
+    expect(
+      previewIframeKey(0, "view", previewIframeSandbox("loading", "view")),
+    ).not.toBe(
+      previewIframeKey(0, "view", previewIframeSandbox("active", "view")),
+    );
+  });
+
+  it("accepts editor-state messages only in an authorized edit session", () => {
+    expect(shouldAcceptEditorStateMessage(false, "view")).toBe(false);
+    expect(shouldAcceptEditorStateMessage(true, "view")).toBe(false);
+    expect(shouldAcceptEditorStateMessage(true, "edit")).toBe(true);
   });
 });
 

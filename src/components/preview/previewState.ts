@@ -157,6 +157,30 @@ export const INITIAL_PREVIEW_COMPATIBILITY_STATE: PreviewCompatibilityState = {
   notice: null,
 };
 
+export function previewIframeSandbox(
+  compatibilityStatus: PreviewCompatibilityState["status"],
+  mode: PreviewMode,
+) {
+  return compatibilityStatus === "loading" || mode === "edit"
+    ? "allow-scripts"
+    : "allow-scripts allow-forms allow-popups allow-downloads";
+}
+
+export function previewIframeKey(
+  version: number,
+  mode: PreviewMode,
+  sandbox: string,
+) {
+  return `${version}:${mode}:${sandbox}`;
+}
+
+export function shouldAcceptEditorStateMessage(
+  interactive: boolean,
+  mode: PreviewMode,
+) {
+  return interactive && mode === "edit";
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object";
 }

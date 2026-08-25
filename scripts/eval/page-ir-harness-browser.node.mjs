@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import dgram from "node:dgram";
+import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
 import http from "node:http";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -99,6 +101,61 @@ test("delegated browser survives disconnects but cannot become a host file or lo
     ),
     /physical directory/i,
   );
+});
+
+function failingLoopbackGuard(code) {
+  const server = new EventEmitter();
+  server.listening = false;
+  server.listen = () => queueMicrotask(() => {
+    server.emit("error", Object.assign(new Error(code), { code }));
+  });
+  server.close = (callback) => callback?.();
+  return server;
+}
+
+test("delegated browser tolerates only explicit no-IPv6 guard failures", async (context) => {
+  const readableRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-browser-no-ipv6-"));
+  context.after(() => fs.rm(readableRoot, { recursive: true, force: true }));
+  const originalCreateServer = net.createServer;
+  let guardCalls = 0;
+  net.createServer = () => {
+    guardCalls += 1;
+    return failingLoopbackGuard("EADDRNOTAVAIL");
+  };
+  let server;
+  try {
+    server = await adapter.launchPageIrCredentialFreeBrowserServer(
+      BROWSER_AUTHORITY,
+      readableRoot,
+    );
+    assert.equal(guardCalls, 1);
+  } finally {
+    net.createServer = originalCreateServer;
+    await server?.close();
+  }
+});
+
+test("delegated browser does not weaken EADDRINUSE opposite-family protection", async (context) => {
+  const readableRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-browser-ipv6-race-"));
+  context.after(() => fs.rm(readableRoot, { recursive: true, force: true }));
+  const originalCreateServer = net.createServer;
+  net.createServer = () => failingLoopbackGuard("EADDRINUSE");
+  try {
+    await assert.rejects(
+      adapter.launchPageIrCredentialFreeBrowserServer(BROWSER_AUTHORITY, readableRoot),
+      { code: "EADDRINUSE" },
+    );
+  } finally {
+    net.createServer = originalCreateServer;
+  }
+});
+
+test("browser authority matching ignores JSON key insertion order", async (context) => {
+  const readableRoot = await fs.mkdtemp(path.join(os.tmpdir(), "one-box-browser-key-order-"));
+  context.after(() => fs.rm(readableRoot, { recursive: true, force: true }));
+  const reordered = Object.fromEntries(Object.entries(BROWSER_AUTHORITY).reverse());
+  const server = await adapter.launchPageIrCredentialFreeBrowserServer(reordered, readableRoot);
+  await server.close();
 });
 
 const FROZEN_VIEWPORTS = [

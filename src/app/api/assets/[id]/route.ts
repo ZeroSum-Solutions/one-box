@@ -91,11 +91,12 @@ export async function GET(
       rawIntake === null || rawIntake === undefined
         ? undefined
         : classifyPersistedIntakeCompatibility(rawIntake);
+    const pageIr = (await loadRun(id)).layoutAuthority === "page-ir-v1";
     const library = compatibility?.readOnly
       ? await readProjectImages(id)
       : await listProjectImages(id);
     return Response.json({
-      models: compatibility?.readOnly ? [] : IMAGE_MODELS,
+      models: compatibility?.readOnly || pageIr ? [] : IMAGE_MODELS,
       compatibility,
       library: serializeLibrary(id, library),
     });

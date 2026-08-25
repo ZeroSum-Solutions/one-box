@@ -5,6 +5,7 @@ import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import AxeBuilder from "@axe-core/playwright";
 import { chromium } from "playwright";
 
@@ -154,7 +155,7 @@ export async function inspectPageIrBrowserAuthority() {
 }
 
 function assertBrowserAuthorityMatches(actual, expected) {
-  if (JSON.stringify(actual.binding) !== JSON.stringify(expected)) {
+  if (!isDeepStrictEqual(actual.binding, validateBrowserAuthorityContract(expected))) {
     throw new Error("Browser evidence Chromium bundle does not match the frozen authority");
   }
 }
@@ -307,6 +308,10 @@ async function closeLoopbackGuard(server) {
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
+function isExplicitNoIpv6BindError(error) {
+  return error?.code === "EADDRNOTAVAIL" || error?.code === "EAFNOSUPPORT";
+}
+
 async function holdOppositeLoopbackFamily(port) {
   const server = net.createServer((socket) => socket.destroy());
   try {
@@ -317,6 +322,7 @@ async function holdOppositeLoopbackFamily(port) {
     return server;
   } catch (error) {
     await closeLoopbackGuard(server).catch(() => {});
+    if (isExplicitNoIpv6BindError(error)) return undefined;
     throw error;
   }
 }
