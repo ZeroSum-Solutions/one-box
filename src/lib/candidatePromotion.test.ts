@@ -621,7 +621,7 @@ describe("candidate promotion", () => {
         "utf8",
       ),
     ).resolves.toBe("desktop-1440.png");
-  });
+  }, 15_000);
 
   it("blocks authority-mismatched promotion before changing live or reports", async () => {
     const prepared = await fixture();

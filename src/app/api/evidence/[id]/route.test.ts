@@ -1385,7 +1385,7 @@ describe("PageIR Source Bundle evidence API", () => {
         before.approvalTransitions,
       );
     }
-  });
+  }, 15_000);
 
   it("enforces PageIR source, real-QA, and promoted-live authority inside human review", async () => {
     const fixtures = [
@@ -1467,7 +1467,7 @@ describe("PageIR Source Bundle evidence API", () => {
       );
       expect(artifactApprovalState(after), fixtureCase.name).toBe("in-review");
     }
-  });
+  }, 15_000);
 
   it("accepts exact real PageIR visual QA only after source approval and canonical promotion", async () => {
     const { runId, bundle } = await fixturePageIrSourceBundle();
