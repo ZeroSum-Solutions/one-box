@@ -45,7 +45,7 @@ const designTokens = {
   ],
   fonts: [
     { family: "Switzer", cssVar: "--font-body", weights: [400, 590], role: "interface and body", substitutes: ["system-ui"] },
-    { family: "JetBrains Mono", cssVar: "--font-display", weights: [400, 700], role: "display headings", substitutes: ["monospace"] },
+    { family: "Clash Display", cssVar: "--font-display", weights: [500, 600], role: "display headings", substitutes: ["ui-sans-serif"] },
   ],
   typeScale: [
     { role: "body", sizePx: 16, lineHeight: 1.5, cssVar: "--text-body" },
@@ -190,9 +190,9 @@ async function assertReviewSurface(page, width) {
       },
     };
   });
-  assert.match(specimenType.heading.family, /jetbrains/i);
+  assert.match(specimenType.heading.family, /clash/i);
   assert.match(specimenType.body.family, /switzer/i);
-  assert.equal(specimenType.heading.weight, "700");
+  assert.equal(specimenType.heading.weight, "600");
   assert.equal(specimenType.body.weight, "400");
   assert.ok(Math.abs(specimenType.heading.lineHeight / specimenType.heading.size - 1.15) < 0.02);
   assert.ok(Math.abs(specimenType.body.lineHeight / specimenType.body.size - 1.5) < 0.02);

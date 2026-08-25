@@ -214,7 +214,8 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(html).toContain("font-family:var(--font-body)");
     expect(html).toContain("font-family:Client Serif");
     expect(html).toContain("Client Serif");
-    expect(html).toContain("Uses this family when available; otherwise shows its browser fallback.");
+    expect(html).toContain("Uses this family and its declared weights when available; otherwise shows a browser fallback or synthesized weight.");
+    expect(html).toContain("Loaded in this reviewer at every declared weight.");
     expect(html).toContain("font-weight:590");
     expect(html).toContain("line-height:1.2");
     expect(html).toContain("letter-spacing:-0.02em");
