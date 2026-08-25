@@ -180,6 +180,8 @@ describe("EvidenceWorkspace artifact previews", () => {
             category: "typography",
             tokens: [
               { semanticName: "--font-heading", value: "Switzer", usage: "Headings; weights 400, 590", evidenceIds: [] },
+              { semanticName: "--font-editorial", value: "Client Serif", usage: "Editorial accents; weights 400, 700", evidenceIds: [] },
+              { semanticName: "--text-caption", value: "12px", usage: "caption; line-height 1.35", evidenceIds: [] },
               { semanticName: "--text-body", value: "16px", usage: "body; line-height 1.5", evidenceIds: [] },
               { semanticName: "--text-heading", value: "32px", usage: "heading; line-height 1.2; tracking -0.02em", evidenceIds: [] },
             ],
@@ -192,7 +194,17 @@ describe("EvidenceWorkspace artifact previews", () => {
           { category: "radius", tokens: [{ semanticName: "--radius-card", value: "12px", usage: "Cards", evidenceIds: [] }] },
           { category: "border", tokens: [{ semanticName: "--border-card", value: "2px solid #808080", usage: "Cards", evidenceIds: [] }] },
           { category: "shadow", tokens: [{ semanticName: "--shadow-card", value: "0 4px 16px #00000040", usage: "Cards", evidenceIds: [] }] },
-          { category: "component-state", tokens: [{ semanticName: "--state-focus", value: "2px solid #ffffff", usage: "Focus", evidenceIds: [] }] },
+          { category: "layer", tokens: [
+            { semanticName: "--layer-base", value: "0", usage: "base stacking layer", evidenceIds: [] },
+            { semanticName: "--layer-overlay", value: "40", usage: "overlay stacking layer", evidenceIds: [] },
+          ] },
+          { category: "component-state", tokens: [
+            { semanticName: "--state-button-hover", value: "quiet raised border", usage: "button hover", evidenceIds: [] },
+            { semanticName: "--state-button-focus", value: "2px solid #ffffff", usage: "button focus", evidenceIds: [] },
+            { semanticName: "--state-button-selected", value: "paper text", usage: "button selected", evidenceIds: [] },
+            { semanticName: "--state-button-disabled", value: "muted", usage: "button disabled", evidenceIds: [] },
+            { semanticName: "--state-button-error", value: "coral edge", usage: "button error", evidenceIds: [] },
+          ] },
         ]}
       />
     );
@@ -200,22 +212,31 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(html).toContain("token-specimen-gallery");
     expect(html).toContain("The quick brown fox");
     expect(html).toContain("font-family:var(--font-body)");
+    expect(html).toContain("font-family:Client Serif");
+    expect(html).toContain("Client Serif");
+    expect(html).toContain("Uses this family when available; otherwise shows its browser fallback.");
     expect(html).toContain("font-weight:590");
     expect(html).toContain("line-height:1.2");
     expect(html).toContain("letter-spacing:-0.02em");
     expect(html).toContain("font-weight:400");
     expect(html).toContain("line-height:1.5");
+    expect(html).toContain("font-size:12px");
     expect(html).toContain("gap:24px");
     expect(html).toContain("Primary action");
     expect(html).toContain("--color-action");
     expect(html).toContain("border-radius:12px");
     expect(html).toContain("border:2px solid #808080");
     expect(html).toContain("box-shadow:0 4px 16px #00000040");
+    expect(html).toContain("z-index:0");
+    expect(html).toContain("z-index:40");
+    expect(html).toContain("--layer-overlay");
     expect(html).toContain("Hover");
     expect(html).toContain("Focus");
     expect(html).toContain("Selected");
     expect(html).toContain("Disabled");
     expect(html).toContain("Error");
+    expect(html.indexOf("quiet raised border")).toBeLessThan(html.indexOf("spec-table"));
+    expect(html.indexOf("coral edge")).toBeLessThan(html.indexOf("spec-table"));
     expect(html.indexOf("token-specimen-gallery")).toBeLessThan(html.indexOf("spec-table"));
   });
 

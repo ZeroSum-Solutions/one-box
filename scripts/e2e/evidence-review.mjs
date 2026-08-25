@@ -23,6 +23,7 @@ registerHooks({
 const base = process.env.ONEBOX_BASE_URL ?? "http://127.0.0.1:3000";
 const output = path.join(process.cwd(), "docs", "screenshots", "2026-08-25-evidence-review");
 const runId = `review-e2e-${Date.now().toString(36)}`;
+const referenceRunId = `reference-review-e2e-${Date.now().toString(36)}`;
 const widths = [1440, 768, 390];
 
 const {
@@ -32,8 +33,10 @@ const {
   saveEvidenceArtifactVersion,
   sitePaths,
   transitionEvidenceArtifactApproval,
+  withRunTransaction,
 } = await import("../../src/lib/runstate.ts");
 const { buildTokenInventory } = await import("../../src/lib/evidence.ts");
+const { ReferenceSelectionStateSchema } = await import("../../src/lib/contracts.ts");
 
 const designTokens = {
   colors: [
@@ -42,6 +45,7 @@ const designTokens = {
   ],
   fonts: [
     { family: "Switzer", cssVar: "--font-body", weights: [400, 590], role: "interface and body", substitutes: ["system-ui"] },
+    { family: "JetBrains Mono", cssVar: "--font-display", weights: [400, 700], role: "display headings", substitutes: ["monospace"] },
   ],
   typeScale: [
     { role: "body", sizePx: 16, lineHeight: 1.5, cssVar: "--text-body" },
@@ -98,6 +102,52 @@ async function buildFixture() {
   await transitionEvidenceArtifactApproval(runId, tokens.artifactType, tokens.version, "in-review");
 }
 
+function referenceCandidate(referoId, recommended) {
+  return {
+    referoId,
+    kind: "style",
+    name: `${referoId} direction`,
+    sourceUrl: `https://refero.design/${referoId}`,
+    foundVia: "a deterministic browser-test angle",
+    palette: [
+      { hex: "#112233", plainLabel: "dark anchor" },
+      { hex: "#ddeeff", plainLabel: "light backdrop" },
+    ],
+    plainLanguageProfile: {
+      headline: `${referoId} feel`,
+      feelSummary: "Clear and welcoming.",
+      bestFor: ["A local business"],
+      headsUp: [],
+    },
+    composition: {
+      northStar: "Keep the opening clear.",
+      preserveTraits: ["Clear calls to action", "Comfortable breathing room"],
+      rhythmNote: "Alternate detail and pause.",
+    },
+    recommended,
+    ...(recommended ? { recommendedWhy: "Best fit for the brief." } : {}),
+  };
+}
+
+async function buildReferenceFixture() {
+  await createRun({ id: referenceRunId, referencePickerEnabled: true });
+  await withRunTransaction(referenceRunId, async (transaction) => {
+    transaction.state.referenceSelection = ReferenceSelectionStateSchema.parse({
+      status: "pending",
+      rerollsUsed: 0,
+      versions: [{
+        version: 1,
+        createdAt: "2026-08-25T12:00:00.000Z",
+        searchAngles: ["first angle", "second angle", "third angle"],
+        candidates: [
+          referenceCandidate("recommended", true),
+          referenceCandidate("alternative", false),
+        ],
+      }],
+    });
+  });
+}
+
 function collectBrowserErrors(page) {
   const errors = [];
   page.on("console", (message) => {
@@ -120,6 +170,7 @@ async function assertReviewSurface(page, width) {
   ]);
   assert.equal(await page.locator(".review-technical").getAttribute("open"), null);
   assert.equal(await page.locator(".token-specimen-gallery").count(), 1, "token specimens must appear once before disclosure");
+  assert.equal(await page.locator(".token-font-family").count(), 2, "every canonical font family must have a specimen");
   const specimenType = await page.evaluate(() => {
     const heading = getComputedStyle(document.querySelector(".token-specimen__heading"));
     const body = getComputedStyle(document.querySelector(".token-specimen__body"));
@@ -139,8 +190,9 @@ async function assertReviewSurface(page, width) {
       },
     };
   });
-  assert.match(specimenType.heading.family, /switzer/i);
-  assert.equal(specimenType.heading.weight, "590");
+  assert.match(specimenType.heading.family, /jetbrains/i);
+  assert.match(specimenType.body.family, /switzer/i);
+  assert.equal(specimenType.heading.weight, "700");
   assert.equal(specimenType.body.weight, "400");
   assert.ok(Math.abs(specimenType.heading.lineHeight / specimenType.heading.size - 1.15) < 0.02);
   assert.ok(Math.abs(specimenType.body.lineHeight / specimenType.body.size - 1.5) < 0.02);
@@ -182,10 +234,42 @@ async function assertReviewSurface(page, width) {
         .filter((item) => item.height < 44),
     );
     assert.deepEqual(undersized, [], `interactive targets below 44px at ${width}px`);
+
+    const mobileFileInput = page.locator(".intake-upload--review input[type=file]");
+    const mobileUploadResponse = page.waitForResponse((response) =>
+      response.url().endsWith("/api/uploads") && response.request().method() === "POST"
+    );
+    await mobileFileInput.setInputFiles({
+      name: `mobile-proof-${width}.md`,
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# Mobile attachment target proof"),
+    });
+    const mobileUpload = await (await mobileUploadResponse).json();
+    const attachmentSummary = page.locator(".intake-upload__disclosure summary");
+    await attachmentSummary.waitFor();
+    const summaryBox = await attachmentSummary.boundingBox();
+    assert.ok(summaryBox && summaryBox.height >= 44, `attachment summary is below 44px at ${width}px`);
+    await attachmentSummary.click();
+    const removeButton = page.locator(`button[aria-label="Remove mobile-proof-${width}.md"]`);
+    const removeBox = await removeButton.boundingBox();
+    assert.ok(
+      removeBox && removeBox.height >= 44 && removeBox.width >= 44,
+      `attachment remove target is below 44px at ${width}px`,
+    );
+    await removeButton.click();
+    const mobileStagingRoot = path.join(
+      os.tmpdir(),
+      `one-box-intake-${createHash("sha256").update(process.cwd()).digest("hex").slice(0, 16)}`,
+    );
+    await fs.rm(
+      path.join(mobileStagingRoot, createHash("sha256").update(mobileUpload.uploadSession).digest("hex")),
+      { recursive: true, force: true },
+    );
   }
 
   const details = page.locator(".review-technical");
   const summary = details.locator("summary");
+  await page.keyboard.press("Tab");
   await summary.focus();
   assert.notEqual(await summary.evaluate((node) => getComputedStyle(node).outlineStyle), "none");
   await page.keyboard.press("Enter");
@@ -213,6 +297,7 @@ async function assertReviewSurface(page, width) {
 
 await fs.mkdir(output, { recursive: true });
 await buildFixture();
+await buildReferenceFixture();
 const browser = await chromium.launch();
 
 try {
@@ -300,10 +385,43 @@ try {
   await reducedPage.screenshot({ path: path.join(output, "token-review-reduced-motion-390.png"), fullPage: true });
   await reduced.close();
 
+  const referenceContext = await browser.newContext({ viewport: { width: 768, height: 900 } });
+  const referencePage = await referenceContext.newPage();
+  const referenceErrors = collectBrowserErrors(referencePage);
+  await referencePage.route(`**/api/reference/${referenceRunId}`, async (route) => {
+    if (route.request().method() === "POST") {
+      const body = route.request().postDataJSON();
+      if (body?.action === "reroll") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: false, reason: "no-fresh-directions" }),
+        });
+        return;
+      }
+    }
+    await route.continue();
+  });
+  await referencePage.goto(`${base}/evidence/${referenceRunId}`, { waitUntil: "networkidle" });
+  await referencePage.getByRole("heading", { name: "Choose a look for your site" }).waitFor();
+  assert.equal(await referencePage.locator(".reference-selection .btn-primary").count(), 1);
+  const referenceFeedback = referencePage.getByRole("textbox", { name: "Feedback" });
+  await referenceFeedback.fill("Show a calmer set of directions.");
+  await referencePage.getByRole("button", { name: "Request Changes", exact: true }).click();
+  await referencePage.getByText("Your feedback was saved, but no new directions were available.", { exact: true }).waitFor();
+  assert.equal(await referenceFeedback.inputValue(), "", "saved exhaustion feedback must clear its id-bound draft");
+  await referenceFeedback.fill("Keep the original options and note the calmer preference.");
+  await referencePage.getByRole("button", { name: "Send feedback", exact: true }).click();
+  await referencePage.getByText("Feedback and attachments were saved with this review.", { exact: true }).waitFor();
+  assert.deepEqual(referenceErrors, [], "reference selection browser errors");
+  await referencePage.screenshot({ path: path.join(output, "reference-review-feedback-recovery-768.png"), fullPage: true });
+  await referenceContext.close();
+
   const receipts = await fs.readdir(path.join(sitePaths(runId).root, "evidence", "review-feedback"));
   assert.ok(receipts.some((entry) => entry.endsWith(".json")), "feedback receipt was not persisted");
   console.log(`[evidence-review] PASS: ${widths.join("/")} + script-blocked + reduced-motion; screenshots in ${output}`);
 } finally {
   await browser.close();
   await removeRun(runId);
+  await removeRun(referenceRunId);
 }

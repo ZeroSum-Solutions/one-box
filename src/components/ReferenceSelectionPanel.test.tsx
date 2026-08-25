@@ -63,5 +63,6 @@ describe("ReferenceSelectionPanel", () => {
     expect(html).toContain("Send feedback");
     expect(html).toContain("Approve to Continue");
     expect(html).toContain("Request Changes");
+    expect(html.match(/class="btn-primary"/g)).toHaveLength(1);
   });
 });

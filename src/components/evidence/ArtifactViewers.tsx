@@ -380,6 +380,17 @@ function specimenFontFamily(family: string | undefined): string | undefined {
   return knownShellFamilies[family.toLowerCase()] ?? family;
 }
 
+function specimenFontIsLoaded(family: string): boolean {
+  return ["switzer", "clash display", "jetbrains mono"].includes(family.toLowerCase());
+}
+
+function specimenWeights(token: { usage: string }): number[] {
+  return usageValue(token, /weights?\s+([0-9, ]+)/i)
+    ?.split(",")
+    .map((value) => Number.parseInt(value.trim(), 10))
+    .filter(Number.isFinite) ?? [];
+}
+
 /** Show the proposed system doing real work before asking a reviewer to read
  * its variable table. Arbitrary client values stay inside these bounded
  * specimen wells, preserving the Midnight Instrument shell around them. */
@@ -397,24 +408,14 @@ export function TokenSpecimenGallery({
   const radii = byCategory.get("radius") ?? [];
   const borders = byCategory.get("border") ?? [];
   const shadows = byCategory.get("shadow") ?? [];
+  const layers = byCategory.get("layer") ?? [];
   const colors = byCategory.get("color") ?? [];
-  const familyToken = typography.find((token) => /--font-/i.test(token.semanticName));
+  const componentStates = byCategory.get("component-state") ?? [];
+  const familyTokens = typography.filter((token) => /--font-/i.test(token.semanticName));
   const typeTokens = typography.filter((token) => /--text-/i.test(token.semanticName));
-  const headingToken = typeTokens.find((token) => /heading|display|title/i.test(`${token.semanticName} ${token.usage}`)) ?? typeTokens.at(-1);
-  const bodyToken = typeTokens.find((token) => /body/i.test(`${token.semanticName} ${token.usage}`)) ?? typeTokens[0];
-  const family = specimenFontFamily(familyToken?.value);
-  const weights = usageValue(familyToken, /weights?\s+([0-9, ]+)/i)
-    ?.split(",")
-    .map((value) => Number.parseInt(value.trim(), 10))
-    .filter(Number.isFinite) ?? [];
-  const headingWeight = weights.length > 0 ? String(Math.max(...weights)) : undefined;
-  const bodyWeight = weights.length > 0 ? String(Math.min(...weights)) : undefined;
-  const headingLineHeight = usageValue(headingToken, /line-height\s+([^;\s]+)/i);
-  const bodyLineHeight = usageValue(bodyToken, /line-height\s+([^;\s]+)/i);
-  const headingTracking = usageValue(headingToken, /tracking\s+([^;\s]+)/i);
-  const hasSpecimens = typography.length + spacing.length + radii.length + borders.length + shadows.length + colors.length > 0;
+  const hasSpecimens = typography.length + spacing.length + radii.length + borders.length + shadows.length + layers.length + colors.length > 0;
 
-  if (!hasSpecimens && !byCategory.has("component-state")) return null;
+  if (!hasSpecimens && componentStates.length === 0) return null;
 
   return (
     <section className="token-specimen-gallery" aria-labelledby="token-specimen-title">
@@ -423,32 +424,63 @@ export function TokenSpecimenGallery({
         <h3 id="token-specimen-title">See the system before reading its values</h3>
       </div>
       <div className="token-specimen-gallery__grid">
-        {typography.length > 0 && (
+        {familyTokens.length > 0 && (
           <article className="token-specimen token-specimen--type">
             <span className="token-specimen__label">Typography</span>
-            <p
-              className="token-specimen__heading"
-              style={{
-                ...(family ? { fontFamily: family } : {}),
-                ...(headingToken ? { fontSize: headingToken.value } : {}),
-                ...(headingWeight ? { fontWeight: headingWeight } : {}),
-                ...(headingLineHeight ? { lineHeight: headingLineHeight } : {}),
-                ...(headingTracking ? { letterSpacing: headingTracking } : {}),
-              }}
-            >
-              The quick brown fox
-            </p>
-            <p
-              className="token-specimen__body"
-              style={{
-                ...(family ? { fontFamily: family } : {}),
-                ...(bodyToken ? { fontSize: bodyToken.value } : {}),
-                ...(bodyWeight ? { fontWeight: bodyWeight } : {}),
-                ...(bodyLineHeight ? { lineHeight: bodyLineHeight } : {}),
-              }}
-            >
-              A heading and body line show the real family, scale, weight, and rhythm together.
-            </p>
+            <div className="token-font-family-list">
+              {familyTokens.map((familyToken) => {
+                const family = specimenFontFamily(familyToken.value);
+                const weights = specimenWeights(familyToken);
+                const headingWeight = weights.length > 0 ? String(Math.max(...weights)) : undefined;
+                const bodyWeight = weights.length > 0 ? String(Math.min(...weights)) : undefined;
+                const familyRole = familyToken.usage.split(";")[0];
+                const roleSpecificTypes = /heading|display|title/i.test(familyRole)
+                  ? typeTokens.filter((token) => /heading|display|title/i.test(`${token.semanticName} ${token.usage}`))
+                  : /body|interface|copy/i.test(familyRole)
+                    ? typeTokens.filter((token) => !/heading|display|title/i.test(`${token.semanticName} ${token.usage}`))
+                    : typeTokens;
+                return (
+                  <section className="token-font-family" key={familyToken.semanticName}>
+                    <div className="token-font-family__head">
+                      <strong>{familyToken.value} · {familyRole}</strong>
+                      <code>{familyToken.semanticName}</code>
+                    </div>
+                    <p className="token-font-family__availability">
+                      {specimenFontIsLoaded(familyToken.value)
+                        ? "Loaded in this reviewer."
+                        : "Uses this family when available; otherwise shows its browser fallback."}
+                    </p>
+                    {(roleSpecificTypes.length > 0 ? roleSpecificTypes : typeTokens.length > 0 ? typeTokens : [{
+                      semanticName: "type-sample",
+                      value: "20px",
+                      usage: "body; line-height 1.5",
+                      evidenceIds: [],
+                    }]).map((typeToken) => {
+                      const isHeading = /heading|display|title/i.test(`${typeToken.semanticName} ${typeToken.usage}`);
+                      const lineHeight = usageValue(typeToken, /line-height\s+([^;\s]+)/i);
+                      const tracking = usageValue(typeToken, /tracking\s+([^;\s]+)/i);
+                      return (
+                        <p
+                          className={isHeading ? "token-specimen__heading" : "token-specimen__body"}
+                          key={`${familyToken.semanticName}-${typeToken.semanticName}`}
+                          style={{
+                            ...(family ? { fontFamily: family } : {}),
+                            fontSize: typeToken.value,
+                            ...(isHeading && headingWeight ? { fontWeight: headingWeight } : {}),
+                            ...(!isHeading && bodyWeight ? { fontWeight: bodyWeight } : {}),
+                            ...(lineHeight ? { lineHeight } : {}),
+                            ...(tracking ? { letterSpacing: tracking } : {}),
+                          }}
+                        >
+                          <span>{typeToken.usage.split(";")[0]}</span>
+                          {isHeading ? "The quick brown fox" : "A real type specimen for readable interface copy."}
+                        </p>
+                      );
+                    })}
+                  </section>
+                );
+              })}
+            </div>
           </article>
         )}
         {colors.length > 0 && (
@@ -510,15 +542,43 @@ export function TokenSpecimenGallery({
             </div>
           </article>
         )}
-        {byCategory.has("component-state") && (
+        {layers.length > 0 && (
+          <article className="token-specimen">
+            <span className="token-specimen__label">Stacking layers</span>
+            <div className="token-layer-demo" aria-label="Stacking layer examples">
+              {layers.map((token, index) => (
+                <div
+                  className="token-layer-demo__item"
+                  key={token.semanticName}
+                  style={{ zIndex: token.value, insetInlineStart: `${index * 16}px` }}
+                >
+                  <span>{token.usage}</span>
+                  <code>{token.semanticName}: {token.value}</code>
+                </div>
+              ))}
+            </div>
+          </article>
+        )}
+        {componentStates.length > 0 && (
           <article className="token-specimen token-specimen--states">
             <span className="token-specimen__label">Interaction states</span>
             <div className="token-state-demo" aria-label="Button state examples">
-              <button type="button" data-state="hover">Hover</button>
-              <button type="button" data-state="focus">Focus</button>
-              <button type="button" data-state="selected" aria-pressed="true">Selected</button>
-              <button type="button" disabled>Disabled</button>
-              <span className="token-state-demo__error">Error</span>
+              {componentStates.map((token) => {
+                const state = token.semanticName.split("-").at(-1)?.toLowerCase() ?? "default";
+                return (
+                  <div className="token-state-demo__item" key={token.semanticName}>
+                    <button
+                      type="button"
+                      data-state={state}
+                      aria-pressed={state === "selected" ? true : undefined}
+                      disabled={state === "disabled"}
+                    >
+                      {state.charAt(0).toUpperCase() + state.slice(1)}
+                    </button>
+                    <code>{token.value}</code>
+                  </div>
+                );
+              })}
             </div>
           </article>
         )}

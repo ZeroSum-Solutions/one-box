@@ -229,12 +229,13 @@ export function ReferenceSelectionPanel({
 
   async function reroll() {
     if (inFlight.current) return;
+    const savedFeedback = feedback.trim().length > 0;
     inFlight.current = true;
     setAction("reroll");
     setError(null);
     setRerollNote(null);
     try {
-      if (feedback.trim()) await recordFeedback();
+      if (savedFeedback) await recordFeedback();
       const response = await fetch("/api/reference/" + runId, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -251,11 +252,19 @@ export function ReferenceSelectionPanel({
       if (result.reason === "no-fresh-directions") {
         setRerollNote("We couldn't find enough new directions — these are still your options.");
         await refresh();
+        if (savedFeedback) {
+          clearFeedback();
+          setFeedbackStatus("Your feedback was saved, but no new directions were available.");
+        }
         return;
       }
       if (response.status === 409) {
         setRerollNote("You've seen all the different directions we can offer — every look shown is still yours to pick.");
         await refresh();
+        if (savedFeedback) {
+          clearFeedback();
+          setFeedbackStatus("Your feedback was saved, but every direction has already been shown.");
+        }
         return;
       }
       if (!response.ok || !result.referenceSelection) {
@@ -367,7 +376,7 @@ export function ReferenceSelectionPanel({
       {recommendation && (
         <button
           type="button"
-          className="btn-primary"
+          className="btn-ghost"
           disabled={action !== null || feedbackDecisionBlocked}
           onClick={() => void choose(recommendation)}
         >
