@@ -4,9 +4,9 @@
  * TWO tiers, and the free one always works:
  *   1. mapsSearchUrl() / mapsPlaceUrl() — plain google.com/maps links. No key,
  *      no billing, no network call. Every competitor always gets one.
- *   2. findPlace() / embedSearchUrl() — Places API (New) + Maps Embed API.
- *      They use separate credentials. Absent keys never throw: a missing map
- *      degrades the scan card, it does not fail the run.
+ *   2. findPlace() — Places API (New), which uses its own server-side
+ *      credential. A missing key degrades the scan card; it does not fail the
+ *      run.
  *
  * WHY a second Google key: the vault's `google_api_key` is an AI-Studio key
  * scoped to generativelanguage.googleapis.com. Verified 2026-08-13 — Places,
@@ -23,7 +23,6 @@ import { addCost, CostCapExceeded } from "../runstate";
 import type { Place } from "../contracts";
 
 const PLACES_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText";
-const MAPS_EMBED_BASE = "https://www.google.com/maps/embed/v1";
 
 /**
  * Places API (New) Text Search, Pro SKU — the field mask below (location,
@@ -71,12 +70,10 @@ export function mapsPlaceUrl(place: Place): string {
 
 // ---------- tier 2: metered Maps Platform ----------
 
-/** Maps Embed API iframe src showing the local market for this category.
- * Free per Google's Embed API terms, but still key-gated. */
-export function embedSearchUrl(query: string): string | undefined {
-  const key = process.env.GOOGLE_MAPS_EMBED_API_KEY || undefined;
-  if (!key) return undefined;
-  return `${MAPS_EMBED_BASE}/search?key=${encodeURIComponent(key)}&q=${encodeURIComponent(query)}`;
+/** Compatibility stub until Task 2 atomically replaces it with a key-free
+ * descriptor and same-origin Embed route. */
+export function embedSearchUrl(_query: string): string | undefined {
+  return undefined;
 }
 
 interface RawPlace {
