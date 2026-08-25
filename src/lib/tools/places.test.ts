@@ -7,16 +7,12 @@ afterEach(() => {
 });
 
 describe("Places credential boundary", () => {
-  it("keeps the temporary Embed shim on its own credential", () => {
+  it("keeps the temporary Embed shim from creating a credential-bearing URL", () => {
     vi.stubEnv("GOOGLE_PLACES_API_KEY", "places-test-key");
     vi.stubEnv("GOOGLE_MAPS_EMBED_API_KEY", "embed-test-key");
     vi.stubEnv("GOOGLE_MAPS_API_KEY", "legacy-test-key");
 
-    const url = embedSearchUrl("plumber in Austin, TX");
-
-    expect(url).toContain("key=embed-test-key");
-    expect(url).not.toContain("places-test-key");
-    expect(url).not.toContain("legacy-test-key");
+    expect(embedSearchUrl("plumber in Austin, TX")).toBeUndefined();
   });
 
   it("uses only the server-side Places key", async () => {
