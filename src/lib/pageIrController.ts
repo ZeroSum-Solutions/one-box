@@ -674,7 +674,7 @@ export async function executePageIrBuildController(
   return { status: "visual-review" };
 }
 
-type PromotedPageIrVisualQaDependencies = {
+type PromotedVisualQaDependencies = {
   stageThreeWidthVisualQa: typeof stageThreeWidthVisualQa;
 };
 
@@ -699,21 +699,24 @@ function isRealVisualQa(
 
 /** Capture under site authority and replace the promotion placeholder using
  * the existing revision-requested -> superseded -> new draft workflow. */
-export function materializePromotedPageIrVisualQa(
+function materializePromotedVisualQa(
   runId: string,
-  overrides: Partial<PromotedPageIrVisualQaDependencies> = {},
+  expectedAuthority: "page-ir-v1" | "template-v1",
+  actor: "page-ir-controller" | "template-controller",
+  overrides: Partial<PromotedVisualQaDependencies> = {},
 ): Promise<Extract<WorkflowArtifactVersion, { artifactType: "visual-qa" }>> {
   const dependencies = { stageThreeWidthVisualQa, ...overrides };
+  const authorityLabel = expectedAuthority === "page-ir-v1" ? "PageIR" : "template";
   return withSiteAuthorityLock(runId, async () => {
     const live = await inspectPromotedLiveBundle(runId);
     if (
       live.status !== "present" ||
-      live.provenance.layoutAuthority !== "page-ir-v1" ||
+      live.provenance.layoutAuthority !== expectedAuthority ||
       live.provenance.state !== "promoted" ||
       live.provenance.promotedBuildSha256 !== live.manifest.buildSha256
     ) {
       throw new Error(
-        "real PageIR visual QA requires an exact promoted PageIR live bundle",
+        `real ${authorityLabel} visual QA requires an exact promoted ${authorityLabel} live bundle`,
       );
     }
     const run = await loadRun(runId);
@@ -723,7 +726,7 @@ export function materializePromotedPageIrVisualQa(
       previous.artifact.buildSha256 !== live.manifest.buildSha256
     ) {
       throw new Error(
-        "promoted PageIR visual QA placeholder is missing or bound to another build",
+        `promoted ${authorityLabel} visual QA placeholder is missing or bound to another build`,
       );
     }
     if (isRealVisualQa(previous)) return previous;
@@ -732,7 +735,7 @@ export function materializePromotedPageIrVisualQa(
       previous.artifact.checks.some((check) => check.status !== "pending")
     ) {
       throw new Error(
-        "promoted PageIR visual QA placeholder is not a pristine pending draft",
+        `promoted ${authorityLabel} visual QA placeholder is not a pristine pending draft`,
       );
     }
 
@@ -740,7 +743,7 @@ export function materializePromotedPageIrVisualQa(
     const evidenceBasePath = `evidence/qa/v${nextVersion}`;
     const stagingDirectory = path.join(
       sitePaths(runId).root,
-      `.page-ir-visual-qa-stage-${randomBytes(8).toString("hex")}`,
+      `.${expectedAuthority}-visual-qa-stage-${randomBytes(8).toString("hex")}`,
     );
     try {
       const qa = VisualQaSchema.parse(
@@ -759,7 +762,7 @@ export function materializePromotedPageIrVisualQa(
         qa.checks.some((check) => check.status === "pending")
       ) {
         throw new Error(
-          "captured PageIR visual QA does not bind the exact promoted build",
+          `captured ${authorityLabel} visual QA does not bind the exact promoted build`,
         );
       }
       const screenshotPaths = qa.checks
@@ -777,14 +780,14 @@ export function materializePromotedPageIrVisualQa(
             path.posix.dirname(relativePath) !== evidenceBasePath,
         )
       ) {
-        throw new Error("PageIR visual QA screenshot path escaped its version root");
+        throw new Error(`${authorityLabel} visual QA screenshot path escaped its version root`);
       }
       const stagingEntries = (await fs.readdir(stagingDirectory)).sort();
       if (
         JSON.stringify(stagingEntries) !==
         JSON.stringify(screenshotNames.slice().sort())
       ) {
-        throw new Error("PageIR visual QA screenshot inventory is not closed");
+        throw new Error(`${authorityLabel} visual QA screenshot inventory is not closed`);
       }
       const screenshots = await Promise.all(
         screenshotPaths.map(async (relativePath) => {
@@ -794,7 +797,7 @@ export function materializePromotedPageIrVisualQa(
           );
           const stat = await fs.lstat(staged, { bigint: true });
           if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink > BigInt(1)) {
-            throw new Error("PageIR visual QA screenshot must be a regular file");
+            throw new Error(`${authorityLabel} visual QA screenshot must be a regular file`);
           }
           return { relativePath, bytes: await fs.readFile(staged) };
         }),
@@ -812,7 +815,7 @@ export function materializePromotedPageIrVisualQa(
           isRealVisualQa(current)
         ) {
           throw new Error(
-            "promoted PageIR visual QA placeholder changed before commit",
+            `promoted ${authorityLabel} visual QA placeholder changed before commit`,
           );
         }
         await transaction.transitionEvidenceArtifactApproval(
@@ -820,15 +823,15 @@ export function materializePromotedPageIrVisualQa(
           current.version,
           "revision-requested",
           {
-            actor: "page-ir-controller",
+            actor,
             note: "Pending promotion placeholder replaced by real promoted-build QA.",
           },
         );
         const artifact = await transaction.saveEvidenceArtifactVersion(
           { artifactType: "visual-qa", artifact: qa },
           {
-            actor: "page-ir-controller",
-            note: "Real three-width QA for the exact promoted PageIR build.",
+            actor,
+            note: `Real three-width QA for the exact promoted ${authorityLabel} build.`,
           },
         );
         for (const screenshot of screenshots) {
@@ -850,4 +853,28 @@ export function materializePromotedPageIrVisualQa(
       await fs.rm(stagingDirectory, { recursive: true, force: true });
     }
   });
+}
+
+export function materializePromotedPageIrVisualQa(
+  runId: string,
+  overrides: Partial<PromotedVisualQaDependencies> = {},
+): Promise<Extract<WorkflowArtifactVersion, { artifactType: "visual-qa" }>> {
+  return materializePromotedVisualQa(
+    runId,
+    "page-ir-v1",
+    "page-ir-controller",
+    overrides,
+  );
+}
+
+export function materializePromotedTemplateVisualQa(
+  runId: string,
+  overrides: Partial<PromotedVisualQaDependencies> = {},
+): Promise<Extract<WorkflowArtifactVersion, { artifactType: "visual-qa" }>> {
+  return materializePromotedVisualQa(
+    runId,
+    "template-v1",
+    "template-controller",
+    overrides,
+  );
 }

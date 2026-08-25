@@ -40,9 +40,17 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      let errorSent = false;
+      let terminalSent = false;
       const send = (ev: PipelineEvent) => {
-        if (ev.type === "error") errorSent = true;
+        if (
+          ev.type === "complete" ||
+          ev.type === "paused" ||
+          ev.type === "reference-paused" ||
+          ev.type === "page-ir-source-paused" ||
+          ev.type === "error"
+        ) {
+          terminalSent = true;
+        }
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(ev)}\n\n`));
       };
       // Long model calls leave the stream silent for minutes; undici kills a
@@ -57,8 +65,15 @@ export async function POST(req: Request) {
       }, 20_000);
       try {
         await runPipeline(runId, send);
+        if (!terminalSent) {
+          send({
+            type: "error",
+            message:
+              "The build stream ended without a final outcome. The run is still checkpointed; inspect the local server log before resuming.",
+          });
+        }
       } catch {
-        if (!errorSent) {
+        if (!terminalSent) {
           send({
             type: "error",
             message:
