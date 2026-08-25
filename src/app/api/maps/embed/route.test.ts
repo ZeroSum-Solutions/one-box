@@ -23,6 +23,18 @@ describe("GET /api/maps/embed", () => {
     await expect(response.text()).resolves.toBe("Invalid map query");
   });
 
+  it.each([
+    "%0Aplumber%20in%20Austin%2C%20TX",
+    "plumber%20in%20Austin%2C%20TX%0D%0A",
+  ])("rejects a query with boundary line breaks: %s", async (query) => {
+    vi.stubEnv("GOOGLE_MAPS_EMBED_API_KEY", "embed-test-key");
+    const response = await GET(new Request(
+      `http://127.0.0.1:3000/api/maps/embed?q=${query}`
+    ));
+    expect(response.status).toBe(400);
+    await expect(response.text()).resolves.toBe("Invalid map query");
+  });
+
   it("returns a redacted unavailable response when Embed is not configured", async () => {
     vi.stubEnv("GOOGLE_MAPS_EMBED_API_KEY", "");
     const response = await GET(new Request(

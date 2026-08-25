@@ -10,9 +10,11 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("map embed boundary", () => {
   it("accepts a trimmed bounded market query", () => {
-    expect(MapEmbedQuerySchema.parse("plumber in Austin, TX")).toBe("plumber in Austin, TX");
+    expect(MapEmbedQuerySchema.parse("  plumber in Austin, TX  ")).toBe("plumber in Austin, TX");
     expect(() => MapEmbedQuerySchema.parse("x".repeat(201))).toThrow();
     expect(() => MapEmbedQuerySchema.parse("bad\r\nquery")).toThrow();
+    expect(() => MapEmbedQuerySchema.parse("\nplumber in Austin, TX")).toThrow();
+    expect(() => MapEmbedQuerySchema.parse("plumber in Austin, TX\r\n")).toThrow();
   });
 
   it("uses only the Embed key and returns a key-free descriptor", () => {
