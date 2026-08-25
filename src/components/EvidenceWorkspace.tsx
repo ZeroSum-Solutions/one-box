@@ -292,6 +292,13 @@ export function artifactUrl(runId: string, artifactPath: string): string {
   return `/api/sites/${runId}/${servedPath}`;
 }
 
+export function reviewComposerDecisionBlocked(
+  attachmentCount: number,
+  feedbackText: string,
+): boolean {
+  return attachmentCount > 0 && feedbackText.trim().length === 0;
+}
+
 function safeExternalHref(value: string): string | undefined {
   try {
     const url = new URL(value);
@@ -1037,10 +1044,10 @@ function PageIrSourceReviewPanel({
 function tokenSpecimenGroups(
   artifact: Extract<WorkflowArtifactVersion, { artifactType: "token-inventory" }>,
 ) {
-  const others = artifact.artifact.tokens.filter((token) => token.category !== "color");
-  return [...new Set(others.map((token) => token.category))].map((category) => ({
+  const tokens = artifact.artifact.tokens;
+  return [...new Set(tokens.map((token) => token.category))].map((category) => ({
     category,
-    tokens: others
+    tokens: tokens
       .filter((token) => token.category === category)
       .map((token) => ({
         semanticName: token.semanticName,
@@ -1051,7 +1058,7 @@ function tokenSpecimenGroups(
   }));
 }
 
-function reviewStageAnswers(
+export function reviewStageAnswers(
   artifact: WorkflowArtifactVersion,
   approval: ArtifactApprovalState | null,
 ): { deciding: string; learned: string; proposed: string; next: string } {
@@ -1191,6 +1198,7 @@ export function EvidenceWorkspace({
   const [feedbackUploadSession, setFeedbackUploadSession] = useState<string | null>(null);
   const [feedbackId, setFeedbackId] = useState<string | null>(null);
   const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
+  const [feedbackSessionError, setFeedbackSessionError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pageIrSourceReview, setPageIrSourceReview] = useState(initialPageIrSourceReview);
@@ -1312,6 +1320,10 @@ export function EvidenceWorkspace({
   const humanReviewHasRevision =
     humanReviewReady &&
     Object.values(humanCriteria).some((criterion) => criterion.status === "fail");
+  const feedbackDecisionBlocked = reviewComposerDecisionBlocked(
+    feedbackUploads.length,
+    note,
+  );
 
   async function action(body: Record<string, unknown>) {
     setBusy(true);
@@ -1346,6 +1358,20 @@ export function EvidenceWorkspace({
     setFeedbackUploads([]);
     setFeedbackUploadSession(null);
     setFeedbackId(null);
+    setFeedbackSessionError(null);
+  }
+
+  function recoverFeedbackAttachments(status: number, message: string | undefined) {
+    if (
+      feedbackUploads.length > 0 &&
+      (status === 401 || /upload session|uploaded file|staged file/i.test(message ?? ""))
+    ) {
+      setFeedbackUploadSession(null);
+      setFeedbackUploads([]);
+      setFeedbackSessionError(
+        "Those attachments expired or were already used. Choose the files again; your feedback text is still here.",
+      );
+    }
   }
 
   function currentFeedbackBody() {
@@ -1358,6 +1384,49 @@ export function EvidenceWorkspace({
       uploadSession: feedbackUploadSession,
       uploadIds: feedbackUploads.map((upload) => upload.id),
     };
+  }
+
+  async function actionAfterFeedback(
+    body: Record<string, unknown>,
+    successMessage: string,
+  ) {
+    setBusy(true);
+    setError(null);
+    setFeedbackStatus(null);
+    try {
+      let responseRun = run;
+      let responseReview = pageIrSourceReview;
+      const step = async (stepBody: Record<string, unknown>) => {
+        const response = await fetch(`/api/evidence/${run.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(stepBody),
+        });
+        const result = (await response.json()) as {
+          error?: string;
+          workflow?: RunState["evidenceWorkflow"];
+          pageIrSourceReview?: PageIrSourceReviewView | null;
+        };
+        const updated = mergeEvidenceWorkspaceResponse(responseRun, responseReview, result);
+        if (!response.ok && stepBody.action === "record-feedback") {
+          recoverFeedbackAttachments(response.status, result.error);
+        }
+        if (!response.ok || !updated) throw new Error(result.error ?? "Evidence action failed");
+        responseRun = updated.run;
+        responseReview = updated.pageIrSourceReview;
+        setRun(updated.run);
+        setPageIrSourceReview(updated.pageIrSourceReview);
+      };
+
+      if (note.trim()) await step(currentFeedbackBody());
+      await step(body);
+      clearFeedbackDraft();
+      setFeedbackStatus(successMessage);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Evidence action failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function sendFeedback() {
@@ -1380,6 +1449,7 @@ export function EvidenceWorkspace({
         pageIrSourceReview?: PageIrSourceReviewView | null;
       };
       const updated = mergeEvidenceWorkspaceResponse(run, pageIrSourceReview, result);
+      if (!response.ok) recoverFeedbackAttachments(response.status, result.error);
       if (!response.ok || !updated) throw new Error(result.error ?? "Feedback could not be saved");
       setRun(updated.run);
       setPageIrSourceReview(updated.pageIrSourceReview);
@@ -1412,6 +1482,9 @@ export function EvidenceWorkspace({
           pageIrSourceReview?: PageIrSourceReviewView | null;
         };
         const updated = mergeEvidenceWorkspaceResponse(responseRun, responseReview, result);
+        if (!response.ok && body.action === "record-feedback") {
+          recoverFeedbackAttachments(response.status, result.error);
+        }
         if (!response.ok || !updated) throw new Error(result.error ?? "Evidence action failed");
         responseRun = updated.run;
         responseReview = updated.pageIrSourceReview;
@@ -1458,6 +1531,9 @@ export function EvidenceWorkspace({
           responseReview,
           result,
         );
+        if (!response.ok && body.action === "record-feedback") {
+          recoverFeedbackAttachments(response.status, result.error);
+        }
         if (!response.ok || !updated) throw new Error(result.error ?? "Evidence action failed");
         responseRun = updated.run;
         responseReview = updated.pageIrSourceReview;
@@ -1517,10 +1593,10 @@ export function EvidenceWorkspace({
     if (!current) return;
     try {
       const artifact = JSON.parse(draftText) as unknown;
-      await action({
+      await actionAfterFeedback({
         action: "save-version",
         draft: { artifactType: current.artifactType, artifact },
-      });
+      }, "The new version and its supporting feedback were saved.");
     } catch {
       setError("The edited artifact is not valid JSON.");
     }
@@ -1542,7 +1618,7 @@ export function EvidenceWorkspace({
     });
   }
 
-  function submitHumanReview() {
+  async function submitHumanReview() {
     if (!humanReviewReady) return;
     const criterion = (key: HumanReviewCriterionKey) => ({
       status: humanCriteria[key].status as "pass" | "fail",
@@ -1550,7 +1626,7 @@ export function EvidenceWorkspace({
         ? { findings: humanCriteria[key].findings.trim() }
         : {}),
     });
-    void action({
+    const body = {
       action: "record-human-visual-review",
       reviewerName: reviewerName.trim(),
       reviewerKind: "human",
@@ -1565,7 +1641,42 @@ export function EvidenceWorkspace({
           referenceContext,
         },
       },
-    });
+    };
+    setBusy(true);
+    setError(null);
+    setFeedbackStatus(null);
+    try {
+      let responseRun = run;
+      let responseReview = pageIrSourceReview;
+      const step = async (stepBody: Record<string, unknown>) => {
+        const response = await fetch(`/api/evidence/${run.id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(stepBody),
+        });
+        const result = (await response.json()) as {
+          error?: string;
+          workflow?: RunState["evidenceWorkflow"];
+          pageIrSourceReview?: PageIrSourceReviewView | null;
+        };
+        const updated = mergeEvidenceWorkspaceResponse(responseRun, responseReview, result);
+        if (!response.ok && stepBody.action === "record-feedback") {
+          recoverFeedbackAttachments(response.status, result.error);
+        }
+        if (!response.ok || !updated) throw new Error(result.error ?? "Evidence action failed");
+        responseRun = updated.run;
+        responseReview = updated.pageIrSourceReview;
+        setRun(updated.run);
+        setPageIrSourceReview(updated.pageIrSourceReview);
+      };
+      if (note.trim()) await step(currentFeedbackBody());
+      await step(body);
+      clearFeedbackDraft();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Evidence action failed");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -1784,7 +1895,7 @@ export function EvidenceWorkspace({
           )}
           {error && <p className="chat-error" role="alert">{error}</p>}
 
-          {!legacyReadOnly && !sourceReviewActive && !browsing && current && (
+          {!legacyReadOnly && !sourceReviewActive && !browsing && current && run.referenceSelection?.status !== "pending" && (
             <section
               className="review-feedback-composer"
               id="review-decision"
@@ -1817,11 +1928,15 @@ export function EvidenceWorkspace({
                 onChange={setFeedbackUploads}
                 uploadSession={feedbackUploadSession}
                 onUploadSessionChange={setFeedbackUploadSession}
+                externalSessionError={feedbackSessionError}
+                onExternalSessionErrorClear={() => setFeedbackSessionError(null)}
                 disabled={busy}
                 review
               />
               <div className="review-feedback-composer__status" aria-live="polite">
-                {feedbackStatus}
+                {feedbackDecisionBlocked
+                  ? "Add feedback text before saving attached evidence with a decision."
+                  : feedbackStatus}
               </div>
               <div className="review-feedback-composer__actions">
                 <button
@@ -1833,17 +1948,24 @@ export function EvidenceWorkspace({
                   {busy ? "Sending…" : "Send feedback"}
                 </button>
                 {canApproveAndContinue && (
-                  <button className="btn-primary" disabled={busy} onClick={() => void approveAndContinue()}>
+                  <button className="btn-primary" disabled={busy || feedbackDecisionBlocked} onClick={() => void approveAndContinue()}>
                     Approve to Continue
                   </button>
                 )}
                 {canSubmitVisualQaDraft && (
-                  <button className="btn-primary" disabled={busy} onClick={() => void action({ action: "submit", note })}>
+                  <button
+                    className="btn-primary"
+                    disabled={busy || feedbackDecisionBlocked}
+                    onClick={() => void actionAfterFeedback(
+                      { action: "submit", note },
+                      "The visual QA artifact and its supporting feedback were submitted for review.",
+                    )}
+                  >
                     Submit for Review
                   </button>
                 )}
                 {canSaveRevisionFromHeader && (
-                  <button className="btn-primary" disabled={busy} onClick={() => void saveVersion()}>
+                  <button className="btn-primary" disabled={busy || feedbackDecisionBlocked} onClick={() => void saveVersion()}>
                     Save New Version
                   </button>
                 )}
@@ -1854,10 +1976,10 @@ export function EvidenceWorkspace({
                 )}
                 {current.artifactType === "visual-qa" && approval === "in-review" && (
                   <>
-                    <button className="btn-primary" disabled={busy || !humanReviewAllPass} onClick={submitHumanReview}>
+                    <button className="btn-primary" disabled={busy || feedbackDecisionBlocked || !humanReviewAllPass} onClick={() => void submitHumanReview()}>
                       Approve to Continue
                     </button>
-                    <button className="btn-coral" disabled={busy || !humanReviewHasRevision} onClick={submitHumanReview}>
+                    <button className="btn-coral" disabled={busy || feedbackDecisionBlocked || !humanReviewHasRevision} onClick={() => void submitHumanReview()}>
                       Request Changes
                     </button>
                   </>

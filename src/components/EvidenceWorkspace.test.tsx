@@ -11,6 +11,8 @@ import {
   isPageIrSourceReviewActive,
   mergeEvidenceWorkspaceResponse,
   pageIrSourceApprovalReady,
+  reviewComposerDecisionBlocked,
+  reviewStageAnswers,
   syncHumanVisualReviewDraft,
   syncPageIrSourceReviewDraft,
   type PageIrSourceReviewView,
@@ -31,6 +33,35 @@ function render(artifact: unknown): string {
 }
 
 describe("EvidenceWorkspace artifact previews", () => {
+  it("answers the review contract for all six evidence stages", () => {
+    const artifacts = [
+      {
+        ...base,
+        artifactType: "ledger",
+        artifact: {
+          projectTarget: "website",
+          businessIntelligence: { kind: "business-intelligence", sources: [], competitors: [], marketExpectations: [], differentiationOpportunities: [], claims: [] },
+          referoDesignEvidence: { kind: "refero-design-evidence", sources: [], references: [], claims: [] },
+          clientEvidence: { sources: [], claims: [], unsupportedUploadIds: [], artifactRelationships: [] },
+        },
+      },
+      { ...base, artifactType: "design-contract", artifact: { title: "Contract", contractPath: "contract.md", sourceLedgerVersion: 1, approvedEvidenceIds: [], exportPaths: [], contractSha256: "a".repeat(64), exportSha256: "b".repeat(64) } },
+      { ...base, artifactType: "token-inventory", artifact: { sourceContractVersion: 1, tokens: [] } },
+      { ...base, artifactType: "tailwind-plan", artifact: { sourceTokenInventoryVersion: 1, themeMappings: [], componentVariants: [], responsiveRules: [] } },
+      { ...base, artifactType: "css-architecture", artifact: { sourceTailwindPlanVersion: 1, cssVariableHierarchy: [], tokenToComponentUsage: {}, justifiedExceptions: [], generatedCssPath: "site.css" } },
+      { ...base, artifactType: "visual-qa", artifact: { sourceCssArchitectureVersion: 1, buildSha256: "c".repeat(64), checks: [] } },
+    ] as unknown as WorkflowArtifactVersion[];
+
+    expect(artifacts.map((artifact) => reviewStageAnswers(artifact, "in-review")))
+      .toHaveLength(6);
+    for (const answers of artifacts.map((artifact) => reviewStageAnswers(artifact, "in-review"))) {
+      expect(answers.deciding).not.toHaveLength(0);
+      expect(answers.learned).not.toHaveLength(0);
+      expect(answers.proposed).not.toHaveLength(0);
+      expect(answers.next).toContain("approve");
+    }
+  });
+
   it("shows the four plain-language review answers before technical detail", () => {
     const ledger = {
       ...base,
@@ -148,11 +179,15 @@ describe("EvidenceWorkspace artifact previews", () => {
           {
             category: "typography",
             tokens: [
-              { semanticName: "--font-heading", value: "Roboto", usage: "Headings", evidenceIds: [] },
-              { semanticName: "--text-heading", value: "32px", usage: "Heading size", evidenceIds: [] },
-              { semanticName: "--leading-heading", value: "1.2", usage: "Heading line height", evidenceIds: [] },
+              { semanticName: "--font-heading", value: "Switzer", usage: "Headings; weights 400, 590", evidenceIds: [] },
+              { semanticName: "--text-body", value: "16px", usage: "body; line-height 1.5", evidenceIds: [] },
+              { semanticName: "--text-heading", value: "32px", usage: "heading; line-height 1.2; tracking -0.02em", evidenceIds: [] },
             ],
           },
+          { category: "color", tokens: [
+            { semanticName: "--color-action", value: "#f0c14b", usage: "Primary action; Never: body text", evidenceIds: [] },
+            { semanticName: "--color-surface", value: "#151515", usage: "Card surface", evidenceIds: [] },
+          ] },
           { category: "spacing", tokens: [{ semanticName: "--space-lg", value: "24px", usage: "Section gap", evidenceIds: [] }] },
           { category: "radius", tokens: [{ semanticName: "--radius-card", value: "12px", usage: "Cards", evidenceIds: [] }] },
           { category: "border", tokens: [{ semanticName: "--border-card", value: "2px solid #808080", usage: "Cards", evidenceIds: [] }] },
@@ -164,8 +199,15 @@ describe("EvidenceWorkspace artifact previews", () => {
 
     expect(html).toContain("token-specimen-gallery");
     expect(html).toContain("The quick brown fox");
-    expect(html).toContain("font-family:Roboto");
+    expect(html).toContain("font-family:var(--font-body)");
+    expect(html).toContain("font-weight:590");
+    expect(html).toContain("line-height:1.2");
+    expect(html).toContain("letter-spacing:-0.02em");
+    expect(html).toContain("font-weight:400");
+    expect(html).toContain("line-height:1.5");
     expect(html).toContain("gap:24px");
+    expect(html).toContain("Primary action");
+    expect(html).toContain("--color-action");
     expect(html).toContain("border-radius:12px");
     expect(html).toContain("border:2px solid #808080");
     expect(html).toContain("box-shadow:0 4px 16px #00000040");
@@ -175,6 +217,13 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(html).toContain("Disabled");
     expect(html).toContain("Error");
     expect(html.indexOf("token-specimen-gallery")).toBeLessThan(html.indexOf("spec-table"));
+  });
+
+  it("blocks a decision from clearing attachments until feedback can bind them", () => {
+    expect(reviewComposerDecisionBlocked(1, "")).toBe(true);
+    expect(reviewComposerDecisionBlocked(1, "  ")).toBe(true);
+    expect(reviewComposerDecisionBlocked(1, "Use this logo")).toBe(false);
+    expect(reviewComposerDecisionBlocked(0, "")).toBe(false);
   });
 
   it("renders explicit empty states when a research group collected no evidence", () => {

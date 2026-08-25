@@ -160,9 +160,12 @@ and each approval advances a persisted workflow gate. `/preview/<id>` serves a
 sandboxed generated site; structured and natural-language edits share the same
 per-run lock, history, validation, and rollback path.
 
-`/evidence/<id>` presents each gate as four plain-language review answers before
-its sources and technical tables. The bottom decision composer can save a note
-and up to five private attachments without approving or changing the site.
+`/evidence/<id>` presents reference selection and each evidence gate as four
+plain-language review answers before sources and technical tables. Their bottom
+decision composers can save a note and up to five private attachments without
+approving or changing the site. A decision with attachments is blocked until
+feedback text can bind those files to the reviewed version; expired sessions
+clear only the stale file claims and preserve the written draft for reselection.
 Each submission has a stable feedback ID: an exact retry replays its receipt,
 while conflicting reuse fails closed. Accepted files move from the bounded
 upload staging area into `sites/<id>/evidence/review-feedback/`; the opaque

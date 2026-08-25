@@ -214,7 +214,11 @@ export function UploadPanel({
           </span>
           <button
             type="button"
-            onClick={() => onChange(uploads.filter((item) => item.id !== upload.id))}
+            onClick={() => {
+              const remaining = uploads.filter((item) => item.id !== upload.id);
+              onChange(remaining);
+              if (review && remaining.length === 0) onUploadSessionChange(null);
+            }}
             disabled={disabled || isUploading}
             aria-label={`Remove ${upload.fileName}`}
           >

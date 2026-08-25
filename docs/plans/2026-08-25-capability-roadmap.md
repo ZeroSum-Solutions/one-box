@@ -16,19 +16,19 @@ Base: `cb26ae9f6179e6570ed305262a26ed360bd5a30f`
 
 | Requirement | Status | Current evidence or remaining boundary |
 |---|---|---|
-| Plain-language stage explanations | Shipped | The evidence, contract, token, mapping, CSS, and build stages now open with plain-language review summaries. |
+| Plain-language stage explanations | Shipped | Reference selection plus the evidence, contract, token, mapping, CSS, and build stages now open with plain-language review summaries. |
 | Useful summary before sources and technical detail | Shipped | Each current artifact shows the review summary first. Sources, provenance, raw JSON, generated CSS, and other implementation detail sit behind one disclosure. |
 | Four review questions | Shipped | Every artifact summary answers the decision, learning, proposed result, and next-action questions in a fixed order. |
-| Bottom feedback composer | Shipped | Each active evidence artifact stage has one bottom composer. Read-only browsing, legacy runs, and the separate Page IR Source Bundle compliance checkpoint do not gain mutation controls. |
+| Bottom feedback composer | Shipped | Pending reference selection and each active evidence artifact stage have one bottom composer. Read-only browsing, legacy runs, and the separate Page IR Source Bundle compliance checkpoint do not gain mutation controls. |
 | Drag and drop plus visible attachment control | Shipped | The composer accepts dropped files and exposes a visible Attach files control through the existing private upload route and policy. |
-| Feedback text, send state, validation, and accessible errors | Shipped | Feedback requires bounded text, reports status through a live region, keeps upload errors in alerts, disables duplicate clicks while busy, and retains the draft after a failed request. |
+| Feedback text, send state, validation, and accessible errors | Shipped | Feedback requires bounded text, reports status through a live region, keeps upload errors in alerts, disables duplicate clicks while busy, and retains the written draft after a failed or expired upload request while asking the reviewer to reselect only stale files. |
 | Private attachment persistence | Shipped | A feedback id binds the current stage and artifact version to an idempotent receipt. Files reuse intake inspection and staging, then move into a private run evidence folder. |
 | Bottom approval and change controls | Shipped | Standard gates use Approve to Continue and Request Changes at the bottom. Visual QA keeps its named-human criteria and maps all-pass to approval and any failed criterion to a change request. |
 | Guarded submit, approve, advance, revision, and resume flow | Shipped | The existing route actions remain authoritative. The client records each successful intermediate state so a later failure resumes from the server's current transition instead of replaying an earlier one. |
-| Visual typography specimens | Shipped | The token review renders the proposed family, size, weight, and line height together when those tokens are present. |
-| Spacing, radius, border, and shadow specimens | Shipped | Token review shows measured gaps and a representative surface using the proposed values. |
+| Visual typography specimens | Shipped | The token review renders the canonical family, scale, weights, line heights, and tracking together when those values are present. |
+| Color, spacing, radius, border, shadow, and overlay specimens | Shipped | Token review shows every canonical value in a bounded role example before its technical table. |
 | Hover, focus, selected, disabled, and error specimens | Shipped | The token review includes bounded component-state examples without moving client colors into OneBox shell chrome. |
-| Desktop, tablet, phone, keyboard, focus, touch, overflow, motion, and Axe verification | Shipped | `scripts/e2e/evidence-review.mjs` covers 1440, 768, and 390 pixels, 44px mobile decision controls, keyboard disclosure, focus, Escape stability, overflow, console and page errors, script-blocked mode, reduced motion, feedback upload persistence, and Axe serious/critical findings. |
+| Desktop, tablet, phone, keyboard, focus, touch, overflow, motion, and Axe verification | Shipped | `scripts/e2e/evidence-review.mjs` covers the shared review surface at 1440, 768, and 390 pixels, measures every visible interactive target at mobile widths, checks keyboard disclosure, focus, Escape stability, overflow, console and page errors, script-blocked mode, reduced motion, canonical computed type, forced upload expiry and recovery, attachment removal and persistence, and Axe serious/critical findings. Unit coverage exercises every artifact reader and the reference-selection review contract. |
 | Google Maps and Places setup | Externally gated | No account, billing, key, API enablement, or origin restriction work is authorized in this branch. |
 
 ## Broader capability reconciliation
