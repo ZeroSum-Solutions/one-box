@@ -279,6 +279,158 @@ describe("pipeline replay", () => {
     expect(execute).toHaveBeenCalledWith("page-ir-run", emit);
   });
 
+  it("promotes a parked template candidate and pauses on real visual QA", async () => {
+    const continueTemplate = (
+      pipelineModule as unknown as {
+        executeTemplateEvidenceBuildContinuation?: (
+          authority: "page-ir-v1" | "template-v1",
+          runId: string,
+          emit: (event: PipelineEvent) => void,
+          dependencies: Record<string, unknown>,
+        ) => Promise<boolean>;
+      }
+    ).executeTemplateEvidenceBuildContinuation;
+    const buildSha256 = "a".repeat(64);
+    const visualQa = {
+      artifactType: "visual-qa",
+      version: 2,
+      createdAt: "2026-08-25T23:00:00.000Z",
+      approvalTransitions: [
+        { state: "draft", at: "2026-08-25T23:00:00.000Z" },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256,
+        checks: visualQaChecks("pass"),
+      },
+    };
+    const promoted = {
+      status: "present",
+      provenance: {
+        state: "promoted",
+        layoutAuthority: "template-v1",
+        buildSha256,
+        promotedBuildSha256: buildSha256,
+      },
+    };
+    const emit = vi.fn();
+    const dependencies = {
+      inspectCandidate: vi.fn().mockResolvedValue({
+        status: "present",
+        provenance: { state: "promotable", layoutAuthority: "template-v1" },
+      }),
+      promoteCandidate: vi.fn().mockResolvedValue({ buildSha256 }),
+      materializePromotedTemplateVisualQa: vi.fn().mockResolvedValue(visualQa),
+      inspectPromotedLiveBundle: vi.fn().mockResolvedValue({
+        status: "present",
+        manifest: { buildSha256 },
+        provenance: promoted.provenance,
+      }),
+      loadRun: vi.fn().mockResolvedValue({
+        ...pendingRun("template-promotable-run"),
+        costUsd: 0.55,
+      }),
+      buildRunProvenance: vi.fn().mockReturnValue({
+        schemaVersion: 1,
+        runId: "template-promotable-run",
+      }),
+      assertVisualQaApprovedForBuild: vi.fn(),
+    };
+
+    await expect(
+      continueTemplate?.(
+        "template-v1",
+        "template-promotable-run",
+        emit,
+        dependencies,
+      ),
+    ).resolves.toBe(true);
+    expect(dependencies.promoteCandidate).toHaveBeenCalledOnce();
+    expect(dependencies.materializePromotedTemplateVisualQa).toHaveBeenCalledOnce();
+    expect(emit).toHaveBeenCalledWith(expect.objectContaining({
+      type: "paused",
+      workflowStage: "build",
+    }));
+    expect(emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "error" }),
+    );
+  });
+
+  it("completes a promoted template build only after exact-build human approval", async () => {
+    const continueTemplate = pipelineModule.executeTemplateEvidenceBuildContinuation;
+    const runId = "template-approved-run";
+    const buildSha256 = "b".repeat(64);
+    const run = pendingRun(runId);
+    run.evidenceWorkflow.currentStage = "build";
+    run.stages.built.status = "done";
+    const visualQa = {
+      artifactType: "visual-qa" as const,
+      version: 2,
+      createdAt: "2026-08-25T23:00:00.000Z",
+      approvalTransitions: [
+        { state: "draft" as const, at: "2026-08-25T23:00:00.000Z" },
+        {
+          state: "approved" as const,
+          at: "2026-08-25T23:01:00.000Z",
+          humanVisualReview: {
+            reviewerName: "Devin",
+            reviewerKind: "human" as const,
+            humanAttestation: true as const,
+            reviewedAt: "2026-08-25T23:01:00.000Z",
+            buildSha256,
+            criteria: {
+              briefFidelity: { status: "pass" as const },
+              visualHierarchy: { status: "pass" as const },
+              spacingAndComposition: { status: "pass" as const },
+              businessSpecificity: { status: "pass" as const },
+              designAndReferenceAlignment: {
+                status: "pass" as const,
+                referenceContext: "explicit-no-reference" as const,
+              },
+            },
+          },
+        },
+      ],
+      artifact: {
+        sourceCssArchitectureVersion: 1,
+        buildSha256,
+        checks: visualQaChecks("pass"),
+      },
+    };
+    const provenance = {
+      state: "promoted",
+      layoutAuthority: "template-v1",
+      buildSha256,
+      promotedBuildSha256: buildSha256,
+    };
+    const emit = vi.fn();
+    const assertApproved = vi.fn();
+
+    await expect(continueTemplate("template-v1", runId, emit, {
+      inspectCandidate: vi.fn().mockResolvedValue({ status: "present", provenance }),
+      promoteCandidate: vi.fn(),
+      materializePromotedTemplateVisualQa: vi.fn().mockResolvedValue(visualQa),
+      inspectPromotedLiveBundle: vi.fn().mockResolvedValue({
+        status: "present",
+        manifest: { buildSha256 },
+        provenance,
+      }),
+      loadRun: vi.fn().mockResolvedValue(run),
+      buildRunProvenance: vi.fn().mockReturnValue({ schemaVersion: 1, runId }),
+      assertVisualQaApprovedForBuild: assertApproved,
+    } as never)).resolves.toBe(true);
+
+    expect(assertApproved).toHaveBeenCalledWith(run, buildSha256);
+    expect(emit).toHaveBeenCalledWith({
+      type: "complete",
+      runId,
+      previewUrl: `/preview/${runId}`,
+    });
+    expect(emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "paused" }),
+    );
+  });
+
   it("routes PageIR authority through candidate recovery and controller execution", async () => {
     const run = pendingRun("page-ir-run");
     run.layoutAuthority = "page-ir-v1";
@@ -1472,10 +1624,10 @@ describe("pipeline replay", () => {
     expect(harness.executePipeline).not.toHaveBeenCalled();
   });
 
-  it("does not report a promotable candidate as a completed live build", async () => {
+  it("resumes a promotable template candidate so local promotion can finish", async () => {
     const run = pendingRun("promotable-run");
-    run.pipelineVersion = "legacy-v1";
     for (const stage of Object.values(run.stages)) stage.status = "done";
+    run.evidenceWorkflow.currentStage = "build";
     const emit = vi.fn();
     const executePipeline = vi.fn().mockResolvedValue(undefined);
     const order: string[] = [];
@@ -1504,15 +1656,18 @@ describe("pipeline replay", () => {
     expect(emit).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "complete" }),
     );
-    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
-    expect(executePipeline).not.toHaveBeenCalled();
+    expect(executePipeline).toHaveBeenCalledOnce();
     expect(order).toEqual(["recover", "inspect"]);
   });
 
-  it("parks an over-cap promotable run without appending a new terminal error", async () => {
+  it.each(["promotable", "promoted"] as const)(
+    "resumes an over-cap %s template candidate because continuation adds no spend",
+    async (candidateState) => {
     const run = pendingRun("promotable-over-cap-run");
     run.costUsd = 4;
     run.costCapUsd = 3;
+    run.stages.built.status = "done";
+    run.evidenceWorkflow.currentStage = "build";
     const progress: PipelineEvent = {
       type: "card",
       stage: "built",
@@ -1537,13 +1692,12 @@ describe("pipeline replay", () => {
       appendEvent,
       inspectCandidate: vi.fn().mockResolvedValue({
         status: "present",
-        provenance: { state: "promotable" },
+        provenance: { state: candidateState },
       }),
       executePipeline,
     } as never);
 
     expect(emit).toHaveBeenCalledWith(progress);
-    expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 4 });
     expect(emit).not.toHaveBeenCalledWith(
       expect.objectContaining({ type: "complete" }),
     );
@@ -1551,8 +1705,78 @@ describe("pipeline replay", () => {
       expect.objectContaining({ type: "error" }),
     );
     expect(appendEvent).not.toHaveBeenCalled();
-    expect(executePipeline).not.toHaveBeenCalled();
+    expect(executePipeline).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("resumes a promoted template after the recorded build pause is human-approved", async () => {
+    const harness = pageIrCompletionHarness();
+    harness.run.id = "template-approved-after-pause";
+    harness.run.layoutAuthority = "template-v1";
+    const pause: PipelineEvent = {
+      type: "paused",
+      runId: harness.run.id,
+      workflowStage: "build",
+      workspaceUrl: `/evidence/${harness.run.id}`,
+      note: "Visual QA is ready for review.",
+    };
+    harness.dependencies.readEvents.mockResolvedValue([pause]);
+    const emit = vi.fn();
+
+    await runPipeline(harness.run.id, emit, harness.dependencies as never);
+
+    expect(harness.executePipeline).toHaveBeenCalledOnce();
+    expect(emit).not.toHaveBeenCalledWith(pause);
   });
+
+  it.each([
+    {
+      name: "built stage is not durably done",
+      mutate: (run: RunState) => {
+        run.evidenceWorkflow.currentStage = "build";
+        run.stages.built.status = "running";
+      },
+    },
+    {
+      name: "workflow has not reached build",
+      mutate: (run: RunState) => {
+        run.evidenceWorkflow.currentStage = "evidence";
+        run.stages.built.status = "done";
+      },
+    },
+  ])(
+    "keeps the spend cap active when a promotable candidate exists but $name",
+    async ({ mutate }) => {
+      const run = pendingRun("unsafe-over-cap-candidate");
+      run.costUsd = 4;
+      run.costCapUsd = 3;
+      mutate(run);
+      const emit = vi.fn();
+      const appendEvent = vi.fn().mockResolvedValue(undefined);
+      const executePipeline = vi.fn().mockResolvedValue(undefined);
+
+      await runPipeline(run.id, emit, {
+        readEvents: vi.fn().mockResolvedValue([]),
+        loadRun: vi.fn().mockResolvedValue(run),
+        loadArtifact: vi.fn().mockResolvedValue(disabledResearchIntake),
+        appendEvent,
+        inspectCandidate: vi.fn().mockResolvedValue({
+          status: "present",
+          provenance: { state: "promotable" },
+        }),
+        executePipeline,
+      } as never);
+
+      expect(executePipeline).not.toHaveBeenCalled();
+      expect(emit).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "error" }),
+      );
+      expect(appendEvent).toHaveBeenCalledWith(
+        run.id,
+        expect.objectContaining({ type: "error" }),
+      );
+    },
+  );
 
   it.each([
     ["synthesize", []],
@@ -1631,8 +1855,7 @@ describe("pipeline replay", () => {
         "promotable-gated-run",
         expect.objectContaining({ type: "complete" }),
       );
-      expect(emit).toHaveBeenCalledWith({ type: "cost", usd: 0 });
-      expect(executePipeline).not.toHaveBeenCalled();
+      expect(executePipeline).toHaveBeenCalledOnce();
     },
   );
 

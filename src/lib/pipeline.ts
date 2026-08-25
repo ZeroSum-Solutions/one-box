@@ -48,6 +48,7 @@ import {
   startStage,
   finishStage,
   failStage,
+  assertVisualQaApprovedForBuild,
   stageDone,
   appendEvent,
   readEvents,
@@ -92,6 +93,7 @@ import {
   inspectCandidate,
   inspectPromotedLiveBundle,
   loadCandidateRecoveryRecord,
+  promoteCandidate,
   recoverCandidateState,
   type CandidateInspection,
 } from "./candidate";
@@ -99,7 +101,10 @@ import {
   loadPageIrSourceBundleForReview,
   loadPersistedPageIr,
 } from "./pageIrPipeline";
-import { executePageIrBuildController } from "./pageIrController";
+import {
+  executePageIrBuildController,
+  materializePromotedTemplateVisualQa,
+} from "./pageIrController";
 import { assertWebsiteProductionRun } from "./productionTarget";
 import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
@@ -110,7 +115,6 @@ import {
   buildTokenInventory,
   renderTailwindThemeCss,
   tailwindComponentUtilityClasses,
-  runThreeWidthVisualQa,
   materializeDesignContractArtifacts,
   preferredReferenceEvidenceImage,
 } from "./evidence";
@@ -856,10 +860,13 @@ export async function runPipeline(
       }
     }
   }
-  const candidateAwaitingPromotion =
+  const templateCandidateCanContinue =
+    run.pipelineVersion === "evidence-gated-v2" &&
     run.layoutAuthority === "template-v1" &&
+    run.evidenceWorkflow.currentStage === "build" &&
+    run.stages.built.status === "done" &&
     candidate.status === "present" &&
-    candidate.provenance.state === "promotable";
+    ["promotable", "promoted"].includes(candidate.provenance.state);
   const completedRepairStillFailed =
     run.layoutAuthority === "template-v1" &&
     candidate.status === "present" &&
@@ -991,13 +998,14 @@ export async function runPipeline(
     return;
   }
 
-  if (candidateAwaitingPromotion || completedRepairStillFailed) {
-    replayHistory(completedRepairStillFailed);
+  if (completedRepairStillFailed) {
+    replayHistory(true);
     emit({ type: "cost", usd: run.costUsd });
     return;
   }
 
   if (
+    !templateCandidateCanContinue &&
     replayedPauseIsCurrent(history, {
       id: run.id,
       pipelineVersion: run.pipelineVersion,
@@ -1031,7 +1039,7 @@ export async function runPipeline(
   // UI recovers from a dropped stream ("refresh — the run resumes"), so an
   // over-cap run would re-run the failing stage and spend MORE on every
   // reload. Observed live in HOmEC9VCJ9Ri: $0.232 → $0.264 on one reconnect.
-  if (run.costUsd > run.costCapUsd) {
+  if (run.costUsd > run.costCapUsd && !templateCandidateCanContinue) {
     replayHistory(false);
     emit({ type: "cost", usd: run.costUsd });
     const error: PipelineEvent = {
@@ -1195,6 +1203,110 @@ export async function executePageIrEvidenceBuildIfSelected(
   return true;
 }
 
+interface TemplateBuildContinuationDependencies {
+  inspectCandidate: typeof inspectCandidate;
+  promoteCandidate: typeof promoteCandidate;
+  materializePromotedTemplateVisualQa: typeof materializePromotedTemplateVisualQa;
+  inspectPromotedLiveBundle: typeof inspectPromotedLiveBundle;
+  loadRun: typeof loadRun;
+  buildRunProvenance: typeof buildRunProvenance;
+  assertVisualQaApprovedForBuild: typeof assertVisualQaApprovedForBuild;
+}
+
+const defaultTemplateBuildContinuationDependencies: TemplateBuildContinuationDependencies = {
+  inspectCandidate,
+  promoteCandidate,
+  materializePromotedTemplateVisualQa,
+  inspectPromotedLiveBundle,
+  loadRun,
+  buildRunProvenance,
+  assertVisualQaApprovedForBuild,
+};
+
+/** Complete the local, non-provider continuation that follows a successful
+ * template candidate gate run. Promotion is atomic; visual QA remains a human
+ * review boundary, so this always emits either a pause or a true completion. */
+export async function executeTemplateEvidenceBuildContinuation(
+  authority: "page-ir-v1" | "template-v1",
+  runId: string,
+  emit: Emit,
+  dependencies: TemplateBuildContinuationDependencies =
+    defaultTemplateBuildContinuationDependencies,
+): Promise<boolean> {
+  if (authority !== "template-v1") return false;
+
+  const candidate = await dependencies.inspectCandidate(runId);
+  if (candidate.status !== "present") {
+    throw new Error("template build continuation requires a candidate");
+  }
+  if (candidate.provenance.state === "promotable") {
+    try {
+      const promoted = await dependencies.promoteCandidate(runId);
+      emit({
+        type: "card",
+        stage: "built",
+        title: "Candidate promoted",
+        body: `The gated build is now the local preview (build ${promoted.buildSha256.slice(0, 12)}).`,
+      });
+    } catch (error) {
+      emit(lifecycleEvent(
+        "promotion-failure",
+        error instanceof Error ? error.message : String(error),
+        { layoutAuthority: "template-v1" },
+      ));
+      throw error;
+    }
+  } else if (candidate.provenance.state !== "promoted") {
+    throw new Error(
+      `template build continuation cannot resume candidate state ${candidate.provenance.state}`,
+    );
+  }
+
+  const visualQa = await dependencies.materializePromotedTemplateVisualQa(runId);
+  const [run, live] = await Promise.all([
+    dependencies.loadRun(runId),
+    dependencies.inspectPromotedLiveBundle(runId),
+  ]);
+  if (
+    live.status !== "present" ||
+    live.provenance.layoutAuthority !== "template-v1" ||
+    live.provenance.state !== "promoted" ||
+    live.provenance.promotedBuildSha256 !== live.manifest.buildSha256 ||
+    visualQa.artifact.buildSha256 !== live.manifest.buildSha256
+  ) {
+    throw new Error("exact promoted template live bundle is not valid");
+  }
+
+  const approvalState = artifactApprovalState(visualQa);
+  const visualReview =
+    approvalState === "approved"
+      ? visualQa.approvalTransitions.at(-1)?.humanVisualReview
+      : undefined;
+  if (approvalState === "approved") {
+    dependencies.assertVisualQaApprovedForBuild(
+      run,
+      live.manifest.buildSha256,
+    );
+  }
+  emit({
+    type: "provenance",
+    stage: "built",
+    provenance: dependencies.buildRunProvenance(
+      run,
+      live.provenance,
+      visualReview,
+    ),
+  });
+  emit({ type: "cost", usd: run.costUsd });
+
+  if (approvalState === "approved") {
+    emit({ type: "complete", runId, previewUrl: `/preview/${runId}` });
+  } else {
+    pauseForApproval(runId, "build", emit);
+  }
+  return true;
+}
+
 function latestWorkflowArtifact<T extends WorkflowArtifactType>(
   run: Awaited<ReturnType<typeof loadRun>>,
   artifactType: T
@@ -1214,7 +1326,20 @@ function latestWorkflowArtifact<T extends WorkflowArtifactType>(
 async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
   const intake = (await loadArtifact(runId, ARTIFACTS.intake)) as Intake;
   if (!intake) throw new Error("intake artifact missing — run /api/chat first");
-  const mode = (await loadRun(runId)).referenceMode;
+  const initialRun = await loadRun(runId);
+  const mode = initialRun.referenceMode;
+  if (
+    initialRun.layoutAuthority === "template-v1" &&
+    initialRun.evidenceWorkflow.currentStage === "build" &&
+    initialRun.stages.built.status === "done"
+  ) {
+    await executeTemplateEvidenceBuildContinuation(
+      initialRun.layoutAuthority,
+      runId,
+      emit,
+    );
+    return;
+  }
   const uploadContext = await buildRunUploadContext(runId, intake.uploads);
 
   const pre = pipelinePreflight(mode, intake);
@@ -1280,13 +1405,6 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
     }
     const run = await loadRun(runId);
     const workflowStage = run.evidenceWorkflow.currentStage;
-    if (
-      workflowStage === "build" &&
-      run.stages.built.status === "done" &&
-      assertBuiltCandidateParked(await inspectCandidate(runId))
-    ) {
-      return;
-    }
     const expectedType = EVIDENCE_STAGE_ARTIFACT[workflowStage];
     const existing = latestWorkflowArtifact(run, expectedType);
 
@@ -1510,20 +1628,16 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
         tailwindComponentUtilityClasses(approvedPlan.artifact)
       )
     );
-    if (assertBuiltCandidateParked(await inspectCandidate(runId))) {
+    if (
+      await executeTemplateEvidenceBuildContinuation(
+        run.layoutAuthority,
+        runId,
+        emit,
+      )
+    ) {
       return;
     }
-    const qa = await runThreeWidthVisualQa(
-      runId,
-      sitePaths(runId).site,
-      approvedArchitecture.version
-    );
-    await saveArtifact(runId, ARTIFACTS.visualQa, qa);
-    await saveEvidenceArtifactVersion(runId, {
-      artifactType: "visual-qa",
-      artifact: qa,
-    });
-    pauseForApproval(runId, workflowStage, emit);
+    throw new Error("template build continuation was not selected");
   } catch (error) {
     emit({
       type: "error",
