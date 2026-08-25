@@ -1,7 +1,7 @@
 # OneBox capability roadmap after the review UX integration
 
-Date: 2026-08-25  
-Branch: `codex/onebox-review-evidence-ui`  
+Date: 2026-08-25
+Branch: `codex/onebox-review-evidence-ui`
 Base: `cb26ae9f6179e6570ed305262a26ed360bd5a30f`
 
 ## Status key
