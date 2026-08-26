@@ -25,6 +25,11 @@ import {
   ReviewFeedbackActionSchema,
   ReviewFeedbackError,
 } from "../../../../lib/reviewFeedback";
+import {
+  commitRankedReferenceSelection,
+  ReferenceSelectionConflict,
+  ReferenceSelectionInputError,
+} from "../../../../lib/referenceSelection";
 
 const RUN_ID = /^[a-z0-9_-]{4,40}$/i;
 
@@ -35,6 +40,21 @@ const ActionSchema = z.discriminatedUnion("action", [
     selectedId: z.string().min(1).max(80),
     note: z.string().max(2_000).optional(),
   }),
+  z.object({
+    action: z.literal("select-ranked"),
+    preferences: z
+      .array(
+        z
+          .object({
+            referoId: z.string().min(1).max(80),
+            note: z.string().trim().min(3).max(1_000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(3),
+    overallNote: z.string().trim().max(2_000).optional(),
+  }).strict(),
   z.object({
     action: z.literal("reroll"),
     revisionNote: z.string().max(2_000).optional(),
@@ -122,6 +142,11 @@ export async function POST(
       const selection = await withRunTransaction(id, async (transaction) => {
         const state = pickerState(transaction.state);
         if (state.status === "selected") {
+          if (state.selection?.ranked) {
+            throw new ReferenceSelectionConflict(
+              "a ranked reference selection has already been recorded",
+            );
+          }
           if (state.selection?.selectedId === input.selectedId) return state;
           throw new ReferenceSelectionError("a reference candidate has already been selected");
         }
@@ -152,6 +177,29 @@ export async function POST(
         });
         transaction.state.referenceSelection = next;
         return next;
+      });
+      return Response.json({
+        runId: id,
+        referenceSelection: selection,
+        resumeUrl: "/api/run",
+        resumeMethod: "POST",
+      });
+    }
+    if (input.action === "select-ranked") {
+      const selection = await withRunTransaction(id, async (transaction) => {
+        const result = commitRankedReferenceSelection({
+          state: pickerState(transaction.state),
+          runId: id,
+          input: {
+            preferences: input.preferences,
+            overallNote: input.overallNote,
+          },
+          now: new Date(),
+        });
+        if (result.kind === "created") {
+          transaction.state.referenceSelection = result.state;
+        }
+        return result.state;
       });
       return Response.json({
         runId: id,
@@ -243,6 +291,12 @@ export async function POST(
     if (error instanceof ReferenceSelectionError) {
       const status = error.message === "selected candidate is not among the shown options" ? 400 : 409;
       return Response.json({ error: error.message }, { status });
+    }
+    if (error instanceof ReferenceSelectionInputError) {
+      return Response.json({ error: error.message }, { status: 400 });
+    }
+    if (error instanceof ReferenceSelectionConflict) {
+      return Response.json({ error: error.message }, { status: 409 });
     }
     if (error instanceof ReviewFeedbackError) {
       return Response.json({ error: error.message }, { status: error.status });

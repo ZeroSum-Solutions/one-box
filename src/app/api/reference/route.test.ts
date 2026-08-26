@@ -203,6 +203,111 @@ describe("reference picker route", () => {
     });
   });
 
+  it("persists an ordered ranked selection with rank-one compatibility fields", async () => {
+    const runId = await fixtureRun();
+    const response = await POST(
+      request(runId, {
+        action: "select-ranked",
+        preferences: [
+          { referoId: "other", note: "Use the layout." },
+          { referoId: "recommended", note: "Borrow the color discipline." },
+        ],
+        overallNote: "Keep the page simple.",
+      }),
+      context(runId),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      resumeUrl: "/api/run",
+      resumeMethod: "POST",
+      referenceSelection: {
+        status: "selected",
+        selection: {
+          selectedId: "other",
+          selectionKind: "user-picked-other",
+          version: 1,
+          note: "Use the layout.",
+          ranked: {
+            schemaVersion: 1,
+            sourceMode: "guided",
+            overallNote: "Keep the page simple.",
+            preferences: [
+              { referoId: "other", version: 1, rank: 1, note: "Use the layout." },
+              {
+                referoId: "recommended",
+                version: 1,
+                rank: 2,
+                note: "Borrow the color discipline.",
+              },
+            ],
+          },
+        },
+      },
+    });
+  });
+
+  it("returns an identical ranked retry without changing the selection timestamp", async () => {
+    const runId = await fixtureRun();
+    const body = {
+      action: "select-ranked",
+      preferences: [{ referoId: "recommended", note: "Use the colors." }],
+    };
+    const first = await POST(request(runId, body), context(runId));
+    expect(first.status).toBe(200);
+    const firstAt = (await loadRun(runId)).referenceSelection?.selection?.at;
+
+    const retry = await POST(request(runId, body), context(runId));
+    expect(retry.status).toBe(200);
+    expect((await loadRun(runId)).referenceSelection?.selection?.at).toBe(firstAt);
+  });
+
+  it("rejects cross-mode selection conflicts without changing the first checkpoint", async () => {
+    const rankedRun = await fixtureRun();
+    await POST(
+      request(rankedRun, {
+        action: "select-ranked",
+        preferences: [{ referoId: "recommended", note: "Use the colors." }],
+      }),
+      context(rankedRun),
+    );
+    const legacyAfterRanked = await POST(
+      request(rankedRun, { action: "select", selectedId: "recommended" }),
+      context(rankedRun),
+    );
+    expect(legacyAfterRanked.status).toBe(409);
+
+    const legacyRun = await fixtureRun();
+    await POST(
+      request(legacyRun, { action: "select", selectedId: "recommended" }),
+      context(legacyRun),
+    );
+    const rankedAfterLegacy = await POST(
+      request(legacyRun, {
+        action: "select-ranked",
+        preferences: [{ referoId: "recommended", note: "Use the colors." }],
+      }),
+      context(legacyRun),
+    );
+    expect(rankedAfterLegacy.status).toBe(409);
+  });
+
+  it("rejects malformed ranked selection input", async () => {
+    const runId = await fixtureRun();
+    const response = await POST(
+      request(runId, {
+        action: "select-ranked",
+        preferences: [
+          { referoId: "recommended", note: "Use the colors." },
+          { referoId: "recommended", note: "Use the layout." },
+        ],
+      }),
+      context(runId),
+    );
+    expect(response.status).toBe(400);
+    expect((await loadRun(runId)).referenceSelection?.status).toBe("pending");
+  });
+
   it("derives user-picked-other for a non-recommended candidate", async () => {
     const runId = await fixtureRun();
 
