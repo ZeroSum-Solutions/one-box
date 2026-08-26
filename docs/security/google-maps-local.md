@@ -2,10 +2,12 @@
 
 ## Scope and activation state
 
-This runbook covers local OneBox development only. The activation state is
-**Not yet activated**: no Google Cloud project, billing attachment, API
-enablement, quota, pricing/SKU source, Vault value, or live provider outcome
-has been verified for this runbook.
+This runbook covers local OneBox development only. The local runtime is
+**activated**: both canonical Vault IDs resolve, a bounded Places request
+returned one result, and the Maps Embed endpoint returned HTTP 200 on
+2026-08-25. Google Cloud project ownership, billing attachment, API key
+restrictions, quota configuration, and the current pricing/SKU source were not
+independently inspected during activation and remain owner-controlled checks.
 
 The only approved APIs are:
 
@@ -58,11 +60,11 @@ autocomplete data, or unrelated business details.
 
 | Record | Current state |
 | --- | --- |
-| Cloud project and billing | Not yet activated |
-| Enabled APIs and restrictions | Not yet activated |
-| Configured quota | Not yet activated |
-| Current SKU source URL | Not yet activated |
-| Live smoke result | Not yet activated |
+| Cloud project and billing | Not independently inspected |
+| Enabled APIs and restrictions | Places and Embed provider reach verified; Cloud restrictions not independently inspected |
+| Configured quota | Not independently inspected |
+| Current SKU source URL | Not independently inspected |
+| Live smoke result | 2026-08-25: Places `status=ok`, one result; Embed HTTP 200 |
 
 After owner-gated Cloud setup, record only verified, redacted values in this
 table: the selected project ID, API restriction classes, exact quota control,
@@ -80,8 +82,8 @@ After the owner has completed Cloud setup and unlocked Vault, verify presence
 without emitting values:
 
 ```zsh
-printenv GOOGLE_PLACES_API_KEY >/dev/null || zsvault get google_places_api_key >/dev/null
-printenv GOOGLE_MAPS_EMBED_API_KEY >/dev/null || zsvault get google_maps_embed_api_key >/dev/null
+(printenv GOOGLE_PLACES_API_KEY || zsvault get google_places_api_key) | wc -c
+(printenv GOOGLE_MAPS_EMBED_API_KEY || zsvault get google_maps_embed_api_key) | wc -c
 ```
 
 Then run one bounded live check:
