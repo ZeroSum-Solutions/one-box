@@ -10,20 +10,47 @@ export function GuidedCompetitorDialog(props: {
 }) {
   const [viewport, setViewport] = useState<"desktop" | "mobile">("desktop");
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(props.onClose);
   const screenshot = props.competitor.screenshots[viewport];
+
+  useEffect(() => {
+    onCloseRef.current = props.onClose;
+  }, [props.onClose]);
 
   useEffect(() => {
     closeRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") props.onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable.at(-1)!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [props]);
+  }, []);
 
   return (
     <div className="guided-dialog__backdrop" role="presentation" onMouseDown={props.onClose}>
       <section
+        ref={dialogRef}
         className="guided-dialog"
         role="dialog"
         aria-modal="true"
@@ -39,13 +66,12 @@ export function GuidedCompetitorDialog(props: {
             Close
           </button>
         </header>
-        <div className="guided-dialog__tabs" role="tablist" aria-label="Screenshot size">
+        <div className="guided-dialog__tabs" role="group" aria-label="Screenshot size">
           {(["desktop", "mobile"] as const).map((tab) => (
             <button
               key={tab}
               type="button"
-              role="tab"
-              aria-selected={viewport === tab}
+              aria-pressed={viewport === tab}
               onClick={() => setViewport(tab)}
             >
               {tab === "desktop" ? "Desktop" : "Mobile"}

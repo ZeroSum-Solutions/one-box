@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { MarketAnalysisCompetitor } from "../lib/contracts";
-import type { GuidedPipelineProjection, GuidedSurface } from "../lib/guidedPipeline";
+import type {
+  GuidedMarketContext,
+  GuidedPipelineProjection,
+  GuidedSurface,
+} from "../lib/guidedPipeline";
 import { GuidedCompetitorDialog } from "./GuidedCompetitorDialog";
 import { GuidedReferencePicker } from "./GuidedReferencePicker";
 
@@ -65,29 +69,67 @@ function GuidedSteps({ surface }: { surface: GuidedSurface }) {
   );
 }
 
+function marketUrlKey(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    url.hash = "";
+    url.search = "";
+    if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/+$/, "");
+    return url.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
+function marketSiteCount(market: GuidedMarketContext): number {
+  const analyzed = market.marketAnalysis?.competitors.slice(0, 4) ?? [];
+  const seen = new Set(analyzed.map((competitor) => marketUrlKey(competitor.url)));
+  const discovered = (market.scan?.competitors ?? [])
+    .filter((competitor) => !seen.has(marketUrlKey(competitor.url)))
+    .slice(0, Math.max(0, 4 - analyzed.length));
+  return analyzed.length + discovered.length;
+}
+
 function MarketLeaders(props: {
   runId: string;
-  surface: Extract<GuidedSurface, { kind: "market-leaders" }>;
+  market: GuidedMarketContext;
+  mapEmbedConfigured: boolean;
 }) {
   const [selected, setSelected] = useState<MarketAnalysisCompetitor | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const competitors = props.surface.marketAnalysis?.competitors.slice(0, 4) ?? [];
+  const competitors = props.market.marketAnalysis?.competitors.slice(0, 4) ?? [];
+  const analyzedUrls = new Set(competitors.map((competitor) => marketUrlKey(competitor.url)));
+  const discovered = (props.market.scan?.competitors ?? [])
+    .filter((competitor) => !analyzedUrls.has(marketUrlKey(competitor.url)))
+    .slice(0, Math.max(0, 4 - competitors.length));
+  const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(props.market.mapQuery)}`;
+  const hasAnalyzedCompetitors = competitors.length > 0;
   return (
     <section className="guided-market" aria-labelledby="guided-market-title">
       <header>
         <p className="guided-kicker">Competitive analysis</p>
-        <h2 id="guided-market-title">The sites setting the pace</h2>
-        <p>Selected from first-party site evidence—not review counts or directory popularity.</p>
+        <h2 id="guided-market-title">{hasAnalyzedCompetitors ? "The sites setting the pace" : "Sites found in your market"}</h2>
+        <p>First-party sites appear as they are found. Evidence analysis—not review counts or directory popularity—sets the final order.</p>
       </header>
       <div className="guided-market__map">
-        <iframe
-          title="Competitor market map"
-          src={`/api/maps/embed?q=${encodeURIComponent(props.surface.mapQuery)}`}
-          loading="lazy"
-          referrerPolicy="origin"
-        />
+        {props.mapEmbedConfigured && (
+          <iframe
+            title="Competitor market map"
+            src={`/api/maps/embed?q=${encodeURIComponent(props.market.mapQuery)}`}
+            loading="eager"
+            referrerPolicy="origin"
+          />
+        )}
+        <a
+          className={props.mapEmbedConfigured ? "guided-market__map-link" : "btn-primary"}
+          href={mapUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open market map
+        </a>
       </div>
-      {competitors.length === 0 ? (
+      {competitors.length === 0 && discovered.length === 0 ? (
         <p className="guided-empty">No verified competitor sites yet. The build will continue without inventing a ranking.</p>
       ) : (
         <div className="guided-market__cards">
@@ -107,6 +149,23 @@ function MarketLeaders(props: {
               <span>{competitor.selectedBecause[0]?.text}</span>
               <span className="guided-competitor__open">View site and analysis →</span>
             </button>
+          ))}
+          {discovered.map((competitor) => (
+            <a
+              key={competitor.url}
+              className="guided-competitor guided-competitor--pending"
+              href={competitor.url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span className="guided-rank">••</span>
+              <span className="guided-competitor__score">
+                {props.market.analysisStatus === "discovering" ? "Analysis in progress" : "Captured site"}
+              </span>
+              <strong>{competitor.name}</strong>
+              <span>{competitor.kindReason ?? "First-party business site discovered"}</span>
+              <span className="guided-competitor__open">Open site →</span>
+            </a>
           ))}
         </div>
       )}
@@ -130,9 +189,20 @@ export function GuidedPipelineView(props: {
   onRecover?: () => void;
 }) {
   const { surface } = props.projection;
+  const marketContext: GuidedMarketContext | undefined = surface.kind === "market-leaders"
+    ? {
+        source: surface.source,
+        analysisStatus: "ready",
+        ...(surface.marketAnalysis ? { marketAnalysis: surface.marketAnalysis } : {}),
+        ...(surface.scan ? { scan: surface.scan } : {}),
+        mapQuery: surface.mapQuery,
+      }
+    : props.projection.marketContext;
+  const marketExpanded = ["research-running", "research-disabled", "market-leaders"].includes(surface.kind);
+  const visibleMarketCount = marketContext ? marketSiteCount(marketContext) : 0;
   let content;
   if (surface.kind === "market-leaders") {
-    content = <MarketLeaders runId={props.projection.runId} surface={surface} />;
+    content = null;
   } else if (surface.kind === "reference-pending") {
     content = (
       <GuidedReferencePicker
@@ -174,12 +244,13 @@ export function GuidedPipelineView(props: {
         <p className="guided-kicker">Build paused</p>
         <h2>OneBox needs attention</h2>
         <p>{message}</p>
+        {surface.kind === "stage-failed" && <button type="button" className="btn-primary" onClick={props.onResume}>Resume from checkpoint</button>}
         {props.onRecover && <button type="button" className="btn-coral" onClick={props.onRecover}>Start a clean retry</button>}
       </section>
     );
   } else {
     const copy = statusCopy(surface);
-    content = <section className="guided-status"><span className="guided-loader" aria-hidden="true" /><h2>{copy.title}</h2><p>{copy.body}</p></section>;
+    content = <section className="guided-status" role="status" aria-live="polite" aria-atomic="true"><span className="guided-loader" aria-hidden="true" /><h2>{copy.title}</h2><p>{copy.body}</p></section>;
   }
 
   return (
@@ -192,7 +263,21 @@ export function GuidedPipelineView(props: {
         <span className="guided-pipeline__cost">${props.projection.costUsd.toFixed(2)} used</span>
       </header>
       <GuidedSteps surface={surface} />
-      <div className="guided-pipeline__stage">{content}</div>
+      <div className="guided-pipeline__stage">
+        {marketContext && (
+          <details className="guided-market-disclosure" open={marketExpanded}>
+            <summary>
+              Competitive research · {visibleMarketCount > 0 ? `${visibleMarketCount} ${visibleMarketCount === 1 ? "site" : "sites"}` : "map ready"}
+            </summary>
+            <MarketLeaders
+              runId={props.projection.runId}
+              market={marketContext}
+              mapEmbedConfigured={props.projection.mapEmbedConfigured}
+            />
+          </details>
+        )}
+        {content}
+      </div>
     </div>
   );
 }
@@ -208,6 +293,7 @@ export function GuidedPipeline(props: {
 
   useEffect(() => {
     const controller = new AbortController();
+    let pollTimer: number | undefined;
     const load = async () => {
       try {
         const response = await fetch(`/api/guided/${props.runId}`, { cache: "no-store", signal: controller.signal });
@@ -216,14 +302,25 @@ export function GuidedPipeline(props: {
         setFailed(false);
       } catch {
         if (!controller.signal.aborted) setFailed(true);
+      } finally {
+        if (!controller.signal.aborted) {
+          pollTimer = window.setTimeout(load, 2_000);
+        }
       }
     };
     void load();
-    const interval = window.setInterval(load, 2_000);
-    return () => { controller.abort(); window.clearInterval(interval); };
+    return () => {
+      controller.abort();
+      if (pollTimer !== undefined) window.clearTimeout(pollTimer);
+    };
   }, [props.runId, props.refreshKey]);
 
   if (failed && !projection) return <p className="guided-empty" role="alert">Reconnecting to the saved build…</p>;
   if (!projection) return <div className="guided-loading"><span className="guided-loader" aria-hidden="true" />Loading the saved build…</div>;
-  return <GuidedPipelineView projection={projection} onResume={props.onResume} onRecover={props.onRecover} />;
+  return (
+    <>
+      {failed && <p className="guided-reconnect" role="status" aria-live="polite">Reconnecting to the saved build…</p>}
+      <GuidedPipelineView projection={projection} onResume={props.onResume} onRecover={props.onRecover} />
+    </>
+  );
 }

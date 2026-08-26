@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   IntakeSchema,
   MarketAnalysisSchema,
@@ -10,6 +10,8 @@ import {
 import { deriveGuidedPipeline } from "./guidedPipeline";
 
 const now = "2026-08-25T12:00:00.000Z";
+
+afterEach(() => vi.unstubAllEnvs());
 
 function stage(status: "pending" | "running" | "done" | "failed", error?: string) {
   return StageStatusSchema.parse({ status, error });
@@ -138,6 +140,109 @@ describe("guided pipeline projection", () => {
     });
   });
 
+  it("exposes a market map immediately after intake while discovery is running", () => {
+    expect(deriveGuidedPipeline({ run: run(), intake })).toMatchObject({
+      surface: { kind: "research-running" },
+      marketContext: {
+        source: "discovery",
+        analysisStatus: "discovering",
+        mapQuery: "plumber in Portland, OR",
+      },
+    });
+  });
+
+  it("falls back to the external map when the derived embed query is invalid", () => {
+    vi.stubEnv("GOOGLE_MAPS_EMBED_API_KEY", "test-embed-key");
+    expect(deriveGuidedPipeline({
+      run: run(),
+      intake: { ...intake, category: "x".repeat(201) },
+    }).mapEmbedConfigured).toBe(false);
+  });
+
+  it("exposes progressively persisted competitor links while scanning", () => {
+    const partialScan = ScanResultSchema.parse({
+      competitors: [{
+        name: "Alpha Plumbing",
+        url: "https://alpha.example",
+        source: "plumber Portland",
+        kind: "unknown",
+        kindReason: "no editorial signal — treated as a business",
+        mapsSearchUrl: "https://www.google.com/maps/search/?api=1&query=Alpha",
+      }],
+      commonSections: [],
+      gaps: [],
+      excluded: [],
+    });
+    expect(deriveGuidedPipeline({ run: run(), intake, scan: partialScan })).toMatchObject({
+      surface: { kind: "research-running" },
+      marketContext: {
+        source: "legacy-scan",
+        scan: { competitors: [{ url: "https://alpha.example" }] },
+        mapQuery: "plumber in Portland, OR",
+      },
+    });
+  });
+
+  it("keeps persisted market evidence visible when intake metadata is temporarily unavailable", () => {
+    const partialScan = ScanResultSchema.parse({
+      competitors: [{
+        name: "Alpha Plumbing",
+        url: "https://alpha.example",
+        source: "plumber Portland",
+        kind: "unknown",
+        kindReason: "no editorial signal — treated as a business",
+      }],
+      commonSections: [],
+      gaps: [],
+      excluded: [],
+    });
+
+    expect(deriveGuidedPipeline({ run: run(), scan: partialScan })).toMatchObject({
+      marketContext: {
+        source: "legacy-scan",
+        scan: { competitors: [{ url: "https://alpha.example" }] },
+      },
+    });
+  });
+
+  it("keeps completed market research visible through reference and build stages", () => {
+    const pending = run();
+    pending.stages.scanned = stage("done");
+    pending.referenceSelection = ReferenceSelectionStateSchema.parse({
+      status: "pending",
+      rerollsUsed: 0,
+      versions: [referenceVersion()],
+    });
+    const marketAnalysis = MarketAnalysisSchema.parse({
+      schemaVersion: 1,
+      status: "ready",
+      generatedAt: now,
+      displayCutoff: 4,
+      competitors: [],
+      commonPatterns: ["clear service paths"],
+      gaps: [],
+    });
+    expect(deriveGuidedPipeline({ run: pending, intake, marketAnalysis })).toMatchObject({
+      surface: { kind: "reference-pending" },
+      marketContext: {
+        source: "market-analysis",
+        analysisStatus: "ready",
+        marketAnalysis: { commonPatterns: ["clear service paths"] },
+      },
+    });
+
+    const building = run();
+    building.stages.scanned = stage("done");
+    building.stages.locked = stage("done");
+    building.evidenceWorkflow.currentStage = "contract";
+    expect(deriveGuidedPipeline({ run: building, intake, marketAnalysis })).toMatchObject({
+      marketContext: {
+        source: "market-analysis",
+        marketAnalysis: { commonPatterns: ["clear service paths"] },
+      },
+    });
+  });
+
   it("classifies cost/config failures and fails closed for impossible state", () => {
     const cost = run();
     cost.stages.scanned = stage("failed", "cost $3.10 exceeded cap $3.00");
@@ -170,6 +275,49 @@ describe("guided pipeline projection", () => {
       kind: "workflow-running",
       stage: "build",
       artifactType: "visual-qa",
+    });
+  });
+
+  it("does not report an evidence-gated build complete without a promoted candidate", () => {
+    const complete = run();
+    for (const stage of ["scanned", "locked", "synthesized", "built"] as const) {
+      complete.stages[stage] = StageStatusSchema.parse({ status: "done" });
+    }
+    complete.evidenceWorkflow.currentStage = "build";
+    complete.evidenceWorkflow.artifacts = [{
+      artifactType: "visual-qa",
+      version: 1,
+      createdAt: now,
+      approvalTransitions: [
+        { state: "draft", at: now },
+        {
+          state: "approved",
+          at: now,
+          humanVisualReview: {
+            reviewerName: "Owner",
+            reviewerKind: "human",
+            humanAttestation: true,
+            reviewedAt: now,
+            buildSha256: "a".repeat(64),
+            criteria: {
+              briefFidelity: { status: "pass" },
+              visualHierarchy: { status: "pass" },
+              spacingAndComposition: { status: "pass" },
+              businessSpecificity: { status: "pass" },
+              designAndReferenceAlignment: { status: "pass", referenceContext: "explicit-no-reference" },
+            },
+          },
+        },
+      ],
+      artifact: { sourceCssArchitectureVersion: 1, buildSha256: "a".repeat(64), checks: [] },
+    }];
+    expect(deriveGuidedPipeline({ run: complete, intake, candidateState: "absent" }).surface).toEqual({
+      kind: "state-unavailable",
+      message: "The verified live website is missing or invalid.",
+    });
+    expect(deriveGuidedPipeline({ run: complete, intake, candidateState: "promoted" }).surface).toEqual({
+      kind: "complete",
+      previewUrl: "/preview/run-1234",
     });
   });
 

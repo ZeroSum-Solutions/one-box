@@ -10,6 +10,15 @@ import {
   type Stage,
   type WorkflowArtifactType,
 } from "./contracts";
+import { MapEmbedQuerySchema, mapsEmbedConfigured } from "./tools/mapEmbed";
+
+export interface GuidedMarketContext {
+  source: "market-analysis" | "legacy-scan" | "discovery";
+  analysisStatus: "discovering" | "ready";
+  marketAnalysis?: MarketAnalysis;
+  scan?: ScanResult;
+  mapQuery: string;
+}
 
 export type GuidedSurface =
   | { kind: "intake-running" }
@@ -55,6 +64,8 @@ export interface GuidedPipelineProjection {
   runId: string;
   businessName?: string;
   costUsd: number;
+  mapEmbedConfigured: boolean;
+  marketContext?: GuidedMarketContext;
   surface: GuidedSurface;
 }
 
@@ -118,6 +129,21 @@ export function deriveGuidedPipeline(input: {
   candidateState?: "absent" | "preparing" | "ready-for-gates" | "promotable" | "promoted" | "failed" | "abandoned";
 }): GuidedPipelineProjection {
   const { run, intake, marketAnalysis, scan } = input;
+  const mapQuery = `${intake?.category ?? "business"} in ${intake?.location ?? "the selected market"}`;
+  const marketContext: GuidedMarketContext | undefined =
+    marketAnalysis || scan || (run.stages.intake.status === "done" && intake?.research.enabled)
+      ? {
+          source: marketAnalysis
+            ? "market-analysis"
+            : scan
+              ? "legacy-scan"
+              : "discovery",
+          analysisStatus: run.stages.scanned.status === "done" ? "ready" : "discovering",
+          ...(marketAnalysis ? { marketAnalysis } : {}),
+          ...(scan ? { scan } : {}),
+          mapQuery,
+        }
+      : undefined;
   let surface: GuidedSurface;
 
   if (run.templateFallback) {
@@ -131,10 +157,19 @@ export function deriveGuidedPipeline(input: {
     if (workflow) {
       surface = workflow;
     } else if (
+      run.pipelineVersion === "evidence-gated-v2" &&
       input.candidateState &&
       ["preparing", "ready-for-gates", "promotable"].includes(input.candidateState)
     ) {
       surface = { kind: "candidate-parked" };
+    } else if (
+      run.pipelineVersion === "evidence-gated-v2" &&
+      input.candidateState !== "promoted"
+    ) {
+      surface = {
+        kind: "state-unavailable",
+        message: "The verified live website is missing or invalid.",
+      };
     } else {
       surface = { kind: "complete", previewUrl: `/preview/${run.id}` };
     }
@@ -168,7 +203,7 @@ export function deriveGuidedPipeline(input: {
           source: marketAnalysis ? "market-analysis" : "legacy-scan",
           ...(marketAnalysis ? { marketAnalysis } : {}),
           ...(scan ? { scan } : {}),
-          mapQuery: `${intake?.category ?? "business"} in ${intake?.location ?? "the selected market"}`,
+          mapQuery,
         };
       }
     } else {
@@ -187,6 +222,8 @@ export function deriveGuidedPipeline(input: {
     runId: run.id,
     businessName: intake?.businessName,
     costUsd: run.costUsd,
+    mapEmbedConfigured: mapsEmbedConfigured() && MapEmbedQuerySchema.safeParse(mapQuery).success,
+    ...(marketContext ? { marketContext } : {}),
     surface,
   };
 }

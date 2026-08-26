@@ -21,6 +21,13 @@ function competitor(overrides: Partial<Competitor> = {}): Competitor {
       "research/alpha.example/mobile.png",
     ],
     structure: ["hero", "services", "proof"],
+    crawl: {
+      provider: "crawl4ai",
+      sourceUrl: "https://alpha.example/services",
+      extractedAt: "2026-08-25T12:00:00.000Z",
+      confidence: 1,
+      outcome: "succeeded",
+    },
     crawlAttempts: [],
     place: {
       placeId: "place-alpha",
@@ -37,18 +44,26 @@ function competitor(overrides: Partial<Competitor> = {}): Competitor {
 }
 
 describe("market analysis", () => {
-  it("excludes directory, social, unknown, editorial, and uncrawled candidates before analysis", () => {
+  it("accepts a captured non-editorial lead without Places while excluding unsafe sources", () => {
     const eligible = eligibleMarketCompetitors([
       competitor(),
+      competitor({
+        url: "https://captured.example/services",
+        kind: "unknown",
+        kindReason: "no editorial signal — treated as a business",
+        place: undefined,
+      }),
       competitor({ url: "https://yelp.com/biz/alpha" }),
+      competitor({ url: "https://thumbtack.com/k/pool-cleaning/near-me" }),
       competitor({ url: "https://instagram.com/alpha" }),
-      competitor({ kind: "unknown" }),
       competitor({ kind: "editorial" }),
       competitor({ markdownPath: undefined }),
+      competitor({ crawl: undefined }),
     ]);
 
     expect(eligible.map((entry) => entry.url)).toEqual([
       "https://alpha.example/services",
+      "https://captured.example/services",
     ]);
   });
 
