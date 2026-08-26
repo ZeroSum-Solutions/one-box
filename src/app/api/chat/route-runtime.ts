@@ -169,7 +169,7 @@ export async function startPipelineFromIntake(
     await dependencies.ensureRun(runId, {
       // Captured once here; the persisted run is authoritative from then on,
       // so flipping the env var mid-run can never change resume semantics.
-      referencePickerEnabled: process.env.ONE_BOX_REFERENCE_PICKER === "1",
+      referencePickerEnabled: process.env.ONE_BOX_REFERENCE_PICKER !== "0",
       newRunRolloutDecision: rolloutDecision,
     });
     let authoritativeUploads: UploadMetadata[];
