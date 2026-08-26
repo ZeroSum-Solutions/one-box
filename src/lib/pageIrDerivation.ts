@@ -210,13 +210,20 @@ function assertReferenceAttribution(
     evidence.referoDesignEvidence.references.map((reference) => [reference.referoId, reference]),
   );
   const attributedTraits: string[] = [];
-  for (const selection of contract.selection.sources) {
+  for (const [index, selection] of contract.selection.sources.entries()) {
     const source = traceByAlias.get(selection.id);
     if (!source || source.sourceKind !== selection.kind) {
       fail("Reference trace aliases and kinds must match selected references");
     }
     const reference = evidenceByRawId.get(source.rawReferoId);
     if (!reference) fail("Reference trace raw IDs must exist in approved evidence");
+    const expectedRole = index === 0 ? "primary" : "supporting";
+    if (
+      selection.role !== expectedRole ||
+      source.rawReferoId !== rawEvidenceIds[index]
+    ) {
+      fail("Reference roles must follow approved preference order");
+    }
     for (const trait of source.traits) {
       if (
         !contract.preserveTraits.includes(trait) ||
