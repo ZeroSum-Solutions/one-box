@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-26T14:38:25.260Z",
+  "request": {
+    "task": "Adversarial re-audit of the corrected Los Angeles appointment-journey evidence and architecture",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "origin/main",
+    "head": "cb26ae9f6179e6570ed305262a26ed360bd5a30f",
+    "files": [
+      "docs/research/appointment-journeys/README.md",
+      "docs/research/appointment-journeys/capture-log.md",
+      "docs/research/appointment-journeys/evidence-matrix.csv",
+      "docs/research/appointment-journeys/homepage-section-coding.csv"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/la-appointment-journey-field-study.json"
+    ],
+    "diffBytes": 41806
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 13750,
+      "completion_tokens": 12229,
+      "total_tokens": 25979,
+      "cost": 0.100682,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.100682,
+        "upstream_inference_prompt_cost": 0.027308,
+        "upstream_inference_completions_cost": 0.073374
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 10680,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "2",
+        "scenario": "Classification rule requires appointment_request = scheduling payload AND an explicit staff-confirmation/follow-up promise. Smiles by Dr. P is high-confidence appointment_request while evidence states 'preferred-date form; no live inventory or confirmation promise'. That is contact_only under the published rule, so dentistry high-confidence 5/9 requests and README 'five used appointment requests, three offered only contact channels' are not reproducible. The first-audit request/contact remediation is not actually closed.",
+        "remediation": "Recode Smiles to contact_only (or add a verbatim confirmation-promise quote and keep request). Recount dentistry high-confidence request/contact cells and rewrite the vertical narrative from the recoded numerator only."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "8",
+        "scenario": "Kevin Sands DDS is a high-confidence decision-numerator appointment_request whose evidence is only 'three preferred dates and time; it does not reserve a slot'. No staff-confirm/response-owner/window is recorded, and the operator is absent from capture-log request proof. 'Does not reserve' is a negative booking claim, not the required positive follow-up promise, so the request/contact boundary cannot be audited for this row.",
+        "remediation": "Either quote the confirmation promise and keep appointment_request, or recode contact_only and recompute the dentistry high-confidence table. Do not leave high-confidence request rows whose notes omit a required conjunct."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "11",
+        "scenario": "Dr. Jon Marashi is high-confidence appointment_request on 'call within one business day after a consultation request' with no recorded preferred availability/service/time payload. Alpan (consultation lead form, no promise) is contact_only. Without a documented scheduling payload, Marashi fails the AND rule and the high-confidence dentistry request count is again unstable.",
+        "remediation": "Record the scheduling fields that were present, or recode contact_only and recount. Tighten the rule text so promise-only lead forms cannot flip to request."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/research/appointment-journeys/README.md",
+        "line": "43-48",
+        "scenario": "contact_only is defined as a form 'without both the scheduling payload and the confirmation promise'. That English is De Morgan-ambiguous (lacks A and B vs lacks the pair). Combined with Smiles/Kevin Sands/Marashi, two auditors can legally assign opposite modes to the same form and still cite the rule.",
+        "remediation": "Replace with: appointment_request iff (payload AND explicit confirm/follow-up); contact_only otherwise. Add one worked example of payload-only and promise-only."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/research/appointment-journeys/README.md",
+        "line": "117-129,159-171,189-200",
+        "scenario": "Tables titled 'Data-derived homepage order' publish Position 1–9 as if sequence were measured. homepage-section-coding.csv only supports presence sums; those sums match the X/N figures, but observed_order strings do not yield the printed order (services/router often precede results; action is not confined to hero/FAQ). PT then prints two distinct positions—'Care-model differentiator' 8/12 and 'Assessment-to-return process' 8/12—from the single process_or_method bit. Treating this as a generation blueprint overclaims the coding sheet.",
+        "remediation": "Relabel as recommended topology plus presence rates, not observed order. Split care-model vs assessment into separate coded columns before giving each a frequency, or drop one row. If an order is claimed, publish the derivation from observed_order."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "30",
+        "scenario": "Bliss Point contrast is journey_mode=appointment_request on 'Book Now remains on a single-page contact form'—the same pattern coded contact_only for core rows. Not in the local numerator, but it shows the boundary is still applied ad hoc.",
+        "remediation": "Recode Bliss Point contact_only or document the payload+promise that justifies request."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/research/appointment-journeys/README.md",
+        "line": "25,145,212-219",
+        "scenario": "'Strongest implementation rule' / 'strongest case for a service-level router' is unsupported comparative language. JourneyMode also lists four modes including contact_only while the decision promises exactly three completion contracts plus fallback/router. Harmless if humans read the prose, misleading if the TS sketch is copied as the contract.",
+        "remediation": "Drop superlatives. Keep contact_only off JourneyMode or name it FallbackMode so the schema matches the three-contract claim."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/research/appointment-journeys/capture-log.md",
+        "line": "104-110",
+        "scenario": "'From clean origin/main at cb26ae9' is false: cb26ae9 is the worktree head, not origin/main, and the 1275-test dump is unrelated to this docs-only slice.",
+        "remediation": "State the actual HEAD and drop the unrelated test oracle."
+      }
+    ],
+    "proof_assessment": "Independent recount of evidence-matrix.csv matches both README distribution tables (core 13/13/12; high-confidence 9/6/10 with 0/1/5/3, 1/1/2/2, 1/2/3/4). Identity-gated and uninspectable endpoints are indeterminate; The Practice/Skinsation/Athletic Lab/Forged are booked_consultation; Cienega/Prehab are the only confirmed_appointment rows; VERT is contact_only plus an unverified router note; hybrid is absent from journey_mode. Homepage X/N presence totals match homepage-section-coding.csv bit sums. First-audit consultation/care, indeterminate, hybrid, and high-confidence-numerator remediations hold. The request/contact remediation does not: at least one high-confidence request row explicitly lacks the required promise, and homepage 'order' is not derived from observed sequences. The first-audit JSON describes pre-remediation codes on this same SHA and is not an authority for the current files.",
+    "residual_risks": [
+      "Playbook freeze that treats dentistry as request-dominant using the unreproducible 5/9 high-confidence request cell",
+      "Homepage position tables copied as a fixed ONE BOX template although only section presence was coded",
+      "Identity-gated Boulevard/Moxie/Aesthetic Record rows still have unknown true completion contracts",
+      "HubSpot consultation calendars (Athletic Lab, Forged) lack logged slot times comparable to NexHealth/Timely captures",
+      "Medical, dental, privacy, and advertising compliance remain unreviewed, as the README states",
+      "Human approval is still required; this slice is not an implementation authorization"
+    ]
+  }
+}

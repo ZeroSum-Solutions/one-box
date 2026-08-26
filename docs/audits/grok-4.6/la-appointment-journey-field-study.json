@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-26T14:20:15.655Z",
+  "request": {
+    "task": "la-appointment-journey-field-study",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "origin/main",
+    "head": "cb26ae9f6179e6570ed305262a26ed360bd5a30f",
+    "files": [
+      "docs/research/appointment-journeys/README.md",
+      "docs/research/appointment-journeys/capture-log.md",
+      "docs/research/appointment-journeys/evidence-matrix.csv"
+    ],
+    "proofs": [],
+    "diffBytes": 33139
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 8660,
+      "completion_tokens": 12229,
+      "total_tokens": 20889,
+      "cost": 0.090694,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.090694,
+        "upstream_inference_prompt_cost": 0.01732,
+        "upstream_inference_completions_cost": 0.073374
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 10569,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "BLOCK",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "4,18",
+        "scenario": "Completion semantics require reserved care vs reserved consultation. Row 4 (The Practice Beverly Hills) and row 18 (Skinsation LA) are coded confirmed_appointment and then counted as 'Confirmed care appointment' (README table 46-48; README 97, 133-135). Capture-log 11-19 and 32-35 show the inspectable inventory was Consultation - Cosmetic and Virtual Consultation. Athletic Lab/Forged phone calendars are correctly coded booked_consultation (CSV 35,38; capture-log 82-87). Same live-consultation fact pattern is labeled reserved care, so dentistry's 1 care-booking exception and med-spa booked_consultation=0 are false. Playbook freeze would generate 'appointment reserved' copy for consult-only inventory.",
+        "remediation": "Recode any operator whose observed inventory is a consult/phone/virtual consult as booked_consultation unless a care/treatment slot was actually reserved. Recount the distribution table from recoded rows. Keep confirmed_appointment only for rows like Cienega HydraFacial or Prehab 'Initial Consultation with Treatment'."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "25,26,28,29",
+        "scenario": "Unknown/unobservable flows must stay indeterminate; README 247 forbids upgrading indeterminate systems to confirmed booking; Limits 241 call identity-gated rows non-authoritative. me.losangeles (availability gated), Dr Refresh (times require identity), Sculpt DTLA (times require identity), and LA-Mi Spa (medium live_endpoint, no recorded times) are still journey_mode=confirmed_appointment and are included in '6 of 13 ... credible confirmed-booking systems' (README 48, 133). No identity was entered, so live care inventory was not observed. That overstates med-spa confirmed-care prevalence and would let ONE BOX emit confirmed_appointment without inspectable slots.",
+        "remediation": "Set those rows to indeterminate (or keep medium/low in a non-decision stratum). Recompute med-spa confirmed counts from high-confidence live_flow rows with visible times only. Strike 'credible confirmed-booking' until inventory is inspectable without identity."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "5,7,12",
+        "scenario": "Neo Dental: rendered body unavailable, coded appointment_request from the Weave URL label. Beverly Hills Cosmetic Dentistry: external form, no slot or confirmation observed, coded appointment_request. McComb: homepage hash endpoint, no availability, coded appointment_request. Parallel med-spa unobservables (Stoker, SkinLab, Hush, Zenith) are indeterminate. Dentistry therefore reports 12/13 requests and 0 indeterminate (README 46) by defaulting missing inventory to request, violating 'CTA label was never enough' (README 39) and the indeterminate rule.",
+        "remediation": "Recode uninspectable endpoints as indeterminate regardless of URL/CTA. Recalculate dentistry request/indeterminate counts. Use endpoint_label only as a note, never as the verdict."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/research/appointment-journeys/README.md",
+        "line": "101-113,139-151,173-183",
+        "scenario": "Criterion requires every distribution count and architecture rule to be supported by row-level evidence. The three 'Data-derived homepage order' tables publish 13/13, 9/13, 11/12, etc. quality-order rules, and README 55-67 asserts a shared 8-step acquisition topology. evidence-matrix.csv has no section-sequence, CTA, or module columns—only journey_mode fields. Those frequencies cannot be audited or reproduced, but they are written as generation blueprints.",
+        "remediation": "Either add per-operator section/CTA fields to the matrix and recompute frequencies from those rows, or remove the numeric homepage-order tables and topology from the decision until that evidence exists."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "9,10,23,40,42",
+        "scenario": "Staff-confirmed request vs contact-only fallback is not applied with a stable rule. Top Beverly Hills Dentist and Beverly Hills Dental Arts are contact forms without appointment preferences, coded appointment_request. My Botox LA 'call, text, or email and collects contact details' is appointment_request. Pogson (phone/email/address only) and Sports Rehab LA ('call to book or send a general inquiry') are contact_only. Nearly the same channel-only behavior flips the completion contract, so fallback vs request rates are not evidence-safe.",
+        "remediation": "Define contact_only as channel-only with no scheduling payload; appointment_request requires stated staff confirm/match plus time/service preferences or an explicit request promise. Recode the contact-form rows against that rule and recount."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/research/appointment-journeys/evidence-matrix.csv",
+        "line": "39",
+        "scenario": "Architecture says hybrid is a router, not a completion state (README 17, 89, 249), and JourneyMode has no hybrid (README 197-201). VERT is stored as journey_mode=hybrid. Capture-log 91-93 only says group classes 'advertise' real-time reservation; PT path is request-info. Implementing from the CSV would treat hybrid as a fourth success state and may treat unverified class ads as live clinical inventory (the PT quality failure at README 189).",
+        "remediation": "Store VERT as appointment_request (or indeterminate) plus a router/scope flag. Do not put hybrid in journey_mode. Verify class inventory with a live_flow note before claiming a second contract at service scope."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/research/appointment-journeys/README.md",
+        "line": "46-50,133,241",
+        "scenario": "The decision table counts every core row equally, then Limits say medium/low identity-gated rows 'remain non-authoritative'. Using those mixed-confidence counts as the evidential basis for 'the booking-versus-request binary fails' and for med-spa hybrid strength overclaims what the sample can support. It is not a market-share claim, but it is still an unsafe denominator for a ONE BOX default mix.",
+        "remediation": "Publish a high-confidence-only distribution beside the full core table. Gate the architecture recommendation on the high-confidence subset; keep medium/low rows out of numerators."
+      }
+    ],
+    "proof_assessment": "Core headcounts (13/13/12) match CSV role flags, and several request disclaimers (Beverly Hills Orthodontics, Skin Works, Zakhor, Elite, MOTI) are internally consistent. Capture-log live times only corroborate a minority of confirmed-slot claims, and two of those are consultations. No independent artifact checks the homepage frequencies, identity-gated 'confirmed' rows, or VERT class inventory. Author notes are treated as authority where the method required inspectable inventory.",
+    "residual_risks": [
+      "Playbook freeze that ships confirmed-care CTAs for consult-only or identity-gated schedulers",
+      "Dentistry treated as 12/13 request with a care-booking exception that the captured flow does not show",
+      "Homepage-order 'quality requirements' becoming generation rules without row evidence",
+      "contact_only vs appointment_request leakage producing false promises or missing response-owner gates",
+      "Medical/legal/advertising compliance still unreviewed, as the README itself states"
+    ]
+  }
+}

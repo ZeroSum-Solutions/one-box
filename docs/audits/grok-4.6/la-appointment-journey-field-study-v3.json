@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-26T14:47:49.458Z",
+  "request": {
+    "task": "Final adversarial verification of the Los Angeles appointment-journey field study",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "origin/main",
+    "head": "cb26ae9f6179e6570ed305262a26ed360bd5a30f",
+    "files": [
+      "docs/research/appointment-journeys/README.md",
+      "docs/research/appointment-journeys/booking-vs-request-kill-test.html",
+      "docs/research/appointment-journeys/capture-log.md",
+      "docs/research/appointment-journeys/evidence-matrix.csv",
+      "docs/research/appointment-journeys/homepage-section-coding.csv",
+      "docs/research/appointment-journeys/la-cosmetic-dentistry-orthodontics.html",
+      "docs/research/appointment-journeys/la-medspa-aesthetics.html",
+      "docs/research/appointment-journeys/la-physical-therapy-sports-rehab.html",
+      "docs/research/appointment-journeys/study.css"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/la-appointment-journey-field-study-v2.json"
+    ],
+    "diffBytes": 72307
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 22681,
+      "completion_tokens": 12518,
+      "total_tokens": 35199,
+      "cost": 0.120278,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.120278,
+        "upstream_inference_prompt_cost": 0.04517,
+        "upstream_inference_completions_cost": 0.075108
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 12177,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Independent recount of evidence-matrix.csv reproduces both README tables (core 13/13/12; high-confidence 9/6/10 with 0/1/2/6, 1/1/2/2, 1/2/3/4). Kill-test tiles 25/2/4/7 plus 12 contact-only and 13 excluded medium/low rows sum to the same set. Smiles, Kevin Sands, Marashi, and Bliss Point are contact_only; appointment_request rows each record payload AND an explicit confirm/follow-up conjunct. Homepage X/N figures match coding-sheet bit sums; tables are labeled recommended topology plus presence, and PT uses one combined process_or_method row. JourneyMode lists three contracts with contact_only as JourneyFallback; hybrid appears only as a router. Vertical HTML metrics and relative nav agree with the memo. v2 JSON is evidence of prior defects, not authority for the current slice.",
+    "residual_risks": [
+      "Identity-gated Boulevard/Moxie/Aesthetic Record rows still have unknown true contracts",
+      "HubSpot consultation calendars lack logged public slot times comparable to NexHealth/Timely",
+      "capture-log still cites an unrelated 1275-test dump and asserts origin/main==cb26ae9 although this diff is non-empty",
+      "Homepage module titles sometimes bundle uncoded attributes (e.g. response promise) onto location_contact presence",
+      "Medical/dental/privacy/advertising compliance remain unreviewed; human approval is still required and no playbook is frozen"
+    ]
+  }
+}
