@@ -442,13 +442,29 @@ describe("derivePageIRV1", () => {
       [(decision) => {
         const sources = (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources;
         [sources[0].rawReferoId, sources[1].rawReferoId] = [sources[1].rawReferoId, sources[0].rawReferoId];
-      }, "Reference trace traits must be attributed to their approved evidence"],
+      }, "Reference roles must follow approved preference order"],
       [(decision) => { (decision.referenceTrace as { sources: Array<Record<string, unknown>> }).sources[0].traits = ["Proof rhythm"]; }, "Reference trace traits must be attributed to their approved evidence"],
     ];
     for (const [mutate, message] of mutations) {
       const input = request(); replaceArtifact(input, "layout-decision", mutate);
       expectDerivationError(input, message);
     }
+  });
+
+  it("requires approved reference order to map to one primary followed by supporting sources", () => {
+    const input = request();
+    replaceArtifact(input, "layout-decision", (decision) => {
+      const sources = (decision.referenceContract as {
+        selection: { sources: Array<Record<string, unknown>> };
+      }).selection.sources;
+      sources[0].role = "supporting";
+      sources[1].role = "primary";
+    });
+
+    expectDerivationError(
+      input,
+      "Reference roles must follow approved preference order",
+    );
   });
 
   it("keeps schema-invalid duplicate reference traces separate from attribution failures", () => {
