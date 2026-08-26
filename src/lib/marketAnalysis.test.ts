@@ -4,6 +4,7 @@ import {
   analyzeMarketCompetitor,
   eligibleMarketCompetitors,
   marketAnalysisInput,
+  projectLegacyMarketCompetitors,
   rankMarketCompetitors,
 } from "./marketAnalysis";
 
@@ -179,5 +180,67 @@ describe("market analysis", () => {
     expect(ranked.slice(0, 3).map((entry) => entry.id)).toEqual(["b", "a", "z"]);
     expect(ranked.map((entry) => entry.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
     expect(ranked.slice(0, 4)).toHaveLength(4);
+  });
+
+  it("rejects non-http competitor URLs before they reach owner-facing links", () => {
+    const analysis = {
+      schemaVersion: 1,
+      status: "ready",
+      generatedAt: "2026-08-25T12:00:00.000Z",
+      displayCutoff: 4,
+      competitors: [{
+        id: "unsafe",
+        name: "Unsafe",
+        url: "javascript:alert(1)",
+        rank: 1,
+        totalScore: 0,
+        confidence: "low",
+        screenshots: {},
+        selectedBecause: [{
+          text: "Test",
+          basis: "observed",
+          evidence: [{ kind: "first-party-crawl", path: "research/unsafe/page.md", summary: "Test" }],
+        }],
+        strengths: [{
+          text: "Test",
+          basis: "observed",
+          evidence: [{ kind: "first-party-crawl", path: "research/unsafe/page.md", summary: "Test" }],
+        }],
+        gaps: [],
+        rubric: MARKET_RUBRIC_CRITERIA.map((criterion) => ({ criterion, score: 0, evidence: [] })),
+      }],
+      commonPatterns: [],
+      gaps: [],
+    };
+    expect(MarketAnalysisSchema.safeParse(analysis).success).toBe(false);
+  });
+
+  it("projects canonical ranked URLs back onto the original legacy competitor records", () => {
+    const original = competitor({
+      url: "https://alpha.example/?utm_source=directory",
+    });
+    const ranked = [{
+      id: "alpha.example",
+      name: "Alpha Plumbing",
+      url: "https://alpha.example/",
+      rank: 1,
+      totalScore: 0,
+      confidence: "low" as const,
+      screenshots: {},
+      selectedBecause: [{
+        text: "Relevant operator",
+        basis: "observed" as const,
+        evidence: [{ kind: "first-party-crawl" as const, path: "research/alpha.example/page.md", summary: "Services" }],
+      }],
+      strengths: [{
+        text: "Clear service page",
+        basis: "observed" as const,
+        evidence: [{ kind: "first-party-crawl" as const, path: "research/alpha.example/page.md", summary: "Services" }],
+      }],
+      gaps: [],
+      rubric: MARKET_RUBRIC_CRITERIA.map((criterion) => ({ criterion, score: 0, evidence: [] })),
+    }];
+
+    expect(projectLegacyMarketCompetitors(ranked, [original])).toEqual([original]);
   });
 });

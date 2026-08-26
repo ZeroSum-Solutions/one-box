@@ -160,8 +160,22 @@ describe("guided pipeline projection", () => {
     });
   });
 
-  it("projects a completed run with its preview route", () => {
+  it("does not report an evidence-gated build complete before visual QA approval", () => {
     const complete = run();
+    for (const stage of ["scanned", "locked", "synthesized", "built"] as const) {
+      complete.stages[stage] = StageStatusSchema.parse({ status: "done" });
+    }
+    complete.evidenceWorkflow.currentStage = "build";
+    expect(deriveGuidedPipeline({ run: complete, intake }).surface).toEqual({
+      kind: "workflow-running",
+      stage: "build",
+      artifactType: "visual-qa",
+    });
+  });
+
+  it("projects a completed legacy run with its preview route", () => {
+    const complete = run();
+    complete.pipelineVersion = "legacy-v1";
     for (const stage of ["scanned", "locked", "synthesized", "built"] as const) {
       complete.stages[stage] = StageStatusSchema.parse({ status: "done" });
     }
