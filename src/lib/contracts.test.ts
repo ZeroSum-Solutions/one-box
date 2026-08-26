@@ -15,6 +15,7 @@ import {
   EVIDENCE_STAGE_ARTIFACT,
   EVIDENCE_WORKFLOW_STAGES,
   HumanVisualReviewSchema,
+  MarketAnalysisSchema,
   PAGE_IR_PURPOSES,
   PageIrOwnerRolloutDecisionV1Schema,
   PageIrPromotionFindingV1Schema,
@@ -46,6 +47,89 @@ describe("card map contract", () => {
     expect(map.embedQuery).toBe("plumber in Austin, TX");
     expect(JSON.stringify(map)).not.toContain("embedUrl");
     expect(JSON.stringify(map)).not.toContain("key=");
+  });
+});
+
+describe("guided market analysis contract", () => {
+  function competitor(rank: number, totalScore: number) {
+    const evidence = [
+      {
+        kind: "first-party-crawl",
+        path: `research/example-${rank}/page.md`,
+        summary: "The homepage shows a clear service offer and booking action.",
+      },
+    ];
+    return {
+      id: `competitor-${rank}`,
+      name: `Competitor ${rank}`,
+      url: `https://competitor-${rank}.example`,
+      rank,
+      totalScore,
+      confidence: "high",
+      screenshots: {
+        desktop: `research/example-${rank}/desktop.png`,
+        mobile: `research/example-${rank}/mobile.png`,
+      },
+      selectedBecause: [
+        { text: "Clear first-party commercial evidence.", basis: "observed", evidence },
+      ],
+      strengths: [
+        { text: "Strong conversion path.", basis: "observed", evidence },
+      ],
+      gaps: [
+        { text: "Proof is buried below the fold.", basis: "inferred", evidence },
+      ],
+      rubric: [
+        { criterion: "category-buyer-relevance", score: 3, evidence },
+        { criterion: "proof-authority", score: 2, evidence },
+        { criterion: "offer-conversion-maturity", score: 3, evidence },
+        { criterion: "information-architecture", score: 2, evidence },
+        { criterion: "market-differentiation", score: 1, evidence },
+      ],
+    };
+  }
+
+  it("accepts a ranked first-party analysis without directory popularity fields", () => {
+    const analysis = {
+      schemaVersion: 1,
+      status: "ready",
+      generatedAt: "2026-08-25T12:00:00.000Z",
+      displayCutoff: 4,
+      competitors: [competitor(1, 11), competitor(2, 11)],
+      commonPatterns: ["clear service navigation"],
+      gaps: ["weak proof near the first action"],
+    };
+    expect(MarketAnalysisSchema.parse(analysis)).toEqual(analysis);
+    expect(JSON.stringify(analysis)).not.toContain("reviewCount");
+    expect(JSON.stringify(analysis)).not.toContain("rating");
+  });
+
+  it("rejects directory evidence and non-contiguous ranking", () => {
+    const directoryEvidence = competitor(1, 11);
+    directoryEvidence.rubric[0].evidence[0].kind = "yelp" as never;
+    expect(
+      MarketAnalysisSchema.safeParse({
+        schemaVersion: 1,
+        status: "ready",
+        generatedAt: "2026-08-25T12:00:00.000Z",
+        displayCutoff: 4,
+        competitors: [directoryEvidence],
+        commonPatterns: [],
+        gaps: [],
+      }).success,
+    ).toBe(false);
+
+    expect(
+      MarketAnalysisSchema.safeParse({
+        schemaVersion: 1,
+        status: "ready",
+        generatedAt: "2026-08-25T12:00:00.000Z",
+        displayCutoff: 4,
+        competitors: [competitor(2, 11)],
+        commonPatterns: [],
+        gaps: [],
+      }).success,
+    ).toBe(false);
   });
 });
 

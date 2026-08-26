@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CandidateProfileSchema,
+  ReferenceLockSchema,
   ReferenceSelectionStateSchema,
   RunStateSchema,
 } from "./contracts";
@@ -146,6 +147,126 @@ describe("reference selection state invariants", () => {
     expect(ReferenceSelectionStateSchema.safeParse(rightKind).success).toBe(true);
   });
 
+  it("keeps the historical untagged single-selection shape valid", () => {
+    const historical = selectionState({
+      status: "selected",
+      selection: {
+        selectedId: "other-style-id",
+        selectionKind: "user-picked-other",
+        version: 1,
+        at: "2026-08-15T13:00:00.000Z",
+        note: "Use the layout.",
+      },
+    });
+    const parsed = ReferenceSelectionStateSchema.parse(historical);
+    expect(parsed.selection).toEqual({
+      selectedId: "other-style-id",
+      selectionKind: "user-picked-other",
+      version: 1,
+      at: "2026-08-15T13:00:00.000Z",
+      note: "Use the layout.",
+    });
+  });
+
+  it("accepts ranked preferences additively while retaining rank-one compatibility fields", () => {
+    const ranked = selectionState({
+      status: "selected",
+      selection: {
+        selectedId: "b11e1e78-3c62-45df-bf28-17c97718ed7d",
+        selectionKind: "user-picked-recommended",
+        version: 1,
+        at: "2026-08-15T13:00:00.000Z",
+        note: "Use the warm colors.",
+        ranked: {
+          schemaVersion: 1,
+          checkpointId: "run-1234:reference:1",
+          preferences: [
+            {
+              referoId: "b11e1e78-3c62-45df-bf28-17c97718ed7d",
+              version: 1,
+              rank: 1,
+              note: "Use the warm colors.",
+            },
+            {
+              referoId: "other-style-id",
+              version: 1,
+              rank: 2,
+              note: "Borrow the compact layout.",
+            },
+          ],
+          overallNote: "Keep it premium but approachable.",
+          sourceMode: "guided",
+          fingerprint: "a".repeat(64),
+        },
+      },
+    });
+    const parsed = ReferenceSelectionStateSchema.parse(ranked);
+    expect(parsed.selection?.selectedId).toBe(
+      "b11e1e78-3c62-45df-bf28-17c97718ed7d",
+    );
+    expect(parsed.selection?.ranked?.preferences.map((item) => item.rank)).toEqual([
+      1,
+      2,
+    ]);
+  });
+
+  it("rejects ranked preferences with gaps, duplicates, unknown candidates, or empty notes", () => {
+    const base = {
+      schemaVersion: 1,
+      checkpointId: "run-1234:reference:1",
+      overallNote: "Direction note",
+      sourceMode: "guided",
+      fingerprint: "a".repeat(64),
+    };
+    const rankedState = (preferences: unknown[]) =>
+      selectionState({
+        status: "selected",
+        selection: {
+          selectedId: "b11e1e78-3c62-45df-bf28-17c97718ed7d",
+          selectionKind: "user-picked-recommended",
+          version: 1,
+          at: "2026-08-15T13:00:00.000Z",
+          note: "Use the warm colors.",
+          ranked: { ...base, preferences },
+        },
+      });
+    const first = {
+      referoId: "b11e1e78-3c62-45df-bf28-17c97718ed7d",
+      version: 1,
+      rank: 1,
+      note: "Use the warm colors.",
+    };
+
+    expect(
+      ReferenceSelectionStateSchema.safeParse(
+        rankedState([{ ...first, rank: 2 }]),
+      ).success,
+    ).toBe(false);
+    expect(
+      ReferenceSelectionStateSchema.safeParse(
+        rankedState([first, { ...first, rank: 2 }]),
+      ).success,
+    ).toBe(false);
+    expect(
+      ReferenceSelectionStateSchema.safeParse(
+        rankedState([
+          first,
+          {
+            referoId: "missing-style",
+            version: 1,
+            rank: 2,
+            note: "Use the layout.",
+          },
+        ]),
+      ).success,
+    ).toBe(false);
+    expect(
+      ReferenceSelectionStateSchema.safeParse(
+        rankedState([{ ...first, note: "  " }]),
+      ).success,
+    ).toBe(false);
+  });
+
   it("rejects a reroll version that repeats an earlier version's candidate", () => {
     const rerolled = selectionState({
       rerollsUsed: 1,
@@ -207,6 +328,42 @@ describe("reference selection state invariants", () => {
     expect(ReferenceSelectionStateSchema.safeParse(phantomVersion).success).toBe(
       false
     );
+  });
+});
+
+describe("reference lock migration safety", () => {
+  const historicalLock = {
+    searchAngles: ["a", "b", "c"],
+    primary: {
+      referoId: "primary-style",
+      kind: "style",
+      name: "Primary",
+      why: "Owner choice",
+    },
+    borrowedDetails: [],
+    rejected: [],
+    decisionLedger: [],
+  };
+
+  it("keeps historical locks valid and accepts an optional ranked ledger", () => {
+    expect(ReferenceLockSchema.parse(historicalLock)).toEqual(historicalLock);
+    expect(
+      ReferenceLockSchema.safeParse({
+        ...historicalLock,
+        preferenceLedger: {
+          schemaVersion: 1,
+          preferences: [
+            {
+              referoId: "primary-style",
+              version: 1,
+              rank: 1,
+              note: "Use the colors.",
+            },
+          ],
+          overallNote: "Keep it restrained.",
+        },
+      }).success,
+    ).toBe(true);
   });
 });
 
