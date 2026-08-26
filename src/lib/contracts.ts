@@ -2219,7 +2219,13 @@ export const MarketAnalysisCompetitorSchema = z
   .object({
     id: z.string().min(1).max(120),
     name: z.string().trim().min(1).max(200),
-    url: z.string().url().max(2_048),
+    url: z
+      .string()
+      .url()
+      .max(2_048)
+      .refine((value) => /^https?:\/\//i.test(value), {
+        message: "competitor URLs must use http or https",
+      }),
     rank: z.number().int().min(1).max(8),
     totalScore: z.number().int().min(0).max(15),
     confidence: z.enum(["high", "medium", "low"]),
@@ -2379,6 +2385,7 @@ export type ReferenceLock = z.infer<typeof ReferenceLockSchema>;
 export const ReferenceLockDraftSchema = ReferenceLockSchema.omit({
   searchAngles: true,
   provenance: true,
+  preferenceLedger: true,
 });
 
 // ---------- Stage 4: synthesis ----------

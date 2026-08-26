@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CandidateProfileSchema,
+  ReferenceLockDraftSchema,
   ReferenceLockSchema,
   ReferenceSelectionStateSchema,
   RunStateSchema,
@@ -364,6 +365,25 @@ describe("reference lock migration safety", () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it("strips preference provenance from model-authored lock drafts", () => {
+    const parsed = ReferenceLockDraftSchema.parse({
+      ...historicalLock,
+      preferenceLedger: {
+        schemaVersion: 1,
+        preferences: [
+          {
+            referoId: "primary-style",
+            version: 1,
+            rank: 1,
+            note: "Fabricated model preference",
+          },
+        ],
+      },
+    });
+
+    expect(parsed).not.toHaveProperty("preferenceLedger");
   });
 });
 

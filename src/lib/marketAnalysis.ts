@@ -217,6 +217,7 @@ export async function analyzeMarketCompetitor(options: {
     ...candidate,
     rank: 1,
   });
+  void _rank;
   return {
     analysis,
     sections: draft.sections,
@@ -253,6 +254,18 @@ export function rankMarketCompetitors(
         rank: index + 1,
       }),
     );
+}
+
+export function projectLegacyMarketCompetitors(
+  ranked: MarketAnalysisCompetitor[],
+  competitors: Competitor[],
+): Competitor[] {
+  return ranked.slice(0, 4).flatMap((analysis) => {
+    const competitor = competitors.find(
+      (entry) => canonicalUrl(entry.url) === canonicalUrl(analysis.url),
+    );
+    return competitor ? [competitor] : [];
+  });
 }
 
 export function marketAnalysisArtifact(options: {

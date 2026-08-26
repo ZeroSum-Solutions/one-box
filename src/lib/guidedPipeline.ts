@@ -127,7 +127,10 @@ export function deriveGuidedPipeline(input: {
       previewUrl: `/preview/${run.templateFallback.childRunId}`,
     };
   } else if (run.stages.built.status === "done") {
-    if (
+    const workflow = currentWorkflowSurface(run);
+    if (workflow) {
+      surface = workflow;
+    } else if (
       input.candidateState &&
       ["preparing", "ready-for-gates", "promotable"].includes(input.candidateState)
     ) {

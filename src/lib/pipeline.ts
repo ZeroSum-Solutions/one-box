@@ -61,6 +61,7 @@ import {
   analyzeMarketCompetitor,
   eligibleMarketCompetitors,
   marketAnalysisArtifact,
+  projectLegacyMarketCompetitors,
   rankMarketCompetitors,
 } from "./marketAnalysis";
 import {
@@ -1995,10 +1996,10 @@ export async function stageScan(
     }),
   );
 
-  const rankedCompetitors = ranked.flatMap((analysis) => {
-    const competitor = competitors.find((entry) => entry.url === analysis.url);
-    return competitor ? [competitor] : [];
-  });
+  const rankedCompetitors = projectLegacyMarketCompetitors(
+    ranked,
+    competitors.map((competitor) => CompetitorSchema.parse(competitor)),
+  );
 
   const scan: ScanResult = ScanResultSchema.parse({
     competitors: rankedCompetitors.slice(0, 4),
