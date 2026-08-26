@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   ARTIFACTS,
+  CompetitorSchema,
   CopyDocSchema,
   DesignTokensSchema,
   FORBIDDEN_CONTEXTS,
@@ -56,6 +57,12 @@ import {
   withRunTransaction,
 } from "./runstate";
 import { generateJson } from "./openrouter";
+import {
+  analyzeMarketCompetitor,
+  eligibleMarketCompetitors,
+  marketAnalysisArtifact,
+  rankMarketCompetitors,
+} from "./marketAnalysis";
 import {
   finalizeReferenceLock,
   referenceGateApplies,
@@ -1700,6 +1707,11 @@ export async function stageScan(
       excluded: [],
     });
     await saveArtifact(runId, ARTIFACTS.scan, scan);
+    await saveArtifact(
+      runId,
+      ARTIFACTS.marketAnalysis,
+      marketAnalysisArtifact({ status: "disabled" }),
+    );
     emit({
       type: "card",
       stage: "scanned",
@@ -1774,6 +1786,11 @@ export async function stageScan(
       yelp,
     });
     await saveArtifact(runId, ARTIFACTS.scan, scan);
+    await saveArtifact(
+      runId,
+      ARTIFACTS.marketAnalysis,
+      marketAnalysisArtifact({ status: "ready" }),
+    );
     emit({
       type: "card",
       stage: "scanned",
@@ -1884,37 +1901,67 @@ export async function stageScan(
     competitors.push(...batch);
   }
 
-  // Structure inventory — one bulk-model call per competitor. These are
-  // INDEPENDENT, so they run concurrently: serially they were ~110s of the
-  // scan's 147s (measured, run 2KJ9KwYM4SeA) with no UI output the whole time.
-  // Each task emits its own card the moment it finishes.
-  await Promise.all(
-    competitors.map(async (c) => {
-      if (!c.markdownPath) return;
-      const md = (await fs.readFile(c.markdownPath, "utf8")).slice(0, 12000);
-      const out = await generateJson(
-        runId,
-        MODELS.bulk,
-        z.object({ sections: z.array(z.string()), notes: z.string() }),
-        `Analyze this ${targetCriteria.outputLabel} reference. List its primary sections or screens in order (short kebab-case names). Then one sentence on what it does well or badly for ${targetCriteria.researchLens}.\n\nSITE MARKDOWN:\n${md}`
-      );
-      Object.assign(c, { structure: out.sections, notes: out.notes });
-      emit({
-        type: "card",
-        stage: "scanned",
-        title: `Decoded ${c.name}`,
-        body: `${out.sections.length} sections: ${out.sections.join(", ")}\n${out.notes}`,
-        links: [
-          {
-            label: "Crawled page text",
-            href: `/api/sites/${runId}/${rel(c.markdownPath!)}`,
-            kind: "artifact",
-            sub: rel(c.markdownPath!),
-          },
-        ],
-      });
-    })
+  // The ranking call sees only verified business sites and their first-party
+  // crawl bytes. Directory popularity (including Yelp and Places ratings) is
+  // deliberately absent from this boundary.
+  const normalizedCompetitors = competitors.map((competitor) =>
+    CompetitorSchema.parse({
+      ...competitor,
+      markdownPath: competitor.markdownPath
+        ? rel(competitor.markdownPath)
+        : undefined,
+      screenshotPaths: (competitor.screenshotPaths ?? []).map(rel),
+    }),
   );
+  const eligible = eligibleMarketCompetitors(normalizedCompetitors);
+  const analyzed = (
+    await Promise.all(
+      eligible.map(async (competitor) => {
+        const source = competitors.find((entry) => entry.url === competitor.url);
+        if (!source?.markdownPath) return undefined;
+        try {
+          const decoded = await analyzeMarketCompetitor({
+            runId,
+            competitor,
+            markdown: await fs.readFile(source.markdownPath, "utf8"),
+            market: { category: intake.category, location: intake.location },
+            generate: generateJson,
+          });
+          Object.assign(source, {
+            structure: decoded.sections,
+            notes: decoded.notes,
+          });
+          emit({
+            type: "card",
+            stage: "scanned",
+            title: `Decoded ${source.name}`,
+            body: `${decoded.sections.length} sections: ${decoded.sections.join(", ")}\n${decoded.notes}`,
+            links: [
+              {
+                label: "Crawled page text",
+                href: `/api/sites/${runId}/${rel(source.markdownPath)}`,
+                kind: "artifact",
+                sub: rel(source.markdownPath),
+              },
+            ],
+          });
+          return decoded.analysis;
+        } catch (error) {
+          emit({
+            type: "card",
+            stage: "scanned",
+            title: `Analysis unavailable for ${competitor.name}`,
+            body:
+              error instanceof Error
+                ? error.message
+                : "The structured analysis response was invalid.",
+          });
+          return undefined;
+        }
+      }),
+    )
+  ).filter((entry) => entry !== undefined);
+  const ranked = rankMarketCompetitors(analyzed);
 
   emit({
     type: "card",
@@ -1923,17 +1970,38 @@ export async function stageScan(
     body: "Comparing every competitor's structure to find table stakes and gaps…",
   });
 
-  const agg = await generateJson(
+  const agg = ranked.length
+    ? await generateJson(
+        runId,
+        MODELS.orchestrator,
+        z.object({ commonSections: z.array(z.string()), gaps: z.array(z.string()) }),
+        `Competitor ${targetCriteria.outputLabel} inventories for ${intake.category} in ${intake.location}; evaluate ${targetCriteria.researchLens}:\n${ranked
+          .map((entry) => {
+            const competitor = competitors.find((candidate) => candidate.url === entry.url);
+            return `${entry.name}: ${(competitor?.structure ?? []).join(", ")}`;
+          })
+          .join("\n")}\n\nReturn commonSections (the structural table stakes, ordered) and gaps (what nobody does well — opportunities). Structure signal only; style is decided elsewhere.`
+      )
+    : { commonSections: [], gaps: [] };
+
+  await saveArtifact(
     runId,
-    MODELS.orchestrator,
-    z.object({ commonSections: z.array(z.string()), gaps: z.array(z.string()) }),
-    `Competitor ${targetCriteria.outputLabel} inventories for ${intake.category} in ${intake.location}; evaluate ${targetCriteria.researchLens}:\n${competitors
-      .map((c) => `${c.name}: ${(c.structure ?? []).join(", ")}`)
-      .join("\n")}\n\nReturn commonSections (the structural table stakes, ordered) and gaps (what nobody does well — opportunities). Structure signal only; style is decided elsewhere.`
+    ARTIFACTS.marketAnalysis,
+    marketAnalysisArtifact({
+      status: "ready",
+      competitors: ranked,
+      commonPatterns: agg.commonSections,
+      gaps: agg.gaps,
+    }),
   );
 
+  const rankedCompetitors = ranked.flatMap((analysis) => {
+    const competitor = competitors.find((entry) => entry.url === analysis.url);
+    return competitor ? [competitor] : [];
+  });
+
   const scan: ScanResult = ScanResultSchema.parse({
-    competitors: competitors.slice(0, 4),
+    competitors: rankedCompetitors.slice(0, 4),
     commonSections: agg.commonSections,
     gaps: agg.gaps,
     excluded,
