@@ -9,24 +9,7 @@ import {
   type MarketAnalysis,
   type MarketAnalysisCompetitor,
 } from "./contracts";
-
-const BLOCKED_MARKET_HOSTS = [
-  "yelp.com",
-  "angi.com",
-  "bbb.org",
-  "facebook.com",
-  "instagram.com",
-  "linkedin.com",
-  "tiktok.com",
-  "youtube.com",
-  "pinterest.com",
-  "reddit.com",
-  "tripadvisor.com",
-  "opentable.com",
-  "doordash.com",
-  "ubereats.com",
-  "grubhub.com",
-] as const;
+import { isBlockedMarketHost } from "./marketSourcePolicy";
 
 const EvidenceClaimDraftSchema = z
   .object({
@@ -75,25 +58,15 @@ function canonicalUrl(rawUrl: string): string {
   return url.toString();
 }
 
-function blockedHost(rawUrl: string): boolean {
-  try {
-    const host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, "");
-    return BLOCKED_MARKET_HOSTS.some(
-      (blocked) => host === blocked || host.endsWith(`.${blocked}`),
-    );
-  } catch {
-    return true;
-  }
-}
-
 export function eligibleMarketCompetitors(
   competitors: Competitor[],
 ): Competitor[] {
   return competitors.filter(
     (competitor) =>
-      competitor.kind === "business" &&
+      competitor.kind !== "editorial" &&
       Boolean(competitor.markdownPath) &&
-      !blockedHost(competitor.url),
+      competitor.crawl?.outcome === "succeeded" &&
+      !isBlockedMarketHost(competitor.url),
   );
 }
 

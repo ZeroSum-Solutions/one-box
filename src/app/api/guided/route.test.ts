@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 import { GET } from "./[id]/route";
 import { ARTIFACTS, IntakeSchema } from "../../../lib/contracts";
-import { createRun, saveArtifact, sitePaths } from "../../../lib/runstate";
+import { createRun, finishStage, saveArtifact, sitePaths, startStage } from "../../../lib/runstate";
 
 const runIds: string[] = [];
 
@@ -65,5 +65,31 @@ describe("guided pipeline route", () => {
       }),
       context("missing-run"),
     )).status).toBe(404);
+  });
+
+  it("fails closed when a completed stage has a corrupt required artifact", async () => {
+    const runId = await createRun();
+    runIds.push(runId);
+    await saveArtifact(runId, ARTIFACTS.intake, IntakeSchema.parse({
+      businessName: "Corrupt Route Test",
+      category: "plumber",
+      location: "Portland, OR",
+      services: ["Repairs"],
+      primaryAction: "quote",
+    }));
+    await startStage(runId, "intake");
+    await finishStage(runId, "intake");
+    await startStage(runId, "scanned");
+    await finishStage(runId, "scanned");
+    await fs.writeFile(`${sitePaths(runId).root}/${ARTIFACTS.scan}`, "{not-json");
+
+    const response = await GET(
+      new Request(`http://localhost:3000/api/guided/${runId}`, {
+        headers: { Origin: "http://localhost:3000", Host: "localhost:3000" },
+      }),
+      context(runId),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ surface: { kind: "state-unavailable" } });
   });
 });

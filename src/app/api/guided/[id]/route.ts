@@ -5,6 +5,7 @@ import {
   ScanResultSchema,
 } from "../../../../lib/contracts";
 import { deriveGuidedPipeline } from "../../../../lib/guidedPipeline";
+import { inspectCandidate, inspectPromotedLiveBundle } from "../../../../lib/candidate";
 import { isLocalApiAuthorized } from "../../../../lib/localApiAuth";
 import {
   RunNotFoundError,
@@ -17,6 +18,28 @@ const HEADERS = {
   "Cache-Control": "private, no-store",
   "X-Content-Type-Options": "nosniff",
 };
+const ARTIFACT_READ_FAILED = Symbol("artifact-read-failed");
+
+async function guidedCandidateState(id: string) {
+  try {
+    const [candidate, live] = await Promise.all([
+      inspectCandidate(id),
+      inspectPromotedLiveBundle(id),
+    ]);
+    if (candidate.status === "absent") return "absent" as const;
+    if (
+      candidate.provenance.state === "promoted" &&
+      live.status === "present" &&
+      candidate.provenance.promotedBuildSha256 === live.manifest.buildSha256 &&
+      candidate.provenance.candidateManifestSha256 === live.provenance.candidateManifestSha256
+    ) {
+      return "promoted" as const;
+    }
+    return candidate.provenance.state === "promoted" ? "failed" as const : candidate.provenance.state;
+  } catch {
+    return "failed" as const;
+  }
+}
 
 export async function GET(
   request: Request,
@@ -30,22 +53,38 @@ export async function GET(
     return Response.json({ error: "forbidden" }, { status: 403, headers: HEADERS });
   }
   try {
-    const [run, intakeValue, marketValue, scanValue] = await Promise.all([
+    const [run, intakeValue, marketValue, scanValue, candidate] = await Promise.all([
       loadRun(id),
-      loadArtifact(id, ARTIFACTS.intake),
-      loadArtifact(id, ARTIFACTS.marketAnalysis),
-      loadArtifact(id, ARTIFACTS.scan),
+      loadArtifact(id, ARTIFACTS.intake).catch(() => ARTIFACT_READ_FAILED),
+      loadArtifact(id, ARTIFACTS.marketAnalysis).catch(() => ARTIFACT_READ_FAILED),
+      loadArtifact(id, ARTIFACTS.scan).catch(() => ARTIFACT_READ_FAILED),
+      guidedCandidateState(id),
     ]);
     const intake = IntakeSchema.safeParse(intakeValue);
     const marketAnalysis = MarketAnalysisSchema.safeParse(marketValue);
     const scan = ScanResultSchema.safeParse(scanValue);
+    const requiredArtifactInvalid =
+      (run.stages.intake.status === "done" && !intake.success) ||
+      (run.stages.scanned.status === "done" && !scan.success) ||
+      marketValue === ARTIFACT_READ_FAILED ||
+      (marketValue !== undefined && !marketAnalysis.success);
+    const projection = deriveGuidedPipeline({
+      run,
+      ...(intake.success ? { intake: intake.data } : {}),
+      ...(marketAnalysis.success ? { marketAnalysis: marketAnalysis.data } : {}),
+      ...(scan.success ? { scan: scan.data } : {}),
+      candidateState: candidate,
+    });
     return Response.json(
-      deriveGuidedPipeline({
-        run,
-        ...(intake.success ? { intake: intake.data } : {}),
-        ...(marketAnalysis.success ? { marketAnalysis: marketAnalysis.data } : {}),
-        ...(scan.success ? { scan: scan.data } : {}),
-      }),
+      requiredArtifactInvalid
+        ? {
+            ...projection,
+            surface: {
+              kind: "state-unavailable" as const,
+              message: "A required saved pipeline artifact is missing or invalid.",
+            },
+          }
+        : projection,
       { headers: HEADERS },
     );
   } catch (error) {

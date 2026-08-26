@@ -51,6 +51,30 @@ export function referenceDraftKey(
   return `onebox:reference-draft:${runId}:${versions}`;
 }
 
+export function persistReferenceDraft(
+  storage: Pick<Storage, "setItem" | "removeItem">,
+  key: string,
+  value?: string,
+): boolean {
+  try {
+    if (value === undefined) storage.removeItem(key);
+    else storage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function referenceDraftForPersistence(
+  draft: ReferenceDraft,
+  hydratedKey: string | null,
+  key: string,
+): string | null | undefined {
+  if (hydratedKey !== key) return undefined;
+  if (draft.choices.length === 0 && !draft.overallNote) return null;
+  return JSON.stringify(draft);
+}
+
 export function GuidedReferencePicker(props: {
   runId: string;
   selection: ReferenceSelectionState;
@@ -58,6 +82,7 @@ export function GuidedReferencePicker(props: {
 }) {
   const key = referenceDraftKey(props.runId, props.selection);
   const [draft, setDraft] = useState<ReferenceDraft>({ choices: [], overallNote: "" });
+  const [hydratedKey, setHydratedKey] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "conflict" | "error">("idle");
   const candidates = useMemo(
     () => props.selection.versions.flatMap((version) => version.candidates),
@@ -70,22 +95,31 @@ export function GuidedReferencePicker(props: {
 
   useEffect(() => {
     let frame = 0;
+    let restored: ReferenceDraft | undefined;
     try {
       const stored = window.localStorage.getItem(key);
       if (stored) {
-        const parsed = safeReferenceDraft(JSON.parse(stored), candidateIds);
-        if (parsed) frame = window.requestAnimationFrame(() => setDraft(parsed));
+        restored = safeReferenceDraft(JSON.parse(stored), candidateIds);
       }
     } catch {
       // A damaged local draft must never block a fresh selection.
     }
+    frame = window.requestAnimationFrame(() => {
+      setDraft(restored ?? { choices: [], overallNote: "" });
+      setHydratedKey(key);
+    });
     return () => window.cancelAnimationFrame(frame);
   }, [candidateIds, key]);
 
   useEffect(() => {
-    if (draft.choices.length === 0 && !draft.overallNote) return;
-    window.localStorage.setItem(key, JSON.stringify(draft));
-  }, [draft, key]);
+    const persisted = referenceDraftForPersistence(draft, hydratedKey, key);
+    if (persisted === undefined) return;
+    if (persisted === null) {
+      persistReferenceDraft(window.localStorage, key);
+      return;
+    }
+    persistReferenceDraft(window.localStorage, key, persisted);
+  }, [draft, hydratedKey, key]);
 
   function toggle(referoId: string) {
     setStatus("idle");
@@ -112,6 +146,12 @@ export function GuidedReferencePicker(props: {
   const valid =
     draft.choices.length > 0 &&
     draft.choices.every((choice) => choice.note.trim().length >= 3);
+  const incompleteChoice = draft.choices.findIndex((choice) => choice.note.trim().length < 3);
+  const guidance = draft.choices.length === 0
+    ? "Select at least one direction to continue."
+    : incompleteChoice >= 0
+      ? `Add a short note for choice #${incompleteChoice + 1} to continue.`
+      : `${draft.choices.length}/3 selected and ready.`;
 
   async function confirm() {
     if (!valid || status === "saving") return;
@@ -135,7 +175,7 @@ export function GuidedReferencePicker(props: {
         return;
       }
       if (!response.ok) throw new Error(`Selection failed (${response.status})`);
-      window.localStorage.removeItem(key);
+      persistReferenceDraft(window.localStorage, key);
       setStatus("saved");
       props.onConfirmed();
     } catch {
@@ -202,7 +242,7 @@ export function GuidedReferencePicker(props: {
       </label>
       <div className="guided-picker__confirm">
         <span aria-live="polite">
-          {status === "conflict" ? "This direction was already confirmed. Refreshing will show the saved choice." : status === "error" ? "Could not save yet. Your draft is still here." : status === "saved" ? "Direction saved. Continuing the build…" : `${draft.choices.length}/3 selected`}
+          {status === "conflict" ? "This direction was already confirmed. Refreshing will show the saved choice." : status === "error" ? "Could not save yet. Your draft is still here." : status === "saved" ? "Direction saved. Continuing the build…" : guidance}
         </span>
         <button type="button" className="btn-primary" disabled={!valid || status === "saving"} onClick={confirm}>
           {status === "saving" ? "Saving…" : "Confirm direction"}

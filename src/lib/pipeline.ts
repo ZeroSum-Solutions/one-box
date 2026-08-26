@@ -1800,6 +1800,22 @@ export async function stageScan(
     });
     return scan;
   }
+  const analysisCandidates = found.slice(0, 4);
+
+  // Persist the discovery roster before crawling or model analysis begins.
+  // The guided read model polls this durable snapshot, so real competitor
+  // links can appear while the slower evidence work is still in flight.
+  await saveArtifact(
+    runId,
+    ARTIFACTS.scan,
+    ScanResultSchema.parse({
+      competitors: analysisCandidates,
+      commonSections: [],
+      gaps: [],
+      excluded,
+      yelp,
+    }),
+  );
 
   // Every competitor is clickable from the moment it is found — its own site
   // and its Google Maps listing. This card is what proves (or disproves) that
@@ -1849,9 +1865,9 @@ export async function stageScan(
 
   const competitors: typeof found = [];
   // concurrency 2 (audit A5) — simple pair batching
-  for (let i = 0; i < found.length; i += 2) {
+  for (let i = 0; i < analysisCandidates.length; i += 2) {
     const batch = await Promise.all(
-      found.slice(i, i + 2).map(async (c) => {
+      analysisCandidates.slice(i, i + 2).map(async (c) => {
         const dir = path.join(/*turbopackIgnore: true*/ paths.research, domainSlug(c.url));
         await fs.mkdir(dir, { recursive: true });
         const crawl = await crawlSite(
@@ -1882,6 +1898,26 @@ export async function stageScan(
         };
       })
     );
+    competitors.push(...batch);
+    const capturedByUrl = new Map(competitors.map((competitor) => [competitor.url, competitor]));
+    await saveArtifact(
+      runId,
+      ARTIFACTS.scan,
+      ScanResultSchema.parse({
+        competitors: analysisCandidates.map((competitor) => {
+          const captured = capturedByUrl.get(competitor.url) ?? competitor;
+          return CompetitorSchema.parse({
+            ...captured,
+            markdownPath: captured.markdownPath ? rel(captured.markdownPath) : undefined,
+            screenshotPaths: (captured.screenshotPaths ?? []).map(rel),
+          });
+        }),
+        commonSections: [],
+        gaps: [],
+        excluded,
+        yelp,
+      }),
+    );
     // Report each pair as it lands. Before this, the crawl+screenshot window
     // (~30s) emitted nothing at all and the UI looked frozen.
     for (const c of batch) {
@@ -1899,7 +1935,6 @@ export async function stageScan(
         })),
       });
     }
-    competitors.push(...batch);
   }
 
   // The ranking call sees only verified business sites and their first-party
@@ -2000,9 +2035,30 @@ export async function stageScan(
     ranked,
     competitors.map((competitor) => CompetitorSchema.parse(competitor)),
   );
+  const rosterUrlKey = (rawUrl: string) => {
+    try {
+      const url = new URL(rawUrl);
+      url.hash = "";
+      url.search = "";
+      if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/+$/, "");
+      return url.toString();
+    } catch {
+      return rawUrl;
+    }
+  };
+  const rankedUrls = new Set(rankedCompetitors.map((competitor) => rosterUrlKey(competitor.url)));
+  const durableCompetitors = [
+    ...rankedCompetitors,
+    ...eligible.filter(
+      (competitor) =>
+        competitor.crawl?.outcome === "succeeded" &&
+        Boolean(competitor.markdownPath) &&
+        !rankedUrls.has(rosterUrlKey(competitor.url)),
+    ),
+  ].slice(0, 4);
 
   const scan: ScanResult = ScanResultSchema.parse({
-    competitors: rankedCompetitors.slice(0, 4),
+    competitors: durableCompetitors,
     commonSections: agg.commonSections,
     gaps: agg.gaps,
     excluded,
