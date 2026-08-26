@@ -22,6 +22,7 @@ afterEach(() => {
   delete process.env.ONE_BOX_API_TOKEN;
   delete process.env.ONE_BOX_PAGE_IR_ROLLOUT;
   delete process.env.ONE_BOX_PAGE_IR_KILL_SWITCH;
+  delete process.env.ONE_BOX_REFERENCE_PICKER;
 });
 
 const context = {
@@ -587,7 +588,7 @@ describe("chat intake request", () => {
     );
 
     expect(ensureRun).toHaveBeenNthCalledWith(1, "page-ir-run", {
-      referencePickerEnabled: false,
+      referencePickerEnabled: true,
       newRunRolloutDecision: {
         schemaVersion: 1,
         rolloutEnabled: true,
@@ -598,6 +599,7 @@ describe("chat intake request", () => {
     });
 
     process.env.ONE_BOX_PAGE_IR_KILL_SWITCH = "1";
+    process.env.ONE_BOX_REFERENCE_PICKER = "0";
     await startPipelineFromIntake(
       {
         businessName: "Beta",
