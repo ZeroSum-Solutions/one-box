@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-26T03:05:17.459Z",
+  "request": {
+    "task": "Architect a default guided non-developer OneBox pipeline view while preserving the existing developer view and controller",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "HEAD",
+    "head": "e43513363384c3583034c0505c91184535918ef1",
+    "files": [
+      "docs/specs/2026-08-25-guided-pipeline-mode.md"
+    ],
+    "proofs": [],
+    "diffBytes": 17929
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4590,
+      "completion_tokens": 11546,
+      "total_tokens": 16136,
+      "cost": 0.078264,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.078264,
+        "upstream_inference_prompt_cost": 0.008988,
+        "upstream_inference_completions_cost": 0.069276
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 9102,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "BLOCK",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "99-109 (§5.3)",
+        "scenario": "Controller enters an existing non-enumerated human gate or terminal (cost/spend approval, provider choice, deployment confirmation, evidence revision, pause, budget exceeded, stage error). Guided mode only has five journey steps and no gate/error matrix, while Home still waits on the authoritative controller. Default/OFF users see an inert or wrong step with no CTA, so the run looks frozen; an implementer who auto-continues would skip cost/approval/deployment boundaries.",
+        "remediation": "Add a complete controller-state → guided-surface matrix covering every existing wait/error/terminal, reusing the current cost/provider/deployment/evidence widgets in-place. State that presentation mode must never auto-approve or hide a blocking gate."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "91-94, 207-217",
+        "scenario": "User confirms ranked preferences in guided mode, then toggles Developer ON. RunTimeline is required to stay exact/unchanged and historically understands only the single-selection shape. It can parse-fail, show nothing selected, or emit a legacy single submit against an already-locked ranked checkpoint, violating exact developer-view preservation and immutability.",
+        "remediation": "Keep RunTimeline visually unchanged but specify additive-compatible read behavior: unknown ranked fields are ignored for layout, a completed ranked checkpoint is treated as already selected, and developer mode must not POST a second selection. Add a contract test with preferences[1..3] present."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "113-117, 169-170",
+        "scenario": "Scan returns many businesses whose Yelp rating/review-count order disagrees with crawl quality. Spec forbids Yelp as scoring authority and says show two to four cards, but gives no replacement rubric, tie-break, or 0/1/N cardinality rule. Implementers will sort by directory rank/rating and silently keep Yelp as the selection authority under new chrome.",
+        "remediation": "Define a deterministic competitor-inclusion rubric: first-party crawl required; ranking uses on-site evidence only; Maps/Yelp fields are display-only; cap/truncation and empty-set behavior specified. Add a fixture where inverted Yelp order must not change the selected set."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "181-185, 203-205, 221-222",
+        "scenario": "User selects ranks 1–3 and leaves per-card notes empty (explicitly optional). stageLock uses rank 1 as foundation and contributes ranks 2–3 only for ‘specific details named by the user’, so 2–3 are stored as influential but have zero downstream effect. That violates meaningful-notes and makes rank semantics ambiguous.",
+        "remediation": "Require a non-empty note for any rank > 1 before confirm, or display and persist explicit empty-note semantics (‘recorded, not used for borrowed details’) in UI, ledger, and prompts. Cover both in lock-normalization tests."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "215-216",
+        "scenario": "Confirm persists the ranked set then dies before resume; user retries. Or Tab A guided submits preferences[] while Tab B developer submits legacy single. No idempotency key, persist-vs-resume order, or cross-shape conflict rule is defined, so the controller can resume twice, last-write-win overwrite an immutable checkpoint, or stick forever.",
+        "remediation": "Key idempotency on runId+checkpointId; persist selection before resume; identical retry returns success without a second resume; any different payload (including legacy single) returns a documented conflict and does not mutate. Add multi-tab/cross-mode tests."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "87-91 vs 121-123",
+        "scenario": "Home passes the live timeline into GuidedPipeline, but guided research must not be reconstructed from event-card prose and instead reads a typed scan artifact. After reconnect or at research completion, SSE can say ready while the artifact is missing/stale (or the reverse). Guided shows unavailable/false failure or blocks confirm while developer mode shows the real state.",
+        "remediation": "Declare one read model: artifacts/run records are source of truth; SSE only invalidates/refetches; progress labels come from typed status fields, never event prose. Specify retry/staleness and that disconnect is not a terminal failure."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "207-214",
+        "scenario": "Versioned selection union has no discriminator, mixed-payload rule, or normalization site. A body with both legacy single fields and preferences[] can parse as whichever branch the implementer tries first, silently dropping ranks/notes or fabricating a single primary.",
+        "remediation": "Add an explicit selectionKind/schema version, reject mixed payloads, and state that normalization to ranked form happens once on the server at read/lock time, not ad hoc in UI."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "140, 165",
+        "scenario": "Legacy competitor rows have notes but no stable id. Guided cards keyed by array index get remapped after artifact rewrite or reconnect, so expansion/evidence attaches to the wrong site.",
+        "remediation": "Specify a stable legacy id (e.g. hash of siteUrl+name) and forbid list-index keys; test round-trip on notes-only artifacts."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "121-122, 259-260",
+        "scenario": "New guided research projection is specified only as schema-validated and run-confined at URL layer. A caller who can guess another runId receives crawled third-party content, screenshots, and analysis.",
+        "remediation": "Require the same authz as existing artifact routes (session/owner + run membership) and a deny test for a foreign runId."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "261-264, 219-226",
+        "scenario": "Competitor titles/analysis and user notes are untrusted only for HTML rendering. The same strings are interpolated into stageLock/design prompts, so instruction-like crawled text or notes can hijack the lock. Also a note can name a competitor as inspiration, bypassing ‘no competitor source as design inspiration’.",
+        "remediation": "Pass these strings only through existing untrusted prompt-context channels, never as system instructions; state notes cannot introduce competitor URLs as references; add a fixture."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "177-188, 273",
+        "scenario": "Ordered ranks and notes exist only in client memory until confirm. Refresh/reconnect mid-chooser wipes the draft, so reconnect reliability does not cover the human-gate the feature adds.",
+        "remediation": "Restore a non-resuming draft (run-scoped client storage or draft checkpoint). Confirm remains the only resume transition."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "25, 181, 187",
+        "scenario": "Copy says both ‘one to three’ and ‘up to three’. Confirm with zero cards is not forbidden. API can persist an empty set and stageLock has no rank-1 foundation, producing a silent invalid lock or crash.",
+        "remediation": "Validate min 1 / max 3 / unique contiguous ranks at UI and API; disable confirm until valid."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "215, 219-226",
+        "scenario": "Set is immutable for the checkpoint with no revision workflow. If design/lock fails after confirm, the user cannot fix rank 1 and cannot re-enter selection, so the run is stuck or must be abandoned.",
+        "remediation": "Allow reselection only when the controller re-opens the reference-selection checkpoint; otherwise keep immutable. Document the failed-lock recovery path."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "185 vs 195-200, 219-224",
+        "scenario": "UI collects an optional overall direction note, but RankedReferencePreference and the ReferenceLock contents list only per-rank notes/ledger. Confirm succeeds and the overall note is dropped before downstream design.",
+        "remediation": "Add overallNote to the persisted selection and lock ledger, or remove the field from the UI."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "127, 155, 195-200, 213",
+        "scenario": "Place, EvidenceLink, preference version, and ‘referenced version’ are unnamed. Implementers will invent incompatible map/source/candidate-membership shapes and later migrate artifacts.",
+        "remediation": "Bind those types to existing map/evidence/candidate-set contracts and define how version is copied from the current Refero candidate set."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "277",
+        "scenario": "Spec claims the experience remains complete with JavaScript disabled, but guided mode is a client projection over Home/SSE. JS-off users get a broken default pipeline, not the promised guided journey.",
+        "remediation": "Narrow the JS-disabled requirement to generated-site preview documents; do not claim the guided chooser works without JS."
+      }
+    ],
+    "proof_assessment": "The slice is only the design doc; there is no current-architecture excerpt, schema, controller state machine, or test proving Home, RunTimeline, ReferenceSelectionStateSchema, stageLock, or artifact guards actually match these names. Compatibility, reconnect, and ‘exact developer view’ claims are intent, not evidence. Treat the spec as an unvalidated contract.",
+    "residual_risks": [
+      "Assumed symbols (Home, RunTimeline, contracts.ts, confined artifact guards, desktop/mobile captures) may not exist in the form the spec needs.",
+      "No data-retention/PII policy for crawled competitor pages, screenshots, or user notes.",
+      "Dialog vs inline competitor detail leaves two a11y implementations.",
+      "No WCAG target, screenshot content-type policy, or note length cap (prompt overflow).",
+      "Slice 1 defaults to guided before ranked chooser/research projection exist, so incremental delivery can strand default users."
+    ]
+  }
+}
