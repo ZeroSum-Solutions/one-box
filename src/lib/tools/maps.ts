@@ -27,7 +27,7 @@ import { findPlace, placesConfigured, mapsSearchUrl } from "./places";
 import type { CrawlProvenance, Place } from "../contracts";
 
 const RESULTS_PER_QUERY = 10;
-const MAX_COMPETITORS = 4;
+const MAX_COMPETITORS = 8;
 /** Firecrawl credit cost per search call, tracked into the run's costUsd. */
 const FIRECRAWL_SEARCH_COST_USD = FIRECRAWL_CALL_COST_USD;
 
