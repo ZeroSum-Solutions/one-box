@@ -90,7 +90,7 @@ The system never treats “looks good in Canvas” as “safe to ship.” It als
 
 ## 6. Lifecycle states
 
-The closed project lifecycle is:
+The closed project workflow is:
 
 | State | Meaning | Public effect |
 |---|---|---|
@@ -105,9 +105,10 @@ The closed project lifecycle is:
 | `ready_to_deploy` | Qualification passed and the release owner approved the exact bundle. | Existing public release remains unchanged |
 | `deploying` | An immutable provider release is being created and verified. | Existing public release remains unchanged |
 | `live` | The verified provider release owns the production alias. | New release served |
-| `superseded` | A newer live release replaced this release. | Audit and rollback evidence only |
 
 All state transitions use compare-and-swap over the expected project revision and candidate or release hash. A stale actor produces no state change.
+
+Each immutable release has a separate closed state: `prepared`, `deploying`, `live`, `superseded`, or `failed`. Promoting a new release keeps the project workflow `live`, changes the new release from `deploying` to `live`, and changes the prior live release to `superseded` in the same accepted control transaction. A superseded release remains available only for audit or an authorized rollback that requalifies its current external dependencies.
 
 ### 6.1 Approval invalidation
 
