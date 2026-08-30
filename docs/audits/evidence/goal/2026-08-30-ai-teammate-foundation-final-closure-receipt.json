@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T23:25:55Z",
+  "objective": "Close the complete approved Canvas core-interaction and deterministic local AI-teammate foundation slice without expanding blocked scope.",
+  "productTarget": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "commit": "d844f9fead4e42d46d44b793203fad7489cc3597",
+    "tree": "50eebc624a599655adb1e7cce4fc478da7c017b3",
+    "changedPathCount": 92,
+    "commitMessage": "feat: complete canvas teammate foundation"
+  },
+  "authority": {
+    "primaryAuthorization": "OBX-AUTH-ATF-001",
+    "derivedWriteAuthorization": "OBX-AUTH-ATF-DERIVED-001",
+    "derivedWritePath": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "derivedWriteJsonPointer": "/packetDigest",
+    "derivedWriteValue": "5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b",
+    "allOtherManifestFieldsChanged": false,
+    "authorizationReceiptIntegrity": {
+      "algorithm": "sha256",
+      "value": "5aa48df3c780dc530a48bf6c699c185dc257510c9e76bb2638dbcad46b8a5fa2"
+    }
+  },
+  "closureEvidence": [
+    {
+      "kind": "immutable-target-command-evidence",
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-final-target-command-evidence.md",
+      "algorithm": "sha256",
+      "value": "43fa1eb6b4d327ee6681f014f9385b9237de8bb06f714ae06cbcc1ba7aa67c6c"
+    },
+    {
+      "kind": "validated-security-report",
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-final-target-security-review.json",
+      "algorithm": "sha256",
+      "value": "1001c57c45786196314076c67a1d8ebc8d3bb64e802a04636e2c26042ca87389",
+      "verdict": "PASS",
+      "findingCount": 0
+    },
+    {
+      "kind": "exact-fable-5-audit",
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-clean-audit.json",
+      "algorithm": "sha256",
+      "value": "9df492db6e560478c28bf3bf8fb27547efdec3f372ed9a3e58722ef5e0dfb1e7",
+      "model": "claude-fable-5",
+      "effort": "max",
+      "verdict": "CLEAN",
+      "findingCount": 0
+    },
+    {
+      "kind": "exact-grok-4.6-audit",
+      "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-final-immutable-target-audit.json",
+      "algorithm": "sha256",
+      "value": "59c57cb13ad36b55cb7af243eab15a45c7d856914680a4a153f4b577abb8f225",
+      "model": "x-ai/grok-4.6",
+      "effort": "high",
+      "verdict": "CLEAN",
+      "findingCount": 0,
+      "auditedPathCount": 92
+    },
+    {
+      "kind": "independent-security-verification",
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-final-independent-security-verification.json",
+      "algorithm": "sha256",
+      "value": "efc97cfe1ad3ce0cc48cc4d436df7036ff695f4a0dd290ef8ffbb86409a78109",
+      "verdict": "PASS",
+      "findingCount": 0
+    },
+    {
+      "kind": "independent-acceptance-verification",
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-final-independent-acceptance-verification.json",
+      "algorithm": "sha256",
+      "value": "6429fd7455388e351aa355794bf490877d5b9eeb9aaf6bf8d9482358468f2af4",
+      "verdict": "PASS"
+    }
+  ],
+  "gates": {
+    "planAuthority": "PASS: 17 domains, 29 tickets, 21 program evaluations",
+    "planTests": "PASS: 48 tests",
+    "focusedTests": "PASS: 32 tests",
+    "fullVitest": "PASS: 1328 tests, 4 fixture skips",
+    "typecheck": "PASS",
+    "lint": "PASS: 0 errors, 6 pre-existing warnings",
+    "productionBuild": "PASS: Next 16 webpack",
+    "liveCanvasContract": "PASS: 1440, 768, and 390",
+    "seriousCriticalAccessibility": "PASS: zero violations",
+    "secrets": "PASS: zero leaks",
+    "security": "PASS: zero findings",
+    "independentAcceptance": "PASS"
+  },
+  "excludedScope": [
+    "blocked A4 motion",
+    "draft operating environment",
+    "embedded browser",
+    "collaboration",
+    "provider or model runtime",
+    "persistence or scheduled jobs",
+    "deployment",
+    "release",
+    "Page IR mutation by the teammate"
+  ],
+  "residuals": [
+    "Default Turbopack cannot bind its internal CSS-worker port on this managed host; the supported webpack production build passes.",
+    "The frozen Page IR meta-evaluator requires unavailable Node 26.7.0; 13 runtime-guard failures on Node 22.22.3 are unrelated to this slice.",
+    "The deterministic assignment POST has no client timeout; this is a non-blocking residual for the local placeholder surface."
+  ],
+  "productClosure": "PASS",
+  "evidencePackageState": "READY_TO_COMMIT",
+  "remoteParityAtCapture": "PENDING"
+}
