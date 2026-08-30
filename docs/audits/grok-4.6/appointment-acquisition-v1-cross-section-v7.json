@@ -1,0 +1,114 @@
+{
+  "audit_version": 7,
+  "audited_at": "2026-08-27T22:23:48.439259+00:00",
+  "input": {
+    "path": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+    "sha256": "16b2aa5d485b5ebe53d75863835512790c9ea9ca511249064a32aab5455d4606",
+    "line_count": 1044
+  },
+  "route": {
+    "requested_model": "x-ai/grok-4.6",
+    "reported_model": "x-ai/grok-4.6",
+    "provider": "xAI",
+    "catalog_verified": true,
+    "credential_source": "environment"
+  },
+  "usage": {
+    "prompt_tokens": 19869,
+    "completion_tokens": 31082,
+    "total_tokens": 50951,
+    "cost": 0.22623,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.22623,
+      "upstream_inference_prompt_cost": 0.039738,
+      "upstream_inference_completions_cost": 0.186492
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 28332,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "audit": {
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "id": "CS-001",
+        "severity": "P1",
+        "section": "5.1, 6.1, 6.2, 15.8",
+        "issue": "Section 5.1 states that no observation may merge across RouteKey except one shape fact (`visitor_kind_distinction` on RouteShapeScope). Sections 6.1, 6.2, and 15.8 require a second shared scope fact: `market_location_eligibility` bound to MarketLocationScope and inherited by every completed RouteKey at that location or project binding. The isolation rule is therefore not total. An implementer who follows 5.1 will either forbid the 15.8 inheritance model or treat other observation classes as shareable.",
+        "correction": "Replace the 'one exception' rule with exactly two named scope-fact exceptions: (1) `visitor_kind_distinction` on RouteShapeScope; (2) `market_location_eligibility` on MarketLocationScope. State that neither fact may carry visitorKind, channel, typed target, fallback, artifact, pointer, or lease data, and that neither may transfer channel strength across AcquisitionScopes. Keep the no-merge rule for every other class."
+      },
+      {
+        "id": "CS-002",
+        "severity": "P1",
+        "section": "11.2, 11.4, 13.1, 15.8",
+        "issue": "SafetyBlock authority is not a single closed actor. Section 11.2 authorizes `trusted revocation/control-plane identity`. Sections 11.4, 13.1, and 15.8 assign the same transaction to `trusted control-plane safety identity`. If those names are different identities, 11.4/15.8 events have no 11.2 writer. If they are the same identity, the contract is non-identical and qualification cannot bind one actor.",
+        "correction": "Use one closed SafetyBlock actor name in 11.2, 11.4, 13.1, and 15.8. State that only that actor may commit SafetyBlock, and that every listed safety observation is that same transaction."
+      },
+      {
+        "id": "CS-003",
+        "severity": "P1",
+        "section": "11.2, 11.3, 11.4, 13.3, 17.1",
+        "issue": "Transient downshift authority is contradictory and non-total. Section 11.3 requires `RuntimeDownshift` on the second in-window TransientFailure and on `TransientDeadlineReached`. Section 11.4 maps the entire `transient_reachability` family to `MonitorMetadata` plus `TransientFailure` and 'keep current CTA'. `TransientDeadlineReached` is not an 11.2 transaction, has no authorized actor, and is not an 11.4 observation. Pointer refusal on a due deadline does not replace the required control write, so the 30-minute 17.1/13.3 downshift-or-block bar has no total writer.",
+        "correction": "Partition transient handling by episode state: first eligible blip is MonitorMetadata+TransientFailure and keeps CTA; TransientFailure at or after earliestSecondAt, and TransientDeadlineReached, are RuntimeDownshift by the designated runtime monitor. Name the deadline as an 11.2/11.4-authorized monitor event that must CAS-commit the 11.1 selection rule. Keep pointer refusal as an independent lease block, not a substitute write."
+      },
+      {
+        "id": "CS-004",
+        "severity": "P1",
+        "section": "11.3, 11.4, 15.9",
+        "issue": "The 11.4 closed partition is ordered so that row 2 (`deterministic non-unsafe target unreachability`) is evaluated before row 3. Section 11.3 blip members are timeout, DNS failure, connection reset, and retryable server response, which are unreachability. Mutual exclusivity is declared but not encoded, so those members are consumed as immediate RuntimeDownshift and can never open `open_degraded`. The 15.9 first-transient / early-success / 15-minute second-failure / missed 30-minute drills then have no legal public trace.",
+        "correction": "Define the 11.3 blip member set as excluded from 11.4 row 2. Evaluate the blip guard before general unreachability. Reserve row 2 unreachability for closed non-blip, non-unsafe target loss (for example non-retryable approved-path absence that is not a semantic/safety event). State that a later row cannot consume an earlier row only after those members are disjoint."
+      },
+      {
+        "id": "CS-005",
+        "severity": "P1",
+        "section": "11.1, 11.3, 12",
+        "issue": "`OperationallyAvailable` requires an undefined 'independently valid monitored target' in addition to no active unsafe/revoked/integrity/semantic/terminal-transient disqualifier. Section 11.3 requires keeping the current CTA during `open_degraded`. If a reachability blip clears OperationallyAvailable, ordinary 11.1 evaluation downshifts immediately and contradicts 11.3. If it does not, the extra predicate is unspecified and pointer/runtime can diverge.",
+        "correction": "Define OperationallyAvailable so an 11.3 open_degraded blip does not clear it and does not count as a terminal transient disqualifier. Clear it on 11.4 SafetyBlock disqualifiers, evidence expiry, semantic/contact-mismatch/surface-absence events, revocation/integrity failure, deterministic non-blip unreachability, and after a committed downshift or Block. Keep the pointer heartbeat predicate separate from target-reachability validity."
+      },
+      {
+        "id": "CS-006",
+        "severity": "P1",
+        "section": "13.1, 11.4, 15.8, 5.1",
+        "issue": "Section 13.1's permitted monitoring list is not closed against the decisive observations that actually mutate selection. It omits `market_location_eligibility` and `visitor_kind_distinction` / route-shape distinction, while 11.4 and 15.8 require immediate SafetyBlock on out-of-bound market location and RouteKey-meaning change. RouteKey meaning is limited to service, location, and provider, so a live change from `required` to `not_required` (or the reverse) has no assigned 11.4 row even though it changes RouteKey identity. The 13.1 'only' list can be read to forbid the monitors that 11.4 depends on.",
+        "correction": "Make 13.1 a closed allowlist that includes every 11.4/15.8 public observation: market-boundary eligibility, visitor_kind_distinction/route-shape distinction, RouteKey service/location/provider meaning, approved-surface presence, channel semantics, public-contact match, target identity/reachability/safety, and integrity/revocation. Assign distinction-result change that alters RouteKey shape to SafetyBlock (`route_key_meaning_change` or a new closed sibling), not to operator alert or an unlisted path."
+      },
+      {
+        "id": "CS-007",
+        "severity": "P1",
+        "section": "7, 12, 8.1",
+        "issue": "Serve-time route-option status requires a current same-origin pointer read for a sibling AcquisitionScope and maps a read that 'would issue' a CTA-bearing lease to `route_option_cta_lease_would_issue`. Section 12's only pointer endpoint mints a lease when predicates pass. That permits issuing a CTA-bearing lease during unresolved rendering without submitting the completed RouteKey, contradicting Section 7's rule that even a positive marker does not launch and that launch needs later RouteKey submission plus a fresh lease.",
+        "correction": "Require a status-only same-origin probe that returns solely the two reviewed marker keys and cannot mint, copy, or expose lease, target, or activation material. Forbid using the CTA-lease endpoint for option rendering. Restate that option selection only produces a new PartialRouteInput and reruns route resolution, and that any later activation must independently fetch a new lease after a completed RouteKey is submitted."
+      },
+      {
+        "id": "CS-008",
+        "severity": "P1",
+        "section": "15.3, 11.2, 11.4",
+        "issue": "The normative QualificationCoverageMatrix must cover publication, presentation, runtime-selection, and transient-episode sets in 10.2, 11.1, and 11.3, but it does not require every 11.2 transaction type or every 11.4 observation-family/actor/selection row. Those rows are the only writers that change public selection after launch. Qualification can therefore pass 15.3 while leaving the decisive monitor partition, SafetyBlock vs RuntimeDownshift split, and deadline writer unproven.",
+        "correction": "Extend the matrix to every 11.2 transaction and every 11.4 observation family, actor, guard, and public-selection outcome, including legal contact-target variants and the disjoint blip vs immediate-unreachability members once CS-003 and CS-004 are closed. Keep identical sealed projections as one coverage instance."
+      }
+    ],
+    "accepted_cross_section_invariants": [
+      "This PRD does not authorize implementation, R0–R2, or any public acquisition; the next permitted artifact is a dependency-ordered implementation plan that preserves these contracts or explicitly identifies a contract change.",
+      "Missing, stale, contradictory, unsafe, or unavailable evidence cannot produce a stronger public promise; runtime may only keep, downshift inside an approved bundle, or block; only HumanRepublish after named-human approval may replace a bundle, change target or copy, exit nonterminal Blocked, or move upward.",
+      "Classifier, compiler, and runtime may not splice candidate evidence projections, join strengths, mint targets, lengthen TTLs, expand the privacy envelope, or emit a positive public action from a non-positive decision.",
+      "Channel and target-verification observations, artifacts, fallbacks, pointers, counters, and transient episodes are isolated by AcquisitionScope=(ProjectId, RouteKey); ProjectId and RouteKey are forbidden from analytics, general logs, dashboards, audit summaries, alerts, tickets, on-call payloads, and operator exports.",
+      "classify() is a sealed pure total function: every input matches exactly one ordered Section 7 row and returns exactly one SealedDecision member with one closed reason code; unresolved is not a launchable HandoffMode.",
+      "Publication-workflow, runtime-selection, presentation, and transient-episode states are closed and must not substitute for or implicitly transition one another; ProjectDeleted is terminal and maps only to blocked_terminal.",
+      "A CTA-bearing lease requires a current no-store pointer that proves non-Blocked BaseArtifactValid OperationallyAvailable predicates; activation requires a fresh pointer fetch; failure produces no navigation; vendor surfaces may not be embedded or prefetched.",
+      "Positive publication of an AcquisitionScope requires a cited current market_location_eligibility=in_bound observation for the exact MarketLocationScope; the compiler copies evidenceCitations and CopyKeyMap resolutions byte-for-byte and has no clock, network, AI, or mutable state.",
+      "The analytics allowlist is exactly acquisition_impression, route_choice, handoff_initiated, launch_failed, and returned_unknown; v1 must not collect identity, clinical, payment, or inventory data and must not claim appointment completion, conversion, revenue, or GA.",
+      "Launch market is only greater_los_angeles and launch verticals are only the three certified packs; R4 is limited availability for counted signed-manifest sites; manual-invalidation cannot satisfy automatic-protection or R3/R4 bars; the four qualification evidence classes must not substitute for one another."
+    ],
+    "implementation_authorization": "NOT_AUTHORIZED",
+    "audit_scope": "Fresh adversarial cross-section audit of the exact written ONE BOX Appointment Acquisition v1 PRD as one contract. Prior per-section ACCEPT results are advisory only. Scope is contradictions, undefined authority, non-total state/classification rules, privacy leaks, impossible operations, ambiguous metrics, broken traceability, and language that would let implementation exceed the stated v1 boundary. No implementation work is authorized."
+  }
+}

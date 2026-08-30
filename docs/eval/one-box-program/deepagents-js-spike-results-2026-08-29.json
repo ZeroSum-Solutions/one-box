@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-08-29",
+  "status": "complete-research-evidence",
+  "applicationImplementationAuthorized": false,
+  "candidate": {
+    "repository": "langchain-ai/deepagentsjs",
+    "repositoryCommit": "b393223f6f6f37716979ee23ed561338f7ea63fc",
+    "package": "deepagents",
+    "packageVersion": "1.13.2",
+    "packageIntegrity": "sha512-OMm+Ark4yaICZhGqC9kYkIx5vw5eH+GqIhzX1PAMmYhdxK5XeBTyn4pdfo1fKrBj2X/8GEg6TPnKS2jORLqJAQ=="
+  },
+  "externalSpike": {
+    "path": "/Users/zero-suminc./Inbox/misc/one-box-deepagents-js-spike-20260829",
+    "branch": "spike/deepagents-js-runtime",
+    "commit": "32ea73c009f2cc711ca4d5f6a4f4d374ecee7715",
+    "evidenceSha256": "63c69727c605a05417247442e0f9ecf448b8a4912452514b48995550335d1973",
+    "lockfileSha256": "994bd6f04d5ad2266e40d8a138db30a2e6d690c1650a6242743f422c6a306bb7"
+  },
+  "results": [
+    { "id": "T1", "result": "PASS" },
+    { "id": "T2", "result": "PASS" },
+    { "id": "T3", "result": "PASS" },
+    { "id": "T4", "result": "PASS" },
+    { "id": "T5", "result": "PASS" },
+    { "id": "T6", "result": "PASS" },
+    { "id": "T7", "result": "PASS" },
+    { "id": "T8", "result": "PASS" },
+    { "id": "T9", "result": "PASS" },
+    { "id": "T10", "result": "PASS" },
+    { "id": "T11", "result": "PASS" }
+  ],
+  "supplyChain": {
+    "lockedPackageEntriesIncludingDev": 149,
+    "productionPackageVersions": 54,
+    "unknownPackageMetadataLicenses": 0,
+    "packagesDeclaringLifecycleScriptsIncludingDev": 5,
+    "installScriptsDisabled": true,
+    "npmAuditVulnerabilityTotal": 0,
+    "namedLegalReviewComplete": false
+  },
+  "security": {
+    "realCredentialsUsed": false,
+    "paidCalls": 0,
+    "tracingForcedOff": true,
+    "networkDeniedTestPassed": true,
+    "networkPositiveControlBlocked": true,
+    "applicationPackageSha256BeforeAndAfter": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e",
+    "applicationLockSha256BeforeAndAfter": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"
+  },
+  "comparison": {
+    "materialRuntimeAdvantage": false,
+    "requiredPolicyWrapperLines": 196,
+    "upstreamStrictTypeLimitation": "Declarations did not pass with exactOptionalPropertyTypes enabled and skipLibCheck disabled at the pinned graph.",
+    "runtimeStrengths": [
+      "subagent delegation",
+      "composite/state backends",
+      "human interruption"
+    ],
+    "runtimeCosts": [
+      "permissive filesystem default",
+      "subagent permission inheritance when omitted",
+      "auto-added general-purpose subagent",
+      "extra LangGraph checkpoint state",
+      "LangSmith telemetry surface",
+      "dependency and wrapper burden"
+    ]
+  },
+  "overall": "PASS",
+  "decision": "adapt-patterns-only",
+  "rationale": "The primitives work, but the dependency, state, telemetry, and mandatory safety-wrapper burden do not materially beat extending the current bounded ONE BOX controller for the presently planned teammate jobs.",
+  "authorityBoundary": "Research evidence only. No application dependency, runtime, service, route, state, memory, approval, release, or implementation authority is created."
+}

@@ -102,7 +102,7 @@ The closed project workflow is:
 | `client_locked` | Client approved one exact visible and interactive experience. | None |
 | `qualifying` | Full agency and deployment-readiness gates are running. | None |
 | `release_blocked` | At least one blocking gate failed. | Existing public release remains unchanged |
-| `ready_to_deploy` | Qualification passed and the release owner approved the exact bundle. | Existing public release remains unchanged |
+| `ready_to_deploy` | Qualification passed and distinct active release initiator and approver authorized the exact bundle. | Existing public release remains unchanged |
 | `deploying` | An immutable provider release is being created and verified. | Existing public release remains unchanged |
 | `live` | The verified provider release owns the production alias. | New release served |
 
@@ -114,7 +114,7 @@ Each immutable release has a separate closed state: `prepared`, `deploying`, `li
 
 - Any visible copy, layout, token, asset, motion, interaction, navigation, form, or appointment-presentation change invalidates the client lock.
 - A deterministic, non-visible shipping repair may preserve the client lock only when its policy declares the capability non-presentational and rendered visual plus interaction fingerprints remain identical.
-- Any post-qualification byte change invalidates release-owner approval and requires qualification against the new bundle.
+- Any post-qualification byte change invalidates the two-person release authorization and requires qualification against the new bundle.
 - A new candidate never inherits approval from a prior candidate by filename, timestamp, or visual similarity.
 
 ## 7. Phase A: automatic generation
@@ -233,13 +233,17 @@ An automatic repair never writes to the live site. If it changes the visible or 
 
 ### 9.5 Release approval
 
-After the suite passes, a named release owner reviews:
+After the suite passes, one active named release initiator reviews and proposes:
 
 - the client approval receipt;
 - the final rendered release candidate;
 - the complete qualification manifest;
 - automatic-repair diffs;
 - deployment target, domain, and rollback target;
+
+A different active named release approver independently reviews those exact bytes,
+receipts, and target. Production authorization exists only when both identities and
+decisions are bound to the same transaction; the initiator cannot self-approve.
 - appointment copy and destination approval where enabled.
 
 Approval binds the exact release-bundle hash. Models, clients, gate summaries, and deployment providers cannot produce this approval.
@@ -344,7 +348,7 @@ Every recovery action records the initiating actor, expected revision, prior sta
 
 - Run representative site purposes and verticals at required desktop, tablet, and mobile sizes.
 - Exercise hover, focus, keyboard, reduced motion, slow network, expired review access, and open-page lease expiry.
-- Require designer visual approval before client review and release-owner approval before deployment.
+- Require designer visual approval before client review and two-person release authorization before deployment.
 - Use an independent verifier against the written success criteria before production qualification.
 
 ### 14.4 Operational drills

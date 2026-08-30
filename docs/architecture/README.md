@@ -7,6 +7,11 @@ intake UI, evidence workspace, preview workbench, and API routes from one
 process. Local development uses `npm run dev` on `127.0.0.1:3000`; this document
 does not define a hosted deployment or production topology.
 
+[ADR 0002](../adr/0002-target-desktop-cloud-topology.md) proposes a future
+desktop/cloud target for the full product. It is not accepted runtime authority,
+does not select vendors, and does not supersede this current topology until an
+accepted migration proves each extracted seam.
+
 The current repository maps to three logical layers:
 
 ```text

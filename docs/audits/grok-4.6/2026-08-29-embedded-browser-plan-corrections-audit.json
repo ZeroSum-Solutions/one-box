@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T02:58:09.730Z",
+  "request": {
+    "task": "Embedded browser EB-001 through EB-021 plan-coverage recheck",
+    "model": "x-ai/grok-4.6",
+    "effort": "low",
+    "base": "HEAD",
+    "head": "7167a2488a7a0b82f1b5df0fde6b96e1e7b869ef",
+    "files": [
+      "docs/plans/2026-08-29-embedded-browser-integration.md",
+      "docs/security/2026-08-29-embedded-browser-closure-requirements.md"
+    ],
+    "proofs": [],
+    "diffBytes": 39258
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 9354,
+      "completion_tokens": 1482,
+      "total_tokens": 10836,
+      "cost": 0.0276,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.0276,
+        "upstream_inference_prompt_cost": 0.018708,
+        "upstream_inference_completions_cost": 0.008892
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 1176,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "line": "BR-0 / §9–§12 (no OwnerAssignmentV1)",
+        "scenario": "Closure register rewrite packet requires the replacement plan to name an active OwnerAssignmentV1 for every required owner role and identify the independent security verifier before any row can leave OPEN. The plan freezes ‘named owners’ as future BR-0 work and never binds Desktop Security, Architecture, Identity, Canvas/Agent, Data Protection, Website Authority, or License owners, nor a verifier, to a named human.",
+        "remediation": "Add a non-authorizing OwnerAssignmentV1 table listing named humans for each register role plus the independent security verifier, keep every EB-001..EB-021 state OPEN, and do not treat that table as implementation authorization."
+      }
+    ],
+    "proof_assessment": "Planning-only diff: all 21 IDs appear in the crosswalk with controls and slice oracles; status and §12 keep rows OPEN and deny retained-code authorization. Empty proof artifacts do not close anything. The only coverage gap against the register’s owner/verifier gate is missing named assignments.",
+    "residual_risks": [
+      "Unverified SHA-256 of the closure register cited in the plan",
+      "Product language in §1–§5 could be misread as topology selection if later tickets ignore §12"
+    ]
+  }
+}

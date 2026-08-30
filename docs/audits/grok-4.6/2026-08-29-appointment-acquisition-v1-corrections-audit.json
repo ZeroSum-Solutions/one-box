@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T02:48:20.866Z",
+  "request": {
+    "task": "Appointment Acquisition v1 CS-001 through CS-008 remediation",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "HEAD",
+    "head": "7167a2488a7a0b82f1b5df0fde6b96e1e7b869ef",
+    "files": [
+      "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md"
+    ],
+    "proofs": [],
+    "diffBytes": 115919
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24829,
+      "completion_tokens": 15666,
+      "total_tokens": 40495,
+      "cost": 0.143654,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.143654,
+        "upstream_inference_prompt_cost": 0.049658,
+        "upstream_inference_completions_cost": 0.093996
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 15061,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+        "line": "§11.3 open_degraded×TransientFailure 'from earliestSecondAt until deadline' vs §11.3 prose and §11.4 transient_reachability_downshift 'at or after earliestSecondAt'",
+        "scenario": "CS-003 residual: scope is open_degraded; control-plane clock is at or after deadline; designated monitor reclassifies a still-blip timeout/DNS/reset/retryable response as TransientFailure (not TransientDeadlineReached). §11.4 and §11.3 prose require that same monitor to CAS-commit RuntimeDownshift. The closed §11.3 table has no such row: 'until deadline' fails the second-failure guard, so the unlisted-pair/failed-guard rule is no write, episode stays open_degraded, selection/CTA unchanged. Conflicting expected outcomes also break CS-008's 11.3-guard / 11.4-member qualification oracle for the same input.",
+        "remediation": "Make the §11.3 table total and identical to §11.4: TransientFailure at or after earliestSecondAt (including at/after deadline) -> resolved_downshift + RuntimeDownshift by the designated runtime monitor; keep TransientDeadlineReached as the mandatory scheduled write. State that a late blip cannot no-write after deadline."
+      }
+    ],
+    "proof_assessment": "No independent proof artifacts were supplied; the PRD rewrite is the only evidence. CS-001 (exactly two scope-fact exceptions: visitor_kind_distinction on RouteShapeScope and market_location_eligibility on MarketLocationScope), CS-002 (SafetyBlock only by trusted control-plane safety identity), CS-004 (blip members excluded from general unreachability), CS-005 (open_degraded does not clear OperationallyAvailable), CS-006 (closed 13.1 allowlist), and CS-007 (status-only option probe cannot mint/return lease or target) are stated without a remaining MEDIUM+ contradiction in this slice. CS-003/CS-008 still have a closed-table vs 11.4 writer/oracle split.",
+    "residual_risks": [
+      "§11.3 table-faithful runtime can miss RuntimeDownshift if a post-deadline observation is labeled TransientFailure and TransientDeadlineReached is not independently committed.",
+      "§11.4 'deterministic non-unsafe, non-blip target unreachability' is a complement, not a closed member list, so 11.4 matrix cells for that family are not uniquely oracled.",
+      "Status-probe 'freshness metadata' is not schema-closed beyond the non-minting prohibitions.",
+      "This review grants no implementation or activation authority."
+    ]
+  }
+}

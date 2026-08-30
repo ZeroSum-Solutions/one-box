@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "program": "ONE BOX",
+  "status": "planning-reconciliation",
+  "governingRule": "Domain authority outranks recency. Proposed, draft, research, rejected, historical, and audit artifacts cannot authorize implementation.",
+  "implementationAuthorized": false,
+  "governancePolicies": {
+    "productionRelease": {
+      "minimumDistinctActiveHumans": 2,
+      "initiatorMayApprove": false,
+      "approvalBoundTo": ["candidate", "releaseBundleHash", "qualificationReceipt", "clientReviewReceipt", "targetDescriptor"],
+      "emergencyRollback": {
+        "maximumInitiators": 1,
+        "newBytesAllowed": false,
+        "previouslyQualifiedReleaseOnly": true,
+        "independentReviewWithinHours": 24
+      }
+    },
+    "modelReview": {
+      "primaryReviewer": "declared-per-packet",
+      "exactRequestedModelRequired": true,
+      "ownerAuthorizedFallbackAllowed": true,
+      "supplementalReviewAllowed": true,
+      "fallbackMustRetainFailedAttempt": true,
+      "fallbackMustIdentifyActualModel": true,
+      "modelAuthority": "advisory-only",
+      "targetChangeInvalidatesReceipt": true
+    }
+  },
+  "packetDigest": "c01313fdd7449ab82d8855fb430772c2a36d29f590db39432dcc95143394bb5e",
+  "forbiddenPrimaryPathPrefixes": ["docs/audits/"],
+  "authorityClassDefinitions": {
+    "owner-approved": "Accepted normative product contract for its exact boundary; execution still follows its named ticket and authorization state.",
+    "owner-approved-direction": "Accepted product or sequence direction; no implementation permission.",
+    "owner-approved-architecture": "Accepted architecture direction for the named domain; implementation and activation remain separate.",
+    "proposed": "Reviewable planning candidate awaiting named human acceptance.",
+    "draft": "Working decomposition that cannot control retained work.",
+    "research": "Evidence or technology disposition only; code use requires the adoption policy and phase authority.",
+    "rejected": "Not safe or accepted for retained implementation.",
+    "historical": "Preserved context that cannot control current requirements, implementation, acceptance, release, or activation."
+  },
+  "domains": {
+    "website-source": {
+      "label": "Website source, candidate, compiler, mutation, and promotion",
+      "primaryPath": "docs/specs/2026-08-22-page-ir-safe-pipeline-prd.md",
+      "authorityClass": "owner-approved",
+      "implementationAuthorized": false,
+      "acceptanceRecord": {
+        "acceptedBy": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product owner",
+        "recordedAt": "2026-08-29",
+        "evidence": "Pre-existing owner-approved authority carried into this reconciliation; this record grants no implementation authorization."
+      },
+      "relatedPaths": ["docs/tickets/page-ir-safe-pipeline/manifest.json", "docs/eval/page-ir-safe-pipeline/manifest.json"],
+      "boundary": "This manifest grants no implementation permission. Existing Page IR tickets OBX-001, OBX-002, OBX-010 through OBX-015, OBX-020 through OBX-025, OBX-029 through OBX-031, OBX-040 through OBX-042, OBX-050, and OBX-051 retain only their separately recorded ticket state; one page-ir-v1 or template-v1 source is fixed per run."
+    },
+    "canvas": {
+      "label": "Canvas interaction",
+      "primaryPath": "docs/specs/2026-08-16-canvas-upgrade.md",
+      "authorityClass": "owner-approved",
+      "implementationAuthorized": false,
+      "acceptanceRecord": {
+        "acceptedBy": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product owner",
+        "recordedAt": "2026-08-29",
+        "evidence": "Pre-existing owner-approved authority carried into this reconciliation; this record grants no implementation authorization."
+      },
+      "relatedPaths": ["docs/plans/one-box-master/02-canvas/index.md"],
+      "boundary": "Approved interaction direction; Page IR supersedes older mutation assumptions and each later slice needs its own authorization."
+    },
+    "website-lifecycle": {
+      "label": "Cross-system website lifecycle",
+      "primaryPath": "docs/superpowers/specs/2026-08-27-canvas-to-agency-shipping-design.md",
+      "authorityClass": "owner-approved-direction",
+      "implementationAuthorized": false,
+      "acceptanceRecord": {
+        "acceptedBy": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product owner",
+        "recordedAt": "2026-08-29",
+        "evidence": "Owner-approved intake-to-re-delivery direction recorded in this task; phase implementation remains separately gated."
+      },
+      "boundary": "Intake through monitoring and re-delivery direction; execution is phase-gated."
+    },
+    "program-order": {
+      "label": "P1 through P8 program order",
+      "primaryPath": "docs/superpowers/plans/2026-08-27-canvas-to-agency-shipping-roadmap.md",
+      "authorityClass": "owner-approved-direction",
+      "implementationAuthorized": false,
+      "acceptanceRecord": {
+        "acceptedBy": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product owner",
+        "recordedAt": "2026-08-29",
+        "evidence": "Owner-approved program sequencing recorded in this task; no phase inherits implementation authorization."
+      },
+      "boundary": "Sequence authority only; no phase inherits implementation authorization."
+    },
+    "appointment-acquisition": {
+      "label": "Appointment acquisition",
+      "primaryPath": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+      "authorityClass": "owner-approved-architecture",
+      "implementationAuthorized": false,
+      "acceptanceRecord": {
+        "acceptedBy": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product owner",
+        "recordedAt": "2026-08-29",
+        "evidence": "Owner-approved appointment architecture boundary recorded in this task; implementation and activation remain unauthorized."
+      },
+      "boundary": "Appointment topology placement is deferred to a separate accepted ADR. Independent verification, implementation plan, tickets, tests, and activation authorization remain required; website topology, rollback, re-delivery, and release remain non-owners."
+    },
+    "engineering-operating-system": {
+      "label": "Senior-engineering workflow and gap register",
+      "primaryPath": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "relatedPaths": [
+        "docs/adr/0001-modular-monolith.md",
+        "docs/architecture/README.md",
+        "docs/governance/reviewer-roles.md",
+        "docs/governance/risk-exceptions/README.md",
+        "docs/tickets/one-box-program/README.md",
+        "docs/tickets/one-box-program/ticket-body-contract.json",
+        "docs/tickets/one-box-program/requirement-vocabulary.json",
+        "CONTRIBUTING.md",
+        "package.json",
+        "scripts/verify-plan-authority.mjs",
+        "scripts/verify-plan-authority.node.mjs",
+        ".github/workflows/ci.yml",
+        ".github/pull_request_template.md",
+        ".github/ISSUE_TEMPLATE/feature.yml"
+      ],
+      "boundary": "Planning and contribution policy pending owner acceptance. Every related governance and contributor surface in this domain is proposed, grants no implementation authority, and remains subordinate to accepted domain authority; exact Grok review or a labeled authorized fallback is evidence only."
+    },
+    "release-1": {
+      "label": "Narrow Release 1 and re-delivery contract",
+      "primaryPath": "docs/plans/one-box-master/01-foundation/release-1-contract.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "relatedPaths": ["docs/security/local-api-threat-model.md"],
+      "boundary": "Planning contract pending owner acceptance and unresolved selection tickets."
+    },
+    "compatibility": {
+      "label": "Release 1 compatibility and capability support",
+      "primaryPath": "docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "boundary": "Support matrix pending owner acceptance and baseline evidence."
+    },
+    "target-topology": {
+      "label": "Target desktop/cloud topology",
+      "primaryPath": "docs/adr/0002-target-desktop-cloud-topology.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "boundary": "ADR 0001 remains executable authority until this ADR is accepted and each migration is separately authorized."
+    },
+    "program-security": {
+      "label": "Full-product threat model",
+      "primaryPath": "docs/security/2026-08-29-program-threat-model.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "boundary": "Planned controls are not current implementation claims; the local API threat model remains current for loopback runtime."
+    },
+    "program-evaluation": {
+      "label": "Program evaluation strategy",
+      "primaryPath": "docs/eval/one-box-program/evaluation-strategy.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "boundary": "Existing Page IR evaluations remain authoritative for their scope; new program oracles are planned until implemented."
+    },
+    "supply-chain": {
+      "label": "Dependency, model, skill, plugin, worker, and asset supply chain",
+      "primaryPath": "docs/security/supply-chain-policy.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "boundary": "No new production code use until an accepted ledger entry and enforcement evidence exist."
+    },
+    "program-tickets": {
+      "label": "Program planning and future phase backlog",
+      "primaryPath": "docs/tickets/one-box-program/manifest.json",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "boundary": "Proposed and blocked planning tickets do not authorize implementation."
+    },
+    "mpa-reconciliation": {
+      "label": "MPA-001 through MPA-011 correction record",
+      "primaryPath": "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "relatedPaths": ["docs/audits/grok-4.6/2026-08-29-one-box-technology-master-plan-audit.md"],
+      "boundary": "Finding disposition record only. It cannot overrule the domain documents it cites or authorize code use."
+    },
+    "operating-environment": {
+      "label": "Team, agents, drafts, collaboration, desktop, browser, media, and stack expansion",
+      "primaryPath": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
+      "authorityClass": "draft",
+      "implementationAuthorized": false,
+      "relatedPaths": ["docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md", "docs/adr/0003-deep-agents-js-job-plane-evaluation.md"],
+      "boundary": "E0 through E8 are draft decomposition only; no retained implementation."
+    },
+    "embedded-browser": {
+      "label": "Embedded browser",
+      "primaryPath": "docs/plans/2026-08-29-embedded-browser-integration.md",
+      "authorityClass": "proposed",
+      "implementationAuthorized": false,
+      "relatedPaths": ["docs/security/2026-08-29-embedded-browser-closure-requirements.md"],
+      "boundary": "The rewritten plan preserves EB-001 through EB-021 as open implementation gates. No retained desktop, native view, browser, profile, capture, CDP, agent-action, packaging, signing, updater, or distribution work may begin until EB-001 closes first and the separately authorized slice's required rows have named-human and independent-verifier evidence."
+    },
+    "technology-adoption": {
+      "label": "External technology and model research",
+      "primaryPath": "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md",
+      "authorityClass": "research",
+      "implementationAuthorized": false,
+      "relatedPaths": ["docs/research/source-catalog/README.md", "docs/research/source-catalog/github-starred-one-box-shortlist-2026-08-29.md", "docs/research/source-catalog/adoption-ledger.json", "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md", "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md", "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md", "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json"],
+      "boundary": "The shortlist owns planning dispositions; the adoption ledger and phase gates control any code use."
+    }
+  },
+  "supportingEvidence": [
+    "docs/audits/grok-4.6/2026-08-29-engineering-operating-system-gap-reaudit-v3.md",
+    "docs/audits/grok-4.6/2026-08-29-one-box-technology-master-plan-audit.md",
+    "docs/audits/grok-4.6/2026-08-29-embedded-browser-plan-audit.md",
+    "docs/audits/grok-4.6/2026-08-28-canvas-master-plan-reconciliation-audit.md",
+    "docs/audits/evidence/2026-08-29-planning-control-verification.md",
+    "docs/audits/fable-5/2026-08-29-deep-agents-teammate-proposal-audit.md",
+    "docs/research/source-catalog/README.md",
+    "docs/research/source-catalog/adoption-ledger.json"
+  ],
+  "historicalOrSubordinate": [
+    "docs/specs/2026-08-13-refero-editor-requirements.md",
+    "docs/plans/2026-08-13-refero-editor-evidence-workspace.md",
+    "docs/plans/2026-08-16-prompt-driven-engine-decisions.md",
+    "docs/specs/2026-08-17-workspace-tabs-reference-capture.md"
+  ]
+}

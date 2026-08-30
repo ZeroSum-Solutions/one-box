@@ -4,7 +4,7 @@
 - **Branch:** `research/la-appointment-field-study`
 - **Worktree:** `/Users/zero-suminc./projects/one-box-worktrees/la-appointment-field-study`
 - **PRD:** `docs/specs/2026-08-27-appointment-acquisition-v1-prd.md`
-- **Status:** checkpoint only; final audit and verification remain incomplete
+- **Status:** eight v7 findings corrected; exact Grok 4.6 correction re-audit v2 is `CLEAN`; implementation remains unauthorized
 
 ## Completed before restart
 
@@ -52,16 +52,37 @@ Findings:
 - Clarified post-authorization rollout, R4 timing, diagnostic proposal calibration, and diagnostic review time.
 - Made project deletion terminal for its ProjectId.
 
-## Required continuation
+## 2026-08-29 correction closure
 
-1. Re-read the current PRD and confirm every `CS-001` through `CS-015` correction is complete and internally consistent.
-2. Run `git diff --check` and placeholder/ambiguity scans.
-3. Run a second exact `x-ai/grok-4.6` cross-section audit against the full current PRD.
-4. If the result is `REVISE`, preserve the findings, correct the document, and rerun until no P0/P1 remains.
-5. Save the final audit evidence under `docs/audits/grok-4.6/`.
-6. Perform the PRD self-review for placeholders, contradictions, ambiguity, and scope.
-7. Run an independent verifier against the written PRD and its approved architecture.
-8. Commit final corrections and audit evidence in a new commit. Do not amend this checkpoint.
-9. Ask the owner to review the committed PRD before creating an implementation plan.
+The resumed session preserved exact Grok 4.6 audit artifacts v2 through v7 under `docs/audits/grok-4.6/`. The bounded v7 audit reviewed PRD SHA-256 `16b2aa5d485b5ebe53d75863835512790c9ea9ca511249064a32aab5455d4606` and returned eight P1 findings concentrated in the post-launch monitoring and pointer contract:
+
+1. name both allowed cross-scope facts in the isolation rule;
+2. use one exact SafetyBlock actor name;
+3. assign transient second-failure and deadline writes to an authorized RuntimeDownshift actor;
+4. make reachability blips disjoint from immediate non-blip unreachability;
+5. close `OperationallyAvailable` behavior during `open_degraded`;
+6. align the Section 13.1 monitor allowlist with all decisive observations;
+7. use a status-only route-option probe that cannot mint a lease;
+8. extend qualification coverage to every post-launch transaction and observation-family row.
+
+All eight were corrected in the current PRD. The first completed exact
+`x-ai/grok-4.6` correction audit found one remaining MEDIUM state-machine hole:
+a late `TransientFailure` at or after deadline could miss both table guards and
+produce no write. The table was made total for every failure at or after
+`earliestSecondAt`; the non-blip set and status-only response schema were also
+closed. Exact Grok re-audit v2 returned `CLEAN` with zero findings.
+
+Current PRD SHA-256:
+`3c4aca6207174dbbb69be059a5963d9e42b2d29da89450f5f9a0ed9348754e2d`.
+
+Current receipts:
+
+1. `docs/audits/grok-4.6/2026-08-29-appointment-acquisition-v1-corrections-audit.json`
+2. `docs/audits/grok-4.6/2026-08-29-appointment-acquisition-v1-corrections-reaudit-v2.json`
+
+The next legitimate steps are independent PRD verification, a non-amended
+checkpoint commit, owner review of the exact committed PRD, and only then a
+separately authorized implementation plan. No implementation, deployment, or
+public acquisition change is authorized by this closure.
 
 No implementation, implementation plan, deployment, or public acquisition change is authorized by this checkpoint.

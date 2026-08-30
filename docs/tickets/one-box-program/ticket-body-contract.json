@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "status": "proposed",
+  "implementationAuthorized": false,
+  "appliesTo": "docs/tickets/one-box-program/OBX-P*.md",
+  "manifestPath": "docs/tickets/one-box-program/manifest.json",
+  "requiredFrontmatterFields": [
+    "id",
+    "status",
+    "priority",
+    "epic",
+    "owner-role",
+    "depends-on",
+    "requirements",
+    "evaluations"
+  ],
+  "requiredSections": [
+    "Outcome",
+    "Readiness gate",
+    "Bounded delivery",
+    "Acceptance criteria",
+    "Evidence boundary"
+  ],
+  "sectionContract": {
+    "Outcome": ["bounded-observable-result"],
+    "Readiness gate": ["authority", "dependencies", "evaluations", "human-approval"],
+    "Bounded delivery": ["delivery-scope", "non-goals", "security-data-license-telemetry", "migration-compatibility", "documentation", "rollback-removal"],
+    "Acceptance criteria": ["test-first-oracle", "requirement-evaluation-links", "model-review-or-authorized-fallback", "unresolved-finding-rule", "human-decision"],
+    "Evidence boundary": ["planning-only", "separately-authorized-external-effects"]
+  },
+  "identitySource": "The program manifest humanAssignments and active OwnerAssignmentV1 records; null or absent named-human assignments block ready and later states.",
+  "enforcementStatus": "locally-enforced-by-verify-plans-and-test-plans",
+  "boundary": "The local verifier and CI workflow enforce this repository contract. That evidence does not prove remote branch-review settings, named-human approval, or implementation authorization."
+}

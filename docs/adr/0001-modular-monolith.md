@@ -2,6 +2,7 @@
 
 - Status: accepted baseline
 - Date: 2026-08-14
+- Proposed successor context: [ADR 0002](0002-target-desktop-cloud-topology.md) explores a future hosted topology but is not accepted, does not supersede this ADR, and grants no implementation authority
 
 ## Context
 
@@ -54,3 +55,10 @@ independent tests, explicit authorization and persistence semantics, and a
 demonstrated operational need for a separate process. Revisit the ADR before
 introducing a second deployable or moving run/evidence authority outside this
 repository.
+
+ADR 0002 opens that revisit but does not close it. Before run or evidence
+authority leaves local per-run artifacts, a separately accepted authority-
+migration ADR and data-migration plan must prove dual-run equivalence, cutover,
+rollback, deletion, and recovery. Until those records are accepted and the
+specific migration is authorized, this ADR remains the executable architecture
+authority.

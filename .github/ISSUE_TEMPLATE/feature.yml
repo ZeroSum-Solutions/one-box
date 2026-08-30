@@ -41,6 +41,25 @@ body:
     attributes:
       label: Architecture impact
       description: Note affected paths under `src/app`, `src/lib`, `templates/local-service`, `sites/<id>`, or `src/lib/contracts.ts`.
+  - type: textarea
+    id: traceability
+    attributes:
+      label: Authority and traceability
+      description: Link the canonical authority plus stable requirement, evaluation, and ticket IDs. Say explicitly if this is proposed planning rather than authorized implementation.
+      placeholder: |
+        Authority: docs/...
+        Requirements: REQ-...
+        Evaluations: EVAL-...
+        Ticket: OBX-...
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk, data, supply chain, and rollback
+      description: Identify trust/data boundaries, dependencies or licenses, telemetry, migration/compatibility, rollout, rollback, kill switch, and required reviewer roles.
+    validations:
+      required: true
   - type: checkboxes
     id: safety
     attributes:

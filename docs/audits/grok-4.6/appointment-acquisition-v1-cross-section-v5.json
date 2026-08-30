@@ -1,0 +1,113 @@
+{
+  "audit_version": 5,
+  "audited_at": "2026-08-27T21:48:41.628308+00:00",
+  "input": {
+    "path": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+    "sha256": "e7241eaff05f195954d90cf43ecfc1525aab723f4bfb8a67191841a1dc0373a6",
+    "line_count": 980
+  },
+  "route": {
+    "requested_model": "x-ai/grok-4.6",
+    "reported_model": "x-ai/grok-4.6",
+    "provider": "xAI",
+    "catalog_verified": true,
+    "credential_source": "environment"
+  },
+  "usage": {
+    "prompt_tokens": 16150,
+    "completion_tokens": 28723,
+    "total_tokens": 44873,
+    "cost": 0.204638,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.204638,
+      "upstream_inference_prompt_cost": 0.0323,
+      "upstream_inference_completions_cost": 0.172338
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 26163,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "audit": {
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "id": "CS-01",
+        "severity": "P1",
+        "section": "5.1, 6.1, 7",
+        "issue": "AcquisitionScope isolation is stated as absolute: no evidence observation may merge across RouteKey, and completed AcquisitionScopes never share observations. Independently, visitor_kind_distinction is bound only to RouteShapeScope and every completed-route candidate must cite the current distinction for that shape. When the distinction is required, RouteKeys (service, location?, provider?, new) and (..., returning) must both cite that one observation, which is sharing an observation across AcquisitionScopes. The contract simultaneously forbids and requires that share, so observation identity, supersession, and citation are not total.",
+        "correction": "Narrow the non-sharing rule to channel observations, target-verification observations, capabilities, targets, fallbacks, pointers, counters, and episodes. Explicitly permit every RouteKey completed from a RouteShapeScope to cite the single active visitor_kind_distinction for that shape, and forbid that observation from carrying visitorKind, channel, target, fallback, artifact, pointer, or lease data."
+      },
+      {
+        "id": "CS-02",
+        "severity": "P1",
+        "section": "5.1, 7, 10.2, 10.3, 11.1, 12",
+        "issue": "Classification, artifact, pointer, and publication scope are defined only as AcquisitionScope=(ProjectId, RouteKey), and artifacts must contain a RouteKey. Unresolved missing_* and route_shape_mismatch decisions are produced from PartialRouteInput before a RouteKey exists, yet 10.2 allows them to be signed presentation artifacts whose pointers serve correction labels. Runtime selection states are only scheduler, request, contact, blocked_restorable, and blocked_terminal. Unresolved artifacts have a null target, so they fail OperationallyAvailable and 11.1 collapses them to the pre-signed Blocked artifact, which has no PublicRouteOptions. Pointer serving then returns typed Blocked with no CTA and no correction UI. Incomplete-route publication identity and non-launchable serving are therefore impossible under the same contract that requires them.",
+        "correction": "Define a closed non-launchable presentation scope for incomplete routes (distinct from RouteKey) that may hold reviewed dimension options and never a typed target or CTA-bearing lease. Add a runtime selection member that can serve that artifact without an independently valid monitored target, and forbid 11.1 from replacing it with pre-signed Blocked solely because no target exists. BlockedDecision remains target-null and option-null; only UnresolvedDecision may carry PublicRouteOptions."
+      },
+      {
+        "id": "CS-03",
+        "severity": "P1",
+        "section": "5.1, 7, 8.1, 12",
+        "issue": "PublicRouteOption contains only the first missing dimension's enabled IDs, with no typed target and no sealed availability flag. Serve-time availability is defined solely as a current pointer read for that option's exact AcquisitionScope that would issue a CTA-bearing lease, and the renderer may not infer availability from a sibling scope. RouteShapeScope includes location and provider when enabled, and visitorKind membership depends on the distinction for that completed shape. A missing_location or missing_provider option therefore does not determine a RouteKey, especially when later axes or visitorKind remain unresolved. The availability predicate is non-total and cannot be evaluated without inventing sibling-scope reads that 8.1 forbids.",
+        "correction": "Allow live availability pointer-reads only for options that, together with already-supplied dimensions and the current distinction for the resulting RouteShapeScope, complete exactly one RouteKey. Otherwise options are choosable correction labels only: non-launchable, not marked available or unavailable, and never authorized by another scope's pointer response. Launch remains a later submit of the completed RouteKey plus a fresh pointer lease."
+      },
+      {
+        "id": "CS-04",
+        "severity": "P1",
+        "section": "6.1, 6.2, 7, 10.1",
+        "issue": "Section 6.1 says duplicate active facts, conflicting facts, or mixed targets make the evidence set ineligible, without limiting that set to one candidate projection. Sections 6.2, 7, and 10.1 require independent per-candidate projections and allow a primary plus weaker fallbacks for one AcquisitionScope, including scheduler/request web targets and a contact telephone, SMS, or email target. If 6.1 is global per RouteKey, a legal fallback ladder with distinct normalized targets cannot have two active channel facts. If 6.1 is per projection, 6.1's wording is false. Evidence eligibility for fallback topologies is therefore contradictory.",
+        "correction": "Evaluate duplicate-class, conflict, extra-class, and mixed-target ineligibility only inside one candidate evidence projection. State that independent classifier invocations for the same AcquisitionScope may cite disjoint channel classes and different normalized targets, and that those projections are never combined to strengthen a decision."
+      },
+      {
+        "id": "CS-05",
+        "severity": "P1",
+        "section": "4, 7, 8.1, 9.1, 10.3",
+        "issue": "Every published copy choice must be traceable to current evidence and human approval, and the compiler may not replace reviewed copy or emit a stronger public promise. PositiveDecision carries JourneyPromiseClass, HandoffMode, and typedTarget but no copy keys; artifacts must contain copy keys; packs may add unspecified selectors for existing copy keys. There is no closed mapping from a sealed decision plus pack and dictionaries to copy keys. Copy selection authority is therefore undefined and can choose scheduler- or confirmation-strength words for a weaker mode without violating a written total function.",
+        "correction": "Require a versioned, hash-locked, reviewed CopyKeyMap in the approval bundle from (JourneyPromiseClass, HandoffMode, typedTarget.kind) to copy keys, optionally narrowed but not strengthened by declarative pack selectors. The compiler copies those keys byte-for-byte and fails closed on a missing, ambiguous, or strength-increasing mapping. Pack patches still cannot add display strings."
+      },
+      {
+        "id": "CS-06",
+        "severity": "P1",
+        "section": "5.1, 15.8, 16",
+        "issue": "Live, R3, and R4 qualification count an AcquisitionScope only when it resolves to a public service location inside the frozen greater_los_angeles boundary. Location is an optional RouteKey axis enabled only by verified business configuration. The PRD never defines how a location-less scope resolves to a point-in-boundary location, so out-of-market locations on a multi-site business can be counted as launch-market evidence or excluded with no rule. The live-set eligibility function is not total.",
+        "correction": "If location is not an enabled route axis, verified business configuration must bind that ProjectId to exactly one public service location with current in-bound evidence, and every counted scope inherits that location. Otherwise location must be an enabled axis and each counted RouteKey must carry current in-bound location evidence. Out-of-bound scopes on the same site still do not count."
+      },
+      {
+        "id": "CS-07",
+        "severity": "P1",
+        "section": "11.2, 11.4, 18",
+        "issue": "After InitialPublish, exactly five transactions may update control state: MonitorMetadata, RuntimeDownshift, SafetyBlock, ProjectDeletion, and HumanRepublish. Section 18's daily watch compares code, config, pack, live evidence, key, drill, monitor, and alert status with the QualificationManifest and 'downshifts or Blocks affected projects until recertified.' That writer, event, reason, and successor are not in the 11.2 table or the 11.4 immediate-transition list, so qualification drift either has undefined runtime authority or is an implicit sixth public-state writer.",
+        "correction": "Keep the daily watch as a qualification hold that blocks expansion and marks the manifest stale. Any public CTA removal must use an existing 11.2 transaction and a closed 11.4/15.8 event (RuntimeDownshift, SafetyBlock, ProjectDeletion, or HumanRepublish). Do not authorize the watch itself to mutate pointers."
+      }
+    ],
+    "accepted_cross_section_invariants": [
+      "This PRD does not authorize implementation, R0–R2, or general availability; the next permitted artifact is a dependency-ordered plan, and implementation_authorization remains NOT_AUTHORIZED.",
+      "Fail-closed strength: missing, stale, contradictory, unsafe, or unavailable evidence cannot produce a stronger public promise; runtime may only keep, downshift inside an approved bundle, or block, and never upgrade.",
+      "JourneyPromiseClass is never rendered and does not prove success; HandoffMode is the only public action; unresolved is not a launchable mode.",
+      "classify() is a sealed pure total function: no network, clock, AI, or mutable state; evaluation order stops at the first matching row; no invocation may repair another or combine cross-channel evidence.",
+      "visitorKind is not a config-enabled axis; route shape for visitorKind is taken only from current visitor_kind_distinction evidence.",
+      "AI may propose candidates only; deterministic code classifies and transitions; named humans approve publication and every restoration or upgrade.",
+      "The compiler has no independent authority, clock, network, AI, or mutable input, and cannot add evidence, mint targets, lengthen TTLs, change classifier semantics, or emit a positive public action from a non-positive decision.",
+      "After InitialPublish, only MonitorMetadata, RuntimeDownshift, SafetyBlock, ProjectDeletion, and HumanRepublish may write control state; HumanRepublish is the only path that may replace a bundle, change target or copy, exit nonterminal Blocked, or move upward.",
+      "ProjectDeleted is terminal for that ProjectId; HumanRepublish cannot restore it; a future project requires a new ProjectId, fresh evidence, and InitialPublish.",
+      "Analytics, general logs, dashboards, alerts, tickets, and audit summaries may contain only opaque non-reversible IDs and closed enums, never ProjectId, RouteKey, dimension values, URLs, reversible targets, contact values, identity, health, payment, or booking success.",
+      "V1 does not own inventory, reserve or confirm appointments, submit to vendor systems, collect prohibited data, embed vendor sessions, or consume booking callbacks.",
+      "Signed-manifest hosting is the only path that can satisfy automatic downshift and Section 17.1; manual_invalidation cannot count toward R3/R4.",
+      "Launch market is only greater_los_angeles; production vertical packs are only the three named launch verticals; R4 is limited availability and not GA.",
+      "Qualification evidence classes, coverage matrix, holdout, mutation catalog, and rollout stages are non-substitutable; calendar time cannot override evidence.",
+      "Blind ExpectedLabel positives require byte-identical resolved positive tuples; every other pair is the canonical blocked/dual_label_unresolved tuple with null target.",
+      "CTA-bearing leases require a current no-store pointer read proving non-Blocked BaseArtifactValid OperationallyAvailable predicates; activation revalidates; client margin can only shorten a lease."
+    ],
+    "implementation_authorization": "NOT_AUTHORIZED",
+    "audit_scope": "ONE BOX Appointment Acquisition v1 PRD exact text, full-document adversarial cross-section contract audit; section ACCEPTs treated as advisory only; no implementation authorized."
+  }
+}

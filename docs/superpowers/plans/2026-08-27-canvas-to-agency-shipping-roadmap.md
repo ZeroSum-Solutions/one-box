@@ -80,11 +80,17 @@ P3 Client review       P4 Agency qualification and SEO
 
 **Depends on:** P1, P3, and P4.
 
-**Delivers:** release-bundle compiler, final human approval receipt, Release Orchestrator, provider-neutral adapter, deterministic in-memory or filesystem conformance provider, deployment receipts, simulated promotion, rollback, and public-origin verification.
+**Delivers:** release-bundle compiler, two-person production-authorization receipt
+with distinct active initiator and approver, Release Orchestrator, provider-neutral
+adapter, deterministic in-memory or filesystem conformance provider, deployment
+receipts, simulated promotion, bounded emergency rollback, and public-origin verification.
 
 **Does not deliver:** a production provider or public deployment.
 
-**Exit gate:** the conformance suite proves upload, verify, promote, fail, retry, rollback, and stale-writer behavior without contacting a provider.
+**Exit gate:** the conformance suite proves self-approval refusal, upload, verify,
+promote, fail, retry, ordinary two-person rollback, one-person previously-qualified-
+bytes-only emergency rollback with 24-hour independent review, and stale-writer
+behavior without contacting a provider.
 
 ## Production provider selection gate
 

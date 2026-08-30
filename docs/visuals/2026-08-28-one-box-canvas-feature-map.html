@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A visual master feature map for the ONE BOX Canvas website builder and agency shipping workflow.">
+  <title>ONE BOX Canvas Feature Map</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --void: #060606;
+      --ink: #f7f7f2;
+      --muted: #a6a6a0;
+      --faint: #6f706b;
+      --line: rgba(255,255,255,.12);
+      --glass: rgba(255,255,255,.055);
+      --glass-strong: rgba(255,255,255,.09);
+      --yellow: #FFE66C;
+      --blue: #A9C8FF;
+      --green: #B7FF76;
+      --red: #FF7B7B;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--void);
+      color: var(--ink);
+      font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), transparent 88%);
+      z-index: -2;
+    }
+    h1, h2, h3, h4, .display { font-family: "Space Grotesk", ui-sans-serif, sans-serif; }
+    code, .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+    ::selection { background: var(--yellow); color: var(--void); }
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--yellow);
+      outline-offset: 4px;
+    }
+    .shell { width: min(1180px, calc(100% - 32px)); margin-inline: auto; }
+    .glass {
+      background: var(--glass);
+      border: 1px solid var(--line);
+      box-shadow: 0 24px 80px rgba(0,0,0,.28);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
+    .glass-strong { background: var(--glass-strong); }
+    .section-space { padding-block: clamp(72px, 10vw, 136px); }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font: 500 11px/1 "JetBrains Mono", monospace;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--yellow);
+    }
+    .eyebrow::before { content: ""; width: 24px; height: 1px; background: currentColor; }
+    .lede { color: var(--muted); font-size: clamp(17px, 2vw, 21px); line-height: 1.65; }
+    .muted { color: var(--muted); }
+    .faint { color: var(--faint); }
+    .hairline { border-color: var(--line); }
+    .status-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 24px;
+      padding: 5px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font: 500 10px/1 "JetBrains Mono", monospace;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .status-chip::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+    .binding { color: var(--yellow); }
+    .approved { color: var(--green); }
+    .proposed { color: var(--blue); }
+    .draft { color: var(--muted); }
+    .future { color: var(--red); }
+    .metric-number { font: 600 clamp(34px, 6vw, 60px)/.9 "Space Grotesk", sans-serif; letter-spacing: -.05em; }
+    .filter-button {
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: rgba(255,255,255,.03);
+      transition: border-color .18s ease, background .18s ease, color .18s ease;
+    }
+    .filter-button:hover { color: var(--ink); border-color: rgba(255,255,255,.3); }
+    .filter-button[aria-pressed="true"] { color: var(--void); background: var(--yellow); border-color: var(--yellow); }
+    .feature-card { transition: transform .2s ease, border-color .2s ease, opacity .2s ease; }
+    .feature-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,.28); }
+    .feature-card[hidden] { display: none; }
+    .feature-card summary { list-style: none; cursor: pointer; }
+    .feature-card summary::-webkit-details-marker { display: none; }
+    .feature-card summary::after {
+      content: "+";
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--yellow);
+      flex: 0 0 auto;
+      transition: transform .2s ease;
+    }
+    .feature-card[open] summary::after { transform: rotate(45deg); }
+    .feature-list li { position: relative; padding-left: 18px; color: var(--muted); line-height: 1.6; }
+    .feature-list li::before { content: ""; position: absolute; left: 0; top: .72em; width: 5px; height: 5px; border-radius: 999px; background: var(--blue); }
+    .mock-window {
+      background: rgba(6,6,6,.82);
+      border: 1px solid rgba(255,255,255,.18);
+      box-shadow: 0 40px 120px rgba(0,0,0,.48);
+    }
+    .mock-site {
+      background: rgba(255,255,255,.95);
+      color: #060606;
+    }
+    .mock-line { height: 7px; border-radius: 99px; background: rgba(6,6,6,.17); }
+    .mock-selection { border: 2px solid var(--blue); box-shadow: 0 0 0 3px rgba(169,200,255,.18); }
+    .connector { border-color: rgba(255,255,255,.2); }
+    .quote-mark { color: var(--yellow); font: 600 76px/.5 "Space Grotesk", sans-serif; }
+    .source-link { color: var(--muted); text-decoration: underline; text-decoration-color: rgba(255,255,255,.2); text-underline-offset: 4px; }
+    .source-link:hover { color: var(--ink); text-decoration-color: var(--yellow); }
+    .flow-arrow { color: var(--faint); font-family: "JetBrains Mono", monospace; }
+    @media (max-width: 1023px) {
+      .mock-desktop-only { display: none !important; }
+      .mock-grid { grid-template-columns: minmax(0,1fr) !important; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="fixed inset-x-0 top-0 z-50 border-b hairline bg-black/55 backdrop-blur-xl">
+    <div class="shell flex h-14 items-center justify-between gap-4">
+      <a href="#top" class="display text-sm font-semibold tracking-tight">ONE BOX <span class="faint">/ Canvas map</span></a>
+      <nav aria-label="Page sections" class="hidden items-center gap-6 text-xs muted md:flex">
+        <a href="#anatomy" class="hover:text-white">Interface</a>
+        <a href="#workspace-os" class="hover:text-white">Workspace OS</a>
+        <a href="#catalog" class="hover:text-white">Features</a>
+        <a href="#language" class="hover:text-white">Look and feel</a>
+        <a href="#lifecycle" class="hover:text-white">Lifecycle</a>
+      </nav>
+      <span class="status-chip approved">Reconciled</span>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="section-space min-h-screen pt-36 flex items-center">
+      <div class="shell">
+        <div class="max-w-5xl">
+          <span class="eyebrow">Master feature map · 28 Aug 2026</span>
+          <h1 class="mt-8 max-w-5xl text-[clamp(54px,10vw,132px)] font-semibold leading-[.84] tracking-[-.075em]">
+            THE <span style="color:var(--yellow)">CANVAS</span><br>IS THE TASTE LAYER.
+          </h1>
+          <p class="lede mt-9 max-w-3xl">
+            ONE BOX generates a near-shippable website candidate. Canvas gives the designer direct, bounded control over composition, copy, imagery, tokens, responsive behavior, and motion. A surrounding workspace operating system adds model-switching agents, plans, collaboration, client sessions, browsing, capture-to-component, stack selection, and team delivery without weakening evidence or release gates.
+          </p>
+          <div class="mt-8 flex flex-wrap gap-3">
+            <span class="status-chip binding">Binding contracts</span>
+            <span class="status-chip approved">Approved direction</span>
+            <span class="status-chip proposed">Proposed expansion</span>
+            <span class="status-chip draft">Draft</span>
+            <span class="status-chip future">Future track</span>
+          </div>
+          <p class="mono mt-6 max-w-3xl text-xs leading-6 faint">
+            Status describes source authority, not implementation completeness. This is the reconciled product inventory, not a claim that every feature is already built.
+          </p>
+        </div>
+
+        <div class="mt-16 grid gap-px overflow-hidden rounded-[30px] border hairline bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="bg-black/65 p-7"><div class="metric-number">27</div><div class="mono mt-3 text-xs muted">feature systems</div></div>
+          <div class="bg-black/65 p-7"><div class="metric-number">7</div><div class="mono mt-3 text-xs muted">workspace modes</div></div>
+          <div class="bg-black/65 p-7"><div class="metric-number">4</div><div class="mono mt-3 text-xs muted">visibility levels</div></div>
+          <div class="bg-black/65 p-7"><div class="metric-number">1</div><div class="mono mt-3 text-xs muted">production target: websites</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="anatomy" class="section-space border-t hairline">
+      <div class="shell">
+        <div class="grid gap-10 lg:grid-cols-[.7fr_1.3fr] lg:items-end">
+          <div>
+            <span class="eyebrow">01 · Whole before parts</span>
+            <h2 class="mt-6 text-4xl font-semibold tracking-[-.04em] sm:text-6xl">A quiet workspace with contextual depth.</h2>
+          </div>
+          <p class="lede lg:pl-12">The site remains the largest object on screen. Navigation stays narrow, inspectors react to selection, and advanced systems open only when needed. The designer sees the work, not a wall of controls.</p>
+        </div>
+
+        <div class="mock-window mt-14 overflow-hidden rounded-[30px]">
+          <div class="flex h-11 items-center justify-between border-b hairline px-4 text-[10px] mono">
+            <div class="flex items-center gap-3"><span class="font-medium text-white">Acme Dental</span><span class="status-chip binding">Canvas</span></div>
+            <div class="flex items-center gap-2 muted"><span>View</span><span class="rounded-full px-3 py-1" style="background:var(--yellow);color:var(--void)">Edit</span><span>Desktop · 1440</span><span>↶</span><span>↷</span><span class="mock-desktop-only">Auto · Sol high ▾</span></div>
+            <div class="flex items-center gap-2"><span class="mock-desktop-only text-[9px] muted">DW · MP · +2</span><span class="rounded-full px-3 py-1 font-medium" style="background:var(--green);color:var(--void)">Review candidate</span></div>
+          </div>
+
+          <div class="mock-grid relative grid min-h-[590px] grid-cols-[54px_minmax(0,1fr)_300px]">
+            <aside class="mock-desktop-only border-r hairline p-2" aria-label="Mock left rail">
+              <div class="flex h-full flex-col items-center gap-3">
+                <div class="grid h-8 w-8 place-items-center rounded-lg border hairline text-xs" title="Pages">P</div>
+                <div class="grid h-8 w-8 place-items-center rounded-lg border hairline text-xs" title="Layers">L</div>
+                <div class="grid h-8 w-8 place-items-center rounded-lg border hairline text-xs" title="Assets">A</div>
+                <div class="grid h-8 w-8 place-items-center rounded-lg border hairline text-xs" title="References">R</div>
+                <div class="grid h-8 w-8 place-items-center rounded-lg border hairline text-xs" title="Browser">B</div>
+                <div class="grid h-8 w-8 place-items-center rounded-lg border hairline text-xs" title="Plan">✓</div>
+                <div class="grid h-8 w-8 place-items-center rounded-lg border hairline text-xs" title="Team">T</div>
+                <div class="mt-auto grid h-8 w-8 place-items-center rounded-lg border hairline text-xs">?</div>
+              </div>
+            </aside>
+
+            <div class="relative overflow-hidden p-5 sm:p-8 lg:p-12">
+              <div class="absolute left-4 top-4 mono text-[9px] faint">CENTER CANVAS · PAN  ZOOM  SELECT</div>
+              <div class="mock-site mx-auto mt-8 min-h-[420px] max-w-[680px] overflow-hidden rounded-xl shadow-2xl">
+                <div class="flex h-11 items-center justify-between border-b border-black/10 px-5 text-[8px] font-semibold uppercase tracking-widest">
+                  <span>Northline</span><div class="flex gap-4"><span>Services</span><span>Team</span><span>Contact</span></div>
+                </div>
+                <div class="grid gap-6 p-6 sm:grid-cols-[1.08fr_.92fr] sm:p-9">
+                  <div class="py-5">
+                    <div class="mb-4 h-2 w-20 rounded-full bg-black/20"></div>
+                    <div class="h-8 w-full rounded bg-black/90"></div>
+                    <div class="mt-2 h-8 w-4/5 rounded bg-black/90"></div>
+                    <div class="mt-5 space-y-2"><div class="mock-line w-full"></div><div class="mock-line w-5/6"></div><div class="mock-line w-3/4"></div></div>
+                    <div class="mock-selection mt-7 inline-flex rounded-lg p-1"><div class="rounded-md bg-black px-5 py-3 text-[10px] font-semibold text-white">BOOK A CONSULTATION</div></div>
+                  </div>
+                  <div class="min-h-[260px] rounded-2xl bg-black/10 p-4"><div class="h-full rounded-xl border border-black/10 bg-black/10"></div></div>
+                </div>
+                <div class="grid grid-cols-3 gap-3 border-t border-black/10 p-5"><div class="h-14 rounded-lg bg-black/5"></div><div class="h-14 rounded-lg bg-black/5"></div><div class="h-14 rounded-lg bg-black/5"></div></div>
+              </div>
+
+              <div class="glass-strong absolute bottom-16 left-1/2 flex w-[min(92%,560px)] -translate-x-1/2 items-center gap-3 rounded-2xl border hairline p-3 shadow-2xl">
+                <span class="status-chip proposed">Sol high · button</span>
+                <span class="flex-1 text-xs muted">Make the CTA clearer and keep the appointment promise evidence-safe…</span>
+                <span class="grid h-8 w-8 place-items-center rounded-full" style="background:var(--yellow);color:var(--void)">↗</span>
+              </div>
+              <div class="absolute inset-x-4 bottom-3 flex items-center justify-between rounded-xl border hairline bg-black/80 px-4 py-2 mono text-[9px] muted">
+                <span>v018 · 7f39b2 · gates passing</span><span>2 comments · 3 issues</span>
+              </div>
+            </div>
+
+            <aside class="mock-desktop-only border-l hairline p-4" aria-label="Mock contextual inspector">
+              <div class="mono text-[9px] faint">RIGHT INSPECTOR · BUTTON</div>
+              <div class="mt-4 grid grid-cols-4 gap-1 rounded-lg bg-white/5 p-1 text-center text-[9px] muted"><span class="rounded-md bg-white/10 py-2 text-white">Content</span><span class="py-2">Layout</span><span class="py-2">Style</span><span class="py-2">Interact</span></div>
+              <div class="mt-6 space-y-5">
+                <div><div class="mb-2 text-[10px] muted">Label</div><div class="rounded-lg border hairline p-3 text-xs">Book a consultation</div></div>
+                <div><div class="mb-2 text-[10px] muted">Action</div><div class="rounded-lg border hairline p-3 text-xs">Open appointment flow</div></div>
+                <div><div class="mb-2 flex justify-between text-[10px] muted"><span>Width</span><span class="mono">Hug</span></div><div class="h-1 rounded-full bg-white/10"><div class="h-1 w-2/3 rounded-full" style="background:var(--blue)"></div></div></div>
+                <div class="rounded-xl border hairline p-3"><div class="status-chip approved">Evidence bound</div><p class="mt-3 text-[10px] leading-5 muted">This action uses an approved appointment route and does not introduce a new claim.</p></div>
+              </div>
+            </aside>
+          </div>
+        </div>
+
+        <div class="mt-8 grid gap-3 md:grid-cols-5">
+          <div class="glass rounded-2xl p-4"><div class="mono text-xs" style="color:var(--yellow)">01</div><div class="mt-2 text-sm font-semibold">Top bar</div><p class="mt-1 text-xs muted">Mode, viewport, history, next action.</p></div>
+          <div class="glass rounded-2xl p-4"><div class="mono text-xs" style="color:var(--yellow)">02</div><div class="mt-2 text-sm font-semibold">Left rail</div><p class="mt-1 text-xs muted">Pages, layers, assets, references.</p></div>
+          <div class="glass rounded-2xl p-4"><div class="mono text-xs" style="color:var(--yellow)">03</div><div class="mt-2 text-sm font-semibold">Canvas</div><p class="mt-1 text-xs muted">The responsive website candidate.</p></div>
+          <div class="glass rounded-2xl p-4"><div class="mono text-xs" style="color:var(--yellow)">04</div><div class="mt-2 text-sm font-semibold">Inspector</div><p class="mt-1 text-xs muted">Controls for the current selection.</p></div>
+          <div class="glass rounded-2xl p-4"><div class="mono text-xs" style="color:var(--yellow)">05</div><div class="mt-2 text-sm font-semibold">Status shelf</div><p class="mt-1 text-xs muted">Version, gates, comments, issues.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="workspace-os" class="section-space border-t hairline">
+      <div class="shell">
+        <span class="eyebrow">02 · Never-leave workspace</span>
+        <div class="mt-6 grid gap-10 lg:grid-cols-[1.15fr_.85fr] lg:items-end">
+          <h2 class="text-4xl font-semibold tracking-[-.04em] sm:text-6xl">Seven workspaces. One project context.</h2>
+          <p class="lede">Canvas remains the visual center. Browser, Plan, Team, Review, Qualify, and Ship replace the outside tools that normally fracture a project. Agent Studio follows the user across every workspace.</p>
+        </div>
+
+        <div class="mt-14 grid gap-4 lg:grid-cols-[.72fr_1.28fr]">
+          <div class="glass rounded-[28px] p-5 sm:p-7">
+            <div class="mono text-xs faint">WORKSPACE SWITCHER</div>
+            <div class="mt-6 space-y-2">
+              <div class="flex items-center gap-4 rounded-xl p-3" style="background:var(--yellow);color:var(--void)"><span class="mono text-xs">01</span><strong class="text-sm">Canvas</strong><span class="ml-auto text-xs">Design</span></div>
+              <div class="flex items-center gap-4 rounded-xl border hairline p-3"><span class="mono text-xs faint">02</span><strong class="text-sm">Browser</strong><span class="ml-auto text-xs muted">⌘T · research + capture</span></div>
+              <div class="flex items-center gap-4 rounded-xl border hairline p-3"><span class="mono text-xs faint">03</span><strong class="text-sm">Plan</strong><span class="ml-auto text-xs muted">PRDs + tasks</span></div>
+              <div class="flex items-center gap-4 rounded-xl border hairline p-3"><span class="mono text-xs faint">04</span><strong class="text-sm">Team</strong><span class="ml-auto text-xs muted">Chat + activity</span></div>
+              <div class="flex items-center gap-4 rounded-xl border hairline p-3"><span class="mono text-xs faint">05</span><strong class="text-sm">Review</strong><span class="ml-auto text-xs muted">Client lock</span></div>
+              <div class="flex items-center gap-4 rounded-xl border hairline p-3"><span class="mono text-xs faint">06</span><strong class="text-sm">Qualify</strong><span class="ml-auto text-xs muted">Agency gates</span></div>
+              <div class="flex items-center gap-4 rounded-xl border hairline p-3"><span class="mono text-xs faint">07</span><strong class="text-sm">Ship</strong><span class="ml-auto text-xs muted">Release + monitor</span></div>
+            </div>
+          </div>
+
+          <div class="mock-window overflow-hidden rounded-[28px]">
+            <div class="flex items-center justify-between gap-3 border-b hairline px-4 py-2">
+              <div class="flex min-w-0 items-center gap-2 text-[10px]"><span class="rounded-lg px-3 py-2 font-semibold" style="background:var(--yellow);color:var(--void)">Canvas · Homepage</span><span class="max-w-[170px] truncate rounded-lg border hairline px-3 py-2">Browser · Awwwards</span><span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border hairline text-sm">+</span></div>
+              <span class="mock-desktop-only mono text-[9px] faint">ONE PROJECT TAB STRIP</span>
+            </div>
+            <div class="flex items-center justify-between border-b hairline px-5 py-3">
+              <div><div class="mono text-[9px] faint">AGENT STUDIO · PROJECT PERSISTENT</div><div class="mt-1 text-sm font-semibold">Northline workspace agent</div></div>
+              <div class="flex items-center gap-2"><span class="status-chip approved">Connected</span><span class="rounded-full border hairline px-3 py-2 mono text-[10px]">Auto ▾</span><span class="rounded-full border hairline px-3 py-2 mono text-[10px]">High ▾</span></div>
+            </div>
+            <div class="grid min-h-[440px] lg:grid-cols-[1fr_210px]">
+              <div class="p-5 sm:p-7">
+                <div class="max-w-[86%] rounded-2xl border hairline bg-white/5 p-4">
+                  <div class="mono text-[9px]" style="color:var(--blue)">YOU · CANVAS · HERO SELECTED</div>
+                  <p class="mt-3 text-sm leading-6">Use the `/design` skill to make this hero feel more premium. Compare Kimi K3 and Fable 5, then turn the selected direction into a plan.</p>
+                </div>
+                <div class="ml-auto mt-4 max-w-[90%] rounded-2xl border hairline p-4">
+                  <div class="flex flex-wrap gap-2"><span class="status-chip proposed">Kimi K3</span><span class="status-chip proposed">Fable 5</span><span class="status-chip binding">/design</span></div>
+                  <p class="mt-4 text-sm leading-6 muted">I prepared two bounded directions against the current hero, locked design contract, and approved evidence. Nothing has been applied.</p>
+                  <div class="mt-4 grid gap-2 sm:grid-cols-2"><div class="rounded-xl border hairline p-3"><div class="mono text-[9px] faint">VARIANT A</div><div class="mt-2 text-sm font-semibold">Editorial restraint</div><div class="mt-2 text-xs muted">Preview · Diff · Add to plan</div></div><div class="rounded-xl border hairline p-3"><div class="mono text-[9px] faint">VARIANT B</div><div class="mt-2 text-sm font-semibold">Layered motion</div><div class="mt-2 text-xs muted">Preview · Diff · Add to plan</div></div></div>
+                </div>
+                <div class="mt-5 rounded-2xl border hairline bg-black/40 p-3 text-xs muted">Type a request or command… <span class="float-right mono">/ skill · @ model · ⌘ ↵</span></div>
+              </div>
+              <aside class="border-l hairline p-4">
+                <div class="mono text-[9px] faint">PROJECT NOW</div>
+                <div class="mt-5 space-y-4 text-xs">
+                  <div><div class="muted">People</div><div class="mt-2 flex items-center gap-2"><span class="grid h-7 w-7 place-items-center rounded-full border hairline">D</span><span class="grid h-7 w-7 place-items-center rounded-full border hairline">M</span><span class="grid h-7 w-7 place-items-center rounded-full border hairline">S</span><span class="faint">+1</span></div></div>
+                  <div class="border-t hairline pt-4"><div class="muted">Cursor sharing</div><div class="mt-2 flex items-center justify-between"><span>Visible to team</span><span class="rounded-full px-2 py-1 mono" style="background:var(--green);color:var(--void)">ON</span></div></div>
+                  <div class="border-t hairline pt-4"><div class="muted">Open work</div><div class="mt-2 space-y-2"><div>PRD draft · 6 comments</div><div>3 tasks due this week</div><div>Client room · Fri 10:00</div></div></div>
+                  <div class="border-t hairline pt-4"><div class="muted">Candidate</div><div class="mt-2 mono">v018 · 7f39b2</div></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="glass rounded-2xl p-5"><div class="mono text-xs" style="color:var(--yellow)">MODEL</div><p class="mt-3 text-sm font-semibold">Auto route or direct switch</p><p class="mt-2 text-xs leading-5 muted">Per-thread pin, per-turn override, model-aware effort list.</p></div>
+          <div class="glass rounded-2xl p-5"><div class="mono text-xs" style="color:var(--blue)">SKILL</div><p class="mt-3 text-sm font-semibold">Slash-command capability</p><p class="mt-2 text-xs leading-5 muted">Inputs, scope, model, tools, cost, and output shown before run.</p></div>
+          <div class="glass rounded-2xl p-5"><div class="mono text-xs" style="color:var(--green)">PLAN</div><p class="mt-3 text-sm font-semibold">Conversation to PRD and tasks</p><p class="mt-2 text-xs leading-5 muted">Every decision and requirement links back to its source.</p></div>
+          <div class="glass rounded-2xl p-5"><div class="mono text-xs" style="color:var(--red)">LOG</div><p class="mt-3 text-sm font-semibold">Person and agent accountability</p><p class="mt-2 text-xs leading-5 muted">Actor, model, skill, source hash, result, gates, and time.</p></div>
+        </div>
+
+        <div class="glass mt-12 rounded-[30px] p-8 sm:p-12">
+          <div class="quote-mark">“</div>
+          <p class="display max-w-5xl text-3xl font-medium leading-tight tracking-[-.035em] sm:text-5xl">The project stays open. The workspace changes around the work.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="visibility" class="section-space">
+      <div class="shell">
+        <span class="eyebrow">03 · Progressive disclosure</span>
+        <div class="mt-6 grid gap-10 lg:grid-cols-2 lg:items-end">
+          <h2 class="text-4xl font-semibold tracking-[-.04em] sm:text-6xl">Everything is reachable. Almost nothing is permanent.</h2>
+          <p class="lede">The Canvas uses four visibility levels. This creates depth without turning the workspace into an airplane cockpit.</p>
+        </div>
+
+        <div class="mt-14 grid gap-4 lg:grid-cols-4">
+          <article class="glass rounded-[28px] p-6">
+            <div class="flex items-center justify-between"><span class="mono text-xs" style="color:var(--yellow)">LEVEL 1</span><span class="text-2xl">●</span></div>
+            <h3 class="mt-10 text-xl font-semibold">Always visible</h3>
+            <p class="mt-3 text-sm leading-6 muted">Project and lifecycle status, View/Edit, device, undo/redo, AI composer, one primary next action.</p>
+          </article>
+          <article class="glass rounded-[28px] p-6">
+            <div class="flex items-center justify-between"><span class="mono text-xs" style="color:var(--blue)">LEVEL 2</span><span class="text-2xl">◉</span></div>
+            <h3 class="mt-10 text-xl font-semibold">Selection contextual</h3>
+            <p class="mt-3 text-sm leading-6 muted">Content, layout, tokens, assets, motion, destination, accessibility, and evidence status for the selected object.</p>
+          </article>
+          <article class="glass rounded-[28px] p-6">
+            <div class="flex items-center justify-between"><span class="mono text-xs" style="color:var(--green)">LEVEL 3</span><span class="text-2xl">◎</span></div>
+            <h3 class="mt-10 text-xl font-semibold">On-demand drawers</h3>
+            <p class="mt-3 text-sm leading-6 muted">Pages, layers, references, research, asset library, history, checkpoints, and quality issues.</p>
+          </article>
+          <article class="glass rounded-[28px] p-6">
+            <div class="flex items-center justify-between"><span class="mono text-xs" style="color:var(--red)">LEVEL 4</span><span class="text-2xl">○</span></div>
+            <h3 class="mt-10 text-xl font-semibold">Separate surfaces</h3>
+            <p class="mt-3 text-sm leading-6 muted">Client review, agency qualification, deployment, and future Web-app runtime stay outside the core mutation workspace.</p>
+          </article>
+        </div>
+
+        <div class="mt-6 grid gap-4 md:grid-cols-[1.3fr_.7fr]">
+          <div class="glass rounded-[28px] p-6 sm:p-8">
+            <div class="mono text-xs faint">RESPONSIVE BEHAVIOR</div>
+            <div class="mt-6 flex items-end justify-center gap-5">
+              <div class="h-40 w-24 rounded-xl border hairline bg-white/5 p-2"><div class="h-full rounded-lg border hairline"></div></div>
+              <div class="h-52 w-40 rounded-xl border hairline bg-white/5 p-2"><div class="h-full rounded-lg border hairline"></div></div>
+              <div class="hidden h-64 w-80 rounded-xl border hairline bg-white/5 p-2 sm:block"><div class="h-full rounded-lg border hairline"></div></div>
+            </div>
+            <p class="mt-6 text-sm muted">Desktop, tablet, and mobile use real iframe widths. Touch layouts shift drawers into bottom sheets and raise controls to 44px.</p>
+          </div>
+          <div class="glass rounded-[28px] p-6 sm:p-8">
+            <div class="mono text-xs faint">CROWDING RULE</div>
+            <div class="mt-6 grid h-52 place-items-center rounded-2xl border hairline bg-black/30 p-6 text-center">
+              <div><div class="display text-7xl font-semibold" style="color:var(--yellow)">1</div><div class="mt-2 text-sm muted">drawer open at a time</div></div>
+            </div>
+            <p class="mt-6 text-sm muted">A new tool replaces the previous drawer. Context remains stable through selection chips and history.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="catalog" class="section-space border-t hairline">
+      <div class="shell">
+        <span class="eyebrow">04 · Complete feature catalog</span>
+        <div class="mt-6 grid gap-10 lg:grid-cols-[1.25fr_.75fr] lg:items-end">
+          <h2 class="text-4xl font-semibold tracking-[-.04em] sm:text-6xl">Twenty-seven systems, one coherent environment.</h2>
+          <p class="lede">Open any card for the full capability set. Filter by source status to separate committed product contracts from proposed, draft, and future work.</p>
+        </div>
+
+        <div class="sticky top-16 z-40 mt-10 rounded-2xl border hairline bg-black/80 p-3 backdrop-blur-xl">
+          <div class="flex flex-wrap gap-2" role="group" aria-label="Filter feature systems by source status">
+            <button class="filter-button rounded-full px-4 py-2 text-xs" type="button" data-filter="all" aria-pressed="true">All 27</button>
+            <button class="filter-button rounded-full px-4 py-2 text-xs" type="button" data-filter="binding" aria-pressed="false">Binding</button>
+            <button class="filter-button rounded-full px-4 py-2 text-xs" type="button" data-filter="approved" aria-pressed="false">Approved direction</button>
+            <button class="filter-button rounded-full px-4 py-2 text-xs" type="button" data-filter="proposed" aria-pressed="false">Proposed</button>
+            <button class="filter-button rounded-full px-4 py-2 text-xs" type="button" data-filter="draft" aria-pressed="false">Draft</button>
+            <button class="filter-button rounded-full px-4 py-2 text-xs" type="button" data-filter="future" aria-pressed="false">Future</button>
+          </div>
+        </div>
+
+        <div class="mt-12">
+          <div class="mb-5 flex items-end justify-between gap-4"><div><div class="mono text-xs" style="color:var(--yellow)">A · CORE WORKSPACE</div><h3 class="mt-2 text-2xl font-semibold">Build, inspect, and refine</h3></div><span class="mono text-xs faint">01 to 10</span></div>
+          <div class="grid gap-4 lg:grid-cols-2">
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">01</div><h4 class="mt-3 text-xl font-semibold">Project and run home</h4><p class="mt-2 text-sm muted">Find, understand, and resume any local project run.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Run-state foundation</span><span class="status-chip proposed">Expanded library</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Run library with labels, lifecycle state, layout authority, cost, last activity, and filters.</li><li>Resume, evidence, preview, review, and qualification entry actions.</li><li>Corrupt or inaccessible runs are isolated without hiding healthy work.</li><li>Project identity persists across candidate versions and release events.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding approved">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">02</div><h4 class="mt-3 text-xl font-semibold">Workspace modes</h4><p class="mt-2 text-sm muted">Separate experiencing the site from changing it.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">View and Edit</span><span class="status-chip approved">Lifecycle modes</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>View mode preserves navigation, buttons, hover states, animation, WebGL, parallax, and scroll behavior.</li><li>Edit mode overlays safe selection and controls without changing the site source directly.</li><li>Design, Client Review, and Qualify are distinct lifecycle modes with different permissions.</li><li>Client review and qualification remain separate from the core mutation UI.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding draft">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">03</div><h4 class="mt-3 text-xl font-semibold">Canvas shell and navigation</h4><p class="mt-2 text-sm muted">Move through pages, layers, and viewports without losing the site.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Core shell</span><span class="status-chip draft">Workspace tabs</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Pan, zoom, center, fit, and reset controls.</li><li>Page and layer navigation with collapsible left rail.</li><li>True desktop, tablet, and mobile iframe viewports with breakpoint indicator.</li><li>Collapsible inspector and full-canvas focus mode.</li><li>Multi-tab workspace and captured-reference tabs remain draft, not binding.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">04</div><h4 class="mt-3 text-xl font-semibold">Selection and hierarchy</h4><p class="mt-2 text-sm muted">Target every editable object through a stable identity.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip binding">Page IR source authority</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Select sections and supported descendants, including text, links, buttons, images, containers, and decorative layers.</li><li>Stable editor IDs survive compile and connect comments, history, and mutations.</li><li>Parent, child, previous, and next navigation expose hierarchy.</li><li>Selection, text edit, drag, and preview states remain visually distinct.</li><li>For <code>page-ir-v1</code>, Page IR remains the editable source of truth.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding approved">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">05</div><h4 class="mt-3 text-xl font-semibold">Content and actions</h4><p class="mt-2 text-sm muted">Edit copy and behavior through validated capabilities.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip binding">Typed mutation</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Add, delete, replace, and revise supported text.</li><li>Edit button labels, links, destinations, and appointment actions.</li><li>Copy checks cover evidence binding, promise strength, overflow, headings, and accessibility.</li><li>Changes compile a private candidate and update the visible version only after affected gates pass.</li><li>Rejected edits leave the accepted candidate and gate receipt unchanged.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">06</div><h4 class="mt-3 text-xl font-semibold">Layout and responsive control</h4><p class="mt-2 text-sm muted">Shape composition without exposing arbitrary code.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Bounded layout</span><span class="status-chip proposed">Compare mode</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Stack, flex, grid, spacing, sizing, alignment, and bounded positioning.</li><li>Per-breakpoint behavior for desktop, tablet, and mobile.</li><li>Side-by-side responsive comparison with linked selection is a proposed expansion.</li><li>No arbitrary raw CSS, class injection, or unsupported DOM patching by default.</li><li>Unsupported capabilities are stated clearly instead of silently approximated.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">07</div><h4 class="mt-3 text-xl font-semibold">Tokens and design system</h4><p class="mt-2 text-sm muted">Change a site consistently, with scope and impact visible.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip binding">Semantic token system</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Typography, color, spacing, radius, border, shadow, breakpoint, motion, layer, and state tokens.</li><li>Token inspector shows definition, usage scope, and affected elements.</li><li>Shared-token edits require preview, impact list, apply, and revert.</li><li>Tailwind v4 semantic variables compile to portable CSS.</li><li>Client colors stay inside preview and swatches, never the ONE BOX shell.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding proposed draft">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">08</div><h4 class="mt-3 text-xl font-semibold">Assets and media</h4><p class="mt-2 text-sm muted">Source, generate, inspect, place, replace, and trace every asset.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Asset safety</span><span class="status-chip proposed">Direct import</span><span class="status-chip draft">Conditioning</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Project image library with dimensions, format, performance, source, and rights metadata.</li><li>Upload, generated asset, approved library import, replacement, placement, and download.</li><li>Direct client asset import and unified lineage are proposed.</li><li>Reference-conditioned generation remains constrained by provenance and approval.</li><li>Candidate hashes bind the exact asset bytes under review.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">09</div><h4 class="mt-3 text-xl font-semibold">Motion and interactions</h4><p class="mt-2 text-sm muted">Author behavior through a serializable motion schema.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip binding">Bounded motion</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Entrance, exit, hover, focus, scroll, and timeline presets.</li><li>Duration, delay, easing, transform, trigger, replay, reset, and remove controls.</li><li>Preview and diff show the behavior before acceptance.</li><li>No arbitrary JavaScript. Motion stays serializable, validated, and removable.</li><li>Reduced-motion fallback, cleanup, keyboard parity, and touch behavior are mandatory.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding draft future">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">10</div><h4 class="mt-3 text-xl font-semibold">AI assistant and composer</h4><p class="mt-2 text-sm muted">Turn natural language into reviewable, typed proposals.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Selection scoped</span><span class="status-chip draft">Research agent</span><span class="status-chip future">Voice</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Persistent composer works with a selection or the whole candidate.</li><li>The assistant proposes typed mutations, then the designer previews, diffs, and applies.</li><li>Research-grounded suggestions can attach source cards without self-applying changes.</li><li>Assistant state is reachable from every tool and survives drawer changes.</li><li>Voice input and an adaptive toolbelt remain future candidates.</li></ul></div>
+            </details>
+          </div>
+        </div>
+
+        <div class="mt-14">
+          <div class="mb-5 flex items-end justify-between gap-4"><div><div class="mono text-xs" style="color:var(--blue)">B · CONFIDENCE AND CONTROL</div><h3 class="mt-2 text-2xl font-semibold">Trace, reverse, and verify</h3></div><span class="mono text-xs faint">11 to 14</span></div>
+          <div class="grid gap-4 lg:grid-cols-2">
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding draft">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">11</div><h4 class="mt-3 text-xl font-semibold">Research and references</h4><p class="mt-2 text-sm muted">Keep market evidence separate from visual inspiration.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Evidence boundary</span><span class="status-chip draft">Capture workflow</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Competitive research and design references have separate sources, permissions, and uses.</li><li>Refero is the primary planned design-reference source.</li><li>Direction lock records selected references and the design lesson taken from each.</li><li>Source URL, capture time, license or use scope, and provenance remain visible.</li><li>Screenshot, URL, crop capture, and reference workspace tabs remain draft.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding proposed approved">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">12</div><h4 class="mt-3 text-xl font-semibold">History, versions, and checkpoints</h4><p class="mt-2 text-sm muted">Make every meaningful change reversible and attributable.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Undo and history</span><span class="status-chip proposed">Unified checkpoints</span><span class="status-chip approved">Candidate identity</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Undo, redo, Escape, cancel, and focus restoration.</li><li>Immutable candidate hashes connect preview, client lock, qualification, and release.</li><li>Version history shows actor, mutation, affected gates, result, and timestamp.</li><li>Unified site checkpoints, diff, and restore are proposed.</li><li>Restore reruns required gates and invalidates approval when visible output changes.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding approved proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">13</div><h4 class="mt-3 text-xl font-semibold">Quality and diagnostics</h4><p class="mt-2 text-sm muted">Run the smallest safe checks during design, then the full suite before release.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip binding">Gate routing</span><span class="status-chip approved">Qualification classes</span><span class="status-chip proposed">Issue navigator</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Capability-to-gate matrix chooses affected checks after each edit.</li><li>Checks cover copy and evidence, assets, layout and tokens, motion, CTA, structure, and accessibility.</li><li>Unknown or mixed changes run the full suite.</li><li>Issues are classified as automatic repair, designer proposal, or release blocker.</li><li>A contextual issue navigator links findings to stable element IDs without weakening gates.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="binding">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">14</div><h4 class="mt-3 text-xl font-semibold">Accessibility, keyboard, and safety</h4><p class="mt-2 text-sm muted">Treat safe operation as part of the editor, not a final check.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip binding">Fail-closed boundaries</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Keyboard operation, focus order, semantics, contrast, reduced motion, and touch targets.</li><li>Consistent empty, loading, error, unsupported, and rejected states.</li><li>Origin-checked, data-only messaging between Canvas and the preview iframe.</li><li>URL, file, path, upload, and untrusted-content validation.</li><li>No arbitrary executable code enters Page IR, prompts, candidates, or mutations.</li></ul></div>
+            </details>
+          </div>
+        </div>
+
+        <div class="mt-14">
+          <div class="mb-5 flex items-end justify-between gap-4"><div><div class="mono text-xs" style="color:var(--green)">C · LIFECYCLE HANDOFF</div><h3 class="mt-2 text-2xl font-semibold">Review, qualify, and ship</h3></div><span class="mono text-xs faint">15 to 17</span></div>
+          <div class="grid gap-4 lg:grid-cols-3">
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="approved">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">15</div><h4 class="mt-3 text-xl font-semibold">Client review</h4><p class="mt-2 text-sm muted">Collect feedback against one immutable candidate.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip approved">Adjacent surface</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Private, expiring, revocable candidate link.</li><li>Responsive preview without Canvas mutation controls.</li><li>Comments anchored to stable IDs, with resolved and unresolved state.</li><li>Request changes or approve this exact version.</li><li>No general client account is required for v1.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="approved">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">16</div><h4 class="mt-3 text-xl font-semibold">Agency qualification and SEO</h4><p class="mt-2 text-sm muted">Turn a locked design into a release-ready package.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip approved">Separate qualification</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Visual, accessibility, content-truth, SEO, performance, functionality, privacy, security, appointment, and deployment readiness.</li><li>Technical SEO compiles deterministically from approved facts.</li><li>The system never invents claims, locations, services, credentials, or structured data.</li><li>Repair, proposal, and blocker queues feed back into Canvas.</li><li>A client lock is bound to the exact candidate under qualification.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="approved">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">17</div><h4 class="mt-3 text-xl font-semibold">Deployment and monitoring</h4><p class="mt-2 text-sm muted">Release an immutable bundle, verify it publicly, and preserve rollback.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip approved">Release-owned</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Release-owner approval follows qualification.</li><li>Immutable bundle deploys to preview before production alias promotion.</li><li>Public-origin checks verify domain binding, rendered output, health, and appointment behavior.</li><li>Atomic promotion, last-known-good rollback, and post-release monitoring.</li><li>Canvas displays release status but never writes directly to live production.</li></ul></div>
+            </details>
+          </div>
+        </div>
+
+        <div class="mt-14">
+          <div class="mb-5 flex items-end justify-between gap-4"><div><div class="mono text-xs" style="color:var(--red)">D · FUTURE PLATFORM</div><h3 class="mt-2 text-2xl font-semibold">Share the foundation, not the runtime contract</h3></div><span class="mono text-xs faint">18</span></div>
+          <div class="grid gap-4 lg:grid-cols-[1fr_1fr]">
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="future">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">18</div><h4 class="mt-3 text-xl font-semibold">Web-app and integration track</h4><p class="mt-2 text-sm muted">A later product track that can reuse Canvas interaction patterns.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip future">Not Track A production</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>May reuse shell chrome, pan and zoom, selection, evidence, tokens, assets, history, and review interaction patterns.</li><li>Requires its own Application IR, data model, auth, integrations, runtime threat model, fixtures, gates, and promotion decision.</li><li>MCP and API connections belong to this separate contract unless a website feature explicitly needs them.</li><li>iOS remains a later, separate track.</li><li>Track A intake and API remain website-only.</li></ul></div>
+            </details>
+            <div class="glass rounded-[26px] p-6">
+              <div class="mono text-xs faint">GROK 4.6 CONDITION</div>
+              <div class="mt-8 grid grid-cols-[1fr_auto_1fr] items-center gap-3 text-center">
+                <div class="rounded-2xl border hairline p-5"><div class="status-chip approved">Track A</div><h4 class="mt-4 font-semibold">Websites</h4><p class="mt-2 text-xs muted">Page IR, Canvas, review, qualification, deploy.</p></div>
+                <div class="flow-arrow">≠</div>
+                <div class="rounded-2xl border hairline p-5"><div class="status-chip future">Track B</div><h4 class="mt-4 font-semibold">Web apps</h4><p class="mt-2 text-xs muted">Application IR, data, auth, runtime, integrations.</p></div>
+              </div>
+              <p class="mt-6 text-sm leading-6 muted">Shared interaction foundations do not make the production contracts interchangeable. One run keeps one immutable layout authority.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-14">
+          <div class="mb-5 flex items-end justify-between gap-4"><div><div class="mono text-xs" style="color:var(--blue)">E · OPERATING ENVIRONMENT</div><h3 class="mt-2 text-2xl font-semibold">Create, coordinate, and deliver without leaving ONE BOX</h3></div><span class="mono text-xs faint">19 to 27</span></div>
+          <div class="grid gap-4 lg:grid-cols-2">
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">19</div><h4 class="mt-3 text-xl font-semibold">Agent Studio and model router</h4><p class="mt-2 text-sm muted">Switch models and efforts without losing project context.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip proposed">Owner-requested expansion</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>`Auto` routing plus direct selection of connected models such as Kimi K3, Fable 5, GPT-5.6 Sol, Gemini Flash, Grok, and local models.</li><li>Capability-aware effort menu shows only values supported by the selected model.</li><li>Pin per thread, override per turn, or compare two to four routes side by side.</li><li>Normalized, hashed context bundles make switching providers repeatable.</li><li>Every turn records actor, provider, model, effort, tools, cost identity, and result.</li><li>Local subscription, agency cloud, and local-model execution lanes remain visibly distinct.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">20</div><h4 class="mt-3 text-xl font-semibold">Skills and slash commands</h4><p class="mt-2 text-sm muted">Bring design, research, planning, motion, and audit capabilities into the composer.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip proposed">Manifest-driven</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Searchable `/design`, `/plan`, `/research`, `/copy`, `/seo`, `/motion`, `/audit`, and `/ship-check` commands.</li><li>Each skill declares inputs, models, efforts, tools, readable and writable scope, cost class, artifacts, and acceptance checks.</li><li>The invocation card shows selected scope and expected output before the run.</li><li>Skills create proposals and receipts. Candidate mutations still use preview, diff, typed apply, and gates.</li><li>Versioned skill results remain attached to the project and can feed later plans.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">21</div><h4 class="mt-3 text-xl font-semibold">Plan workspace</h4><p class="mt-2 text-sm muted">Turn conversations into traceable PRDs, decisions, and scheduled work.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip proposed">Conversation to execution</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Meeting and chat extraction separates decisions, open questions, requirements, and tasks.</li><li>PRD sections carry requirement IDs, sources, owners, acceptance criteria, dependencies, and implementation boundaries.</li><li>Version diff, comments, suggestions, and immutable approvals.</li><li>Tasks support human or agent owners, due dates, recurrence, dependencies, model, skill, effort, cost cap, and completion evidence.</li><li>Scheduled agent work rechecks permissions, prerequisites, and source versions before it starts.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">22</div><h4 class="mt-3 text-xl font-semibold">Live team collaboration</h4><p class="mt-2 text-sm muted">Share a project across different networks with presence and accountable edits.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip proposed">Remote agency workspace</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Owner, designer, reviewer, client guest, and scoped agent roles.</li><li>Online presence, current workspace, page, selection, and optional remote cursors.</li><li>Cursor visibility toggles independently from online presence.</li><li>Project chat, mentions, object-scoped threads, comments, decisions, and notifications.</li><li>Page IR and candidate changes use ordered commands and hash conflicts, not silent CRDT merges.</li><li>Activity log identifies every person and agent action.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">23</div><h4 class="mt-3 text-xl font-semibold">Client live session room</h4><p class="mt-2 text-sm muted">Meet, screen share, annotate, decide, and capture follow-up work inside the project.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip proposed">LiveKit media room</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Camera, microphone, participant list, host controls, and screen sharing.</li><li>Share the Canvas, one app window, browser tab, or full screen where the platform permits it.</li><li>Synchronized candidate, page, and breakpoint for every viewer.</li><li>Pointer, annotation, comment, and decision capture against stable IDs.</li><li>Client joins from a private web link and never receives mutation controls.</li><li>Optional recording and transcript require visible notice and retention policy.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed draft">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">24</div><h4 class="mt-3 text-xl font-semibold">Embedded project browser</h4><p class="mt-2 text-sm muted">Research authenticated sites, bookmarks, and references without opening Chrome.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip proposed">Electron WebContentsView</span><span class="status-chip draft">Source-audited plan</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>One project tab strip holds Canvas and Browser tabs; `+` or `Command-T` opens Browser immediately.</li><li>Tabs, groups, address and search, find, zoom, downloads, and project or personal bookmarks.</li><li>Agency Work, Client, Project Research, Personal, Private, and Agent Sandbox profiles remain local to each Mac.</li><li>Human and agent target the same stable browser tab without exposing a public debugging port.</li><li>Open a page beside Canvas or send the current URL to Agent Studio.</li><li>Capture full page, viewport, element, region, or a short interaction recording.</li><li>ONE BOX builds its own WebContentsView workspace instead of embedding or forking another browser.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">25</div><h4 class="mt-3 text-xl font-semibold">Capture to component</h4><p class="mt-2 text-sm muted">Turn screenshots and recordings into governed reconstruction proposals.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip proposed">screenshot-to-code adapted</span><ul class="feature-list mt-5 space-y-2 text-sm"><li>Declare each capture as inspiration, reconstruction, asset extraction, behavior study, or evidence.</li><li>Store URL, time, viewport, bounds, hash, actor, rights, and use scope.</li><li>Generate multiple structural and visual proposals with streamed model and tool events.</li><li>Compare source capture, current candidate, and reconstruction variant.</li><li>Translate supported output into Page IR mutations and unsupported premium behavior into an Experience Module proposal.</li><li>No screenshot becomes deployable code directly.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6" data-feature data-status="proposed future">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">26</div><h4 class="mt-3 text-xl font-semibold">Stack Intelligence</h4><p class="mt-2 text-sm muted">Choose technology from requirements, then compile through a supported target.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><div class="flex flex-wrap gap-2"><span class="status-chip proposed">Track A decision engine</span><span class="status-chip future">More adapters</span></div><ul class="feature-list mt-5 space-y-2 text-sm"><li>Decision inputs include SEO, pages, dynamic data, forms, appointments, interactivity, motion, 3D, performance, hosting, and client maintenance.</li><li>Initial targets: static semantic website, Next.js and React website, or website plus guarded experience modules.</li><li>Page IR stays framework-independent where possible.</li><li>GSAP, WebGL, React Three Fiber, maps, and calculators enter through typed, allowlisted modules with fallbacks and budgets.</li><li>Vue, Ionic, Vite React, and other stacks begin in prototype or later compiler-adapter lanes.</li><li>The UI explains why a stack was chosen and which tradeoffs it creates.</li></ul></div>
+            </details>
+
+            <details class="feature-card glass rounded-[26px] p-6 lg:col-span-2" data-feature data-status="proposed">
+              <summary class="flex items-start justify-between gap-4"><div><div class="mono text-xs faint">27</div><h4 class="mt-3 text-xl font-semibold">Team delivery and sync</h4><p class="mt-2 text-sm muted">Give every agency Mac the same signed app and one shared source of project truth.</p></div></summary>
+              <div class="mt-5 border-t hairline pt-5"><span class="status-chip proposed">Desktop plus cloud</span><div class="mt-5 grid gap-5 md:grid-cols-3"><div><div class="mono text-[10px] faint">DESKTOP</div><ul class="feature-list mt-3 space-y-2 text-sm"><li>Apple-silicon Electron app.</li><li>Signed, notarized, and auto-updating.</li><li>Browser, local files, captures, and local model bridge.</li></ul></div><div><div class="mono text-[10px] faint">CLOUD PROJECT</div><ul class="feature-list mt-3 space-y-2 text-sm"><li>Supabase identity, membership, data, storage, presence, and broadcast.</li><li>Durable project, PRD, task, comment, artifact, and audit state.</li><li>Private row-level and channel authorization.</li></ul></div><div><div class="mono text-[10px] faint">SYNC</div><ul class="feature-list mt-3 space-y-2 text-sm"><li>Local job results upload as immutable artifacts and receipts.</li><li>Offline mutations return as proposals and resolve conflicts on reconnect.</li><li>Production never depends on one teammate's Mac staying online.</li></ul></div></div></div>
+            </details>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="py-16">
+      <div class="shell">
+        <div class="glass rounded-[30px] p-8 sm:p-12 lg:p-16">
+          <div class="quote-mark">“</div>
+          <p class="display max-w-5xl text-3xl font-medium leading-tight tracking-[-.035em] sm:text-5xl lg:text-6xl">Canvas edits private candidates. It never edits the live site in place.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="language" class="section-space">
+      <div class="shell">
+        <span class="eyebrow">05 · Look and feel</span>
+        <div class="mt-6 grid gap-10 lg:grid-cols-[1.15fr_.85fr] lg:items-end">
+          <h2 class="text-4xl font-semibold tracking-[-.04em] sm:text-6xl">Midnight Instrument: dense enough for experts, calm enough to think.</h2>
+          <p class="lede">The product shell uses ONE BOX’s existing design contract. Client branding is shown inside the site preview and asset swatches, never allowed to recolor the editor itself.</p>
+        </div>
+
+        <div class="mt-14 grid gap-4 lg:grid-cols-3">
+          <article class="glass rounded-[28px] p-7 lg:col-span-2">
+            <div class="flex items-center justify-between"><div class="mono text-xs faint">SURFACE STACK</div><span class="status-chip binding">DESIGN.md</span></div>
+            <div class="mt-8 grid gap-3 sm:grid-cols-3">
+              <div class="rounded-2xl border hairline bg-black p-5"><div class="mono text-[10px] faint">VOID CANVAS</div><div class="mt-8 text-2xl font-semibold">#08090a</div><p class="mt-2 text-xs muted">The field around the work.</p></div>
+              <div class="rounded-2xl border hairline bg-white/5 p-5"><div class="mono text-[10px] faint">CARBON</div><div class="mt-8 text-2xl font-semibold">#0f1011</div><p class="mt-2 text-xs muted">Rails and primary panels.</p></div>
+              <div class="rounded-2xl border hairline bg-white/10 p-5"><div class="mono text-[10px] faint">OBSIDIAN</div><div class="mt-8 text-2xl font-semibold">#161718</div><p class="mt-2 text-xs muted">Raised controls and drawers.</p></div>
+            </div>
+            <p class="mono mt-6 text-[10px] leading-5 faint">This explainer uses a separate presentation skin. The token labels above document the Canvas product contract.</p>
+          </article>
+
+          <article class="glass rounded-[28px] p-7">
+            <div class="mono text-xs faint">COLOR SEMANTICS</div>
+            <div class="mt-8 space-y-4 text-sm">
+              <div class="flex items-center justify-between border-b hairline pb-3"><span>Acid lime</span><span class="mono muted">one action / view</span></div>
+              <div class="flex items-center justify-between border-b hairline pb-3"><span>Coral</span><span class="mono muted">route-back / flags</span></div>
+              <div class="flex items-center justify-between border-b hairline pb-3"><span>Pulse green</span><span class="mono muted">verified</span></div>
+              <div class="flex items-center justify-between border-b hairline pb-3"><span>Teal</span><span class="mono muted">information</span></div>
+              <div class="flex items-center justify-between"><span>Iris / lavender</span><span class="mono muted">tags</span></div>
+            </div>
+          </article>
+
+          <article class="glass rounded-[28px] p-7">
+            <div class="mono text-xs faint">TYPE</div>
+            <div class="mt-8 display text-4xl font-semibold tracking-tight">Clash Display</div>
+            <p class="mt-2 text-sm muted">Headings at 500 or 600.</p>
+            <div class="mt-7 text-2xl font-medium">Switzer interface</div>
+            <p class="mt-2 text-sm muted">UI and body at 590 or lighter.</p>
+            <div class="mono mt-7 text-sm">mono: ids, hashes, data</div>
+          </article>
+
+          <article class="glass rounded-[28px] p-7">
+            <div class="mono text-xs faint">DENSITY</div>
+            <div class="mt-8 flex h-24 items-end gap-3"><div class="w-1/3 rounded-t-lg border hairline bg-white/5" style="height:24px"></div><div class="w-1/3 rounded-t-lg border hairline bg-white/5" style="height:34px"></div><div class="w-1/3 rounded-t-lg border hairline bg-white/5" style="height:44px"></div></div>
+            <div class="mt-3 grid grid-cols-3 text-center mono text-[10px] muted"><span>24 compact</span><span>34 desktop max</span><span>44 touch</span></div>
+            <p class="mt-6 text-sm muted">Fast 140ms state transitions. Hairline borders and surface steps create structure without visual weight.</p>
+          </article>
+
+          <article class="glass rounded-[28px] p-7">
+            <div class="mono text-xs faint">BEHAVIOR RULES</div>
+            <ul class="feature-list mt-8 space-y-3 text-sm"><li>One acid-lime filled action or selected view.</li><li>Errors are structural, not a flood of warning color.</li><li>No decorative gradients in the product shell.</li><li>No 700+ UI weight, scale hover, or glow hover.</li><li>Empty and pending states explain the next safe action.</li></ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="lifecycle" class="section-space border-t hairline">
+      <div class="shell">
+        <span class="eyebrow">06 · Lifecycle boundary</span>
+        <div class="mt-6 grid gap-10 lg:grid-cols-[1.1fr_.9fr] lg:items-end">
+          <h2 class="text-4xl font-semibold tracking-[-.04em] sm:text-6xl">Canvas is the middle of the system, not the end.</h2>
+          <p class="lede">Automation prepares the candidate before design and checks it again after design. Human taste and client approval stay explicit.</p>
+        </div>
+
+        <div class="mt-14 overflow-x-auto pb-4">
+          <div class="grid min-w-[1080px] grid-cols-[1fr_auto_1.15fr_auto_1fr_auto_1fr_auto_1fr_auto_1fr] items-stretch gap-3">
+            <div class="glass rounded-2xl p-5"><div class="status-chip binding">A</div><h3 class="mt-5 font-semibold">Generate</h3><p class="mt-2 text-xs leading-5 muted">Approved evidence → Page IR or separate template run → entry gates.</p></div>
+            <div class="flow-arrow grid place-items-center">→</div>
+            <div class="rounded-2xl border p-5" style="border-color:var(--yellow);background:rgba(255,230,108,.06)"><div class="status-chip binding">B</div><h3 class="mt-5 font-semibold">Canvas</h3><p class="mt-2 text-xs leading-5 muted">Designer taste → typed mutations → affected gates → private candidate.</p></div>
+            <div class="flow-arrow grid place-items-center">→</div>
+            <div class="glass rounded-2xl p-5"><div class="status-chip approved">C</div><h3 class="mt-5 font-semibold">Client review</h3><p class="mt-2 text-xs leading-5 muted">Comments → revisions → exact candidate lock.</p></div>
+            <div class="flow-arrow grid place-items-center">→</div>
+            <div class="glass rounded-2xl p-5"><div class="status-chip approved">D</div><h3 class="mt-5 font-semibold">Qualify</h3><p class="mt-2 text-xs leading-5 muted">Agency suite → SEO → repair, proposal, blocker queues.</p></div>
+            <div class="flow-arrow grid place-items-center">→</div>
+            <div class="glass rounded-2xl p-5"><div class="status-chip approved">E</div><h3 class="mt-5 font-semibold">Deploy</h3><p class="mt-2 text-xs leading-5 muted">Release approval → preview → public-origin verification.</p></div>
+            <div class="flow-arrow grid place-items-center">→</div>
+            <div class="glass rounded-2xl p-5"><div class="status-chip approved">F</div><h3 class="mt-5 font-semibold">Monitor</h3><p class="mt-2 text-xs leading-5 muted">Health → appointment state → rollback if needed.</p></div>
+          </div>
+        </div>
+
+        <div class="mt-8 grid gap-4 md:grid-cols-3">
+          <div class="glass rounded-[26px] p-6"><div class="mono text-xs" style="color:var(--yellow)">BEFORE CANVAS</div><h3 class="mt-4 text-xl font-semibold">Near-shippable means mechanically clear.</h3><p class="mt-3 text-sm leading-6 muted">No known Canvas-entry blocker. Brand taste and client decisions are still open.</p></div>
+          <div class="glass rounded-[26px] p-6"><div class="mono text-xs" style="color:var(--blue)">INSIDE CANVAS</div><h3 class="mt-4 text-xl font-semibold">Every edit creates a candidate.</h3><p class="mt-3 text-sm leading-6 muted">The source authority validates, compiles, checks, and only then updates the private view.</p></div>
+          <div class="glass rounded-[26px] p-6"><div class="mono text-xs" style="color:var(--green)">AFTER CANVAS</div><h3 class="mt-4 text-xl font-semibold">Agency grade is proven again.</h3><p class="mt-3 text-sm leading-6 muted">The locked version passes qualification, release approval, public verification, and monitoring.</p></div>
+        </div>
+
+        <div class="mt-14 glass rounded-[30px] p-7 sm:p-10">
+          <div class="grid gap-8 lg:grid-cols-[.75fr_1.25fr]">
+            <div><div class="mono text-xs faint">RECOMMENDED BUILD ORDER</div><h3 class="mt-4 text-3xl font-semibold tracking-tight">Protect the contracts, then deepen the Canvas.</h3></div>
+            <ol class="grid gap-3 sm:grid-cols-2">
+              <li class="rounded-2xl border hairline p-4"><span class="mono text-xs" style="color:var(--yellow)">A0</span><div class="mt-2 text-sm font-semibold">Freeze authority and website-only boundaries</div></li>
+              <li class="rounded-2xl border hairline p-4"><span class="mono text-xs" style="color:var(--yellow)">A1</span><div class="mt-2 text-sm font-semibold">Lifecycle state and read-only Canvas projection</div></li>
+              <li class="rounded-2xl border hairline p-4"><span class="mono text-xs" style="color:var(--yellow)">A2</span><div class="mt-2 text-sm font-semibold">Preserve Page IR and immutable layout authority</div></li>
+              <li class="rounded-2xl border hairline p-4"><span class="mono text-xs" style="color:var(--yellow)">A3</span><div class="mt-2 text-sm font-semibold">Typed mutations and approval invalidation</div></li>
+              <li class="rounded-2xl border hairline p-4"><span class="mono text-xs" style="color:var(--blue)">A4</span><div class="mt-2 text-sm font-semibold">Asset, responsive, checkpoints, issues, client import</div></li>
+              <li class="rounded-2xl border hairline p-4"><span class="mono text-xs" style="color:var(--green)">P3 to P8</span><div class="mt-2 text-sm font-semibold">Review, qualification, deploy, appointment, rollout</div></li>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-space pt-8">
+      <div class="shell">
+        <div class="relative overflow-hidden rounded-[34px] border hairline p-8 sm:p-12 lg:p-16" style="background:var(--yellow);color:var(--void)">
+          <div class="absolute -right-10 -top-16 text-[220px] font-semibold leading-none opacity-10 display" aria-hidden="true">27</div>
+          <div class="relative max-w-4xl">
+            <div class="mono text-xs font-medium">MASTER CANVAS INVENTORY</div>
+            <h2 class="mt-6 text-4xl font-semibold tracking-[-.05em] sm:text-6xl">Use the map to build the editor, without losing the shipping system around it.</h2>
+            <p class="mt-6 max-w-2xl text-base leading-7 opacity-70">The immediate product remains a website builder. Canvas owns design judgment and safe editing. Agent Studio, Browser, Plan, Team, Review, Qualify, and Ship make the full agency workflow available inside one project environment.</p>
+            <div class="mt-9 flex flex-wrap gap-3">
+              <a href="#catalog" class="rounded-full bg-black px-5 py-3 text-sm font-semibold text-white">Review all 27 systems</a>
+              <a href="#anatomy" class="rounded-full border border-black/25 px-5 py-3 text-sm font-semibold">Return to interface anatomy</a>
+            </div>
+          </div>
+        </div>
+
+        <footer class="py-10 text-xs muted">
+          <div class="grid gap-6 border-t hairline pt-8 md:grid-cols-[1fr_1.2fr]">
+            <p>ONE BOX Canvas master feature map. Reconciled from current project contracts, the Grok 4.6 audit, the Canvas operating-environment architecture, the embedded-browser source audit, and the screenshot-to-code source review.</p>
+            <div class="flex flex-wrap gap-x-5 gap-y-2 md:justify-end">
+              <a class="source-link" href="../specs/2026-08-16-canvas-upgrade.md">Canvas upgrade</a>
+              <a class="source-link" href="../specs/2026-08-22-page-ir-safe-pipeline-prd.md">Page IR</a>
+              <a class="source-link" href="../superpowers/specs/2026-08-27-canvas-to-agency-shipping-design.md">Shipping lifecycle</a>
+              <a class="source-link" href="../superpowers/specs/2026-08-29-canvas-operating-environment-design.md">Operating environment</a>
+              <a class="source-link" href="../research/2026-08-29-embedded-browser-source-audit.md">Browser source audit</a>
+              <a class="source-link" href="../plans/2026-08-29-embedded-browser-integration.md">Browser integration</a>
+              <a class="source-link" href="../audits/grok-4.6/2026-08-28-canvas-master-plan-reconciliation-audit.md">Grok audit</a>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    function initFeatureFilters() {
+      const buttons = Array.from(document.querySelectorAll('[data-filter]'));
+      const cards = Array.from(document.querySelectorAll('[data-feature]'));
+      buttons.forEach((button) => {
+        button.addEventListener('click', () => {
+          const filter = button.dataset.filter;
+          buttons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+          cards.forEach((card) => {
+            const statuses = (card.dataset.status || '').split(' ');
+            card.hidden = filter !== 'all' && !statuses.includes(filter);
+          });
+        });
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initFeatureFilters();
+    });
+  </script>
+</body>
+</html>

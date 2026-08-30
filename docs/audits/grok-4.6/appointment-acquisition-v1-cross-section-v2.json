@@ -1,0 +1,123 @@
+{
+  "audit_version": 2,
+  "audited_at": "2026-08-27T20:58:28.179033+00:00",
+  "input": {
+    "path": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+    "sha256": "35f4f9e7aebb57c96859933a4e2e7d38e3430bfeac9af0a7a6913406fd2720c7",
+    "line_count": 815
+  },
+  "route": {
+    "requested_model": "x-ai/grok-4.6",
+    "reported_model": "x-ai/grok-4.6",
+    "provider": "xAI",
+    "catalog_verified": true,
+    "credential_source": "zsvault"
+  },
+  "usage": {
+    "prompt_tokens": 10380,
+    "completion_tokens": 28916,
+    "total_tokens": 39296,
+    "cost": 0.194064,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 128,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.194064,
+      "upstream_inference_prompt_cost": 0.020568,
+      "upstream_inference_completions_cost": 0.173496
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 26352,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "audit": {
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "id": "CS-01",
+        "severity": "P1",
+        "section": "7, 6.2, 9.5",
+        "issue": "classify() is not a total function. Steps 1–8 do not assign a closed result to every Section 9.5 rejection (for example care+scheduler without exact care meaning, or ambiguous+scheduler if that is not mapped to ambiguous_non_contact), and step 9 specifies only the positive emission path. Section 6.2 independently allows ‘unresolved or Blocked’ when a request candidate cannot emit request, while step 5 requires blocked: evidence_ineligible for an ineligible projection. SealedDecision is therefore under-specified and the two sections disagree.",
+        "correction": "Make one invocation total: every input yields exactly one closed SealedDecision union of positive, unresolved, or blocked, each with a mandatory closed reason. Map every 9.5-ineligible category/mode/target combination to one reason in the step table. Strike ‘unresolved or Blocked’ in 6.2 and defer to that table. Prohibit any implicit fall-through, repair, or strength join across candidate invocations."
+      },
+      {
+        "id": "CS-02",
+        "severity": "P1",
+        "section": "4, 7, 9",
+        "issue": "Steps 8–9 require a pack category, but packs cannot contain business facts and verified business configuration cannot contain classifier predicates. classify() also does not take a category argument. There is no authorized closed binding from RouteKey.service to a certified pack category, so out-of-scope, ambiguous, care, and consultation restrictions are not computable.",
+        "correction": "Require signed, non-executable, closed config data that maps each enabled service dimension to exactly one certified pack category enum member. Missing, conflicting, extra, or pack-unknown bindings return a single closed blocked reason (unclassified_category or invalid_input). Packs remain limited to category enums and the Section 9.5 restriction table."
+      },
+      {
+        "id": "CS-03",
+        "severity": "P1",
+        "section": "5.1, 6.2, 9.5",
+        "issue": "The closed observation classes do not record the facts other rules require: whether visitorKind is required, whether scheduler route meaning is exact care versus exact consultation, and whether a contact channel is scheduling-oriented rather than generic. Those tests would fall to AI or human judgment, which Section 4 forbids in verification and classification.",
+        "correction": "Add closed observation classes/results for visitor-kind distinction, scheduler route-meaning in {care, consultation, neither}, and contact orientation in {scheduling_oriented, generic, negative}. Require those facts in the candidate projection where Sections 5.1, 6.2, and 9.5 depend on them. Conflicts, absences, and negatives make that projection ineligible. Remove prose-only evidence tests."
+      },
+      {
+        "id": "CS-04",
+        "severity": "P1",
+        "section": "4, 5.1, 8.1",
+        "issue": "Unresolved correction UI needs displayed PublicRouteOption[] labels, but config and packs may not contain display strings and the copy dictionary is a semantic-key map, not a dynamic service/location/provider glossary. No authorized source for those strings exists. partial_route_availability also lets a route set be marked available and unavailable without requiring a current sealed decision per option AcquisitionScope, which can show an unproven public capability.",
+        "correction": "Authorize a reviewed, versioned, hash-locked dimension-label dictionary referenced by the approval bundle. PublicRouteOption[] may contain only those keys plus enabled dimension IDs. An option may be marked available only when a current positive sealed decision exists for that exact AcquisitionScope; otherwise it is unavailable and non-launchable. Prohibit ad-hoc display strings."
+      },
+      {
+        "id": "CS-05",
+        "severity": "P1",
+        "section": "15.7, 16, 17.2",
+        "issue": "R1 requires at least 95 percent exact class and target agreement with sealed ExpectedLabels, but labeler safeClass uses blocked while JourneyPromiseClass uses unclassified for the same non-positive outcomes, so agreement is not defined and blocked/unclassified cases can be scored as misses or false matches. R1 also requires every drift event to reach an ‘expected recommendation within its bound’ without defining drift event, recommendation, or bound.",
+        "correction": "Publish a closed mapping from {JourneyPromiseClass, HandoffMode, reasonCode} to {safeClass, publicStrength} and score only under that mapping; aligned non-positives count as agreement. Define drift event, expected recommendation, and bound as closed enums tied to Section 15.8 recertification and the Section 11 fail-closed actions."
+      },
+      {
+        "id": "CS-06",
+        "severity": "P1",
+        "section": "5.1, 8.2, 8.4, 14, 15.6",
+        "issue": "The privacy envelope forbids ProjectId, RouteKey, URLs, reversible targets, and contact values in analytics, general logs, dashboards, and audit summaries, but not in alerts, on-call payloads, blocked directory information, or SMS/email drafts. Section 8.2 allows noninteractive directory information that may expose contact values without a positive contact decision. Section 15.6 ‘permitted safe draft’ is undefined and could include identity or clinical free text, exceeding the collection/exposure non-goals.",
+        "correction": "Extend Section 8.4 prohibitions to alerts, tickets, on-call payloads, and operator exports. Render contact values only as part of an approved positive contact action. Close SMS/email drafts to reviewed copy keys plus escaped enabled route-dimension labels, then cancel before send; forbid free text, identity, clinical, insurance, and payment content. Blocked/unresolved directory information must not include typed targets or contact values."
+      },
+      {
+        "id": "CS-07",
+        "severity": "P1",
+        "section": "5.2, 10, 11, 15.3",
+        "issue": "unresolved is a public presentation state but not a HandoffMode, and the release/pointer model does not say whether it can be published, human-gated, or served. Terminal versus nonterminal Blocked is undefined except that HumanRepublish cannot exit ProjectDeleted, so restore authority after SafetyBlock, revocation, unsafe-target, and integrity Blocked is unspecified. Section 15.3 still requires coverage of every state-machine state while the state set is not closed.",
+        "correction": "Publish a closed state chart for publication (including AwaitingHumanRestore), runtime selection, transient episodes, and Blocked terminality. Define unresolved as a non-launchable, human-gated presentation with no typed target and no CTA lease, or forbid it on public pointers. Partition Blocked: only ProjectDeleted is terminal; every other Blocked reason is restorable solely by HumanRepublish after Section 10.2 gates; runtime still cannot upgrade."
+      },
+      {
+        "id": "CS-08",
+        "severity": "P1",
+        "section": "6.3, 10.3, 11.1, 12",
+        "issue": "Section 6.3 requires freshness to be derived from capture timestamps and says stored freshness labels are ignored. Render-safe artifacts must carry evidence expiries and no raw evidence, so pointer/runtime cannot recompute from capture timestamps and are told not to trust stored freshness. BaseArtifactValid, lease end, and ‘cited evidence remains unexpired’ are therefore not jointly implementable.",
+        "correction": "State that publication computes absolute expiry instants from capture timestamps plus Section 6.3 TTLs and seals those instants in the artifact. Pointer and runtime treat sealed expiry instants as authoritative and ignore fresh/stale labels. Only verifier and classifier may read capture timestamps. No grace and no TTL lengthening remain in force."
+      },
+      {
+        "id": "CS-09",
+        "severity": "P1",
+        "section": "4, 15.5, 18",
+        "issue": "The blocking suite and QualificationManifest treat a compiler as qualification-critical, but the Section 4 authority hierarchy has no compiler and no fail-closed compiler contract. An unspecified compiler could rewrite packs, config, copy, or targets and weaken higher-layer requirements.",
+        "correction": "Either remove compiler from the qualification surface or define it as a deterministic, pure, hash-locked transformer that cannot add evidence, mint targets, expand the privacy envelope, lengthen freshness windows, change classifier semantics, or emit a positive public action from a non-positive decision. Put its version and input/output hashes in the QualificationManifest."
+      }
+    ],
+    "accepted_cross_section_invariants": [
+      "This PRD does not authorize implementation, code work, or R0–R4; the next permitted artifact after owner review is a dependency-ordered implementation plan that preserves these contracts or explicitly identifies a proposed contract change.",
+      "ONE BOX v1 is a truthful public handoff only: it must not own inventory, reserve or confirm appointments, submit to vendor systems, collect payment, embed a vendor session, or become a clinical system of record.",
+      "Fail-closed: missing, stale, contradictory, unsafe, or unavailable evidence cannot produce a stronger public promise; runtime may only keep, downshift inside an approved bundle, or block, and must never upgrade.",
+      "AcquisitionScope=(ProjectId, RouteKey) is the indivisible isolation boundary for capability, evidence, artifacts, episodes, counters, and publication; those records must not merge across either dimension.",
+      "AI may propose candidates only; deterministic code classifies and performs runtime transitions; named humans approve publication and every restoration or upgrade.",
+      "Lower layers may only narrow, prohibit, or downgrade; they may not weaken a higher-layer requirement, add evidence, mint a target, expand privacy, lengthen freshness windows, change classifier semantics, or publish a positive public action from a non-positive decision.",
+      "Classifier invocations are per candidate mode and target over an isolated sealed evidence projection; cross-channel observations must not be combined to mint a stronger mode.",
+      "Every bundle contains a pre-signed Blocked artifact; the pointer service may not synthesize a fallback and must issue no CTA when any required predicate is false, missing, stale, or inconsistent.",
+      "Analytics and general logs are closed-enum and opaque-ID only; they must not carry booking success, revenue, treatment, identity, clinical, payment, or confirmation claims, and external returns are always returned_unknown.",
+      "Manual-invalidation hosting cannot satisfy signed-manifest automatic-downshift, Section 17.1, or R3/R4 automatic-protection qualification.",
+      "The four qualification evidence classes remain non-substitutable; live failure is unavailable or Blocked, not a flaky-test exemption.",
+      "Project deletion is terminal for that ProjectId; retained metadata cannot reactivate acquisition."
+    ],
+    "implementation_authorization": "NOT_AUTHORIZED",
+    "audit_scope": "Cross-section audit of the exact ONE BOX Appointment Acquisition v1 PRD as one contract. Prior per-section ACCEPT results were treated as advisory only. Scope was contradictions, undefined authority, non-total classification or state rules, privacy-envelope gaps, impossible operations, ambiguous qualification metrics, broken traceability, and language that would let an implementation exceed the stated v1 handoff boundary. No implementation was authorized."
+  }
+}

@@ -1,0 +1,275 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-29T20:27:05.944Z",
+  "provider": {
+    "name": "OpenRouter",
+    "requestedModel": "x-ai/grok-4.6",
+    "reportedModel": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4739,
+      "completion_tokens": 26069,
+      "total_tokens": 30808,
+      "cost": 0.1657,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.1657,
+        "upstream_inference_prompt_cost": 0.009286,
+        "upstream_inference_completions_cost": 0.156414
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20083,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "inputs": [
+    {
+      "path": "docs/plans/2026-08-29-embedded-browser-integration.md",
+      "sha256": "9f85e89a3e90479475629fbcc89c46f1c462c70de7ae6d973d94cf9c86a18574",
+      "bytes": 18145
+    }
+  ],
+  "audit": {
+    "verdict": "REJECT",
+    "summary": "The plan co-locates untrusted WebContentsView tabs with a privileged loopback/packaged Next.js application service and never specifies a control that keeps Browser tabs off that origin, so E4.0 would start from an unsafe foundation. The same document also contradicts itself on first-retained profile partitions, defers Electron fuses past the retained shell, leaves WebContentsView composition/z-order/shortcut ownership to be invented, and claims clean-room implementation after this team audited unlicensed and copyleft browsers.",
+    "findings": [
+      {
+        "id": "EB-001",
+        "severity": "P0",
+        "category": "hostile-content-isolation",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "4. Desktop architecture; 6. Security boundary; 10. Acceptance gates",
+        "issue": "The architecture starts a privileged Next.js application service on loopback (dev) or as a privately packaged process (release) in the same app that renders arbitrary sites in WebContentsView. Section 6 never requires blocking navigation, subresource loads, or window-open to loopback, private/link-local addresses, file:, or the application-service origin; 'explicit treatment for loopback development' only discusses HTTPS. The acceptance gate that remote pages cannot access project APIs has no matching control, and the trusted renderer partition is not forbidden to Browser tabs.",
+        "scenario": "A signed build binds the application service on 127.0.0.1. A Browser tab follows a redirect, target=_blank, or pasted URL to http://127.0.0.1:<port>/ or the Canvas origin. That untrusted document is now first-party to Page IR, candidates, gates, and project APIs, escaping the generated-site iframe sandbox. If the tab also shares the default session with the trusted renderer, it inherits the designer's app cookies.",
+        "correction": "Before any E4.0 spike: put the trusted renderer on a partition no Browser tab may use; bind the application service to a per-launch authenticated socket/token Browser partitions cannot obtain; deny untrusted webContents navigation and requests to loopback, private, link-local, file:, and the service origin; add an oracle that a hostile page cannot load or call the application service."
+      },
+      {
+        "id": "EB-002",
+        "severity": "P1",
+        "category": "webcontentsview-lifecycle",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "3.2 Canvas and Browser together; 4. Desktop architecture; 7. Agent control",
+        "issue": "WebContentsView paints above the trusted HTML renderer. The plan only shrinks the browser rectangle for Agent Studio or the inspector, not for every privileged overlay that must remain visible and receive clicks (command palette, tab/overflow menus, downloads/permissions chrome, OAuth prompts, commit confirmation, dialogs, toasts).",
+        "scenario": "A Browser tab is visible and a commit confirmation or command palette renders in the trusted renderer. The native view occludes it. The designer clicks the apparent button and the click hits the untrusted page, which can treat that as an in-page action or a confirmation bypass.",
+        "correction": "Require BrowserViewManager to hide or shrink the native view before any trusted overlay is shown; forbid drawing privileged HTML over untrusted pages; test palette, menus, permission UI, and commit confirmation with an attached view."
+      },
+      {
+        "id": "EB-003",
+        "severity": "P1",
+        "category": "webcontentsview-lifecycle",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "3.1 One tab strip; 9. E4.0 / E4.1",
+        "issue": "Command-T, Command-L, and tab-strip accelerators are specified as product chrome, but the plan never assigns them to main-process input interception. When a WebContentsView has focus, the trusted renderer will not see those keys.",
+        "scenario": "The designer is focused in a reference page and presses Command-T or Command-L. The shortcut is delivered to the remote page or dropped. No Browser tab opens; the site may handle the chord instead. E4.0 'prove keyboard shortcuts' has no owner or oracle.",
+        "correction": "Make ProjectWindowManager the sole chrome-shortcut owner via main-process before-input-event (or equivalent) in E4.0; define focus handoff when attaching, hiding, and destroying views."
+      },
+      {
+        "id": "EB-004",
+        "severity": "P1",
+        "category": "webcontentsview-lifecycle",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "4. Desktop architecture",
+        "issue": "The plan requires main-process ownership of WebContentsView and warns that BaseWindow-style composition will not auto-destroy webContents, but it never specifies the window tree: BaseWindow plus trusted-chrome WebContentsView versus BrowserWindow.webContents plus overlays, who is contentView, DIP versus pixel bounds, or hide versus destroy.",
+        "scenario": "Implementers mix BrowserWindow and WebContentsView APIs. Resize, DPR, fullscreen, or window close leaves a view at stale bounds or leaks background webContents. E4.1 cannot be accepted against a single composition contract, so later phases invent a second one.",
+        "correction": "Lock E4.0 to one tree (BaseWindow → trusted-chrome WebContentsView + BrowserViewManager child views), with attach/hide/destroy and DIP bounds as the spike's acceptance contract."
+      },
+      {
+        "id": "EB-005",
+        "severity": "P1",
+        "category": "webcontentsview-lifecycle",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "3.1 One tab strip; 9. E4.1, unified project tabs",
+        "issue": "Section 3.1 requires target=_blank, middle-click, and Command-click to create another governed Browser tab. E4.1 implements 'one active browser view' and new-window interception without stating that additional tabs exist as hidden webContents in the same partition, or that unmanaged BrowserWindows are forbidden.",
+        "scenario": "An identity-provider popup or target=_blank is intercepted with only one view in scope. The spike either drops the popup (login fails) or opens a real BrowserWindow with a different session, escaping the governed tab/partition model that E4.1 is supposed to retain.",
+        "correction": "Make N Browser tabs with one visible view part of E4.1; convert all window.open/target=_blank flows into governed tabs in the opener's partition; fail the phase if any unmanaged window appears."
+      },
+      {
+        "id": "EB-006",
+        "severity": "P1",
+        "category": "session-profiles",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "5. Tab and profile contracts; 9. E4.1; 11. First implementation boundary",
+        "issue": "Section 5 makes opaque profile partitions the runtime contract and forbids putting cookie paths in project records. E4.1 is the first retained surface and ships a real Browser tab with no profile/partition role, while section 11 claims later phases reuse the same tab and profile contracts.",
+        "scenario": "Users log into Agency identity in persist:default (or the trusted-renderer session) on the retained E4.1 build. E4.2 then adds Work/Client/Research partitions. That default session is an unmodeled seventh profile: it is copied, mixed, or wiped, becoming a second cookie store the contract does not allow.",
+        "correction": "E4.1 must use one explicit non-default partition already mapped to a profile role, never the trusted-renderer session or persist:default, and must define migration before E4.2."
+      },
+      {
+        "id": "EB-007",
+        "severity": "P1",
+        "category": "session-profiles",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "6. Security boundary; 3.2 Product interaction; 9. E4.0",
+        "issue": "Section 6 requires OAuth that rejects Electron to complete 'through a scoped callback' but never defines the channel, pending-state binding, target partition, or a ban on untrusted webContents invoking it. E4.0 only documents a system-browser fallback, contradicting section 6.",
+        "scenario": "Implementers register a privileged custom scheme. A remote page or another app launches it with an attacker token and the Agency Work profile accepts the session. Or E4.0 ships no callback, logins remain in Safari, and a later phase invents the protocol under release pressure.",
+        "correction": "For the first retained browser, treat system-browser open as terminal and do not return tokens into Electron. If a callback is required, specify it before E4.0 as a one-time high-entropy OS/loopback handler that untrusted views cannot navigate, bound to a pending profile ID."
+      },
+      {
+        "id": "EB-008",
+        "severity": "P1",
+        "category": "hostile-content-isolation",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "3.1 One tab strip; 6. Security boundary; 9. E4.1",
+        "issue": "Navigation, external protocols, window creation, and downloads are named as 'guarded' without a deny-by-default table. Missing: file:, javascript:, data:, blob:, about:blank-with-opener, custom schemes, drag-and-drop navigation, and a rule that setWindowOpenHandler never yields an unmanaged window.",
+        "scenario": "A page or a file drop navigates a Browser tab to file:// or javascript:, or window.open creates a chrome-less window on the default session. That view is outside BrowserViewManager, BrowserPolicyEngine, and the profile contract.",
+        "correction": "Publish the E4.1 navigation/window/protocol/drag-drop policy as deny-by-default input, including no file: in Browser tabs and no real BrowserWindows, with tests for each denied scheme."
+      },
+      {
+        "id": "EB-009",
+        "severity": "P1",
+        "category": "hostile-content-isolation",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "6. Security boundary; 9. E4.7; 11. First implementation boundary",
+        "issue": "Section 6 requires sandbox, contextIsolation, webSecurity, and no public remote-debugging port, but Electron fuses, switch lockdown, and signing that actually enforce those properties are deferred to E4.7. Section 11 retains the E4.1 shell before that hardening.",
+        "scenario": "The retained E4.1 binary runs default fuses. A packaged-app argument or renderer compromise enables runAsNode or --remote-debugging-port, which section 7 claims will never exist.",
+        "correction": "Move fuse configuration, disabled remote debugging, and verified sandbox/contextIsolation/no-remote-preload into E4.0/E4.1 acceptance; leave notarization and update cadence in E4.7."
+      },
+      {
+        "id": "EB-010",
+        "severity": "P1",
+        "category": "webcontentsview-lifecycle",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "4. Desktop architecture; 9. E4.1 exit",
+        "issue": "The trusted chrome is the existing Next.js app loaded from the application service. BrowserViewManager lifetime is not specified across trusted-renderer reloads (HMR, error overlay, loadURL, renderer crash).",
+        "scenario": "Next.js dev reload remounts the shell. The preload re-sends zero or Canvas-full bounds while the previous WebContentsView stays attached and covers Canvas. Tab state in React resets while native pages keep running, creating two tab sources of truth.",
+        "correction": "Treat trusted-renderer reload/crash as a rebind: hide all views until the shell re-sends bounds; do not destroy project tabs because chrome reloaded; add an E4.1 oracle for HMR/reload."
+      },
+      {
+        "id": "EB-011",
+        "severity": "P1",
+        "category": "agent-cdp",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "5. Tab and profile contracts; 7. Agent control; 8. Capture to Canvas; 9. E4.3",
+        "issue": "BrowserControlAdapter drives 'the selected tab's existing' webContents through in-process CDP. Agent sandbox is optional. Observe tools read DOM/AX/styles/network-summary with no ban on Runtime.evaluate, Network cookies, or shipping logged-in page content to models. Redaction is named without a credential rule.",
+        "scenario": "A designer sends a logged-in Client tab to Agent Studio. Observe captures DOM and tokens into the model context. Prompt-injected page text asks the agent to read Authorization headers or cookies. Commit confirmation never runs because the action class is Observe.",
+        "correction": "Before E4.3: forbid generic CDP, Runtime.evaluate, and cookie/storage APIs; default agent work to Agent sandbox; require an explicit grant to observe a human profile; redact passwords, hidden fields, and tokens; do not attach raw DOM to shared artifacts by default."
+      },
+      {
+        "id": "EB-012",
+        "severity": "P1",
+        "category": "agent-cdp",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "7. Agent control; 9. E4.4",
+        "issue": "The tool set exposes undifferentiated click/type/select while Commit is defined by effect (submit, purchase, permission grant, executable download). The policy engine is not required to classify primitives by DOM/AX effect, so a Draft grant can click Submit. webContents.debugger exclusivity versus human DevTools is unspecified, and page generation/node-id validity is unnamed.",
+        "scenario": "An agent with a Draft grant clicks 'Pay now'. No confirmation. Alternatively the human opens DevTools, the debugger detaches, and the adapter keeps using stale AX IDs on a new document after SPA navigation.",
+        "correction": "Classify by effect against the current generation; unknown effects are Commit and fail closed; bind confirmation to tab ID, origin, page generation, and material inputs; give BrowserControlAdapter exclusive debugger ownership so DevTools takes the lease and the agent fails closed; define page generation as navigation/loader id and invalidate node IDs on mutation/crash."
+      },
+      {
+        "id": "EB-013",
+        "severity": "P1",
+        "category": "capture-page-ir",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "3.2 Canvas and Browser together; 8. Capture to Canvas; 9. E4.0; 11. First implementation boundary",
+        "issue": "E4.0 requires proving capture and macOS screen permissions, which points at desktopCapturer/getDisplayMedia rather than view-targeted webContents.capturePage. Section 11 excludes reconstruction from the retained surface but not capture, so an ungoverned capture path can become permanent without section 8 provenance, rights, or hashes.",
+        "scenario": "The spike records the window or display, including Agent Studio, Canvas/Page IR, and other apps. Those bytes are retained after E4.1 and later uploaded as ReferenceArtifacts, or a second capture implementation is added in E4.3 while the spike path remains.",
+        "correction": "Ban screen-wide capture for this feature; allow only capture of the untrusted webContents/view; keep capture out of the E4.1 retained surface or require section 8 receipts on the first capture code."
+      },
+      {
+        "id": "EB-014",
+        "severity": "P1",
+        "category": "packaging-authority",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "Production boundary; 4. Desktop architecture; 9. E4.7; 10. Acceptance gates",
+        "issue": "Website Track A remains authoritative, yet a signed release packages and starts the application service privately. The plan never states whether that process is a read-only client, an offline replica, or a writer, nor how local Page IR, candidates, and capture hashes reconcile with cloud Track A.",
+        "scenario": "A designer edits Canvas offline against the packaged service while Track A advances. On reconnect both believe they own Page IR. Browser captures attach to local source hashes that do not exist in Track A, creating the second source of truth the production boundary forbids.",
+        "correction": "Declare the packaged service a non-authoritative sidecar that cannot finalize Page IR/candidate writes except by syncing to Track A; specify offline as read-only or a conflict-visible queue before E4.0 packaging."
+      },
+      {
+        "id": "EB-015",
+        "severity": "P1",
+        "category": "licensing",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "1. Decision; 2. Why this course (repository table)",
+        "issue": "The plan claims a clean-room Electron shell after this team source-audited AGPL BrowserOS, GPL WebPilot, and unlicensed Multiprofile Browser, then adopts Multiprofile's distinctive shape (one WebContentsView per tab, persistent partitions, temporary tabs, crash restore, profile routing) while calling that repo unsafe to copy. 'Permissively licensed projects may inform bounded modules after a line-level review' is not clean-room and does not un-see copyleft/unlicensed sources.",
+        "scenario": "The same engineers implement E4.1–E4.2. A rights holder treats the unlicensed/AGPL audit as the blueprint for the retained shell. Later MIT snippet reuse by those authors does not cure prior access.",
+        "correction": "Treat Multiprofile Browser as reference-only like GPL/AGPL; justify WebContentsView/partition design only from Electron documentation; split implementers from anyone who read non-permissive or unlicensed browser code; record license review before any MIT module is copied."
+      },
+      {
+        "id": "EB-016",
+        "severity": "P2",
+        "category": "session-profiles",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "5. Tab and profile contracts; 9. E4.2; 10. Acceptance gates",
+        "issue": "Section 5 and the acceptance gates include a Personal profile that must never be shared automatically. E4.2's implementation list is only Work, Client, Project, Private, and Agent Sandbox.",
+        "scenario": "E4.2 implementers ship five roles. Personal logins are placed in Work or an invented partition and later treated as agency-reusable state.",
+        "correction": "Add Personal to E4.2 scope or explicitly defer it and remove it from section 5 and the acceptance gates until that phase."
+      },
+      {
+        "id": "EB-017",
+        "severity": "P2",
+        "category": "hostile-content-isolation",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "3.1 One tab strip; 6. Security boundary",
+        "issue": "Untrusted title and favicon are rendered in the trusted tab strip with no inert-bitmap or origin-display rule. Section 6's 'no unrestricted preload' implies a restricted preload on remote webContents is allowed.",
+        "scenario": "A page titles itself 'Canvas — unsaved' or supplies an SVG favicon that is inserted as markup. Alternatively an implementer adds a 'safe' remote preload that exposes ipcRenderer.",
+        "correction": "Render favicons as inert bitmaps fetched in the untrusted session; show origin separately from plain-text titles; require preload to be absent on every untrusted WebContentsView."
+      },
+      {
+        "id": "EB-018",
+        "severity": "P2",
+        "category": "capture-page-ir",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "8. Capture to Canvas; 9. E4.3 / E4.5",
+        "issue": "DOM/AX/computed-style collection has no top-level-origin cap, no password/hidden-field redaction rule, no byte limit, and no statement that raw snapshots are not shared-project artifacts. Rights are user-declared without a warranty/gate against copying third-party sites into Page IR proposals.",
+        "scenario": "Background observe of a tab that embeds an IdP iframe uploads the IdP DOM as a shared ReferenceArtifact, or reconstruction proposes competitor assets as candidate UI.",
+        "correction": "Limit snapshots to the top-level origin unless granted; strip credential fields; cap bytes; keep raw DOM local; require rights/visibility gates before attach and before any Page IR proposal."
+      },
+      {
+        "id": "EB-019",
+        "severity": "P2",
+        "category": "session-profiles",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "5. Tab and profile contracts; 6. Security boundary; 9. E4.2",
+        "issue": "Private/Agent sandbox destruction, memory-pressure suspension, and deny-by-default permissions have exit slogans but no mechanics. Suspension may discard to disk; no grantable permission set is listed, recreating the Tandem fallback the table rejected.",
+        "scenario": "Memory pressure serializes a Private tab and restore replays its cookies. Or a reference site requests microphone and an engineer grants it because the plan never enumerated allowed permissions.",
+        "correction": "Private and Agent sandbox tabs may only be destroyed, never discarded to disk; prove with a cookie that vanishes on last-tab close and on simulated pressure. Publish the E4.1/E4.2 permission allowlist (likely empty at E4.1) and test that all other permissions stay denied."
+      },
+      {
+        "id": "EB-020",
+        "severity": "P2",
+        "category": "agent-cdp",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "7. Agent control; 10. Acceptance gates",
+        "issue": "Navigate/Draft may run inside an undefined 'task boundary'. Background observation is allowed; background Navigate/Draft is not forbidden. Audit/receipts are not write-ahead of side effects.",
+        "scenario": "A grant for example.com follows a redirect to a lookalike origin, or the agent navigates a background tab the designer is not watching and then requests Commit. A confirmed purchase is sent, the app crashes before the receipt is stored, and retry double-submits.",
+        "correction": "Define task boundary as tab ID + exact origins + expiry; background mutation is Commit or forbidden; persist the Commit intent receipt before performing the action and block if the write fails."
+      },
+      {
+        "id": "EB-021",
+        "severity": "P2",
+        "category": "phase-ordering",
+        "document": "docs/plans/2026-08-29-embedded-browser-integration.md",
+        "section": "9. E4.0 exit; 10. Acceptance gates; 11. First implementation boundary",
+        "issue": "E4.0 says to threat-model before retaining the prototype, but neither E4.0 nor section 10 defines oracles that the native view and Canvas iframe are separate trust domains (no preload, no ipcRenderer, no Node, no app-service origin, no postMessage into Canvas, crash isolates to that view).",
+        "scenario": "The spike is retained as E4.1 because resize and focus demos worked. Isolation holes are found after the shell is the permanent surface section 11 wants to keep.",
+        "correction": "Make a written threat model and the isolation oracles mandatory E4.0/E4.1 exits; do not retain the prototype without them."
+      }
+    ],
+    "accepted_decisions": [
+      "Do not fork EGO Lite, Tandem, BrowserOS, Nyra, WebPilot, or Multiprofile Browser as the product foundation",
+      "Keep the generated-site Canvas iframe and typed editing protocol; never put general web pages in that iframe or give them Canvas APIs",
+      "Own WebContentsView create/attach/hide/destroy in the main process; remote pages do not receive the preload bridge",
+      "Do not expose a public remote-debugging port",
+      "Project sync may carry profile roles and URLs, not cookie partition paths, passwords, or raw local storage",
+      "First retained implementation stops after E4.1 and excludes agent interaction, password handling, reconstruction, and client sharing",
+      "Commit-class agent actions require visible human confirmation in the first agent release",
+      "Captures and model output may only propose against Page IR and cannot skip typed apply or candidate gates",
+      "GPL and AGPL code remain reference-only; Multiprofile Browser must not be copied"
+    ],
+    "residual_risks": [
+      "Prompt injection can still steer Observe/Draft even if Commit is confirmed",
+      "Embedded Chromium patch lag remains material until an update SLA exists",
+      "Human confirmation fatigue can rubber-stamp Commit dialogs",
+      "Reconstruction from third-party captures remains a copyright/ToS risk even with rights fields",
+      "WebContentsView bounds, DPR, fullscreen, and sleep-wake bugs will need soak tests the plan only names in E4.7",
+      "Private-network and localhost protections differ across Electron/Chromium versions and can regress"
+    ],
+    "implementation_authorization": "NOT_AUTHORIZED"
+  }
+}

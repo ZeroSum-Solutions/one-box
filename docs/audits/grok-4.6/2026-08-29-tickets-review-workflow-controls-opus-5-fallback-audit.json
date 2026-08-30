@@ -1,0 +1,307 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T01:34:36.290Z",
+  "provider": "Claude Code Max OAuth",
+  "fallbackFor": "Grok 4.6 timed out on the first planning phase; the owner authorized Opus 5 OAuth whenever Grok has an issue",
+  "requestedModel": "claude-opus-5",
+  "reportedModel": "claude-haiku-4-5-20251001, claude-opus-5",
+  "authMethod": "claude.ai Max OAuth",
+  "effort": "high",
+  "auditPass": 1,
+  "targetHash": "142bbd6f7e959c663b613a9f15dbaaf9374f320d559b330b95ee75539d340b59",
+  "targetFiles": [
+    "docs/tickets/one-box-program/manifest.json",
+    "docs/tickets/one-box-program/README.md",
+    "docs/governance/reviewer-roles.md",
+    "scripts/verify-plan-authority.mjs",
+    "scripts/verify-plan-authority.node.mjs"
+  ],
+  "acceptedStrengths": [
+    "Coverage is complete and correctly bounded: the manifest holds exactly 29 tickets, and the README's partition (P100-P195 program readiness, P200-P270 for P1-P8, P300 for A4, P310-P360 for E0-E8, P370 for appointments) matches the data with no gaps and no double-counting.",
+    "No ticket is in a ready, in-progress, verified, or done state; all 29 are proposed (7), in-review (6), or blocked (16), so the backlog does not mark future work ready.",
+    "No artifact in the packet authorizes implementation: authority.implementationAuthorized is false, every one of the 17 domains sets implementationAuthorized false, and the README, CONTRIBUTING, PR template, and reviewer-roles all restate that planning artifacts do not confer execution permission.",
+    "Requirement coverage is genuinely complete for the governed set: EOS-001 through EOS-019 each appear on at least one ticket, and every one of the 29 tickets carries at least one evaluation ID.",
+    "The dependency graph is acyclic on hand-traversal and every dependsOn ID resolves to a ticket in the same manifest; the verifier independently enforces the resolution property.",
+    "The 'audits cannot be primary authority' rule is machine-readable (forbiddenPrimaryPathPrefixes) rather than prose-only, and it is the one invariant with a negative test.",
+    "reviewer-roles.md is honest about external state: it records that the inspected live ruleset had zero required approving reviews, states the packet does not mutate that setting, and marks repository control as a target rather than an enforced fact.",
+    "Model subordination is stated consistently across four surfaces (reviewer-roles matrix, CONTRIBUTING, PR reviewer checklist, README status flow 'A model verdict never changes status'), and Grok is never listed as peer review, verification, risk acceptance, or release authority.",
+    "The fallback rule is written before it was needed and matches this session: an owner-authorized fallback after timeout must be labeled with its actual model and must not impersonate Grok evidence.",
+    "Non-author verification is declared non-waivable for the correct high-risk classes, and exceptions are time-boxed to fourteen days, non-renewable without a new independent decision, and required to name compensating evidence.",
+    "Both the issue template and PR template force authority/requirement/evaluation/ticket IDs and exact base/head or artifact hashes, and both preserve the mechanical-gate versus human-evidence/visual-approval distinction."
+  ],
+  "findings": [
+    {
+      "id": "OPUS5-PLAN-01",
+      "severity": "P0",
+      "category": "Verifier fail-open",
+      "path": "scripts/verify-plan-authority.mjs",
+      "sectionOrLines": "readJson(); the `if (authority)` guard; the `?? []` loops over ticketManifest.tickets, evalManifest.evaluations, adoptionLedger.entries; final console.log pass path",
+      "issue": "readJson returns whatever JSON.parse yields and only records a failure when parsing throws. JSON-valid falsy content (`null`, `false`, `0`) parses cleanly, so `if (authority)` is skipped and every authority check is bypassed: required domains, authorityClass validation, the non-authorizing implementationAuthorized rule, the forbidden docs/audits prefix, boundary-text minimums, primaryPath existence, and all digest inputs. The same shape applies to the other three manifests: `{}` yields empty collections, so every per-entry ticket, evaluation, and adoption-ledger check becomes vacuous. With no failures recorded the script prints 'Plan authority verification passed: 0 domains, 0 tickets, 0 program evaluations' and exits 0. Both assertions in the happy-path test also pass in that state, because the empty-input digest is still 64 hex characters.",
+      "risk": "The single machine control that keeps draft, rejected, research, and audit artifacts from becoming authority reports success on a nulled, emptied, or truncated authority manifest. Deleting the governance data is indistinguishable from complying with it, and CI would report green.",
+      "smallestSafeCorrection": "In readJson, fail when the parsed value is not a non-null object. After the four reads, fail closed if authority, evalManifest, ticketManifest, or adoptionLedger is absent, and require non-zero minimums (domains >= requiredDomains.length, tickets >= 1, evaluations >= 1, ledger entries >= 1) before the pass path."
+    },
+    {
+      "id": "OPUS5-PLAN-02",
+      "severity": "P1",
+      "category": "Authority escalation",
+      "path": "scripts/verify-plan-authority.mjs, docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "sectionOrLines": "`if (nonAuthorizingClasses.has(domain.authorityClass) && domain.implementationAuthorized !== false)`; domains.embedded-browser (rejected), domains.operating-environment (draft)",
+      "issue": "The implementationAuthorized rule is enforced only for proposed/draft/research/rejected/historical. A domain classed owner-approved, owner-approved-direction, or owner-approved-architecture may set implementationAuthorized true and the run still passes, with no cross-check against the program-level implementationAuthorized:false. Nothing constrains promotion either: relabeling the rejected embedded-browser domain or the draft operating-environment domain to owner-approved is a one-token edit that the verifier accepts, because the only path rule is the docs/audits prefix. No owner-approved domain is required to carry any approver, date, or accepted-artifact hash.",
+      "risk": "A rejected plan or a draft decomposition can become an implementation-authorizing authority through a single manifest edit that passes every automated gate, which is precisely the failure the packet exists to prevent.",
+      "smallestSafeCorrection": "While authority.implementationAuthorized === false, fail if any domain sets implementationAuthorized true; and require every owner-approved* domain to carry an approval record (named human, date, accepted artifact SHA-256), failing when it is absent."
+    },
+    {
+      "id": "OPUS5-PLAN-03",
+      "severity": "P1",
+      "category": "Untested invariant / status integrity",
+      "path": "scripts/verify-plan-authority.mjs, docs/tickets/one-box-program/manifest.json",
+      "sectionOrLines": "required-field loop `[\"id\",\"title\",\"status\",\"priority\",\"epic\",\"ownerRole\",\"estimate\",\"file\"]`; OBX-P230, OBX-P240, OBX-P250, OBX-P185",
+      "issue": "Status and priority are truthiness-checked only. There is no allowed-value set for ticket status or priority, none for ticketManifest.status ('planning') or authority.status ('planning-reconciliation'), no rule that a ticket cannot reach ready/in-progress/verified/done while a dependency is unfinished, and no rule that blocked propagates. The data already shows the resulting drift: OBX-P230 is proposed while depending on blocked OBX-P220; OBX-P240 is proposed while blocked OBX-P250 depends on it; OBX-P185 is blocked only because it depends on proposed OBX-P230. The README status flow is therefore prose with no machine backing.",
+      "risk": "A one-word edit sets a planning ticket to ready, or the manifest status to authorized, with blocked dependencies and unimplemented evaluations, and the verifier still prints pass. The stated 'only the named owner moves a planning contract to ready' control has no enforcement.",
+      "smallestSafeCorrection": "Add allowed-value sets for ticket status, ticket priority, and both manifest status fields, plus two rules: any status beyond in-review requires every dependency to be done, and any ticket with a blocked dependency must itself be blocked."
+    },
+    {
+      "id": "OPUS5-PLAN-04",
+      "severity": "P1",
+      "category": "Verifier fail-open",
+      "path": "scripts/verify-plan-authority.mjs",
+      "sectionOrLines": "adoption-ledger block, `deniedWhenUnaccepted` set",
+      "issue": "Adoption decisions are checked against a deny-list of five exact lowercase strings ('evaluate', 'learn', 'needs-license-review', 'blocked', 'reject'). Any decision value outside that list, including a typo, a case variant such as 'Reject', a synonym such as 'deferred', or a newly introduced state, permits codeUseAllowed:true with no further check. The decision field itself has no enum, and no accepted decision is required to carry a license determination or an approval record.",
+      "risk": "Unaccepted third-party code, models, skills, or assets can be marked usable in production through an unrecognized decision string, defeating the supply-chain gate that OBX-P150 and the supply-chain domain rely on.",
+      "smallestSafeCorrection": "Replace the deny-list with an allow-list of decision values; fail on any unrecognized decision, and require codeUseAllowed===false unless the decision is an enumerated accepted value carrying a license determination and a named owner."
+    },
+    {
+      "id": "OPUS5-PLAN-05",
+      "severity": "P1",
+      "category": "Untested invariant",
+      "path": "scripts/verify-plan-authority.node.mjs",
+      "sectionOrLines": "entire file (two tests)",
+      "issue": "The suite covers one happy path and one negative case. Untested: falsy/empty manifests, non-authorizing class with implementationAuthorized true, missing required domain, unknown dependency, duplicate ticket ID, unknown evaluation or ownerTicket, adoption-ledger codeUseAllowed violations, path traversal in safePath, missing EOS traceability ID, missing front-door token, and broken local links. Worse, the one negative test does not exercise the real code path: it asserts on an in-process mutation of the parsed object rather than on manifest bytes, so the on-disk fail-closed behavior is never demonstrated. The happy-path assertions ('passed' plus a 64-hex digest) are also satisfied by the OPUS5-PLAN-01 empty-input state, so the suite cannot detect the P0.",
+      "risk": "The governance claims in README, CONTRIBUTING, and reviewer-roles rest on roughly a dozen load-bearing code paths that have never been shown to fail when they should.",
+      "smallestSafeCorrection": "Run the verifier against temporary fixture directories that contain deliberately invalid manifests, and add one failing-case test per invariant, including an empty/null authority manifest and a ticket set to ready with a blocked dependency."
+    },
+    {
+      "id": "OPUS5-PLAN-06",
+      "severity": "P1",
+      "category": "Control integrity",
+      "path": "scripts/verify-plan-authority.mjs",
+      "sectionOrLines": "`if (authority && process.env.ONEBOX_PLAN_TEST_MUTATION === \"promote-audit\")`",
+      "issue": "The production enforcement script contains an environment-variable-controlled branch that rewrites authority data in memory: it reassigns domains['release-1'].primaryPath to an audit document, sets authorityClass to owner-approved, and sets implementationAuthorized to true. The mutated primaryPath then feeds the digest. The current branch happens to trip the docs/audits prefix rule, but the mechanism itself is an environment-controlled override of the authority object inside the control that is supposed to be tamper-resistant, and its safety depends entirely on one unrelated path check remaining in place.",
+      "risk": "An enforcement script whose view of authority can be altered by an environment variable cannot be trusted as evidence; a future edit to the forbidden-prefix list or to the branch body silently converts it into a bypass, and the mutation is also the reason the negative test does not test real bytes.",
+      "smallestSafeCorrection": "Delete the ONEBOX_PLAN_TEST_MUTATION branch from the verifier and move the audit-promotion case into the test suite as a fixture manifest on disk."
+    },
+    {
+      "id": "OPUS5-PLAN-07",
+      "severity": "P1",
+      "category": "Governance / named approval",
+      "path": "docs/tickets/one-box-program/manifest.json, docs/governance/reviewer-roles.md, docs/tickets/one-box-program/README.md",
+      "sectionOrLines": "ownerRole fields across all 29 tickets; Definition of Ready and Definition of Done; 'Separation of duties'",
+      "issue": "Nothing in the packet binds a named human to any approval. ownerRole is free text, and eleven tickets name plural or compound roles ('product, operations, and appointment owners', 'security and licensing owners', 'design and licensing owners') with no single accountable owner designated. There is no approvedBy, verifiedBy, or nonAuthorVerifier field in the ticket manifest, no approval record in the authority manifest, and no CODEOWNERS. The Definition of Ready requires 'the required human acceptance' and the Definition of Done requires 'a non-author verifier where required' and 'the owning human decision', none of which can be recorded or checked in the current data model.",
+      "risk": "The named-domain-approval and non-author-verification controls, which reviewer-roles.md declares non-waivable for auth, tenant isolation, untrusted input, secrets, migrations, release, and appointment authority, exist only as prose. A ticket can satisfy every automated check while no identified person has accepted anything.",
+      "smallestSafeCorrection": "Add required approval fields to the ticket schema (accountable owner, approver identity, non-author verifier identity, decision date) and have the verifier fail when a ticket at or beyond ready lacks them; reviewer-roles.md already flags that team GitHub identities are unrecorded, so state the interim identity source explicitly."
+    },
+    {
+      "id": "OPUS5-PLAN-08",
+      "severity": "P2",
+      "category": "Manifest cross-reference gap",
+      "path": "scripts/verify-plan-authority.mjs, docs/tickets/one-box-program/manifest.json",
+      "sectionOrLines": "ticket manifest fields readme, evalManifest, schemaVersion, backlogVersion; verifier's hardcoded readJson(\"docs/eval/one-box-program/manifest.json\")",
+      "issue": "The ticket manifest declares readme and evalManifest paths that the verifier never reads, never existence-checks, and never reconciles against the eval manifest path it hardcodes. schemaVersion and backlogVersion are also unvalidated, so the ticket manifest can declare an incompatible schema or point at a different eval manifest while the verifier silently checks a different file.",
+      "risk": "The declared and the enforced graph can diverge without detection, so the README and evaluation manifest that the backlog claims to be governed by may not be the ones actually verified.",
+      "smallestSafeCorrection": "Validate schemaVersion, run readme and evalManifest through safePath, and read the eval manifest from ticketManifest.evalManifest rather than a hardcoded literal."
+    },
+    {
+      "id": "OPUS5-PLAN-09",
+      "severity": "P2",
+      "category": "Link integrity",
+      "path": "scripts/verify-plan-authority.mjs, docs/governance/reviewer-roles.md, CONTRIBUTING.md",
+      "sectionOrLines": "`markdownFiles(resolve(root, \"docs/plans/one-box-master\"))`; reviewer-roles.md link to risk-exceptions/README.md; CONTRIBUTING.md links",
+      "issue": "Local-link checking is scoped to docs/plans/one-box-master only. docs/governance/, docs/tickets/one-box-program/, CONTRIBUTING.md, README.md, and the .github templates are never link-checked. reviewer-roles.md makes the risk-exception registry load-bearing (fourteen-day expiry, non-renewable) via a relative link to risk-exceptions/README.md whose existence is neither supplied in this packet nor verified by any check; the same applies to CONTRIBUTING's links to the architecture baseline, authority manifest, ticket README, threat model, and reviewer-role matrix.",
+      "risk": "The exception mechanism that gates every non-mandatory waiver may be a dangling reference, and the contributor-facing entry points can rot without any gate noticing.",
+      "smallestSafeCorrection": "Extend the link walk to docs/governance, docs/tickets/one-box-program, CONTRIBUTING.md, README.md, AGENTS.md, and .github, and confirm docs/governance/risk-exceptions/README.md exists before relying on the exception clause."
+    },
+    {
+      "id": "OPUS5-PLAN-10",
+      "severity": "P2",
+      "category": "Tamper evidence",
+      "path": "scripts/verify-plan-authority.mjs, .github/pull_request_template.md",
+      "sectionOrLines": "digestInputs assembly and final digest.digest(\"hex\") console.log; PR template 'Risk and evidence' section",
+      "issue": "The Authority packet SHA-256 is computed and printed but never compared to a pinned expected value, so it locks nothing. Its inputs cover only domain primaryPaths plus the authority manifest, excluding the ticket manifest, evaluation manifest, adoption ledger, reviewer-roles.md, and all 29 ticket bodies. reviewer-roles.md asserts that 'any target-byte or policy change invalidates the receipt', but no mechanism detects such a change, and the PR template has no field to record the printed digest.",
+      "risk": "Governance content can be edited with no receipt invalidation and no reviewer-visible signal, weakening the exact-target model-review receipt discipline the packet depends on.",
+      "smallestSafeCorrection": "Include the ticket manifest, eval manifest, adoption ledger, and reviewer-roles.md in digestInputs; pin the expected digest in the test or a committed receipt file and fail on mismatch; add an 'Authority packet SHA-256' line to the PR template."
+    },
+    {
+      "id": "OPUS5-PLAN-11",
+      "severity": "P2",
+      "category": "Traceability",
+      "path": "scripts/verify-plan-authority.mjs, docs/tickets/one-box-program/manifest.json",
+      "sectionOrLines": "required-field loop (omits dependsOn, requirements, evaluations); EOS-001..EOS-019 substring loop over traceability.md; requirement values on OBX-P100, OBX-P160, OBX-P210, OBX-P320, OBX-P370",
+      "issue": "requirements, evaluations, and dependsOn are not required fields, so a ticket with no requirement and no evaluation passes. Requirement values are unvalidated free text mixing stable IDs (EOS-002), unexpanded ranges ('MPA-001..MPA-011', 'EB-001..EB-021'), phase labels ('P1', 'A0-A3', 'E4'), and prose ('Appointment PRD'). The only requirement oracle is a substring grep for EOS-001..EOS-019 anywhere in traceability.md, which a single line listing all nineteen IDs would satisfy with no content behind it.",
+      "risk": "Requirement-to-ticket-to-evaluation traceability is asserted rather than proven; ranges and prose cannot be resolved, so coverage claims for MPA and EB requirements are unverifiable, and OBX-P370's authority reference does not resolve to the appointment PRD path recorded in the authority manifest.",
+      "smallestSafeCorrection": "Make requirements and evaluations required non-empty arrays, expand ranges into individual IDs, replace 'Appointment PRD' with a stable requirement ID, and validate requirement IDs against a registry rather than by substring presence."
+    },
+    {
+      "id": "OPUS5-PLAN-12",
+      "severity": "P2",
+      "category": "Authority registration gap",
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json, docs/governance/reviewer-roles.md",
+      "sectionOrLines": "domains.engineering-operating-system.relatedPaths; supportingEvidence array",
+      "issue": "reviewer-roles.md is the packet's approval-matrix contract yet appears in no domain, no relatedPaths entry, and no supportingEvidence entry, so it carries no authorityClass, is not existence-checked, and is not in the digest. The same holds for CONTRIBUTING.md, the PR template, the issue template, and docs/tickets/one-box-program/README.md (the manifest is registered, the README is not). The document self-declares 'proposed engineering-governance baseline', but that status is not machine-readable anywhere.",
+      "risk": "A governance document with no registered authority class can be cited as binding or as accepted without the manifest's own class discipline applying to it, which is the exact confusion the authority manifest was built to remove.",
+      "smallestSafeCorrection": "Register reviewer-roles.md, the ticket README, CONTRIBUTING.md, and the .github templates under the engineering-operating-system domain's relatedPaths with the proposed class, so the verifier checks and digests them."
+    },
+    {
+      "id": "OPUS5-PLAN-13",
+      "severity": "P2",
+      "category": "Definition of Ready / Done",
+      "path": "scripts/verify-plan-authority.mjs, docs/tickets/one-box-program/README.md",
+      "sectionOrLines": "safePath(`docs/tickets/one-box-program/${ticket.file}`); README 'Definition of Ready' and 'Definition of Done'",
+      "issue": "The verifier confirms only that each OBX-P###.md file exists as a regular file; its contents are never checked. The Definition of Ready enumerates fourteen required elements (bounded outcome, non-goals, test-first oracle, security/data/license/telemetry impact, migration/rollback, documentation targets, exact model packet review, no unaccepted P0/P1, human acceptance) and the Definition of Done enumerates eight more, none of which is machine-checkable. An empty ticket file passes.",
+      "risk": "DoR and DoD read as enforced gates on the contributor surfaces but are unenforced prose, so a ticket can be advanced on the strength of a file that exists.",
+      "smallestSafeCorrection": "Require a structured front-matter or heading block in each ticket file covering the DoR elements, and have the verifier fail when a required section is missing for any ticket at or beyond in-review."
+    },
+    {
+      "id": "OPUS5-PLAN-14",
+      "severity": "P2",
+      "category": "Process feasibility",
+      "path": "docs/governance/reviewer-roles.md",
+      "sectionOrLines": "'Separation of duties', paragraph beginning 'One person may hold multiple owner roles'",
+      "issue": "The document allows one person to hold multiple owner roles but declares non-author verification non-waivable for authentication/authorization, tenant isolation, untrusted browser/file input, secrets/privacy, loss-risk migrations, release/rollback, appointment authority, and release candidates, with the only alternative being a fourteen-day risk exception and otherwise 'the ticket remains blocked'. The packet never states how a repository with a single active maintainer satisfies this, and the risk-exception path is explicitly unavailable for the non-waivable list.",
+      "risk": "Every high-risk class is either permanently blocked or the rule is quietly broken in practice; both outcomes degrade the control, and the second is undetectable because no verifier identity is recorded (see OPUS5-PLAN-07).",
+      "smallestSafeCorrection": "State the single-maintainer disposition explicitly: name the external or delegated independent verifier, or record that the listed classes remain blocked until a second named reviewer exists."
+    },
+    {
+      "id": "OPUS5-PLAN-15",
+      "severity": "P2",
+      "category": "Automation honesty",
+      "path": "CONTRIBUTING.md, .github/pull_request_template.md, docs/governance/reviewer-roles.md",
+      "sectionOrLines": "CONTRIBUTING 'Pull requests'; PR 'Reviewer checklist'; reviewer-roles 'Repository control target'",
+      "issue": "reviewer-roles.md honestly records that the inspected live ruleset requires zero approving reviews and that owner assignments are enforced by process rather than configuration. Neither CONTRIBUTING.md nor the PR template repeats that caveat: they present non-author verification, named domain-owner review, resolved conversations, and required checks as if they were gates, with no statement that nothing in the remote repository currently enforces them.",
+      "risk": "The two surfaces a contributor actually reads imply automated enforcement that does not exist; a senior reviewer joining the repository would over-trust the checklist and under-verify the human gate.",
+      "smallestSafeCorrection": "Add one sentence to CONTRIBUTING.md and the PR template stating that these gates are currently process-enforced, that the live branch ruleset requires zero approving reviews, and linking the 'Repository control target' section."
+    },
+    {
+      "id": "OPUS5-PLAN-16",
+      "severity": "P2",
+      "category": "Internal contradiction",
+      "path": "docs/tickets/one-box-program/README.md, docs/governance/reviewer-roles.md, CONTRIBUTING.md",
+      "sectionOrLines": "README 'Definition of Ready' ('one exact Grok 4.6 packet review'); reviewer-roles 'Review packet' fallback paragraph; CONTRIBUTING 'Include the exact Grok 4.6 packet receipt'",
+      "issue": "The Definition of Ready requires a Grok 4.6 packet review with no fallback clause, and CONTRIBUTING states the Grok receipt as mandatory. reviewer-roles.md separately permits an owner-authorized fallback after timeout or error, labeled with its actual model. Read strictly, a ticket reviewed under the fallback path can never become ready, which is the situation this very review creates.",
+      "risk": "The three surfaces disagree on a gating condition, so the fallback is either treated as satisfying DoR without textual support or the affected tickets are silently stuck; either way the readiness record becomes unreliable.",
+      "smallestSafeCorrection": "Amend the Definition of Ready and the CONTRIBUTING sentence to read 'one exact Grok 4.6 packet review, or an owner-authorized labeled fallback review per the reviewer-role matrix', so all three surfaces state the same rule."
+    },
+    {
+      "id": "OPUS5-PLAN-17",
+      "severity": "P2",
+      "category": "Planning quality",
+      "path": "docs/tickets/one-box-program/manifest.json",
+      "sectionOrLines": "estimate field on all 29 tickets",
+      "issue": "Every one of the 29 tickets carries estimate 'M', spanning work as different as accepting an ADR (OBX-P120), rewriting the retained desktop and embedded-browser security plan against EB-001..EB-021 (OBX-P160), and defining the entire E8 delivery and quality worker slice (OBX-P360). A field with a single value across the whole backlog carries no information.",
+      "risk": "Sequencing, capacity, and slice-size decisions have no signal, and the uniform value suggests the field was populated to satisfy the verifier's presence check rather than estimated, which weakens confidence in the other uniformly-shaped fields.",
+      "smallestSafeCorrection": "Either re-estimate with a real distribution, or remove the field from the schema and the required-field list until estimates exist, so its presence is not mistaken for planning evidence."
+    },
+    {
+      "id": "OPUS5-PLAN-18",
+      "severity": "P3",
+      "category": "Verifier gap",
+      "path": "scripts/verify-plan-authority.mjs, docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "sectionOrLines": "`if (name !== \"historical\" && typeof authority.authorityClassDefinitions?.[name] !== \"string\")`; authorityClassDefinitions object",
+      "issue": "'historical' is an allowed and non-authorizing class but is explicitly exempted from needing a published definition, and the manifest omits it. The one class with no written meaning is also the one that can be applied without any documentation obligation.",
+      "risk": "A domain can be reclassified to historical, silently removing it from active governance, with no definition a reviewer can hold it against.",
+      "smallestSafeCorrection": "Add a 'historical' definition to authorityClassDefinitions and remove the exemption from the verifier loop."
+    },
+    {
+      "id": "OPUS5-PLAN-19",
+      "severity": "P3",
+      "category": "Path containment",
+      "path": "scripts/verify-plan-authority.mjs",
+      "sectionOrLines": "safePath()",
+      "issue": "Containment is checked on the lexical path only. existsSync and statSync follow symlinks, so a repository-relative path pointing at a symlink whose target lies outside the root passes both the relative() check and the isFile() check, and its bytes then enter the digest.",
+      "risk": "A primary authority path could resolve to content outside the reviewed repository while appearing contained; low likelihood in this repository but it undermines the exact-bytes premise of the digest.",
+      "smallestSafeCorrection": "Resolve with realpathSync and re-run the relative(root, ...) containment check on the resolved path."
+    },
+    {
+      "id": "OPUS5-PLAN-20",
+      "severity": "P3",
+      "category": "Status semantics",
+      "path": "docs/tickets/one-box-program/README.md, docs/tickets/one-box-program/manifest.json",
+      "sectionOrLines": "status flow diagram; the six in-review tickets OBX-P100 through OBX-P150",
+      "issue": "The documented flow uses in-review twice, once before ready and once after in-progress, but a single status field cannot distinguish plan review from implementation review. OBX-P100 through OBX-P150 are all in-review with no indication of which stage is meant.",
+      "risk": "A reader could interpret an in-review governance ticket as implementation under review, which is exactly the planning-versus-execution conflation the packet is designed to prevent.",
+      "smallestSafeCorrection": "Split into distinct states (for example plan-review and impl-review) or add a stage field, and update the flow diagram accordingly."
+    },
+    {
+      "id": "OPUS5-PLAN-21",
+      "severity": "P3",
+      "category": "Appointment separation",
+      "path": "docs/tickets/one-box-program/manifest.json, docs/tickets/one-box-program/README.md",
+      "sectionOrLines": "OBX-P370.dependsOn ['OBX-P195']; README boundary 'OBX-P370 keeps appointment work independent'",
+      "issue": "The README describes the appointment track as independent while the manifest makes OBX-P370 depend solely on OBX-P195, which is titled 'Select provider and preserve appointment independence' and itself depends on the P6 provider chain. The edge is defensible as a dependency on the independence guarantee rather than on the provider outcome, but nothing in the data says which it is.",
+      "risk": "The dependency can be read as coupling appointment work to provider selection, eroding the required separation between provider, release, and appointment authority.",
+      "smallestSafeCorrection": "Annotate the OBX-P370 to OBX-P195 edge with its reason (independence guarantee only, not provider selection outcome), or split OBX-P195 so the independence contract is a separate dependable ticket."
+    },
+    {
+      "id": "OPUS5-PLAN-22",
+      "severity": "P3",
+      "category": "Verifier gap",
+      "path": "scripts/verify-plan-authority.mjs",
+      "sectionOrLines": "evaluation manifest block",
+      "issue": "Linkage is checked in one direction only: every ticket-declared evaluation must exist, and every evaluation's ownerTicket must exist. There is no check that an evaluation is referenced by at least one ticket, and no check that an evaluation's ownerTicket is among the tickets that list it.",
+      "risk": "Orphaned evaluations and owner/reference mismatches accumulate undetected, so the evaluation manifest can drift from the backlog it is supposed to gate.",
+      "smallestSafeCorrection": "Add an orphan check (every evaluation referenced by at least one ticket) and a consistency check (ownerTicket lists the evaluation)."
+    },
+    {
+      "id": "OPUS5-PLAN-23",
+      "severity": "P3",
+      "category": "Diagnostics",
+      "path": "scripts/verify-plan-authority.mjs",
+      "sectionOrLines": "readFileSync calls for docs/eval/one-box-program/traceability.md, AGENTS.md, README.md, docs/plans/one-box-master/README.md, plan-register.md; markdownFiles() readdirSync",
+      "issue": "These reads are unguarded. A missing file or directory throws an uncaught exception rather than recording a FAIL line. The exit code is still non-zero, so the behavior is fail-closed, but the output is a stack trace instead of the structured failure list the rest of the script produces.",
+      "risk": "Low; a real governance-file deletion surfaces as an apparent script crash, which is easy to misread as tooling breakage and route away from the governance owner.",
+      "smallestSafeCorrection": "Route these reads through safePath and record a FAIL message on absence."
+    },
+    {
+      "id": "OPUS5-PLAN-24",
+      "severity": "P3",
+      "category": "Unverifiable surface claim",
+      "path": "CONTRIBUTING.md, .github/pull_request_template.md",
+      "sectionOrLines": "CONTRIBUTING 'Checks' code block; PR 'Verification' list; PR 'Engineering stage (S0-S11)'",
+      "issue": "The contributor surfaces cite npm run verify:plans, test:plans, test:smoke, and four test:e2e:* scripts, and require an 'Engineering stage (S0-S11)' value. package.json and .github/workflows/ci.yml were not supplied, so script existence and CI wiring cannot be confirmed from this packet, and S0-S11 is defined only in the engineering-operating-system document, which the authority manifest classes as proposed and which is also absent here.",
+      "risk": "If any script or CI binding is missing, the surfaces assert automation that does not run; and a required PR field whose vocabulary comes from an unaccepted document invites inconsistent entries.",
+      "smallestSafeCorrection": "Confirm the scripts exist in package.json and are invoked by CI, and add an inline link from the PR template to wherever S0-S11 is defined."
+    }
+  ],
+  "implementationAuthorization": "NOT_AUTHORIZED",
+  "missingEvidence": [
+    "The 29 OBX-P###.md ticket bodies referenced by the manifest were not supplied, so Definition of Ready and Definition of Done content, per-ticket owners, non-author verifier records, non-goals, test-first oracles, and rollback sections could not be reviewed.",
+    "docs/eval/one-box-program/manifest.json was not supplied; the 21 distinct PROG-EVAL-* IDs referenced by tickets could not be confirmed to exist, nor their tier, method, status, or oracle fields.",
+    "docs/eval/one-box-program/traceability.md was not supplied; EOS-001 through EOS-019 coverage was verified only against the ticket manifest, not against the traceability document the verifier greps.",
+    "docs/research/source-catalog/adoption-ledger.json was not supplied; the adoption-ledger findings are based on the verifier's checking logic alone, not on the ledger contents.",
+    "docs/governance/risk-exceptions/README.md was not supplied and is not link-checked by any script; the existence and contents of the risk-exception registry that reviewer-roles.md depends on are unconfirmed.",
+    "package.json was not supplied; npm run verify:plans, test:plans, test:smoke, and the test:e2e:* scripts cited by CONTRIBUTING and the PR template could not be confirmed to exist.",
+    ".github/workflows/ci.yml was not supplied; whether CI actually executes the plan-authority verifier and its test file is unverified.",
+    "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md was not supplied; the S0-S11 stage vocabulary and the source of the Definition of Ready/Done wording could not be checked for consistency with the README.",
+    "No runtime evidence: the verifier and its node test were not executed in this review, so all verifier findings are from source reading. The fail-open path in OPUS5-PLAN-01 is a code-reading conclusion and should be confirmed by running the script against a null/empty manifest fixture.",
+    "The supplied aggregate SHA-256 (142bbd6f...) and the per-file hashes were not independently recomputed; findings are against the file bytes as presented in the packet.",
+    "No named humans exist anywhere in the evidence: no CODEOWNERS, no approver identities, no team GitHub identities, so 'named domain approvals' could not be verified as present for any ticket or domain.",
+    "The live GitHub branch ruleset state is known only from prose in reviewer-roles.md ('zero required approving reviews'); no API output or configuration export was provided.",
+    "docs/architecture/README.md, docs/adr/0001 and 0002, docs/security/local-api-threat-model.md, docs/security/2026-08-29-program-threat-model.md, docs/security/supply-chain-policy.md, and the release-1 contract were referenced but not supplied, so domain boundary statements in the authority manifest were not checked against their primary documents."
+  ],
+  "nextActions": [
+    "Fix OPUS5-PLAN-01 first: make readJson reject non-object parses and add non-zero minimum counts for domains, tickets, evaluations, and ledger entries, then prove it with a fixture test that nulls the authority manifest and asserts a non-zero exit.",
+    "Close the two authority-escalation gaps (OPUS5-PLAN-02, OPUS5-PLAN-03): forbid any domain from setting implementationAuthorized true while the program-level flag is false, add allowed-value sets for every status and priority field, and add the dependency-gating and blocked-propagation rules.",
+    "Convert the adoption-ledger deny-list into an allow-list (OPUS5-PLAN-04) so unknown or miscased decision values fail closed instead of permitting code use.",
+    "Delete the ONEBOX_PLAN_TEST_MUTATION branch from the verifier and rebuild the negative test around on-disk fixture manifests (OPUS5-PLAN-06, OPUS5-PLAN-05), then add one failing-case test per invariant.",
+    "Decide and record the approval identity model (OPUS5-PLAN-07, OPUS5-PLAN-14): add accountable-owner, approver, and non-author-verifier fields to the ticket schema, and state the single-maintainer disposition for the non-waivable high-risk classes.",
+    "Reconcile the three-way Grok fallback contradiction (OPUS5-PLAN-16) by amending the Definition of Ready and the CONTRIBUTING sentence to permit an owner-authorized labeled fallback, and register reviewer-roles.md, the ticket README, CONTRIBUTING.md, and the .github templates in the authority manifest (OPUS5-PLAN-12).",
+    "Add the enforcement-gap sentence to CONTRIBUTING.md and the PR template (OPUS5-PLAN-15) and an Authority packet SHA-256 field to the PR template (OPUS5-PLAN-10).",
+    "Supply the withheld evidence for a follow-up pass: the 29 ticket bodies, the eval manifest, traceability.md, the adoption ledger, the risk-exception registry, package.json, and ci.yml, plus one actual verifier run transcript.",
+    "Re-run this audit against the corrected packet before any ticket moves toward ready; nothing in this review authorizes implementation, deployment, schema change, provider selection, invitations, or appointment activation, and page IR/source, candidate, human approval, qualification, release, and appointment authority remain separate."
+  ],
+  "phaseDecision": {
+    "reason": "One P0 and six P1 findings. The P0 is decisive: scripts/verify-plan-authority.mjs exits 0 and prints 'Plan authority verification passed' when the authority manifest contains JSON-valid falsy content or when the ticket, evaluation, and adoption manifests are empty objects, because readJson only records a failure on a parse throw and every check sits behind a truthiness guard or a `?? []` loop. The existing test suite cannot detect this state, since both happy-path assertions still hold. On top of that, an owner-approved domain may set implementationAuthorized true with no cross-check, ticket status has no enum or dependency gate, the adoption-ledger decision check is a deny-list that unknown values bypass, and no named human approval or non-author verifier can be recorded anywhere in the data model. The planning content itself is sound and safe: 29 tickets cover program readiness, P1-P8, A4, E0-E8, and appointments; the graph is acyclic; EOS-001 through EOS-019 are all covered; nothing is marked ready or authorized; and the remote-settings and Grok-fallback honesty statements are accurate. The defect is concentrated in the enforcement layer, so the packet is revisable rather than blocked.",
+    "status": "REVISE"
+  },
+  "summary": "Adversarial single-pass planning audit by Opus 5 acting as the owner-authorized OAuth fallback after a Grok 4.6 timeout. This is Opus 5 evidence and is labeled as such; it does not substitute for the exact Grok 4.6 lane, and it is model review only, subordinate to deterministic evidence, named humans, and independent verification. Verdict REVISE on one P0 and six P1 findings. The backlog content is in good shape: the manifest holds exactly 29 tickets whose partition matches the README, coverage of program readiness, P1-P8, A4, E0-E8, and the appointment track is complete, all EOS-001 through EOS-019 requirements are carried by at least one ticket, every ticket carries at least one evaluation, the dependency graph is acyclic with all IDs resolving, and no ticket is marked ready, in-progress, verified, or done. No artifact in the packet authorizes implementation. reviewer-roles.md is notably honest about external state, recording that the live ruleset requires zero approving reviews and declining to claim otherwise, and the Grok fallback labeling rule was written before it was needed and matches this session. The failures are in the enforcement layer. The verifier exits 0 with 'Plan authority verification passed' when the authority manifest parses to JSON null or false, and when the ticket, evaluation, and adoption manifests are empty objects, because readJson only fails on a parse throw and every check sits behind a truthiness guard or a `?? []` loop; the two-test suite cannot detect this because both happy-path assertions still hold on empty input. Beyond that: an owner-approved domain may set implementationAuthorized true with no cross-check against the program-level false, and a rejected or draft domain can be relabeled owner-approved in one edit; ticket and manifest status fields have no enum and no dependency gate, so a ticket can be set ready with blocked dependencies, and blocked status already fails to propagate in the current data (OBX-P230 proposed on blocked OBX-P220); the adoption-ledger decision check is a case-sensitive deny-list that any unrecognized value bypasses to permit code use; the production verifier contains an environment-variable-controlled mutation of the authority object; and nothing anywhere binds a named human to an approval or records a non-author verifier, leaving the Definition of Ready and Definition of Done human gates and the non-waivable verification list as unenforceable prose. Eleven P2 and seven P3 findings cover unvalidated manifest cross-references, link checking scoped to one directory (leaving the load-bearing risk-exception registry unverified), an advisory-only digest that omits the ticket, eval, ledger, and governance files, free-text and range-form requirement IDs against a substring-grep oracle, governance surfaces absent from the authority manifest, a Grok-versus-fallback contradiction between the README Definition of Ready and reviewer-roles.md, the unaddressed single-maintainer conflict with non-waivable non-author verification, enforcement-gap disclosure missing from the two surfaces contributors actually read, and a uniform 'M' estimate across all 29 tickets. Substantial evidence was unavailable: the 29 ticket bodies, the evaluation manifest, traceability.md, the adoption ledger, the risk-exception registry, package.json, and ci.yml were not supplied, and the verifier was not executed, so all verifier findings are source-reading conclusions and the supplied aggregate SHA-256 was not independently recomputed. No implementation, deployment, schema change, provider, invitation, or appointment activity is authorized by this review, and page IR/source, candidate, human approval, qualification, release, and appointment authority remain separate.",
+  "verdict": "REVISE"
+}

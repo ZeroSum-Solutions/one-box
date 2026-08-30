@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T03:00:38.978Z",
+  "request": {
+    "task": "GLM planning-remediation exact Grok cross-check",
+    "model": "x-ai/grok-4.6",
+    "effort": "low",
+    "base": "HEAD",
+    "head": "7167a2488a7a0b82f1b5df0fde6b96e1e7b869ef",
+    "files": [
+      ".github/workflows/ci.yml",
+      "docs/eval/one-box-program/manifest.json",
+      "docs/eval/one-box-program/traceability.md",
+      "docs/governance/reviewer-roles.md",
+      "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md",
+      "docs/plans/one-box-master/01-foundation/release-1-contract.md",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "docs/research/source-catalog/ci-actions-qualification-2026-08-29.md",
+      "docs/superpowers/plans/2026-08-27-canvas-to-agency-shipping-roadmap.md",
+      "docs/superpowers/specs/2026-08-27-canvas-to-agency-shipping-design.md",
+      "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
+      "docs/tickets/one-box-program/OBX-P195.md",
+      "docs/tickets/one-box-program/OBX-P370.md",
+      "docs/tickets/one-box-program/manifest.json",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 311063
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 77000,
+      "completion_tokens": 1633,
+      "total_tokens": 78633,
+      "cost": 0.163798,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.163798,
+        "upstream_inference_prompt_cost": 0.154,
+        "upstream_inference_completions_cost": 0.009798
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 1354,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Planning-only slice: two-person productionRelease plus 24h previously-qualified emergency rollback is machine-checked; modelReview is packet-declared and advisory; P195/P370 have no dependency cycle (P370->P100 only; PROVIDER eval owned by P250 which does not depend on P195); ticket-eval coverage and EOS-001..019 traceability are enforced in verify-plan-authority.mjs; EB closure path is required relatedPath and digest-covered; client-review remote hosting is gated on ADR 0002 plus migration/provider decision; owner-approved records require person: identityRef and role; CI pins full SHAs and SC-CI-001 stays incomplete/blocked; Supabase is conditional on accepted ADR/provider; implementationAuthorized remains false. Deterministic verifier/tests in the slice encode these oracles; they are evidence of intended checks, not live execution in this review.",
+    "residual_risks": [
+      "CI runs npm run verify:plans/test:plans before npm ci; depends on Node builtins and package.json scripts only.",
+      "T1 wall-clock budget is not numbered in-packet beyond timeout-minutes: 30.",
+      "Live GitHub required-reviewers remain unenforced by this packet (explicitly disclosed)."
+    ]
+  }
+}

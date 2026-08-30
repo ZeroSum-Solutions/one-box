@@ -1,0 +1,108 @@
+{
+  "audit_version": 3,
+  "audited_at": "2026-08-27T21:13:59.798350+00:00",
+  "input": {
+    "path": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+    "sha256": "db5e7510abc0808d023583398692a2d68517c8976f2f1104ff15457b83878206",
+    "line_count": 881
+  },
+  "route": {
+    "requested_model": "x-ai/grok-4.6",
+    "reported_model": "x-ai/grok-4.6",
+    "provider": "xAI",
+    "catalog_verified": true,
+    "credential_source": "zsvault"
+  },
+  "usage": {
+    "prompt_tokens": 12461,
+    "completion_tokens": 27900,
+    "total_tokens": 40361,
+    "cost": 0.19213,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 128,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.19213,
+      "upstream_inference_prompt_cost": 0.02473,
+      "upstream_inference_completions_cost": 0.1674
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 25772,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "audit": {
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "id": "CS-01",
+        "severity": "P1",
+        "section": "5.1, 6.1, 7",
+        "issue": "Route identity is not a total function. visitorKind is included in RouteKey iff a visitor_kind_distinction observation for the AcquisitionScope returns required, yet every observation must record that same exact RouteKey and an eligible projection must match it. That is circular for the observation that decides the shape. Missing_* classification is also required, but classify() and AcquisitionScope isolation are defined only over a complete RouteKey. Enabled route dimensions in config are not reconciled with the always-written service + location + provider formula. Implementers can either make visitor-kind routes impossible or share observations across RouteKeys, which Section 5.1 forbids.",
+        "correction": "Bind visitor_kind_distinction to (ProjectId, service, location, provider) with visitorKind absent. Complete RouteKey only after that closed result: include visitorKind iff required, forbid it iff not_required, and return unresolved: route_shape_mismatch on missing or conflicting distinction. Define a closed PartialRouteInput used only for missing_* unresolved outcomes; it cannot carry channel evidence, targets, fallbacks, or leases. Location and provider are RouteKey axes iff enabled in verified business config; extra or disabled axes are invalid_route_dimension or prohibited_route_dimension. Completed AcquisitionScopes never share observations."
+      },
+      {
+        "id": "CS-02",
+        "severity": "P1",
+        "section": "4, 6.3, 7",
+        "issue": "The classifier must distinguish current vs stale evidence (rows 6–7) and must ignore stored fresh/stale labels, deriving freshness from capture timestamps. classify() has no time input, the compiler is forbidden a clock, and sealedEvidenceProjection is not specified to contain a hash-locked classificationTime or absolute expiries. Stale evaluation is therefore not a pure total function, so publication-time freshness can diverge from runtime sealed expiries.",
+        "correction": "Seal classificationTime as a mandatory hash-locked approval-bundle input. classify() is pure over that instant plus capture timestamps and the Section 6.3 TTLs, or over precomputed absolute expiry instants derived from them. A positive artifact is illegal unless every cited expiry is strictly after classificationTime. Runtime and pointer code still read only those sealed absolute instants and still ignore freshness labels."
+      },
+      {
+        "id": "CS-03",
+        "severity": "P1",
+        "section": "6.3, 10.2, 15.8",
+        "issue": "A hash-identical recapture 'refreshes timestamps and endpoint proofs without making the route unavailable' can be read to extend a published CTA past sealed expiry without HumanRepublish. That contradicts no-grace expiry, no layer lengthening TTLs, stale evidence cannot preserve a decision, and HumanRepublish as the only bundle-replacement path.",
+        "correction": "Hash-identical recapture may refresh qualification live-set currency and endpoint proofs only. It must not rewrite signed artifact expiries, preserve a public decision, issue or extend a CTA, or bypass HumanRepublish. Production remains bound to sealed absolute expiry; evidence_expiry still requires runtime_downshift_or_block at that instant."
+      },
+      {
+        "id": "CS-04",
+        "severity": "P1",
+        "section": "10.2, 11.1, 11.3, 15.3",
+        "issue": "Closed publication and transient state sets are not matched by total transitions, so the qualification matrix cannot cover every guard and member as required. Publication never defines reject/abort from AwaitingInitialApproval, the actor/event that enters AwaitingHumanRestore, or what pointer is served while waiting. Transient narrative uses Degraded and Healthy, which are not in the closed episode set, and does not define superseded, post-terminal re-open, or return to none.",
+        "correction": "Publish closed transition tables using only the named states. Rejected InitialPublish returns NeverPublished with no pointer. HumanRepublish is the only Published → AwaitingHumanRestore actor; public selection stays on the prior release until atomic install; rejected restore remains Published on that prior release. ProjectDeleted is entered only by the deletion transaction and never exits. Transient states are only none, open_degraded, resolved_success, resolved_downshift, resolved_blocked, superseded. After any terminal reason the open episode is none; a later matching failure may open open_degraded only on the then-current non-Blocked artifact. HumanRepublish closes open episodes as superseded; SafetyBlock and deletion close them as resolved_blocked."
+      },
+      {
+        "id": "CS-05",
+        "severity": "P1",
+        "section": "7, 9.1",
+        "issue": "'Uncertain equivalence' to emergency_urgent_adverse blocks without a closed config, pack, or observation input. That is undefined classifier authority and can be read to allow AI or prose judgment in runtime classification, which the non-goals and Section 4 forbid.",
+        "correction": "blocked: emergency_urgent_adverse is produced only when serviceCategoryBinding or a closed business prohibition names emergency_urgent_adverse. No similarity, embedding, confidence, or uncertainty heuristic is a classifier, compiler, or runtime input. Human uncertainty in live labeling uses the canonical dual_label_unresolved Blocked tuple and does not add a classifier reason."
+      },
+      {
+        "id": "CS-06",
+        "severity": "P1",
+        "section": "8.4, 17.3",
+        "issue": "Section 17.3 calls approval time, fallback frequency, and Blocked frequency diagnostic-only events, but they are not in the closed Section 8.4 analytics allowlist. That can expand client event names or payloads and breach the privacy envelope.",
+        "correction": "The exclusive client/analytics event names are the five in Section 8.4. Approval time, fallback frequency, and Blocked frequency are operator aggregates derived only from dashboard-safe closed enums, versions, and timestamps. New event names or fields are a breaking contract change."
+      },
+      {
+        "id": "CS-07",
+        "severity": "P1",
+        "section": "7, 8.1, 12",
+        "issue": "PublicRouteOption availability requires a current positive SealedDecision for another AcquisitionScope, but artifacts are immutable and the pointer must not synthesize a fallback. Sealed available flags can outlive sibling downshift or block, so the public route set can present a non-launchable choice as available.",
+        "correction": "Do not treat compile-time sibling availability as authoritative at serve time. An option is available only when a current same-origin pointer read for that exact AcquisitionScope would issue a CTA-bearing lease; otherwise it is unavailable and non-launchable. The renderer still must not infer a launch from a sibling scope, and failure still returns no CTA."
+      }
+    ],
+    "accepted_cross_section_invariants": [
+      "V1 is a truthful one-way public handoff only: no inventory, reservation, confirmation, vendor session, payment, identity/clinical collection, or clinical system of record.",
+      "Runtime may only keep the current approved artifact, downshift to a strictly weaker OperationallyAvailable approved artifact, or block; it never upgrades or skips a valid weaker artifact.",
+      "HumanRepublish is the only path to replace a bundle, change target or copy, exit nonterminal Blocked, or move to a stronger artifact; ProjectDeleted is terminal and requires a new ProjectId and InitialPublish.",
+      "Each classify() invocation evaluates one candidate mode and target over one independent sealed evidence projection; cross-channel splice, strength join, field repair, and positive emission from ineligible evidence are illegal.",
+      "Fail-closed: missing, stale, contradictory, unsafe, or unavailable evidence cannot produce or preserve a stronger public promise; TTLs have no grace and no layer may lengthen them.",
+      "Care and consultation scheduler promises cannot be inherited by request or contact; ambiguous categories cannot emit scheduler or request; out_of_scope and emergency_urgent_adverse expose no acquisition CTA.",
+      "Analytics, general logs, dashboards, alerts, tickets, on-call payloads, and operator exports may contain only opaque non-reversible IDs and closed enums; ProjectId, RouteKey, dimension values, URLs, reversible targets, contact values, and prohibited data classes are excluded.",
+      "A CTA-bearing lease requires one consistent non-Blocked BaseArtifactValid OperationallyAvailable control-record read; responses are no-store; activation revalidates; the pointer never synthesizes a fallback.",
+      "AI may propose candidates only; deterministic code classifies and transitions; named humans approve publication and every restoration or upgrade.",
+      "Qualification evidence classes must not be conflated; live failure is unavailable or Blocked, not a flake exemption; manual-invalidation hosting cannot satisfy signed-manifest automatic-protection metrics; R0–R4 cannot be skipped.",
+      "This PRD does not authorize implementation or rollout execution; after owner review the next permitted artifact is a dependency-ordered implementation plan that preserves these frozen contracts or explicitly identifies a proposed contract change."
+    ],
+    "implementation_authorization": "NOT_AUTHORIZED",
+    "audit_scope": "Adversarial cross-section audit of ONE BOX Appointment Acquisition v1 PRD sections 1–20 as one contract. Earlier per-section ACCEPT results are advisory only. This review is advisory evidence for the qualification manifest and does not replace the independent human verifier or owner approval. Implementation, coding, and R0–R4 execution are out of scope."
+  }
+}

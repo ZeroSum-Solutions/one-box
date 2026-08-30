@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "status": "proposed",
+  "implementationAuthorized": false,
+  "allowOnlyExactIds": true,
+  "allowedIds": [
+    "EOS-001", "EOS-002", "EOS-003", "EOS-004", "EOS-005", "EOS-006", "EOS-007", "EOS-008", "EOS-009", "EOS-010", "EOS-011", "EOS-012", "EOS-013", "EOS-014", "EOS-015", "EOS-016", "EOS-017", "EOS-018", "EOS-019",
+    "MPA-001", "MPA-002", "MPA-003", "MPA-004", "MPA-005", "MPA-006", "MPA-007", "MPA-008", "MPA-009", "MPA-010", "MPA-011",
+    "EB-001", "EB-002", "EB-003", "EB-004", "EB-005", "EB-006", "EB-007", "EB-008", "EB-009", "EB-010", "EB-011", "EB-012", "EB-013", "EB-014", "EB-015", "EB-016", "EB-017", "EB-018", "EB-019", "EB-020", "EB-021",
+    "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8",
+    "A0", "A1", "A2", "A3", "A4",
+    "E0", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8",
+    "APPT-REQ-001"
+  ],
+  "sourceRegistry": {
+    "EOS": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+    "MPA": "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md",
+    "EB": "docs/security/2026-08-29-embedded-browser-closure-requirements.md",
+    "phase-and-slice": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "APPT-REQ-001": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md#19-implementation-authorization-boundary"
+  },
+  "idMeanings": {
+    "APPT-REQ-001": "Appointment implementation and activation retain a separate authority chain and require the accepted PRD, independent verification, implementation plan, tickets, tests, and explicit activation authorization."
+  },
+  "rules": [
+    "Ticket requirements use only exact allowedIds.",
+    "Ranges, prose labels, and undeclared aliases are forbidden.",
+    "Requirement and evaluation arrays must be non-empty; dependsOn must be an array and may be empty only for a root ticket."
+  ],
+  "enforcementStatus": "locally-enforced-by-verify-plans-and-test-plans",
+  "boundary": "The local verifier and CI workflow enforce this repository vocabulary. That evidence does not prove remote branch-review settings, named-human approval, or implementation authorization."
+}
