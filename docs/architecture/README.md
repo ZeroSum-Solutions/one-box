@@ -304,6 +304,53 @@ process persists its own refreshable OAuth client state under the ignored
 require a static project bearer token. `src/lib/referoAuth.ts` owns OAuth state,
 callback validation, refresh persistence, and the local connect flow.
 
+### AI teammate Local foundation boundary
+
+`src/lib/contracts.ts` owns the closed v1 teammate, job, and receipt schemas.
+`src/lib/aiTeammates/registry.ts` owns the immutable eight-role roster; `idle`
+means no process, provider session, tool, lease, or budget is active. Jobs admit
+only `public` or `project-internal` data labels, exact `read` and `propose`
+effects, empty parent and child tool grants, one attempt, zero delegation depth,
+bounded bytes and duration, and process-only retention.
+
+`src/lib/aiTeammates/executor.ts`, `executionReceipts.ts`,
+`receiptBinding.ts`, and `serialization.ts` own deterministic in-memory
+execution. For a schema-valid job they canonicalize and freeze the job, input,
+proposal, and terminal receipt; bind the job, input, and complete output hashes;
+enforce cancellation, deadline, and byte/time budgets; and return `complete`,
+`failed`, `cancelled`, `rejected`, or `budget-exhausted`. Receipts are not
+persisted, cannot be retried in v1, and record zero external cost. The injected
+proposal function remains a trusted in-process seam, not a sandbox: cooperative
+abort cannot stop a future callback that ignores its signal or introduces an
+effect. The shipped route supplies only a fixed, local, effect-free callback.
+
+The [AI teammate route](../../src/app/api/ai-teammates/%5Bid%5D/route.ts) is the
+sole HTTP adapter. Its GET returns the static roster and its POST builds one 8
+KiB, one-second local job from a strict bounded assignment; both responses are
+`no-store`. The path ID is validated syntactically and echoed into the job, but
+this foundation route does not load, authenticate, mutate, or persist a run. It
+performs no provider, credential, network, filesystem, Page IR, site, queue, or
+automatic-application work. The local authorization and request-body boundary
+are documented in the [local API threat
+model](../security/local-api-threat-model.md).
+
+The Workbench exposes Agent Studio only in Edit mode. Teammates is the default
+`Local foundation` pane; the existing Site advice pane stays separately labeled
+and may mutate the site only through its established controls. Both panes remain
+mounted while their visibility changes, so a local assignment and receipt are
+not discarded by switching modes. During local execution, assignment controls
+are locked and run/assignment generation checks discard stale completions. The
+accepted result remains proposal-only and shows its bound teammate, task, fixed
+notice, and complete textual receipt; it has no apply control.
+
+This slice has no migration or durable runtime state. Rollback reverts its
+contracts, `src/lib/aiTeammates/`, route, `AiTeammate/` components, Workbench
+integration, and styles together; in-process values are discarded and existing
+Page IR, candidate, site, review, and release state stays untouched. Provider or
+model calls, model routing, skills, memory, scheduling, background workers,
+collaboration, tools, mutation authority, deployment, release, and Deep Agents,
+LangGraph, or LangSmith adoption remain non-goals.
+
 ### Page IR v1 contract boundary
 
 `src/lib/contracts.ts` is the only authority for the numeric-v1

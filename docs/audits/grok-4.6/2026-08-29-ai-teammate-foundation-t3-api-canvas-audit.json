@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T08:07:55.059Z",
+  "request": {
+    "task": "T3-api-canvas",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt"
+    ],
+    "diffBytes": 63737
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 20791,
+      "completion_tokens": 23386,
+      "total_tokens": 44177,
+      "cost": 0.181898,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.181898,
+        "upstream_inference_prompt_cost": 0.041582,
+        "upstream_inference_completions_cost": 0.140316
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 21902,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "createProposal / onSelectTeammate / onDataClassChange",
+        "scenario": "While a Create proposal fetch is in flight, changing the selected role or data class sets submission to idle, which re-enables the submit button. Further submits return immediately because submitting.current is still true (silent no-op). When the original request finishes it still setSubmission(result), so the receipt can belong to a teammate/data class other than the one now selected.",
+        "remediation": "Keep a monotonic request generation (or AbortController); ignore stale results; do not clear working on selection changes; disable roster, data-class, and submit until the in-flight call settles; if the user changes binding, abort or keep working visible."
+      },
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "createProposal + useEffect([runId])",
+        "scenario": "If runId changes while submitAiTeammateAssignment is in flight, roster reload is cancelled via the active flag but submission/submitting are not. The old run's proposal/receipt is written into the new run's panel, breaking run-scoping.",
+        "remediation": "Reset submission to idle on runId change, include runId in the request generation key, and drop results that do not match the current runId."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "LocalAiTeammatePanelContent textarea/select/radios while isWorking",
+        "scenario": "Assignment, data class, and radios stay editable during working. The result UI never prints proposal.task, so the composer can show a different assignment than the receipt after an in-flight edit.",
+        "remediation": "Disable or read-lock composer controls while working and render the bound proposal.task (and teammate) on the receipt."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "reloadRoster",
+        "scenario": "Try again sets loading then awaits without a generation token. Overlapping retries or a retry racing the runId effect can apply an older roster error over a newer success (or the reverse).",
+        "remediation": "Reuse the same active/generation guard as the mount effect and ignore stale loadAiTeammates resolutions."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+        "line": "AgentStudioPanelContent mode ternary",
+        "scenario": "Switching Teammates ↔ Site advice unmounts LocalAiTeammatePanel, wiping the bounded assignment, roster, and textual receipt without warning. The receipt is therefore not stably exposed inside Agent Studio.",
+        "remediation": "Hoist teammate state or keep both panes mounted and hide the inactive one with hidden/inert so Site advice stays separate without destroying the receipt."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "LocalAiTeammatePanelContent isWorking",
+        "scenario": "Roster loading uses role=status, but assignment working only flips the submit label to Creating…. Users not focused on that button get no accessible loading state.",
+        "remediation": "Set aria-busy on the form/section and a role=status live region (e.g. Creating a local proposal…) for the working state."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "ai-teammate-assignment__error / ai-teammate-task",
+        "scenario": "Submission errors are a role=alert sibling; the textarea is not aria-invalid and aria-describedby stays only on the help text, so the error is not bound to the composer control.",
+        "remediation": "On submission.kind === error, set aria-invalid and point aria-describedby at both the help id and the error id."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "Run receipt Provider cost dd",
+        "scenario": "The textual receipt always labels a Provider cost row. That names a provider on the Local foundation surface even when the value is $0.",
+        "remediation": "Render a non-provider label (e.g. Cost: none) or omit the row unless asserting no external spend without the word provider."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "announces a terminal proposal receipt with every audit field in text",
+        "scenario": "The assertion for Proposal only — nothing is applied automatically matches the always-on banner, not proposal.notice. startedAt, stoppedAt, jobSha256, outputSchemaId, and partialOutputSha256 are never required. renderToStaticMarkup never runs useEffect, so a panel that never loads the eight-role roster still passes.",
+        "remediation": "Assert the API notice and omitted audit fields inside the receipt node; add a mounted/async test that fetch resolves to eight radios and that in-flight selection cannot re-enable a silent submit."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/app/api/ai-teammates/[id]/route.test.ts",
+        "line": "rejects an unauthorized malformed body before attempting JSON parsing",
+        "scenario": "The test only checks 403 + error JSON. It would still pass if the handler parsed the body first and then authorized, so it does not lock the authenticate-before-body-parse rule.",
+        "remediation": "Spy request.json (or pass a throwing body stream) and assert it is not read on unauthorized POST."
+      }
+    ],
+    "proof_assessment": "The supplied proof is a command log plus static/source tests (renderToStaticMarkup, CSS/Workbench greps). It does not exercise auth-before-parse, in-flight state, mode-switch lifecycle, or runtime a11y. Full-suite green is explicitly not claimed; E2E still uses the old assistant label. Treat as incomplete evidence.",
+    "residual_risks": [
+      "executeAiTeammateJobV1 and AiTeammateDataClassV1Schema live outside the slice; fail-closed data classes and in-memory-only execution are inferred from tests, not reviewed source.",
+      "Client accept path does not pin executionLane, providerCostUsd, effectClasses, or proposal.notice before rendering.",
+      "View mode still hides Agent Studio entirely, so the proposal-only roster is unreachable without Edit.",
+      "Existing E2E/axe viewport contracts were not updated in this allowlist."
+    ]
+  }
+}

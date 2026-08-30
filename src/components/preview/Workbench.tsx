@@ -4,7 +4,7 @@ import { useState, type PointerEvent } from "react";
 import { ChatComposer } from "@/components/ChatComposer";
 import { GateStrip } from "@/components/GateStrip";
 import { AssetControls } from "./AssetControls";
-import { AssistantPanel } from "./AssistantPanel";
+import { AgentStudioPanel } from "./AiTeammate/AgentStudioPanel";
 import { ElementControls } from "./ElementControls";
 import { LayersPanel } from "./LayersPanel";
 import { MotionControls } from "./MotionControls";
@@ -34,7 +34,7 @@ const TOOLS: Array<{ id: WorkbenchTool; label: string }> = [
   { id: "assets", label: "Assets" },
   { id: "layers", label: "Layers" },
   { id: "research", label: "Research" },
-  { id: "assistant", label: "Ask about your site" },
+  { id: "assistant", label: "Agent Studio" },
   { id: "tokens", label: "Tokens" },
   { id: "motion", label: "Motion" },
 ];
@@ -572,7 +572,7 @@ export function Workbench(props: WorkbenchProps) {
 
     if (props.activeTool === "assistant") {
       return (
-        <AssistantPanel
+        <AgentStudioPanel
           runId={props.runId}
           selection={props.selection}
           onMutationComplete={props.onStructuredMutationComplete}

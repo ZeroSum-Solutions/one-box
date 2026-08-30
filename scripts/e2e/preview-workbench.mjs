@@ -1302,7 +1302,10 @@ try {
   await assertTouchTargets(rawRetry, "390x844 raw Retry state");
 
   await touchPage
-    .getByRole("button", { name: "Ask about your site" })
+    .getByRole("button", { name: "Agent Studio", exact: true })
+    .click();
+  await touchPage
+    .getByRole("button", { name: "Site advice", exact: true })
     .click();
   const rawTryAgain = touchPage
     .locator(".workbench-state")

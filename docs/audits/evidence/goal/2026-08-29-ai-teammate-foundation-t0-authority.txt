@@ -1,0 +1,39 @@
+TASK: T0 narrow implementation authorization
+DATE: 2026-08-29
+BASE: 47650fccb0fce0e96a49f9ae725abbe6a25540f1
+
+COMMAND:
+npm run verify:plans && npm run test:plans && git diff --check && node --check scripts/verify-plan-authority.mjs && node --check scripts/verify-plan-authority.node.mjs
+
+RESULT AFTER GROK 4.6 FINDING REMEDIATION:
+- Plan authority verification passed: 17 domains, 29 tickets, 21 program evaluations.
+- Authority packet SHA-256: 87b08c3b20e08257946e7dcd61a35abdbf0a2c905fcf05cffec0fc2f2d1c4f43
+- Plan authority tests: 43 passed, 0 failed, 0 skipped.
+- git diff --check: passed.
+- verify-plan-authority.mjs syntax check: passed.
+- verify-plan-authority.node.mjs syntax check: passed.
+- Composite command exit code: 0.
+
+BOUNDARY ASSERTION:
+- The full operating-environment domain remains planning-only and implementationAuthorized=false.
+- OBX-P180 remains proposed; OBX-P310 remains blocked.
+- OBX-AUTH-ATF-001 authorizes only the closed foundation-v1 path and effect set.
+
+GROK 4.6 RED/GREEN RECEIPT:
+- Review source: docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json
+- Initial focused mutation run: 11 tests, 0 passed, 11 failed, command exit 1.
+- The red run proved missing enforcement for unknown registry/authorization/scope/review keys, extra foundation tickets, the operating-environment/P180/P310 invariants, the component prefix delimiter, E1 pinning, and invalidator pinning.
+- Corrected focused mutation run: 11 passed, 0 failed, command exit 0.
+- Full corrected plan suite: 43 passed, 0 failed, command exit 0.
+
+CLOSED FINDINGS:
+- Unknown keys now fail at registry, authorization, authorizedBy, scope, requiredReview, foundation ticket manifest, and foundation ticket record boundaries.
+- ticketIds and the ticket manifest are exactly OBX-AT-001.
+- operating-environment remains draft/false, OBX-P180 proposed, and OBX-P310 blocked under explicit negative tests.
+- The component authorization is delimited to src/components/preview/AiTeammate/.
+
+RESIDUAL HARDENING:
+- requirements are exactly [E1] and invalidators are pinned.
+- This evidence path now matches the authorized docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation- prefix and is listed as supporting evidence.
+- Empty dependency diff, prohibited-capability scan, and shared-file hunk review are mandatory review fields.
+- OBX-AT-001 remains ready; automatic transition is false. A later state change requires explicit owner direction, synchronized manifest/body, verifier and negative-test update, digest refresh, and same-target review evidence.

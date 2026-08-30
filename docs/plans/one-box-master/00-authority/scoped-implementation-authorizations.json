@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "program": "ONE BOX",
+  "status": "active",
+  "globalImplementationAuthorized": false,
+  "authorizations": [
+    {
+      "id": "OBX-AUTH-ATF-001",
+      "status": "authorized",
+      "implementationAuthorized": true,
+      "authorizedBy": {
+        "name": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product and architecture owner"
+      },
+      "recordedAt": "2026-08-29",
+      "evidence": "The owner explicitly accepted the proposed first implementation slice and instructed Codex to run it to completion with /goal.",
+      "sourceSpec": "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "implementationPlan": "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "ticketManifest": "docs/tickets/ai-teammate-foundation/manifest.json",
+      "ticketIds": ["OBX-AT-001"],
+      "requirements": ["E1"],
+      "scope": {
+        "fullProgramAuthorization": false,
+        "productionReleaseAuthorized": false,
+        "deploymentAuthorized": false,
+        "newRuntimeDependenciesAllowed": false,
+        "runtimeDependencies": [],
+        "allowedEffectClasses": ["read", "propose"],
+        "allowedDataClasses": ["public", "project-internal"],
+        "allowedPathPrefixes": [
+          "src/lib/aiTeammates/",
+          "src/app/api/ai-teammates/",
+          "src/components/preview/AiTeammate/"
+        ],
+        "allowedExactPaths": [
+          "src/lib/contracts.ts",
+          "src/lib/contracts.test.ts",
+          "src/components/preview/Workbench.tsx",
+          "src/app/styles/workbench.css",
+          "docs/architecture/README.md",
+          "docs/security/local-api-threat-model.md",
+          "scripts/e2e/canvas-contract.mjs",
+          "scripts/e2e/canvas-coverage.mjs",
+          "scripts/e2e/preview-workbench.mjs"
+        ],
+        "supportingEvidencePrefixes": [
+          "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-",
+          "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-",
+          "docs/verification/2026-08-29-ai-teammate-foundation-",
+          "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-",
+          "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-",
+          "docs/audits/evidence/2026-08-30-ai-teammate-foundation-",
+          "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-",
+          "docs/verification/2026-08-30-ai-teammate-foundation-"
+        ],
+        "prohibitedCapabilities": [
+          "provider-call",
+          "network",
+          "credentials",
+          "filesystem",
+          "shell",
+          "browser",
+          "mutate",
+          "external-effect",
+          "authority",
+          "background-process",
+          "persistent-storage",
+          "deep-agents",
+          "langgraph",
+          "langsmith",
+          "deployment",
+          "release"
+        ]
+      },
+      "requiredReview": {
+        "exactModel": "x-ai/grok-4.6",
+        "securityReview": true,
+        "independentVerification": true,
+        "targetChangeInvalidatesReview": true,
+        "dependencyDiffMustRemainEmpty": true,
+        "prohibitedCapabilityScanRequired": true,
+        "sharedFileDiffReviewRequired": true
+      },
+      "invalidators": [
+        "scope-expansion",
+        "prohibited-effect",
+        "runtime-dependency-addition",
+        "provider-or-network-connection",
+        "deployment-or-release-target"
+      ]
+    }
+  ]
+}

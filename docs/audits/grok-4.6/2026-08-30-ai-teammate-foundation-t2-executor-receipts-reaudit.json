@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T07:42:14.819Z",
+  "request": {
+    "task": "T2-executor-receipts-reaudit",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json",
+      "src/lib/aiTeammates/executionReceipts.ts",
+      "src/lib/aiTeammates/executor.test.ts",
+      "src/lib/aiTeammates/executor.ts",
+      "src/lib/aiTeammates/receiptBinding.test.ts",
+      "src/lib/aiTeammates/receiptBinding.ts",
+      "src/lib/aiTeammates/serialization.ts",
+      "src/lib/contracts.test.ts",
+      "src/lib/contracts.ts"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json"
+    ],
+    "diffBytes": 86355
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 30206,
+      "completion_tokens": 31538,
+      "total_tokens": 61744,
+      "cost": 0.20452,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 30080,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.20452,
+        "upstream_inference_prompt_cost": 0.015292,
+        "upstream_inference_completions_cost": 0.189228
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 30996,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The evidence file is not authority: GREEN counts, typecheck/eslint, and the unspecified prohibited-capability scan were not re-executed here. Static review of the supplied slice shows production closures for all eight first-audit items rather than proof-only claims. F1/F2 are not left on Zod `.readonly()`: `cloneAndFreezeJson` snapshots the parsed job before `propose`, receipts are canonical-cloned and deep-frozen, and executor tests bind against the pre-mutation job while asserting nested `Object.isFrozen`. F3 is closed in `validateAiTeammateRunReceiptV1` via an explicit canonical output digest (or null). F4 is closed with an internal `AbortController`, `AbortSignal.any`, abort-on-timeout/cancel/finally, and a microtask guard that skips `propose` when cancel wins first. F5/F8 are closed by a single injected `{now, schedule}` domain, remaining-duration watchdog, `elapsed >= maxDurationMs`, FakeTime exact-bound tests, and independent job-hash/output-hash oracles; the leftover wall-clock never-resolving race is extra, not the only duration oracle. F6 checks `stoppedAtMs` against `deadlineAt` before `complete`. F7 clamps non-finite/backwards samples and returns a schema-valid terminal receipt instead of `toISOString`/Zod throws. No store, provider, apply, network, or filesystem seam is present in the executor path (`node:crypto` is in-memory hashing only).",
+    "residual_risks": [
+      "Injected `propose` is unsandboxed; cooperative abort cannot stop ignored-signal work.",
+      "`AiTeammateJobV1Schema.parse` still throws on unparseable jobs (no bindable rejected receipt).",
+      "Canonicalization still walks the full input before `maxInputBytes`; oversized payloads pay CPU/memory for one measurement.",
+      "Deadline is not re-checked after input prework; a job that starts before `deadlineAt` but whose input measurement passes the deadline still invokes `propose`, then rejects.",
+      "Invalid/backwards clocks are mapped to `budget-exhausted`/`duration-exceeded`, which is fail-closed but semantically overloaded.",
+      "`AbortSignal.any` is required; missing runtime support would throw outside a terminal receipt.",
+      "`partialOutputSha256` is unbound (executor always emits null).",
+      "The never-resolving test still races real `setTimeout(5)` against a 100ms wall guard and can flake under extreme delay."
+    ]
+  }
+}

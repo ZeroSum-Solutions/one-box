@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T08:53:10.800Z",
+  "request": {
+    "task": "T3-api-canvas-reaudit-v3",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt"
+    ],
+    "diffBytes": 83032
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 27001,
+      "completion_tokens": 30750,
+      "total_tokens": 57751,
+      "cost": 0.238502,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.238502,
+        "upstream_inference_prompt_cost": 0.054002,
+        "upstream_inference_completions_cost": 0.1845
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 30073,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "LocalAiTeammateRunPanel onBusyChange useEffect",
+        "scenario": "Create proposal setSubmission({kind:'working'}) re-renders only the child. AgentStudioPanel.teammatesBusy stays false until the child's useEffect (after paint) calls onBusyChange(true). In that window the Working live region is on screen while Teammates/Site advice remain enabled. A Site advice click hides the in-flight status; the later busy=true then disables both mode pills so the user cannot return until the request finishes. Hidden aria-live also drops the working/result announcement. Static AgentStudioPanelContent tests pass teammatesBusy already true and never drive this wiring.",
+        "remediation": "Set onBusyChange(true) synchronously in createProposal in the same event as setSubmission(working), and onBusyChange(false) when committing a non-working state and on unmount. Better: lift `submission.kind==='working'` into AgentStudioPanel so mode disabled and Working UI commit together. Do not mirror busy only through useEffect after paint."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "it('locks every assignment control and announces an in-flight proposal')",
+        "scenario": "The working snapshot asserts eight disabled radios, a disabled textarea, and a disabled data-class select, but never reads the submit control. Product currently uses canSubmit=!isWorking so the button is disabled, yet the named working-disabled vs idle/error/result-editable oracle would still pass if Create proposal stayed enabled during working (double-submit / unlock path). Idle/error/result helpers check submit enabled; working has no inverse.",
+        "remediation": "In the working case assert the submit button is disabled and its label is Creating…; keep expectAssignmentControlsEnabled for idle/error/result so all four states pin radios, textarea, select, and submit together."
+      }
+    ],
+    "proof_assessment": "Focused vitest oracles do close auth-before-body (json/text unread), empty/unknown grants, envelope/task/hash/cost/lane binding, 1 Working vs 7 Idle markup, presentational mode disabled when teammatesBusy is pre-set, stale generation/run/assignment commit predicates, and token/44px CSS. They are almost all renderToStaticMarkup or helper-unit checks: they never click Create proposal through AgentStudioPanel, so they cannot witness parent mode lock lagging child Working, and the working-control test never inspects submit. Treat that as incomplete proof of the named in-flight lock and working-disabled ACs, not as closure.",
+    "residual_risks": [
+      "No separate browser fetch timeout/AbortSignal (allowed residual unless an AC requires it).",
+      "A hung POST leaves Working plus mode pills disabled until run change/unmount; stale completions are dropped, not cancelled.",
+      "Proof still notes E2E/axe on the former assistant label and a partial full-suite timeout; those are outside this slice."
+    ]
+  }
+}

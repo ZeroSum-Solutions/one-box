@@ -1,0 +1,100 @@
+TASK: T2 deterministic executor and terminal receipts
+DATE: 2026-08-29
+BASE: 47650fccb0fce0e96a49f9ae725abbe6a25540f1
+
+RED EVIDENCE:
+1. Complete execution seam failed because ./executor did not exist; exit 1.
+2. Invalid/mismatched input path threw instead of returning rejected; exit 1.
+3. Proposal failure escaped instead of returning failed; exit 1.
+4. Active cancellation still invoked the proposal; exit 1.
+5. Byte/duration budgets threw instead of returning budget-exhausted; exit 1.
+6. Never-resolving proposal did not terminate at the duration bound; exit 1.
+7. Independent canonical job-hash oracle disagreed with implementation hash; exit 1.
+8. Proposal-schema exception escaped instead of returning failed; exit 1.
+
+GREEN COMMAND:
+npx vitest run src/lib/contracts.test.ts src/lib/aiTeammates/registry.test.ts src/lib/aiTeammates/receiptBinding.test.ts src/lib/aiTeammates/executor.test.ts && npm run typecheck && npx eslint src/lib/contracts.ts src/lib/contracts.test.ts src/lib/aiTeammates/*.ts && git diff --check -- src/lib/contracts.ts src/lib/contracts.test.ts src/lib/aiTeammates/ && git diff --quiet 47650fc -- package.json package-lock.json && prohibited-capability scan over executor/serialization/binding
+
+GREEN RESULT:
+- Vitest: 4 files passed; 55 tests passed; 0 failed; 0 skipped.
+- Typecheck: Next route types generated; tsc --noEmit passed.
+- Focused ESLint: passed with no output.
+- Focused git diff --check: passed.
+- Dependency diff: empty.
+- Prohibited capability scan: empty.
+- Composite command exit code: 0.
+
+BEHAVIOR RESULT:
+- Complete, rejected, failed, cancelled, and budget-exhausted each return one schema-valid immutable receipt.
+- Input/proposal bytes, active duration, cancellation, proposal schema, canonical hashes, zero provider cost, and non-retryable maxAttempts=1 semantics are enforced.
+- No store, persistent state, provider, model, API, UI, network, filesystem, shell, browser, mutation, external-effect, or authority runtime was added.
+
+GROK 4.6 REVIEW REOPEN (2026-08-30T07:19:04Z)
+
+AUDIT SOURCE:
+docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json
+
+PRE-EDIT REPRODUCTION:
+- F1 job mutation: job top/effect/data were frozen, assignment threw TypeError,
+  receipt stayed bound and complete. The audit scenario was falsified.
+- F2 receipt mutation: receipt top/effects were frozen and assignment threw
+  TypeError. The audit scenario was falsified.
+- F3 swapped complete output hash validated: reproduced.
+- F4 timeout returned budget-exhausted while proposal signal remained un-aborted:
+  reproduced.
+- F5 frozen injected now plus wall-clock watchdog returned duration-exhausted at
+  logical elapsed 0: reproduced.
+- F6 completion 99 ms after deadline still returned complete: reproduced.
+- F7 NaN produced RangeError and backwards time produced ZodError: reproduced.
+- F8 current freeze assertions would pass, but the duration oracle used a
+  wall-clock guard: freeze claim falsified; scheduler weakness reproduced.
+
+ZOD 4.4.3 RUNTIME EVIDENCE:
+- Generic `.readonly()` probe: topFrozen=true, nestedFrozen=false,
+  arrayFrozen=false; top assignment threw TypeError; nested array push did not.
+- Current schema probe: job top/effect/data/tool arrays and receipt top/effect
+  array all report Object.isFrozen=true because nested arrays are themselves
+  declared readonly.
+- Production now canonical-clones and recursively freezes all job snapshots,
+  proposals, receipts, and result wrappers, independent of Zod behavior.
+
+DISPOSITIONS:
+- Findings 1/2: disputed as written with concrete runtime falsification;
+  defense-in-depth hardening and original-job/nested-freeze oracles added.
+- Findings 3/4/5/6/7: valid and fixed test-first.
+- Finding 8: mixed; freeze premise false for installed schemas, fake-scheduler
+  criticism valid and fixed.
+
+REVIEW RED EVIDENCE:
+1. Output swap test failed because validator did not throw.
+2. Fake-time test failed because proposalSignal.aborted was false at timeout.
+3. Deadline test exposed a non-null complete proposal after deadline.
+4. Invalid-clock test escaped with `RangeError: Invalid time value`.
+5. Pre-proposal duration test observed proposalCalls=1 instead of 0.
+6. Remaining-duration test showed the watchdog did not abort at the total exact
+   boundary after input work.
+7. Cancellation-before-start test observed one proposal invocation instead of
+   zero after caller cancellation won before the proposal microtask.
+
+REVIEW GREEN RESULT:
+- Exact canonical output/null receipt binding is enforced.
+- One injected now+scheduler domain owns prework, watchdog, and completion;
+  elapsed >= maxDurationMs is exhausted.
+- Internal work is actively aborted on timeout, cancellation, and normal return.
+- Cancellation that wins before the proposal microtask prevents callback
+  invocation entirely.
+- Completion enforces deadlineAt.
+- Invalid/backwards clock samples return a valid terminal receipt.
+- Input bytes/hash are measured before the explicit canonical clone; an oversized
+  input incurs one payload read and never invokes proposal work.
+- Immutable job snapshot, proposal, every terminal receipt, nested collections,
+  original-job binding, zero cost, and retryEligible=false are asserted.
+
+FINAL REVIEW GATES:
+- Vitest focused contract/T1/T2 gate: 4 files passed; 62 tests passed.
+- Typecheck: Next route types generated; tsc --noEmit passed.
+- Focused ESLint: exit 0, no output.
+- Focused git diff --check: exit 0.
+- package.json/package-lock.json diff from 47650fc: empty.
+- Prohibited capability scan: empty.
+- No commit or push performed.

@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T09:56:08.775Z",
+  "request": {
+    "task": "final-immutable-ai-teammate-foundation",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t1-registry-contracts.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t1-registry-contracts-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t3-api-canvas-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t2-executor-receipts-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v2.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v3.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v4.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit-v2.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit.json",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/plan-register.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/security/local-api-threat-model.md",
+      "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "docs/tickets/ai-teammate-foundation/OBX-AT-001.md",
+      "docs/tickets/ai-teammate-foundation/manifest.json",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/e2e/preview-workbench.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx",
+      "src/lib/aiTeammates/executionReceipts.ts",
+      "src/lib/aiTeammates/executor.test.ts",
+      "src/lib/aiTeammates/executor.ts",
+      "src/lib/aiTeammates/receiptBinding.test.ts",
+      "src/lib/aiTeammates/receiptBinding.ts",
+      "src/lib/aiTeammates/registry.test.ts",
+      "src/lib/aiTeammates/registry.ts",
+      "src/lib/aiTeammates/serialization.ts",
+      "src/lib/contracts.test.ts",
+      "src/lib/contracts.ts"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt"
+    ],
+    "diffBytes": 457708
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 133166,
+      "completion_tokens": 30114,
+      "total_tokens": 163280,
+      "cost": 0.446824,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.446824,
+        "upstream_inference_prompt_cost": 0.26614,
+        "upstream_inference_completions_cost": 0.180684
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 29746,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "T4 evidence is a narrative receipt, not a re-executable transcript; prior grok-4.6 JSON files are advisory and were captured with head=base 47650fc, so they are not authority for 1b93148. Independent static review of the allowed slice shows the criterion holds: eight-id frozen registry; strict assignment/job/receipt schemas with empty grants, maxAttempts=1, fallback none, and read/propose-only effects; in-memory executor that deep-freezes snapshots, binds job/input/output hashes, and returns one terminal receipt without I/O or apply; POST authorizes before body read and uses a fixed local callback; Agent Studio defaults to Local foundation, locks assignment and mode controls while working, discards stale generations, accepts only a complete bound envelope, and has no teammate apply control. Shared-file hunks stay within named contracts and the Agent Studio mount.",
+    "residual_risks": [
+      "Injected propose is unsandboxed; cooperative abort cannot stop ignored-signal work. The shipped route callback is local and effect-free.",
+      "Client fetch has no timeout/AbortController; a hung POST stays Working until unmount.",
+      "Data-class is a caller assertion, not a content scan; path id is syntactic and does not load run state.",
+      "Job/receipt Zod arrays still allow empty effect/data classes; the executor rejects those before propose.",
+      "View/tool changes unmount Agent Studio and drop in-process drafts/receipts. Site advice remains a separate mounted apply surface.",
+      "Never-resolving duration test still races a 100ms wall-clock guard; compact 44x44 is not re-enumerated on the receipt DOM."
+    ]
+  }
+}

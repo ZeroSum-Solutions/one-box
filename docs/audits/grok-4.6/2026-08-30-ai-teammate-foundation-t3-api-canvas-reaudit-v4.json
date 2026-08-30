@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T08:59:56.137Z",
+  "request": {
+    "task": "T3-api-canvas-reaudit-v4",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt"
+    ],
+    "diffBytes": 83799
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 27387,
+      "completion_tokens": 20850,
+      "total_tokens": 48237,
+      "cost": 0.179874,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.179874,
+        "upstream_inference_prompt_cost": 0.054774,
+        "upstream_inference_completions_cost": 0.1251
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20552,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Reviewed the supplied route, Agent Studio, LocalAiTeammatePanel, CSS, and tests against the named prior findings rather than treating the audit changelog as authority. Production paths close them: isLocalApiAuthorized runs before POST body reads; assignment schema is strict read/propose with empty grants; propose-only local executor result is client-bound on run/lane/teammate/task/notice/effects/schema/hashes; bindAiTeammateBusyState notifies the parent before publishing working; both mode controls disable while busy; both panes stay mounted via hidden; working shows one Working and seven Idle with radios/textarea/select/Creating submit disabled; idle/error/result remain editable; result is one polite atomic live region; stale commit predicates include mounted, generation, run, teammate, task, and data class. Proof commands are focused unit/SSR oracles, not a live parent/child paint test, but the implementation does not reintroduce the listed defects.",
+    "residual_risks": [
+      "Client fetch has no timeout or AbortController; hung requests stay Working until unmount (explicitly out of scope unless a later criterion requires it).",
+      "Focused tests are SSR markup and helper oracles; a real browser paint/AT regression would not be caught here.",
+      "Proof still records stale E2E assistant labels and a partial full-suite timeout outside this slice."
+    ]
+  }
+}

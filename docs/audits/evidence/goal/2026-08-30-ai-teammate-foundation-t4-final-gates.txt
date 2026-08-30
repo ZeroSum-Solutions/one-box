@@ -1,0 +1,52 @@
+T4 canonical documentation, browser, and repository gate evidence
+Captured: 2026-08-30
+Base: 47650fccb0fce0e96a49f9ae725abbe6a25540f1
+
+Authority and documentation
+- OBX-AUTH-ATF-001 now names only the two canonical documentation files and three existing E2E verification harnesses needed by this slice; read/propose effects, allowed data, zero dependencies, prohibited capabilities, and no deployment/release flags are unchanged.
+- Plan verifier includes exact-scope and negative drift oracles. npm run verify:plans passed with packet digest ba44f49582e96dcc06afa6a82d7fed6e8171d9cf6fabcc5507f1c72da075f13c; npm run test:plans passed 48/48.
+- docs/architecture/README.md and docs/security/local-api-threat-model.md describe only verified Local foundation behavior and explicitly state the trusted-callback, caller-classification, syntactic-run-id, Edit-mode, non-sandbox, non-persistent, non-provider, non-mutation, non-deployment limitations.
+- The project-documentation verifier returned status ok with no document, ledger, path, Markdown, secret-marker, or shell errors. Its .tmp ledger is ephemeral and must be regenerated after final audit artifacts settle.
+
+Browser and accessibility
+- scripts/e2e/canvas-coverage.mjs --assert composer-reach passed 16/16 tool x selection states with Agent Studio.
+- scripts/e2e/preview-workbench.mjs passed the full acceptance matrix, including the 390x844 Agent Studio -> Site advice -> Try again recovery path.
+- scripts/e2e/canvas-contract.mjs passed all 21 surface/viewport combinations. The fail-hard Agent Studio surface verified the exact ordered eight-role roster, Local foundation boundaries, required native controls, disabled empty assignment, a completed QA Challenger proposal bound to its assignment and terminal receipt, and no visible apply-like control before or after completion.
+- Agent Studio reported zero serious or critical axe violations at 1440, 768, and 390.
+- At 768 and 390 the harness enumerated every visible Teammates interactive (including disabled controls and radio labels) and required each rendered hit target to be at least 44x44.
+- Honest baseline limitation: legacy frozen RUN_BUILT Layers setup still logs a missing tree without failing the old harness; the new Agent Studio surface uses a current editable fixture and fails hard on absent controls or roster.
+
+Full repository gates on the corrected target
+- npm test: 104 files passed, 4 skipped; 1,317 tests passed, 4 skipped; exit 0.
+- The four skipped entries are deliberately disabled cross-process fixture entrypoints (`candidatePromotion.crash.fixture`, `imageLibrary.crossProcess.fixture`, `runstate.crossProcess.fixture`, and `siteAuthority.crossProcess.fixture`); their parent tests invoke them under explicit fixture flags. No AI teammate test is skipped.
+- npm run typecheck: passed.
+- npm run lint: exit 0 with six pre-existing warnings and zero errors; none originate in the AI teammate slice.
+- npm run build: passed and registered /api/ai-teammates/[id]; six pre-existing dynamic-filesystem tracing warnings remain outside this slice.
+- npm run verify:plans: passed at ba44f49582e96dcc06afa6a82d7fed6e8171d9cf6fabcc5507f1c72da075f13c.
+- npm run test:plans: 48/48 passed.
+- git diff --check: passed.
+- package.json and lockfile diff: empty.
+
+Task-level exact Grok 4.6
+- T0 authority correction re-audit: CLEAN, 0 findings.
+- T1 registry/contracts audit: CLEAN, 0 findings.
+- T2 executor/receipts correction re-audit: CLEAN, 0 findings.
+- T3 API/Canvas correction re-audit v4: CLEAN, 0 findings after every earlier finding was fixed test-first.
+
+T4 exact Grok 4.6 finding disposition
+- The first T4 authority/docs/E2E audit requested/reported x-ai/grok-4.6 at xhigh and found one HIGH plus two MEDIUM fail-open harness defects.
+- All three were fixed test-first in `scripts/e2e/canvas-contract.mjs`: axe exceptions now enter the problems set and fail; the Agent Studio surface requires a successful navigation, one enabled Edit control, pressed Edit mode, and a visibly reopened workbench; and every visible Teammates mode control is measured at 44x44 or larger at 768/390.
+- Agent Studio assertions are scoped to its pane and reject any visible apply-like control. Static fail-closed oracles, syntax, scoped diff, and the full live 1440/768/390 contract rerun pass.
+- The first corrected T4 re-audit found two remaining coverage gaps: it stopped before a proposal receipt existed, and compact hit-target checks used a named allowlist. The harness now submits a real bounded assignment, waits for the bound proposal and complete deterministic-local receipt, rechecks all boundaries and the no-apply invariant on that terminal state, and enumerates every visible Teammates interactive for compact target measurement.
+- The completed-state sweep exposed one real typography defect: two receipt metadata labels inherited browser-default 700 weight. `workbench.css` now pins them to the project medium token, the focused style regression test passes, and the full live 1440/768/390 contract rerun reports no contract or accessibility problems.
+- The corrected T4 re-audit v2 requested and reported exact `x-ai/grok-4.6` at `xhigh`: CLEAN, zero findings. Its residual-risk notes preserve the intentionally bounded local-only, non-provider, non-persistent foundation and the legacy frozen Layers diagnostic limitation.
+- The original immutable review target was invalidated. Security and independent verification must use a newly frozen corrected target.
+
+T4 completion
+- The corrected implementation and T4 evidence were frozen as immutable target `1b93148627fcc1cf6d29ecdd91d706b0a42dd582` (tree `97dddb8b08c53ff3e0c8a492f0c63a116c303b12`).
+- Machine-validated security review against base..target: PASS, zero findings; exact-range gitleaks passed, 53/53 changed paths were classified, exact-target focused tests passed 84/84, authority tests passed 48/48, and the report validator returned `security-review-report: OK`.
+- Final immutable-target audit requested/reported exact `x-ai/grok-4.6` at `xhigh`: CLEAN, zero findings.
+- Independent non-author verification: VERIFIED for C1-C6 after fresh focused 84/84, full 1,317-test, typecheck, lint, build, authority, 21-surface Canvas, 16/16 coverage, Workbench, security-validator, dependency, and capability gates. C7 remains correctly pending until commit/push parity is proved in T5.
+- The independent verifier detected one staged-diff hygiene issue: an extra blank line at EOF in the spec. It was removed, `git diff --cached --check` now passes, and no executable or semantic product byte changed after immutable review.
+
+No deployment or release is authorized or performed.

@@ -5,6 +5,12 @@
 - Implementation authorized: no
 - Parent: `OBX-P180` and `OBX-P310`
 
+The wider operating model remains planning-only. The separately accepted
+[`AI teammate foundation v1`](../../../specs/2026-08-29-ai-teammate-foundation-v1.md)
+and `OBX-AUTH-ATF-001` authorize only the static roster, read/propose contracts,
+deterministic local executor/receipts, and minimal local Canvas/API surface named
+there. No other section of this draft gains implementation authority.
+
 ## Decision
 
 ONE BOX should present a persistent roster of recognizable AI teammates while

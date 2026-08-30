@@ -69,7 +69,7 @@ const WORKBENCH_TOOLS = [
   { id: "assets", label: "Assets" },
   { id: "layers", label: "Layers" },
   { id: "research", label: "Research" },
-  { id: "assistant", label: "Ask about your site" },
+  { id: "assistant", label: "Agent Studio" },
   { id: "tokens", label: "Tokens" },
   { id: "motion", label: "Motion" },
 ];
@@ -721,9 +721,9 @@ async function main() {
   await fs.rm(runRoot, { recursive: true, force: true });
   await fs.mkdir(runRoot, { recursive: true });
   // A minimal legacy-v1 run.json keeps the fixture aligned with the
-  // composer-reach assertion, which drives the real "Ask about your site" tool,
-  // whose GET /api/assistant/<id> route 404s without one. Writing it keeps
-  // that assertion honest about the assistant tool's real composer state
+  // composer-reach assertion, which drives Agent Studio's real Site advice
+  // pane, whose GET /api/assistant/<id> route 404s without one. Writing it keeps
+  // that assertion honest about the Site advice composer's real state
   // instead of an artifact of an incomplete fixture.
   const runState = {
     id: runId,

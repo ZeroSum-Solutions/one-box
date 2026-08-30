@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T08:40:02.696Z",
+  "request": {
+    "task": "T3-api-canvas-reaudit-v2",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt"
+    ],
+    "diffBytes": 80349
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 25962,
+      "completion_tokens": 40798,
+      "total_tokens": 66760,
+      "cost": 0.29652,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.29652,
+        "upstream_inference_prompt_cost": 0.051732,
+        "upstream_inference_completions_cost": 0.244788
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 39717,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+        "line": "29-71 AgentStudioPanelContent mode buttons + hidden panes",
+        "scenario": "User clicks Create proposal, then Site advice while the request is in flight (mode controls stay enabled; LocalAiTeammatePanel stays mounted). Working status and the atomic proposal/receipt live region live only under data-agent-studio-pane=\"teammates\" hidden. HTML hidden removes that subtree from the accessibility tree, so completion/failure is not visible and is not announced. Unhiding later does not reliably re-announce an already-populated role=status region.",
+        "remediation": "While submission.kind==='working', disable the Teammates/Site advice buttons, or lift a single polite live region (working/error/result summary) above the hidden panes so completion cannot land only in a hidden subtree."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "55-90 locks every assignment control and announces an in-flight proposal",
+        "scenario": "LocalAiTeammatePanelContent in working state with every role labeled Working · Read + propose still passes: the test only asserts one substring, the working sentence, and eight disabled radios. It never counts Idle vs Working or checks non-selected cards. A regression of the working-vs-idle roster truth would stay green.",
+        "remediation": "Assert exactly one Working label (the selected id) and Idle · Read + propose on the other seven roles; keep the working/idle helper sentences as exclusive copies."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "353-517 submitAiTeammateAssignment residualMismatches",
+        "scenario": "isBoundResult requires proposal.task === trimmed, but residual mismatches never change task. Dropping that check still passes the success equality case and every listed mismatch (run/lane/teammate/notice/lane/cost/effects/schema/hashes/partial/retry). Response binding for the assigned task is therefore unenforced by the oracle.",
+        "remediation": "Add a 200 envelope where proposal.task differs from the submitted trimmed task and expect kind:'error'; optionally pin the same check in a direct unit assertion."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "55-90 working lock vs 169-212 idle form",
+        "scenario": "Working render never asserts textarea disabled={isWorking}. Idle render only expect(html).toContain('disabled') while the empty-task submit button is disabled, and never asserts radios/select/textarea lack disabled. Permanently disabled radios/textarea, or a working-state textarea that stays editable, would still pass, so the control-locking prior finding is not actually locked by tests.",
+        "remediation": "In working state assert disabled on the textarea, data-class select, and all eight radios; in idle/error/result with a non-empty task assert those controls are not disabled and only the submit button’s disabled tracks canSubmit."
+      }
+    ],
+    "proof_assessment": "The slice does close the named implementation priors: isLocalApiAuthorized before POST body read; empty parent/child grants and exact read/propose tuple; client receipt pins complete/proposal-complete/deterministic-local/cost 0/lowercase hashes/non-null output/null partial/retry false; working describedby on task+select; generation/run/task/dataClass predicates; both Agent Studio panes stay mounted; no Apply on the teammate surface. The supplied proof (19 focused tests, typecheck, lint, build) is evidence those oracles were green, not that they cover the priors. They do not prove exclusive working-vs-idle roster text, proposal.task rebinding, or idle enablement vs working disablement of the textarea/radios, and they never exercise mode switch during an in-flight proposal. Executor, registry, receipt Zod, and isLocalApiAuthorized are outside the diff and were not independently verified.",
+    "residual_risks": [
+      "E2E still uses the old assistant label and does not axe Agent Studio across viewports (noted in the proof, not in this allowlist).",
+      "executeAiTeammateJobV1, listAiTeammates/registry, AiTeammateRunReceiptV1Schema, and isLocalApiAuthorized are trusted but not in the slice; extra receipt fields or non-fetch I/O would evade the global fetch stub.",
+      "Workbench view-mode still unmounts AgentStudioPanel, dropping drafts/in-flight commits/receipts; Site advice Apply remains mounted in the hidden pane.",
+      "No client timeout/AbortController: a hung local fetch leaves assignment controls locked until tool remount.",
+      "loadAiTeammates does not re-pin idle + read/propose if the registry schema is looser than the GET unit test."
+    ]
+  }
+}

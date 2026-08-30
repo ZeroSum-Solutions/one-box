@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T10:06:18.116Z",
+  "request": {
+    "task": "T5-final-evidence-and-authority-binding",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+    "head": "6e046b24a529a95c009300141bcf8eaa6ba3e346",
+    "files": [
+      "docs/audits/evidence/2026-08-30-ai-teammate-foundation-security-review.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt",
+      "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md",
+      "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff.txt",
+      "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-gitleaks.txt",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-final-immutable-audit.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "docs/verification/2026-08-30-ai-teammate-foundation-independent-verification.md"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt"
+    ],
+    "diffBytes": 95123
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 31735,
+      "completion_tokens": 11891,
+      "total_tokens": 43626,
+      "cost": 0.134624,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.134624,
+        "upstream_inference_prompt_cost": 0.063278,
+        "upstream_inference_completions_cost": 0.071346
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 11549,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Candidate 6e046b24 only adds post-target evidence, removes the spec's extra EOF blank line, and replaces authority-manifest packetDigest ba44f495… with f17059…. Security JSON ref/base/tree bind 1b93148/47650fcc/97dddb8b, verdict PASS, findings []. Grok JSON requests exact x-ai/grok-4.6 xhigh on the same head and returns CLEAN. Independent verification is VERIFIED for C1–C6 on that tree and leaves C7 pending. Spec hunk is whitespace-only; scoped authorization fields are untouched. T4 completion text matches those artifacts and does not claim deploy/release or C7 parity. T5 delta has no executable/product-behavior change and no secret material.",
+    "residual_risks": [
+      "New digest f17059… has no bound verify:plans/test:plans transcript on 6e046b24; T4 evidence still records ba44f495… from 1b93148.",
+      "Independent-verification.md still records the spec EOF `git diff --cached --check` failure as a then-current residual; disposition lives only in the later T4 completion narrative.",
+      "Gitleaks/security classification cover 47650fcc..1b93148, not this evidence delta.",
+      "C7 commit/push/remote parity remains explicitly pending.",
+      "Product residuals from the bound CLEAN review (trusted unsandboxed callback, no client AbortController, caller-asserted dataClass, syntactic run id) are unchanged and out of this evidence slice."
+    ]
+  }
+}

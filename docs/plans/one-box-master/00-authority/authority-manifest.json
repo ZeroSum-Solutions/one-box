@@ -4,6 +4,7 @@
   "status": "planning-reconciliation",
   "governingRule": "Domain authority outranks recency. Proposed, draft, research, rejected, historical, and audit artifacts cannot authorize implementation.",
   "implementationAuthorized": false,
+  "scopedImplementationAuthorityPath": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
   "governancePolicies": {
     "productionRelease": {
       "minimumDistinctActiveHumans": 2,
@@ -27,7 +28,7 @@
       "targetChangeInvalidatesReceipt": true
     }
   },
-  "packetDigest": "01bd9f3e40670c5d4adb1e1bb985c94eef07663c57e3d397fa1f4709c5a8027e",
+  "packetDigest": "f17059ecbf094c89ace92f1b415f0bf5a695f8893feec3a0843dd9eedd50aa51",
   "forbiddenPrimaryPathPrefixes": ["docs/audits/"],
   "authorityClassDefinitions": {
     "owner-approved": "Accepted normative product contract for its exact boundary; execution still follows its named ticket and authorization state.",
@@ -198,8 +199,8 @@
       "primaryPath": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
       "authorityClass": "draft",
       "implementationAuthorized": false,
-      "relatedPaths": ["docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md", "docs/adr/0003-deep-agents-js-job-plane-evaluation.md"],
-      "boundary": "E0 through E8 are draft decomposition only; no retained implementation."
+      "relatedPaths": ["docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md", "docs/adr/0003-deep-agents-js-job-plane-evaluation.md", "docs/specs/2026-08-29-ai-teammate-foundation-v1.md", "docs/tickets/ai-teammate-foundation/manifest.json"],
+      "boundary": "E0 through E8 remain draft decomposition. Only the separate OBX-AUTH-ATF-001 foundation-v1 record grants narrow retained implementation; it does not authorize the broader domain."
     },
     "embedded-browser": {
       "label": "Embedded browser",
@@ -225,6 +226,8 @@
     "docs/audits/grok-4.6/2026-08-28-canvas-master-plan-reconciliation-audit.md",
     "docs/audits/evidence/2026-08-29-planning-control-verification.md",
     "docs/audits/fable-5/2026-08-29-deep-agents-teammate-proposal-audit.md",
+    "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json",
+    "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
     "docs/research/source-catalog/README.md",
     "docs/research/source-catalog/adoption-ledger.json"
   ],

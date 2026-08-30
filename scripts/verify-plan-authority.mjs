@@ -71,6 +71,104 @@ const expectedDomains = {
   "embedded-browser": ["docs/plans/2026-08-29-embedded-browser-integration.md", "proposed"],
   "technology-adoption": ["docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md", "research"],
 };
+const expectedTeammateFoundationScope = {
+  fullProgramAuthorization: false,
+  productionReleaseAuthorized: false,
+  deploymentAuthorized: false,
+  newRuntimeDependenciesAllowed: false,
+  runtimeDependencies: [],
+  allowedEffectClasses: ["read", "propose"],
+  allowedDataClasses: ["public", "project-internal"],
+  allowedPathPrefixes: [
+    "src/lib/aiTeammates/",
+    "src/app/api/ai-teammates/",
+    "src/components/preview/AiTeammate/",
+  ],
+  allowedExactPaths: [
+    "src/lib/contracts.ts",
+    "src/lib/contracts.test.ts",
+    "src/components/preview/Workbench.tsx",
+    "src/app/styles/workbench.css",
+    "docs/architecture/README.md",
+    "docs/security/local-api-threat-model.md",
+    "scripts/e2e/canvas-contract.mjs",
+    "scripts/e2e/canvas-coverage.mjs",
+    "scripts/e2e/preview-workbench.mjs",
+  ],
+  supportingEvidencePrefixes: [
+    "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-",
+    "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-",
+    "docs/verification/2026-08-29-ai-teammate-foundation-",
+    "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-",
+    "docs/audits/evidence/2026-08-30-ai-teammate-foundation-",
+    "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-",
+    "docs/verification/2026-08-30-ai-teammate-foundation-",
+  ],
+  prohibitedCapabilities: [
+    "provider-call",
+    "network",
+    "credentials",
+    "filesystem",
+    "shell",
+    "browser",
+    "mutate",
+    "external-effect",
+    "authority",
+    "background-process",
+    "persistent-storage",
+    "deep-agents",
+    "langgraph",
+    "langsmith",
+    "deployment",
+    "release",
+  ],
+};
+const expectedTeammateFoundationCanonicalDocs = [
+  "docs/architecture/README.md",
+  "docs/security/local-api-threat-model.md",
+];
+const expectedTeammateFoundationE2eHarnesses = [
+  "scripts/e2e/canvas-contract.mjs",
+  "scripts/e2e/canvas-coverage.mjs",
+  "scripts/e2e/preview-workbench.mjs",
+];
+const expectedTeammateFoundationInvalidators = [
+  "scope-expansion",
+  "prohibited-effect",
+  "runtime-dependency-addition",
+  "provider-or-network-connection",
+  "deployment-or-release-target",
+];
+const expectedTeammateFoundationReview = {
+  exactModel: "x-ai/grok-4.6",
+  securityReview: true,
+  independentVerification: true,
+  targetChangeInvalidatesReview: true,
+  dependencyDiffMustRemainEmpty: true,
+  prohibitedCapabilityScanRequired: true,
+  sharedFileDiffReviewRequired: true,
+};
+const expectedTeammateFoundationTicket = {
+  id: "OBX-AT-001",
+  title: "Build the native read/propose teammate foundation",
+  status: "ready",
+  priority: "P1",
+  requirements: ["E1"],
+  file: "OBX-AT-001.md",
+};
+const expectedTeammateFoundationTicketStatusPolicy = {
+  currentStatus: "ready",
+  allowedSequence: ["ready", "in-progress", "in-review:implementation", "verified", "done"],
+  automaticTransitionAllowed: false,
+  transitionRequires: [
+    "explicit-owner-direction",
+    "manifest-and-ticket-body-sync",
+    "verifier-invariant-and-negative-test-update",
+    "authority-packet-digest-refresh",
+    "same-target-review-evidence",
+  ],
+};
 
 function fail(message) {
   failures.push(message);
@@ -78,6 +176,17 @@ function fail(message) {
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function rejectUnknownKeys(value, allowedKeys, label) {
+  if (!isPlainObject(value)) return;
+  const allowed = new Set(allowedKeys);
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) fail(`${label}: unknown key ${key}`);
+  }
+  for (const key of allowed) {
+    if (!Object.hasOwn(value, key)) fail(`${label}: missing key ${key}`);
+  }
 }
 
 function readText(path, label = path) {
@@ -119,6 +228,23 @@ function repositoryRelativePath(path, label) {
     return null;
   }
   return absolute;
+}
+
+function validateAuthorizedPath(path, label) {
+  const broadPaths = new Set(["src/", "src/lib/", "src/app/", "src/components/", "docs/", "scripts/"]);
+  if (
+    typeof path !== "string"
+    || path.length === 0
+    || path.startsWith("/")
+    || normalize(path).startsWith("..")
+    || /[*?\[\]{}]/.test(path)
+    || broadPaths.has(path)
+  ) {
+    fail(`${label}: authorized path must be explicit and repository-relative`);
+    return false;
+  }
+  repositoryRelativePath(path, label);
+  return true;
 }
 
 function safeFile(path, label) {
@@ -197,6 +323,8 @@ function validateLocalLinks(path) {
 }
 
 const authorityPath = "docs/plans/one-box-master/00-authority/authority-manifest.json";
+const scopedImplementationAuthorityPath = "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json";
+const teammateFoundationTicketPath = "docs/tickets/ai-teammate-foundation/manifest.json";
 const evalPath = "docs/eval/one-box-program/manifest.json";
 const ticketPath = "docs/tickets/one-box-program/manifest.json";
 const ticketBodyContractPath = "docs/tickets/one-box-program/ticket-body-contract.json";
@@ -207,6 +335,8 @@ const embeddedBrowserClosurePath = "docs/security/2026-08-29-embedded-browser-cl
 const ciWorkflowPath = ".github/workflows/ci.yml";
 
 const authority = readJson(authorityPath);
+const scopedImplementationAuthority = readJson(scopedImplementationAuthorityPath);
+const teammateFoundationTicketManifest = readJson(teammateFoundationTicketPath);
 const evalManifest = readJson(evalPath);
 const ticketManifest = readJson(ticketPath);
 const ticketBodyContract = readJson(ticketBodyContractPath);
@@ -235,7 +365,14 @@ if (authority) {
   if (authority.program !== "ONE BOX") fail("authority manifest: invalid program");
   if (authority.status !== "planning-reconciliation") fail("authority manifest: invalid status");
   if (authority.implementationAuthorized !== false) fail("authority manifest: reconciliation cannot authorize implementation");
+  if (authority.scopedImplementationAuthorityPath !== scopedImplementationAuthorityPath) {
+    fail("authority manifest: missing scopedImplementationAuthorityPath");
+  }
   if (!isPlainObject(authority.domains) || Object.keys(authority.domains).length === 0) fail("authority manifest: domains must be a non-empty object");
+  const operatingEnvironment = authority.domains?.["operating-environment"];
+  if (!isPlainObject(operatingEnvironment) || operatingEnvironment.authorityClass !== "draft" || operatingEnvironment.implementationAuthorized !== false) {
+    fail("operating-environment must remain draft and implementationAuthorized=false while OBX-AUTH-ATF-001 runs");
+  }
   const releasePolicy = authority.governancePolicies?.productionRelease;
   const reviewPolicy = authority.governancePolicies?.modelReview;
   if (!isPlainObject(authority.governancePolicies)) fail("authority manifest: missing governancePolicies");
@@ -295,6 +432,162 @@ if (authority) {
     if (!Array.isArray(paths)) fail(`authority manifest: ${kind} must be an array`);
     else for (const path of paths) safeFile(path, `${kind} entry`);
   }
+}
+
+const scopedAuthorizations = new Map();
+if (scopedImplementationAuthority) {
+  rejectUnknownKeys(scopedImplementationAuthority, ["schemaVersion", "program", "status", "globalImplementationAuthorized", "authorizations"], "scoped implementation authority registry");
+  if (scopedImplementationAuthority.schemaVersion !== 1) fail("scoped implementation authority: unsupported schemaVersion");
+  if (scopedImplementationAuthority.program !== "ONE BOX") fail("scoped implementation authority: invalid program");
+  if (scopedImplementationAuthority.status !== "active") fail("scoped implementation authority: invalid status");
+  if (scopedImplementationAuthority.globalImplementationAuthorized !== false) {
+    fail("scoped implementation authority: cannot authorize the full program");
+  }
+  if (!Array.isArray(scopedImplementationAuthority.authorizations) || scopedImplementationAuthority.authorizations.length === 0) {
+    fail("scoped implementation authority: authorizations must be a non-empty array");
+  }
+  if (scopedImplementationAuthority.authorizations?.length !== 1 || scopedImplementationAuthority.authorizations?.[0]?.id !== "OBX-AUTH-ATF-001") {
+    fail("scoped implementation authority: this packet authorizes exactly OBX-AUTH-ATF-001");
+  }
+  for (const record of scopedImplementationAuthority.authorizations ?? []) {
+    if (!isPlainObject(record) || typeof record.id !== "string" || record.id.length === 0) {
+      fail("scoped implementation authority: authorization must be an object with id");
+      continue;
+    }
+    if (scopedAuthorizations.has(record.id)) fail(`scoped implementation authority: duplicate ${record.id}`);
+    scopedAuthorizations.set(record.id, record);
+    rejectUnknownKeys(record, [
+      "id",
+      "status",
+      "implementationAuthorized",
+      "authorizedBy",
+      "recordedAt",
+      "evidence",
+      "sourceSpec",
+      "implementationPlan",
+      "ticketManifest",
+      "ticketIds",
+      "requirements",
+      "scope",
+      "requiredReview",
+      "invalidators",
+    ], record.id);
+    if (record.status !== "authorized" || record.implementationAuthorized !== true) {
+      fail(`${record.id}: invalid scoped authorization state`);
+    }
+    if (!isPlainObject(record.authorizedBy) || typeof record.authorizedBy.name !== "string" || !record.authorizedBy.identityRef?.startsWith("person:") || typeof record.authorizedBy.role !== "string") {
+      fail(`${record.id}: authorization requires a durable named-human identity`);
+    }
+    rejectUnknownKeys(record.authorizedBy, ["name", "identityRef", "role"], `${record.id}.authorizedBy`);
+    if (typeof record.recordedAt !== "string" || !Number.isFinite(Date.parse(record.recordedAt))) fail(`${record.id}: invalid recordedAt`);
+    if (typeof record.evidence !== "string" || record.evidence.length < 40) fail(`${record.id}: missing owner-direction evidence`);
+    for (const field of ["sourceSpec", "implementationPlan", "ticketManifest"]) {
+      if (typeof record[field] !== "string") fail(`${record.id}: missing ${field}`);
+      else {
+        safeFile(record[field], `${record.id}.${field}`);
+        addDigest(record[field], `${record.id}.${field}`);
+      }
+    }
+    if (record.id === "OBX-AUTH-ATF-001") {
+      if (record.sourceSpec !== "docs/specs/2026-08-29-ai-teammate-foundation-v1.md") fail(`${record.id}: source specification binding drift`);
+      if (record.implementationPlan !== "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md") fail(`${record.id}: implementation plan binding drift`);
+      if (record.ticketManifest !== teammateFoundationTicketPath) fail(`${record.id}: ticket manifest binding drift`);
+    }
+    if (JSON.stringify(record.ticketIds) !== JSON.stringify(["OBX-AT-001"])) fail(`${record.id}: foundation ticket set must be exactly OBX-AT-001`);
+    if (JSON.stringify(record.requirements) !== JSON.stringify(["E1"])) fail(`${record.id}: requirements must be exactly E1`);
+    for (const requirement of record.requirements ?? []) if (!allowedRequirements.has(requirement)) fail(`${record.id}: invalid requirement ${requirement}`);
+    if (!isPlainObject(record.scope)) fail(`${record.id}: scope must be an object`);
+    rejectUnknownKeys(record.scope, Object.keys(expectedTeammateFoundationScope), `${record.id}.scope`);
+    if ((record.scope?.allowedPathPrefixes ?? []).some((path) => path.startsWith("src/components/preview/AiTeammate") && path !== "src/components/preview/AiTeammate/")) {
+      fail(`${record.id}: teammate component path scope must use a delimited directory`);
+    }
+    const canonicalDocs = (record.scope?.allowedExactPaths ?? []).filter((path) => path.startsWith("docs/architecture/") || path.startsWith("docs/security/"));
+    if (JSON.stringify(canonicalDocs) !== JSON.stringify(expectedTeammateFoundationCanonicalDocs)) {
+      fail(`${record.id}: canonical documentation path scope drift`);
+    }
+    const e2eHarnesses = (record.scope?.allowedExactPaths ?? []).filter((path) => path.startsWith("scripts/e2e/"));
+    if (JSON.stringify(e2eHarnesses) !== JSON.stringify(expectedTeammateFoundationE2eHarnesses)) {
+      fail(`${record.id}: E2E verification harness path scope drift`);
+    }
+    const evidencePrefixes = record.scope?.supportingEvidencePrefixes ?? [];
+    if (evidencePrefixes.some((prefix) => !/^docs\/(?:audits\/grok-4\.6\/|audits\/evidence\/(?:goal\/|security\/)?|verification\/)2026-08-(?:29|30)-ai-teammate-foundation-$/.test(prefix))) {
+      fail(`${record.id}: supporting evidence prefixes must remain date-and-slice bounded`);
+    }
+    if (JSON.stringify(evidencePrefixes) !== JSON.stringify(expectedTeammateFoundationScope.supportingEvidencePrefixes)) {
+      fail(`${record.id}: supporting evidence prefix set drift`);
+    }
+    if (JSON.stringify(record.scope?.allowedEffectClasses) !== JSON.stringify(["read", "propose"])) {
+      fail(`${record.id}: scoped teammate authorization permits only read and propose effects`);
+    }
+    for (const field of ["allowedPathPrefixes", "allowedExactPaths", "supportingEvidencePrefixes"]) {
+      const paths = record.scope?.[field];
+      if (!Array.isArray(paths) || paths.length === 0) fail(`${record.id}: ${field} must be a non-empty array`);
+      else for (const path of paths) validateAuthorizedPath(path, `${record.id}.${field}`);
+    }
+    for (const [field, expected] of Object.entries(expectedTeammateFoundationScope)) {
+      if (JSON.stringify(record.scope?.[field]) !== JSON.stringify(expected)) {
+        fail(`${record.id}: foundation path scope drift in ${field}`);
+      }
+    }
+    if (record.scope?.newRuntimeDependenciesAllowed !== false || !Array.isArray(record.scope?.runtimeDependencies) || record.scope.runtimeDependencies.length > 0) {
+      fail(`${record.id}: foundation slice permits no runtime dependencies`);
+    }
+    if (record.scope?.fullProgramAuthorization !== false || record.scope?.deploymentAuthorized !== false || record.scope?.productionReleaseAuthorized !== false) {
+      fail(`${record.id}: scoped record cannot authorize the full program, deployment, or release`);
+    }
+    if (!isPlainObject(record.requiredReview)) fail(`${record.id}: requiredReview must be an object`);
+    rejectUnknownKeys(record.requiredReview, Object.keys(expectedTeammateFoundationReview), `${record.id}.requiredReview`);
+    if (JSON.stringify(record.requiredReview) !== JSON.stringify(expectedTeammateFoundationReview)) {
+      fail(`${record.id}: required review contract drift`);
+    }
+    if (JSON.stringify(record.invalidators) !== JSON.stringify(expectedTeammateFoundationInvalidators)) fail(`${record.id}: invalidation contract drift`);
+  }
+  addDigest(scopedImplementationAuthorityPath);
+}
+
+if (teammateFoundationTicketManifest) {
+  rejectUnknownKeys(teammateFoundationTicketManifest, ["schemaVersion", "program", "slice", "status", "implementationAuthorized", "authorization", "sourceSpec", "implementationPlan", "ticketStatusPolicy", "tickets"], "teammate foundation ticket manifest");
+  if (teammateFoundationTicketManifest.schemaVersion !== 1) fail("teammate foundation tickets: unsupported schemaVersion");
+  if (teammateFoundationTicketManifest.program !== "ONE BOX" || teammateFoundationTicketManifest.slice !== "ai-teammate-foundation-v1") {
+    fail("teammate foundation tickets: invalid program or slice");
+  }
+  if (teammateFoundationTicketManifest.status !== "implementation-authorized" || teammateFoundationTicketManifest.implementationAuthorized !== true) {
+    fail("teammate foundation tickets: invalid authorization state");
+  }
+  if (teammateFoundationTicketManifest.sourceSpec !== "docs/specs/2026-08-29-ai-teammate-foundation-v1.md") fail("teammate foundation tickets: sourceSpec drift");
+  if (teammateFoundationTicketManifest.implementationPlan !== "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md") fail("teammate foundation tickets: implementationPlan drift");
+  if (teammateFoundationTicketManifest.authorization !== `${scopedImplementationAuthorityPath}#OBX-AUTH-ATF-001`) fail("teammate foundation tickets: authorization drift");
+  if (JSON.stringify(teammateFoundationTicketManifest.ticketStatusPolicy) !== JSON.stringify(expectedTeammateFoundationTicketStatusPolicy)) fail("teammate foundation tickets: ticket status transition policy drift");
+  if (JSON.stringify(teammateFoundationTicketManifest.tickets) !== JSON.stringify([expectedTeammateFoundationTicket])) fail("teammate foundation ticket set must be exactly OBX-AT-001");
+  if (!Array.isArray(teammateFoundationTicketManifest.tickets) || teammateFoundationTicketManifest.tickets.length === 0) fail("teammate foundation tickets: tickets must be non-empty");
+  const ticketIds = new Set();
+  for (const ticket of teammateFoundationTicketManifest.tickets ?? []) {
+    if (!isPlainObject(ticket) || typeof ticket.id !== "string") {
+      fail("teammate foundation tickets: invalid ticket");
+      continue;
+    }
+    if (ticketIds.has(ticket.id)) fail(`teammate foundation tickets: duplicate ${ticket.id}`);
+    ticketIds.add(ticket.id);
+    rejectUnknownKeys(ticket, Object.keys(expectedTeammateFoundationTicket), `${ticket.id}.ticket`);
+    if (ticket.status !== "ready" || ticket.priority !== "P1") fail(`${ticket.id}: invalid foundation ticket state`);
+    if (!Array.isArray(ticket.requirements) || ticket.requirements.length === 0) fail(`${ticket.id}: requirements must be non-empty`);
+    for (const requirement of ticket.requirements ?? []) if (!allowedRequirements.has(requirement)) fail(`${ticket.id}: invalid requirement ${requirement}`);
+    const ticketFile = `docs/tickets/ai-teammate-foundation/${ticket.file}`;
+    const body = readText(ticketFile, `${ticket.id}.file`);
+    addDigest(ticketFile, `${ticket.id}.file`);
+    if (body !== null) {
+      for (const heading of ["Outcome", "Authorized scope", "Acceptance criteria", "Non-goals", "Security boundary", "Evidence and completion"]) {
+        if (!body.includes(`## ${heading}`)) fail(`${ticket.id}: ticket body missing section ${heading}`);
+      }
+      for (const token of [`id: ${ticket.id}`, `status: ${ticket.status}`, `priority: ${ticket.priority}`]) {
+        if (!body.includes(token)) fail(`${ticket.id}: ticket body drift for ${token}`);
+      }
+    }
+  }
+  const authorization = scopedAuthorizations.get("OBX-AUTH-ATF-001");
+  if (!authorization || authorization.ticketManifest !== teammateFoundationTicketPath) fail("OBX-AUTH-ATF-001: ticket manifest binding drift");
+  else if (JSON.stringify(authorization.ticketIds) !== JSON.stringify([...ticketIds])) fail("OBX-AUTH-ATF-001: ticketIds drift");
+  addDigest(teammateFoundationTicketPath);
 }
 
 const tickets = new Map();
@@ -370,6 +663,8 @@ if (ticketManifest) {
       if (!isPlainObject(assignment) || !assignment.accountableOwner || !assignment.nonAuthorVerifier) fail(`${ticket.id}: ${ticket.status} requires accountableOwner and nonAuthorVerifier assignment`);
     }
   }
+  if (tickets.get("OBX-P180")?.status !== "proposed") fail("OBX-P180 must remain proposed while OBX-AUTH-ATF-001 runs");
+  if (tickets.get("OBX-P310")?.status !== "blocked") fail("OBX-P310 must remain blocked while OBX-AUTH-ATF-001 runs");
   const visiting = new Set();
   const visited = new Set();
   function visit(id) {
@@ -535,12 +830,18 @@ const linkPacket = new Set([
   ...filesUnder("docs/governance").filter((path) => path.endsWith(".md")),
   ...filesUnder("docs/tickets/one-box-program").filter((path) => path.endsWith(".md")),
   ...filesUnder("docs/eval/one-box-program").filter((path) => path.endsWith(".md")),
+  ...filesUnder("docs/architecture").filter((path) => path.endsWith(".md")),
   ...filesUnder("docs/security").filter((path) => path.endsWith(".md")),
+  ...filesUnder("docs/tickets/ai-teammate-foundation").filter((path) => path.endsWith(".md")),
+  "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+  "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
   ...filesUnder(".github").filter((path) => path.endsWith(".md")),
 ]);
 for (const path of linkPacket) validateLocalLinks(path);
 
 for (const path of [
+  scopedImplementationAuthorityPath,
+  teammateFoundationTicketPath,
   evalPath,
   ticketPath,
   ledgerPath,
@@ -555,6 +856,7 @@ for (const path of [
   "package.json",
   "scripts/verify-plan-authority.mjs",
   "scripts/verify-plan-authority.node.mjs",
+  "docs/plans/one-box-master/00-authority/plan-register.md",
   ciWorkflowPath,
   ".github/pull_request_template.md",
   ".github/ISSUE_TEMPLATE/feature.yml",
@@ -582,7 +884,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-if (!authority || !ticketManifest || !evalManifest || !adoptionLedger || Object.keys(authority.domains).length === 0 || tickets.size === 0 || evaluations.size === 0) {
+if (!authority || !scopedImplementationAuthority || !teammateFoundationTicketManifest || !ticketManifest || !evalManifest || !adoptionLedger || Object.keys(authority.domains).length === 0 || scopedAuthorizations.size === 0 || tickets.size === 0 || evaluations.size === 0) {
   console.error("FAIL verifier reached an impossible empty success state");
   process.exit(1);
 }

@@ -14,6 +14,304 @@ export type ProductionProjectTarget = z.infer<
   typeof ProductionProjectTargetSchema
 >;
 
+// ---------- AI teammate foundation v1 ----------
+
+export const AI_TEAMMATE_IDS = [
+  "researcher",
+  "prd-planner",
+  "architecture-analyst",
+  "canvas-designer",
+  "implementation-producer",
+  "qa-challenger",
+  "security-challenger",
+  "seo-qualifier",
+] as const;
+
+export const AiTeammateIdV1Schema = z.enum(AI_TEAMMATE_IDS);
+export type AiTeammateIdV1 = z.infer<typeof AiTeammateIdV1Schema>;
+
+export const AI_TEAMMATE_DATA_CLASSES = [
+  "public",
+  "project-internal",
+] as const;
+export const AiTeammateDataClassV1Schema = z.enum(
+  AI_TEAMMATE_DATA_CLASSES,
+);
+export type AiTeammateDataClassV1 = z.infer<
+  typeof AiTeammateDataClassV1Schema
+>;
+
+export const AI_TEAMMATE_EFFECT_CLASSES = ["read", "propose"] as const;
+export const AiTeammateEffectClassV1Schema = z.enum(
+  AI_TEAMMATE_EFFECT_CLASSES,
+);
+export type AiTeammateEffectClassV1 = z.infer<
+  typeof AiTeammateEffectClassV1Schema
+>;
+
+const AiTeammateLabelV1Schema = z
+  .string()
+  .min(1)
+  .max(160)
+  .refine((value) => value === value.trim(), {
+    message: "value cannot contain surrounding whitespace",
+  });
+
+const AiTeammateSkillV1Schema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z][a-z0-9-]*$/);
+
+function hasUniqueValues(values: readonly string[]): boolean {
+  return new Set(values).size === values.length;
+}
+
+export const AiTeammateDefinitionV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    id: AiTeammateIdV1Schema,
+    displayName: AiTeammateLabelV1Schema,
+    specialty: AiTeammateLabelV1Schema,
+    brief: AiTeammateLabelV1Schema.max(280),
+    skills: z
+      .array(AiTeammateSkillV1Schema)
+      .min(1)
+      .max(16)
+      .refine(hasUniqueValues, { message: "skills must be unique" })
+      .readonly(),
+    dataClasses: z
+      .array(AiTeammateDataClassV1Schema)
+      .min(1)
+      .max(AI_TEAMMATE_DATA_CLASSES.length)
+      .refine(hasUniqueValues, { message: "data classes must be unique" })
+      .readonly(),
+    effectClasses: z
+      .array(AiTeammateEffectClassV1Schema)
+      .min(1)
+      .max(AI_TEAMMATE_EFFECT_CLASSES.length)
+      .refine(hasUniqueValues, { message: "effect classes must be unique" })
+      .readonly(),
+    availability: z.literal("idle"),
+  })
+  .strict()
+  .readonly();
+export type AiTeammateDefinitionV1 = z.infer<
+  typeof AiTeammateDefinitionV1Schema
+>;
+
+export const AiTeammateRegistryV1Schema = z
+  .array(AiTeammateDefinitionV1Schema)
+  .length(AI_TEAMMATE_IDS.length)
+  .superRefine((definitions, context) => {
+    const ids = definitions.map(({ id }) => id);
+    if (!hasUniqueValues(ids)) {
+      context.addIssue({
+        code: "custom",
+        message: "teammate IDs must be unique",
+      });
+    }
+  })
+  .readonly();
+export type AiTeammateRegistryV1 = z.infer<
+  typeof AiTeammateRegistryV1Schema
+>;
+
+export const AI_TEAMMATE_JOB_BOUNDS = {
+  maxInputBytes: 1_048_576,
+  maxProposalBytes: 1_048_576,
+  maxDurationMs: 60_000,
+} as const;
+
+const AiTeammateContractIdV1Schema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/);
+
+export const AiTeammateSha256V1Schema = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/);
+
+const AiTeammateNoGrantsV1Schema = z
+  .array(z.never())
+  .length(0)
+  .readonly();
+
+export const AiTeammateJobV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    jobId: AiTeammateContractIdV1Schema,
+    projectId: AiTeammateContractIdV1Schema,
+    taskId: AiTeammateContractIdV1Schema,
+    actorId: AiTeammateContractIdV1Schema,
+    teammateId: AiTeammateIdV1Schema,
+    inputSha256: AiTeammateSha256V1Schema,
+    expectedProposalSchemaId: AiTeammateContractIdV1Schema,
+    effectClasses: z
+      .array(AiTeammateEffectClassV1Schema)
+      .max(AI_TEAMMATE_EFFECT_CLASSES.length)
+      .refine(hasUniqueValues, { message: "effect classes must be unique" })
+      .readonly(),
+    toolGrants: AiTeammateNoGrantsV1Schema,
+    childToolGrants: AiTeammateNoGrantsV1Schema,
+    dataClasses: z
+      .array(AiTeammateDataClassV1Schema)
+      .max(AI_TEAMMATE_DATA_CLASSES.length)
+      .refine(hasUniqueValues, { message: "data classes must be unique" })
+      .readonly(),
+    maxInputBytes: z
+      .number()
+      .int()
+      .min(1)
+      .max(AI_TEAMMATE_JOB_BOUNDS.maxInputBytes),
+    maxProposalBytes: z
+      .number()
+      .int()
+      .min(1)
+      .max(AI_TEAMMATE_JOB_BOUNDS.maxProposalBytes),
+    maxDurationMs: z
+      .number()
+      .int()
+      .min(1)
+      .max(AI_TEAMMATE_JOB_BOUNDS.maxDurationMs),
+    maxAttempts: z.literal(1),
+    maxDelegationDepth: z.literal(0),
+    deadlineAt: z.string().datetime({ offset: true }),
+    cancellationPolicy: z.literal("caller-signal-only"),
+    retentionPolicy: z.literal("process-only"),
+    fallback: z.literal("none"),
+    executionLane: z.literal("deterministic-local"),
+  })
+  .strict()
+  .readonly();
+export type AiTeammateJobV1 = z.infer<typeof AiTeammateJobV1Schema>;
+
+export const AI_TEAMMATE_RUN_STATUSES = [
+  "complete",
+  "failed",
+  "cancelled",
+  "rejected",
+  "budget-exhausted",
+] as const;
+export const AiTeammateRunStatusV1Schema = z.enum(
+  AI_TEAMMATE_RUN_STATUSES,
+);
+export type AiTeammateRunStatusV1 = z.infer<
+  typeof AiTeammateRunStatusV1Schema
+>;
+
+export const AI_TEAMMATE_STOPPING_CONDITIONS = [
+  "proposal-complete",
+  "proposal-threw",
+  "proposal-schema-invalid",
+  "cancelled",
+  "job-invalid",
+  "input-invalid",
+  "deadline-expired",
+  "input-bytes-exceeded",
+  "proposal-bytes-exceeded",
+  "duration-exceeded",
+] as const;
+export const AiTeammateStoppingConditionV1Schema = z.enum(
+  AI_TEAMMATE_STOPPING_CONDITIONS,
+);
+export type AiTeammateStoppingConditionV1 = z.infer<
+  typeof AiTeammateStoppingConditionV1Schema
+>;
+
+const AI_TEAMMATE_STATUS_CONDITIONS: Readonly<
+  Record<AiTeammateRunStatusV1, readonly AiTeammateStoppingConditionV1[]>
+> = {
+  complete: ["proposal-complete"],
+  failed: ["proposal-threw", "proposal-schema-invalid"],
+  cancelled: ["cancelled"],
+  rejected: ["job-invalid", "input-invalid", "deadline-expired"],
+  "budget-exhausted": [
+    "input-bytes-exceeded",
+    "proposal-bytes-exceeded",
+    "duration-exceeded",
+  ],
+};
+
+export const AiTeammateRunReceiptV1Schema = z
+  .object({
+    schemaVersion: z.literal(1),
+    jobId: AiTeammateContractIdV1Schema,
+    jobSha256: AiTeammateSha256V1Schema,
+    teammateId: AiTeammateIdV1Schema,
+    inputSha256: AiTeammateSha256V1Schema,
+    outputSha256: AiTeammateSha256V1Schema.nullable(),
+    partialOutputSha256: AiTeammateSha256V1Schema.nullable(),
+    startedAt: z.string().datetime({ offset: true }),
+    stoppedAt: z.string().datetime({ offset: true }),
+    status: AiTeammateRunStatusV1Schema,
+    stoppingCondition: AiTeammateStoppingConditionV1Schema,
+    retryEligible: z.boolean(),
+    effectClasses: z
+      .array(AiTeammateEffectClassV1Schema)
+      .max(AI_TEAMMATE_EFFECT_CLASSES.length)
+      .refine(hasUniqueValues, { message: "effect classes must be unique" })
+      .readonly(),
+    outputSchemaId: AiTeammateContractIdV1Schema,
+    providerCostUsd: z.literal(0),
+    executionLane: z.literal("deterministic-local"),
+  })
+  .strict()
+  .superRefine((receipt, context) => {
+    if (
+      !AI_TEAMMATE_STATUS_CONDITIONS[receipt.status].includes(
+        receipt.stoppingCondition,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["stoppingCondition"],
+        message: "stopping condition does not match terminal status",
+      });
+    }
+
+    const isComplete = receipt.status === "complete";
+    if (isComplete !== (receipt.outputSha256 !== null)) {
+      context.addIssue({
+        code: "custom",
+        path: ["outputSha256"],
+        message: "only complete receipts must contain an output hash",
+      });
+    }
+
+    if (
+      (receipt.status === "complete" || receipt.status === "rejected") &&
+      receipt.partialOutputSha256 !== null
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["partialOutputSha256"],
+        message: "complete and rejected receipts cannot contain partial output",
+      });
+    }
+
+    if (receipt.retryEligible) {
+      context.addIssue({
+        code: "custom",
+        path: ["retryEligible"],
+        message: "maxAttempts 1 does not permit a retry",
+      });
+    }
+
+    if (Date.parse(receipt.stoppedAt) < Date.parse(receipt.startedAt)) {
+      context.addIssue({
+        code: "custom",
+        path: ["stoppedAt"],
+        message: "stoppedAt cannot precede startedAt",
+      });
+    }
+  })
+  .readonly();
+export type AiTeammateRunReceiptV1 = z.infer<
+  typeof AiTeammateRunReceiptV1Schema
+>;
+
 // ---------- Closed Page IR v1 contracts ----------
 
 export const PAGE_IR_BOUNDS = {

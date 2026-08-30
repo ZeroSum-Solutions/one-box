@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T09:28:54.853Z",
+  "request": {
+    "task": "T4-authority-docs-e2e-final-gates-reaudit",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/local-api-threat-model.md",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/e2e/preview-workbench.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt"
+    ],
+    "diffBytes": 171423
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 47143,
+      "completion_tokens": 36599,
+      "total_tokens": 83742,
+      "cost": 0.313688,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.313688,
+        "upstream_inference_prompt_cost": 0.094094,
+        "upstream_inference_completions_cost": 0.219594
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 35986,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio",
+        "scenario": "workbench-agent-studio@1440/768/390 opens the idle Teammates form, asserts the three boundary strings, disabled Create proposal, and no visible apply-like button/link, then returns without filling an assignment or waiting for a receipt. Architecture/threat-model law is that the accepted result is the proposal-only surface with no apply control. A receipt view that adds Apply / Apply proposal / input[type=submit] therefore still yields a green canvas-contract run.",
+        "remediation": "After the idle assertions, submit one valid local assignment (or inject a complete receipt), wait for the bound teammate/task/notice/receipt UI, and re-run the exact boundary and apply-absence oracles on the visible Teammates pane before axe/visual."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "assertAgentStudioTouchTargets",
+        "scenario": "At width<=768 the harness measures only a named allowlist (8 radio labels, Assignment, Data class, Create proposal, Teammates, Site advice). Any other visible Teammates interactive (icon button, link, checkbox, extra submit, custom role) smaller than 44x44 is never queried, so the compact 44x44 gate can pass while a visible control misses the criterion.",
+        "remediation": "Enumerate every visible interactive in the Teammates pane (button/link/input/select/textarea and labeled radios, including disabled) and assert each hit target is >=44x44; keep the named checks only as existence oracles."
+      }
+    ],
+    "proof_assessment": "The supplied T4 proof is consistent with the axe-exception, Agent Studio navigation/Edit, and strict-reopen patches, and with authority still limited to the two canonical docs plus three E2E harnesses without widening effects/data/deps/release. It is not an execution trace of the receipt/apply path or of an all-visible-control touch audit, and it cannot authorize deployment or release.",
+    "residual_risks": [
+      "Touch-target math uses unclipped getBoundingClientRect and ignores ancestor overflow/clip, opacity, and off-screen positioning.",
+      "canvas-coverage only renames the assistant tool to Agent Studio; it never clicks Site advice, so composer-reach may exercise a hidden mounted pane.",
+      "Non-Agent-Studio surfaces still swallow goto/Edit/reopen failures.",
+      "Verifier negatives pin authorization JSON but do not parse the E2E harnesses, so later fail-open edits to canvas-contract stay in scope.",
+      "Trusted in-process callback, caller-asserted data-class, and syntactic path-id limitations are documented only; this slice does not re-prove the route."
+    ]
+  }
+}

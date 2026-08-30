@@ -33,6 +33,7 @@
  */
 import { chromium } from "playwright";
 import AxeBuilder from "@axe-core/playwright";
+import assert from "node:assert/strict";
 import { mkdirSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -254,12 +255,49 @@ async function waitForMode(page, mode) {
 // the collapsed icon rail and every chrome-specific state below would be
 // silently untested exactly where the 34px cap is most likely to bite
 // (touch targets grow to 44px under 768px by contract).
-async function ensureWorkbenchOpen(page) {
+async function ensureWorkbenchOpen(page, { strict = false, label = "workbench" } = {}) {
+  const panelBody = page.locator(".workbench-panel__body");
+  if (await panelBody.isVisible().catch(() => false)) return;
+
   const reopen = page.locator('button[aria-label="Reopen workbench"]');
-  if (await reopen.count().catch(() => 0)) {
-    await reopen.click({ timeout: 3000 }).catch(() => {});
-    await page.waitForTimeout(300);
+  if ((await reopen.count().catch(() => 0)) === 0) {
+    if (strict) throw new Error(`${label}: workbench is closed and its reopen control is missing`);
+    return;
   }
+  try {
+    await reopen.click({ timeout: 3000 });
+  } catch (error) {
+    if (strict) throw new Error(`${label}: workbench reopen failed: ${String(error)}`);
+    return;
+  }
+  const opened = await panelBody
+    .waitFor({ state: "visible", timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+  if (strict && !opened) {
+    throw new Error(`${label}: workbench panel did not open`);
+  }
+  await page.waitForTimeout(300);
+}
+
+async function enterEditModeStrict(page, label) {
+  const editButton = page.getByRole("button", { name: "Edit", exact: true });
+  await editButton.waitFor({ state: "visible", timeout: 8000 }).catch(() => {
+    throw new Error(`${label}: Edit control is missing`);
+  });
+  assert.equal(await editButton.count(), 1, `${label}: expected exactly one Edit control`);
+  assert.equal(await editButton.isDisabled(), false, `${label}: Edit control is disabled`);
+  if ((await editButton.getAttribute("aria-pressed")) !== "true") {
+    await editButton.click();
+  }
+  await waitForMode(page, "Edit").catch(() => {
+    throw new Error(`${label}: workbench did not reach Edit mode`);
+  });
+  assert.equal(
+    await editButton.getAttribute("aria-pressed"),
+    "true",
+    `${label}: Edit control did not become pressed`,
+  );
 }
 
 async function selectFirstSection(page, label) {
@@ -318,6 +356,276 @@ async function openLayersTool(page, label) {
   console.log(`[canvas-contract]   layers tree rendered ${rowCount} row(s)`);
 }
 
+const AGENT_STUDIO_ROLES = [
+  "Researcher",
+  "PRD Planner",
+  "Architecture Analyst",
+  "Canvas Designer",
+  "Implementation Producer",
+  "QA Challenger",
+  "Security Challenger",
+  "SEO Qualifier",
+];
+
+async function assertMinimumTouchTarget(locator, label, useRadioLabel = false) {
+  const controls = await locator.all();
+  assert.ok(controls.length > 0, `${label}: expected at least one visible control`);
+  for (const control of controls) {
+    const metrics = await control.evaluate((element, useLabel) => {
+      const target = useLabel ? element.closest("label") : element;
+      if (!(target instanceof HTMLElement)) return null;
+      const box = target.getBoundingClientRect();
+      const style = getComputedStyle(target);
+      return {
+        width: box.width,
+        height: box.height,
+        visible:
+          box.width > 0 &&
+          box.height > 0 &&
+          style.display !== "none" &&
+          style.visibility !== "hidden",
+      };
+    }, useRadioLabel);
+    assert.ok(metrics?.visible, `${label}: control is not visible`);
+    assert.ok(
+      metrics.width >= 44 && metrics.height >= 44,
+      `${label}: ${metrics.width}x${metrics.height} is below 44x44`,
+    );
+  }
+}
+
+async function assertAgentStudioTouchTargets({
+  agentStudio,
+  teammatePane,
+  radios,
+  createProposal,
+  width,
+  label,
+}) {
+  if (width > 768) return;
+  assert.equal(await radios.count(), 8, `${label}: expected eight radio touch targets`);
+  await assertMinimumTouchTarget(radios, `${label}: teammate radio label`, true);
+  await assertMinimumTouchTarget(
+    teammatePane.getByRole("textbox", { name: "Assignment", exact: true }),
+    `${label}: Assignment textarea`,
+  );
+  await assertMinimumTouchTarget(
+    teammatePane.getByRole("combobox", { name: "Data class", exact: true }),
+    `${label}: Data class select`,
+  );
+  await assertMinimumTouchTarget(createProposal, `${label}: Create proposal`);
+  await assertMinimumTouchTarget(
+    agentStudio.getByRole("button", { name: "Teammates", exact: true }),
+    `${label}: Teammates mode`,
+  );
+  await assertMinimumTouchTarget(
+    agentStudio.getByRole("button", { name: "Site advice", exact: true }),
+    `${label}: Site advice mode`,
+  );
+
+  const visibleInteractives = teammatePane.locator(
+    'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="link"], [role="radio"], [tabindex]:not([tabindex="-1"])',
+  );
+  const touchTargets = await visibleInteractives.evaluateAll((elements) =>
+    elements.flatMap((element) => {
+      const target =
+        element instanceof HTMLInputElement && element.type === "radio"
+          ? element.closest("label")
+          : element;
+      if (!(target instanceof HTMLElement)) return [];
+      const box = target.getBoundingClientRect();
+      const style = getComputedStyle(target);
+      if (
+        box.width === 0 ||
+        box.height === 0 ||
+        style.display === "none" ||
+        style.visibility === "hidden"
+      ) {
+        return [];
+      }
+      const name =
+        element.getAttribute("aria-label") ??
+        element.getAttribute("value") ??
+        element.textContent?.trim() ??
+        element.tagName.toLowerCase();
+      return [{ name, width: box.width, height: box.height }];
+    }),
+  );
+  assert.ok(
+    touchTargets.length >= 11,
+    `${label}: expected every visible Teammates interactive to be measured`,
+  );
+  for (const target of touchTargets) {
+    assert.ok(
+      target.width >= 44 && target.height >= 44,
+      `${label}: ${target.name || "unnamed control"} is ${target.width}x${target.height}, below 44x44`,
+    );
+  }
+}
+
+async function assertNoVisibleApplyLikeControls(teammatePane, label) {
+  const visibleApplyLikeControls = await teammatePane
+    .locator('button, [role="button"], a, input[type="button"], input[type="submit"]')
+    .evaluateAll((elements) =>
+      elements.flatMap((element) => {
+        const box = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        if (
+          box.width === 0 ||
+          box.height === 0 ||
+          style.display === "none" ||
+          style.visibility === "hidden"
+        ) return [];
+        const name =
+          element.getAttribute("aria-label") ??
+          element.getAttribute("value") ??
+          element.textContent ??
+          "";
+        return /\bapply\b/i.test(name.trim()) ? [name.trim()] : [];
+      }),
+    );
+  assert.deepEqual(
+    visibleApplyLikeControls,
+    [],
+    `${label}: visible apply-like control is forbidden in the Teammates pane`,
+  );
+}
+
+async function openAgentStudio(page, label, width) {
+  const agentStudioButton = page.getByRole("button", {
+    name: "Agent Studio",
+    exact: true,
+  });
+  await agentStudioButton.waitFor({ timeout: 5000 });
+  await agentStudioButton.click();
+
+  const agentStudio = page.locator(".agent-studio");
+  const teammatePane = agentStudio.locator(
+    '[data-agent-studio-pane="teammates"]:visible',
+  );
+  await teammatePane.waitFor({ state: "visible", timeout: 8000 });
+  await teammatePane.getByText("Local foundation", { exact: true }).waitFor({
+    timeout: 8000,
+  });
+  await teammatePane.locator(".ai-teammate-roster").waitFor({ timeout: 8000 });
+
+  const radios = teammatePane.getByRole("radio");
+  await radios.first().waitFor({ timeout: 8000 });
+  const renderedRoles = await radios.evaluateAll((inputs) =>
+    inputs.map(
+      (input) =>
+        input.closest("label")?.querySelector("strong")?.textContent?.trim() ??
+        "",
+    ),
+  );
+  assert.deepEqual(
+    renderedRoles,
+    AGENT_STUDIO_ROLES,
+    `${label}: Agent Studio must expose the exact eight-role local roster`,
+  );
+
+  const requiredControls = [
+    ["mode controls", agentStudio.getByRole("group", { name: "Agent Studio mode" })],
+    ["Teammates mode", agentStudio.getByRole("button", { name: "Teammates", exact: true })],
+    ["Site advice mode", agentStudio.getByRole("button", { name: "Site advice", exact: true })],
+    ["Assignment", teammatePane.getByRole("textbox", { name: "Assignment", exact: true })],
+    ["Data class", teammatePane.getByRole("combobox", { name: "Data class", exact: true })],
+  ];
+  for (const [controlName, control] of requiredControls) {
+    await control.waitFor({
+      timeout: 5000,
+      state: "visible",
+    }).catch(() => {
+      throw new Error(`${label}: Agent Studio ${controlName} control is missing`);
+    });
+  }
+
+  for (const boundary of [
+    "Proposal only — nothing is applied automatically.",
+    "Read + propose only",
+    "No mutation, external effect, or authority",
+  ]) {
+    const visible = await page
+      .locator('[data-agent-studio-pane="teammates"]:visible')
+      .getByText(boundary, { exact: true })
+      .isVisible()
+      .catch(() => false);
+    assert.equal(
+      visible,
+      true,
+      `${label}: Agent Studio boundary is missing: ${boundary}`,
+    );
+  }
+
+  const createProposal = teammatePane.getByRole("button", {
+    name: "Create proposal",
+    exact: true,
+  });
+  await createProposal.waitFor({ timeout: 5000 });
+  assert.equal(
+    await createProposal.isDisabled(),
+    true,
+    `${label}: Create proposal must remain disabled without an assignment`,
+  );
+  // Before any mode switch, prove every visible Teammates control meets the
+  // compact-layout 44x44 hit-target contract at mobile and tablet widths.
+  await assertAgentStudioTouchTargets({
+    agentStudio,
+    teammatePane,
+    radios,
+    createProposal,
+    width,
+    label,
+  });
+
+  await assertNoVisibleApplyLikeControls(teammatePane, label);
+
+  const selectedTeammate = "QA Challenger";
+  const assignment =
+    "Review the current homepage proposal for bounded launch risks.";
+  await teammatePane.getByRole("radio", { name: new RegExp(selectedTeammate) }).check();
+  await teammatePane
+    .getByRole("textbox", { name: "Assignment", exact: true })
+    .fill(assignment);
+  assert.equal(
+    await createProposal.isEnabled(),
+    true,
+    `${label}: a bounded assignment must enable Create proposal`,
+  );
+  await createProposal.click();
+
+  const result = teammatePane.locator(".ai-teammate-result");
+  await result.waitFor({ state: "visible", timeout: 10000 });
+  await result.getByRole("heading", { name: "Proposal", exact: true }).waitFor();
+  await result.getByText(`Proposed by: ${selectedTeammate}`, { exact: true }).waitFor();
+  await result.getByText(`Assigned task: ${assignment}`, { exact: true }).waitFor();
+
+  const receipt = result.locator(".ai-teammate-receipt");
+  await receipt.getByRole("heading", { name: "Run receipt", exact: true }).waitFor();
+  for (const receiptValue of [
+    "Proposal only — no project or site changes were applied.",
+    "complete",
+    "proposal-complete",
+    selectedTeammate,
+    "Read, propose",
+    "deterministic-local",
+    "one-box.proposal.local-foundation.v1",
+    "None",
+  ]) {
+    await receipt.getByText(receiptValue, { exact: true }).first().waitFor();
+  }
+
+  for (const boundary of [
+    "Proposal only — nothing is applied automatically.",
+    "Read + propose only",
+    "No mutation, external effect, or authority",
+  ]) {
+    await teammatePane.getByText(boundary, { exact: true }).waitFor();
+  }
+  await assertNoVisibleApplyLikeControls(teammatePane, `${label}: completed receipt`);
+  await page.waitForTimeout(500);
+}
+
 // Each surface is captured under its own label so a G9/G7 failure names
 // exactly which state broke. The four "workbench-*" states drive the
 // canvas-upgrade chrome the original harness predates (SelectionBreadcrumb,
@@ -363,7 +671,37 @@ const SURFACES = [
       await openLayersTool(page, label);
     },
   },
+  {
+    name: "workbench-agent-studio",
+    // Like the section-selected surface, Agent Studio needs an editable run;
+    // RUN_BUILT is frozen and exposes a disabled Edit control.
+    url: `${base}/preview/${fixtureRunId}`,
+    wait: 7000,
+    async setup(page, label, width) {
+      await ensureWorkbenchOpen(page, { strict: true, label });
+      await openAgentStudio(page, label, width);
+    },
+  },
 ];
+
+async function navigateToSurface(page, surface, label) {
+  if (surface.name !== "workbench-agent-studio") {
+    await page
+      .goto(surface.url, { waitUntil: "networkidle", timeout: 60000 })
+      .catch(() => {});
+    return;
+  }
+  const response = await page.goto(surface.url, {
+    waitUntil: "networkidle",
+    timeout: 60000,
+  });
+  assert.ok(response, `${label}: navigation returned no response`);
+  assert.equal(
+    response.ok(),
+    true,
+    `${label}: navigation failed with HTTP ${response.status()}`,
+  );
+}
 
 const AUDIT = () => {
   const els = Array.from(document.querySelectorAll("body *"));
@@ -416,13 +754,23 @@ for (const w of WIDTHS) {
 
   for (const s of SURFACES) {
     const label = `${s.name}@${w}`;
-    await page.goto(s.url, { waitUntil: "networkidle", timeout: 60000 }).catch(() => {});
+    await navigateToSurface(page, s, label);
     if (s.name.startsWith("workbench")) {
-      await page.getByRole("button", { name: "Edit", exact: true }).waitFor({ timeout: 8000 }).catch(() => {});
-      await waitForMode(page, "Edit").catch(() => {});
+      if (s.name === "workbench-agent-studio") {
+        await enterEditModeStrict(page, label);
+      } else {
+      const editButton = page.getByRole("button", { name: "Edit", exact: true });
+      await editButton.waitFor({ timeout: 8000 }).catch(() => {});
+      if ((await editButton.count()) > 0 && !(await editButton.isDisabled())) {
+        if ((await editButton.getAttribute("aria-pressed")) !== "true") {
+          await editButton.click();
+        }
+        await waitForMode(page, "Edit");
+      }
+      }
     }
     await page.waitForTimeout(s.wait);
-    if (s.setup) await s.setup(page, label);
+    if (s.setup) await s.setup(page, label, w);
     await page.addStyleTag({ content: "nextjs-portal{display:none!important}" }).catch(() => {});
 
     console.log(`\n### ${label} — height=${await page.evaluate(() => document.body.scrollHeight)}px`);
@@ -475,7 +823,9 @@ for (const w of WIDTHS) {
         console.log(`  ✓ axe: no serious/critical violations`);
       }
     } catch (e) {
-      console.log(`  · axe skipped: ${String(e).slice(0, 100)}`);
+      const detail = String(e).replace(/\s+/g, " ").slice(0, 160);
+      console.log(`  ✗ axe analysis failed: ${detail}`);
+      problems.push(`${label}: axe analysis failed — ${detail}`);
     }
   }
   if (consoleErrors.length) {

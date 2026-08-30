@@ -1,0 +1,60 @@
+command: git diff --name-only 47650fccb0fce0e96a49f9ae725abbe6a25540f1...1b93148627fcc1cf6d29ecdd91d706b0a42dd582
+cwd: /Users/zero-suminc./projects/one-box-worktrees/la-appointment-field-study
+exit_code: 0
+scope: 47650fccb0fce0e96a49f9ae725abbe6a25540f1...1b93148627fcc1cf6d29ecdd91d706b0a42dd582
+merge_base: 47650fccb0fce0e96a49f9ae725abbe6a25540f1
+ref_tree: 97dddb8b08c53ff3e0c8a492f0c63a116c303b12
+stdout:
+docs/architecture/README.md
+docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt
+docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t1-registry-contracts.txt
+docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt
+docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt
+docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt
+docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json
+docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-reaudit.json
+docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t1-registry-contracts-audit.json
+docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json
+docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t3-api-canvas-audit.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t2-executor-receipts-reaudit.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v2.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v3.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v4.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-audit.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit-v2.json
+docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit.json
+docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md
+docs/plans/one-box-master/00-authority/authority-manifest.json
+docs/plans/one-box-master/00-authority/plan-register.md
+docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json
+docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md
+docs/security/local-api-threat-model.md
+docs/specs/2026-08-29-ai-teammate-foundation-v1.md
+docs/tickets/ai-teammate-foundation/OBX-AT-001.md
+docs/tickets/ai-teammate-foundation/manifest.json
+scripts/e2e/canvas-contract.mjs
+scripts/e2e/canvas-coverage.mjs
+scripts/e2e/preview-workbench.mjs
+scripts/verify-plan-authority.mjs
+scripts/verify-plan-authority.node.mjs
+src/app/api/ai-teammates/[id]/route.test.ts
+src/app/api/ai-teammates/[id]/route.ts
+src/app/styles/workbench.css
+src/components/preview/AiTeammate/AgentStudioPanel.test.tsx
+src/components/preview/AiTeammate/AgentStudioPanel.tsx
+src/components/preview/AiTeammate/AiTeammatePanel.test.tsx
+src/components/preview/AiTeammate/AiTeammateStyles.test.ts
+src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx
+src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx
+src/components/preview/Workbench.tsx
+src/lib/aiTeammates/executionReceipts.ts
+src/lib/aiTeammates/executor.test.ts
+src/lib/aiTeammates/executor.ts
+src/lib/aiTeammates/receiptBinding.test.ts
+src/lib/aiTeammates/receiptBinding.ts
+src/lib/aiTeammates/registry.test.ts
+src/lib/aiTeammates/registry.ts
+src/lib/aiTeammates/serialization.ts
+src/lib/contracts.test.ts
+src/lib/contracts.ts

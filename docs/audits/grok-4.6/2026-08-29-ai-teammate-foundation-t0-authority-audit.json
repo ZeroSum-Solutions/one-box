@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T06:16:21.346Z",
+  "request": {
+    "task": "T0-authority",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/plan-register.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "docs/tickets/ai-teammate-foundation/OBX-AT-001.md",
+      "docs/tickets/ai-teammate-foundation/manifest.json",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt"
+    ],
+    "diffBytes": 93996
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 25782,
+      "completion_tokens": 22169,
+      "total_tokens": 47951,
+      "cost": 0.184386,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.184386,
+        "upstream_inference_prompt_cost": 0.051372,
+        "upstream_inference_completions_cost": 0.133014
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 21181,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "scripts/verify-plan-authority.mjs",
+        "line": "scoped authorizations loop / expectedTeammateFoundationScope",
+        "scenario": "Keep OBX-AUTH-ATF-001 id, pinned path/effect arrays, and false program/deploy/release flags, then add unknown grants on the registry or record (e.g. scope.networkAllowed=true, scope.allowedCapabilities=['provider-call'], root implementationAuthorized=true, or extendsTickets=['OBX-P180']). Update only authority-manifest.json packetDigest. Verifier exits 0 because it JSON-equals a subset of known fields and never rejects additionalProperties. Capability expansion therefore succeeds without touching expectedTeammateFoundationScope.",
+        "remediation": "Fail closed on unknown keys: exact allowlists for registry, authorization, requiredReview, and scope (expectedTeammateFoundationScope plus the already-checked booleans/runtimeDependencies). Add a negative test that extra keys fail."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/verify-plan-authority.mjs",
+        "line": "teammateFoundationTicketManifest.tickets / authorization.ticketIds",
+        "scenario": "Add a second ready/P1 ticket (e.g. OBX-AT-002 'connect provider') under docs/tickets/ai-teammate-foundation/, append it to both the foundation manifest and OBX-AUTH-ATF-001.ticketIds, refresh packetDigest. Checks require only a non-empty ticket list whose ids match; they do not pin ['OBX-AT-001']. The packet is then implementation-authorized for work outside the native foundation while plan validation still passes.",
+        "remediation": "Pin tickets to exactly [{id:'OBX-AT-001',...}] and ticketIds to ['OBX-AT-001']. Negative-test an extra ticket id."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/verify-plan-authority.mjs",
+        "line": "missing OBX-P180/OBX-P310 and operating-environment invariants",
+        "scenario": "Criterion requires global operating-environment, OBX-P180, and OBX-P310 to stay planning-only. Verifier only pins operating-environment authorityClass/implementationAuthorized via expectedDomains; it never reads OBX-P180/OBX-P310. The named negative test only sets scope.fullProgramAuthorization=true. Promoting those program tickets (and satisfying existing assignment/dependency rules) plus a digest refresh does not fail this packet's new gates.",
+        "remediation": "Assert domains.operating-environment remains draft and implementationAuthorized=false, tickets OBX-P180 status=proposed and OBX-P310 status=blocked (or equivalent non-active), and add mutations that flip each and must fail."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+        "line": "33",
+        "scenario": "allowedPathPrefixes lists src/components/preview/AiTeammate with no trailing slash or filename, and expectedTeammateFoundationScope pins that string. Any later startsWith enforcement also admits src/components/preview/AiTeammates.tsx, AiTeammateProvider.tsx, and similar, which is wider than a closed foundation component directory/file.",
+        "remediation": "Replace with a delimited directory prefix src/components/preview/AiTeammate/ and/or exact component filenames; keep the verifier pin in sync."
+      }
+    ],
+    "proof_assessment": "The recorded command only shows verify:plans / test:plans green and digest 7625146d… matching the manifest. That is self-consistency of the current packet, not proof that scope/capability expansion fails closed. Narrative BOUNDARY ASSERTION lines about OBX-P180/OBX-P310 are not command output, and no test mutates unknown scope keys, extra foundation tickets, or those program tickets.",
+    "residual_risks": [
+      "allowedExactPaths include whole shared files src/lib/contracts.ts and Workbench.tsx with no hunk/behavior limit",
+      "prohibitedCapabilities are labels only; T0 does not scan code or ticket/spec prose for provider/network/mutate",
+      "invalidators must be non-empty but are not pinned, so the invalidation contract can be weakened without verifier changes",
+      "authorization.requirements is any non-empty vocabulary subset, not pinned to [E1]",
+      "T0 evidence lives under docs/audits/evidence/goal/, which is outside supportingEvidencePrefixes",
+      "foundation tickets are frozen at status=ready by the verifier, which will collide with later progress unless the pin is updated deliberately"
+    ]
+  }
+}
