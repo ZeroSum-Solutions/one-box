@@ -1,0 +1,5 @@
+command: gitleaks detect --source . --no-banner --redact --log-opts 9d4ddfddc83efa2af5a560500cd87c787b7035f3..HEAD
+scope: 9d4ddfddc83efa2af5a560500cd87c787b7035f3..HEAD
+exit_code: 0
+result: PASS
+output: no leaks found
