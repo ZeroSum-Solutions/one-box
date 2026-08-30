@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T12:28:57.453Z",
+  "request": {
+    "task": "T3A exact Fable corrections for AI teammate route ID construction and bound receipt production",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts"
+    ],
+    "proofs": [],
+    "diffBytes": 11434
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 3877,
+      "completion_tokens": 12378,
+      "total_tokens": 16255,
+      "cost": 0.082022,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.082022,
+        "upstream_inference_prompt_cost": 0.007754,
+        "upstream_inference_completions_cost": 0.074268
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 12131,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "No proof artifacts were supplied; review is from the allowlisted diff only. route.ts prefixes projectId iff the parsed run ID does not already start with [A-Za-z0-9], leaves already-legal IDs unchanged, and still echoes parsedRunId.data as response runId. The new test drives real POST with literal -abc1 and _abc1 and asserts HTTP 200, original runId, proposal teammateId, and receipt.status complete. Auth still gates before params/body; assignment and GET paths are untouched.",
+    "residual_risks": [
+      "Constant prefix run- aliases distinct external run IDs onto one internal projectId (e.g. -abc1 vs run--abc1) if the job hash includes projectId; not observable in the HTTP body.",
+      "Shared maxLength between runId and projectId is untested; a max-length dash/underscore-leading run ID could still fail job schema after prefixing.",
+      "Tests never spy on executeAiTeammateJobV1, so always-prefixing already-legal IDs would still pass the mandated oracle."
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T14:55:33.609Z",
+  "request": {
+    "task": "T3C2 residual closure for definitive live Canvas Agent Studio oracle",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "scripts/e2e/canvas-contract.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 34896
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 10119,
+      "completion_tokens": 37798,
+      "total_tokens": 47917,
+      "cost": 0.246834,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.246834,
+        "upstream_inference_prompt_cost": 0.020046,
+        "upstream_inference_completions_cost": 0.226788
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 37362,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "No proof artifacts were supplied; this is a static adversarial review of scripts/e2e/canvas-contract.mjs, not a live run. The Agent Studio oracle now gates on a live data-edit-id, keyboard-selects QA Challenger only after asserting the first roster radio is checked and QA Challenger is unchecked, holds the teammate POST with try/finally release+unroute, forbids that editId in JSON/headers/empty query/decoded pathname, requires native disabled on Assignment and Data class (and mode buttons) while the submit stays aria-disabled without native disabled, rejects wraparound until Tab has left the outside anchor, and waitFor(attached) on the retained wrapper before count/hidden/inert proofs. No concrete MEDIUM+ false-green, silent skip, or unbounded deadlock is present in the new control flow.",
+    "residual_risks": [
+      "Duplicate-POST waitForRequest uses a 750ms timeout; a delayed second POST after that window but after result commit/unroute would not be counted.",
+      "editId absence is substring includes() on decoded pathname/JSON/headers; very short or encoded-in-headers IDs could false-red or miss a non-plaintext header leak.",
+      "createProposal actions use button[type=submit] while existence is waited via the accessible name; those nodes are only coupled later by focus identity.",
+      "Tab-cycle wraparound can false-red if focus starts on a non-tabbable (body) or sticks on the preview iframe; 256 steps will not wrap in that case.",
+      "getAttribute('disabled') === '' is stricter than HTML boolean disabled (disabled=\"disabled\" would false-red).",
+      "selectFirstSection still logs-and-continues if the breadcrumb never appears; Agent Studio then depends on the boundary hasText(editId) gate rather than workbench selection.",
+      "No live proof was attached, so compact View/Edit panel collapse and real network glob matching for **/api/ai-teammates/* were not observed."
+    ]
+  }
+}

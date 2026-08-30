@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:09:46.086Z",
+  "request": {
+    "task": "T4C exact re-audit: Fable disposition and evidence-path governance",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-authority-packet-digest-proof.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-evidence-relocation-receipt.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-selection-display-boundary-proof.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4c-evidence-governance-closure-audit.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "scripts/e2e/canvas-contract.mjs",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4b-route-closure-audit.json"
+    ],
+    "diffBytes": 20761
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 44880,
+      "completion_tokens": 15522,
+      "total_tokens": 60402,
+      "cost": 0.1827,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.1827,
+        "upstream_inference_prompt_cost": 0.089568,
+        "upstream_inference_completions_cost": 0.093132
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 15011,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The three prior T4C BLOCKs are closed against this criterion, not against the old T4C remediation text. R-04: both historical paths are untracked post-baseline names; NAME STATUS is additions-only (no D/R); successors and every allowlisted artifact sit under docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-; the relocation receipt records cat-file/test -e absence plus an immutable historical-path→current-path/hash table; old Grok request receipts are untouched. R-02 REJECT is allowed because the retained t4 execution receipt explicitOracles.R-02 and the supplied canvas-contract.mjs both encode radio-Enter waitForRequest 500ms no-POST, postCount===0, selected QA radio remains document.activeElement, then later postCount===1 through result commit; WIDTHS=1440 exit 0 is corroboration, not the sole oracle. R-01/R-03/R-05/R-06/R-07/R-08 ACCEPT rows are bound to supplied current panel/route/test/E2E bytes, the same execution receipt (RED then GREEN commands, 25/21 vitest, typecheck, 1440 contract), and t4b route CLEAN; execution is not inferred from source alone. Evidence texts deny authority; remaining[] and modelReview keep accessibility-aggregate, security, independent, full-width, commit/push/parity open.",
+    "residual_risks": [
+      "Relocation and candidateSha256 values are author-supplied; this review did not recompute SHA-256 from bytes.",
+      "Worktree absence of the two historical paths is attested by the relocation receipt, not an independent live test -e in this review.",
+      "Disposition capturedAt 15:46:00Z predates the execution receipt (16:03:17Z) it cites; timestamp is stale if the proof bindings were added later.",
+      "Selection-boundary proof cites AgentStudioPanel source/tests that are not in this slice.",
+      "t4b CLEAN is static and did not re-execute; packet-digest figures in the relocated digest proof were not recomputed here.",
+      "Accessibility aggregate timed out; 768/390 live oracles, security review, independent verification, and same-target full gates remain open and must not be read as closed."
+    ]
+  }
+}

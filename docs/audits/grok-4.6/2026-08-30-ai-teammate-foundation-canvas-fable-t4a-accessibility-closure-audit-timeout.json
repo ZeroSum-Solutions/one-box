@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:01:00Z",
+  "request": {
+    "task": "T4A exact closure: Fable R-01, R-02, R-03, and R-06 Canvas accessibility behavior",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "timeoutMs": 900000
+  },
+  "outcome": "UNAVAILABLE",
+  "error": "DOMException TimeoutError: operation aborted due to timeout",
+  "verdict": null,
+  "note": "No model verdict or finding set was returned. This artifact is transport evidence only and is not a pass. The target is split into smaller same-model closure reviews."
+}

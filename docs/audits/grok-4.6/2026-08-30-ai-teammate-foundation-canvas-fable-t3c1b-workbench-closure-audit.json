@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T13:58:09.468Z",
+  "request": {
+    "task": "T3C1B closure for Workbench current-run Agent Studio retention and inactive accessibility boundary",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [
+      "src/app/preview/[id]/page.tsx"
+    ],
+    "diffBytes": 17701
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 12436,
+      "completion_tokens": 19855,
+      "total_tokens": 32291,
+      "cost": 0.14381,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.14381,
+        "upstream_inference_prompt_cost": 0.02468,
+        "upstream_inference_completions_cost": 0.11913
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 19550,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Integrated Workbench (page key={id}) remounts the hasOpenedAgentStudio latch on run change; the page only mounts Workbench after restore, so the initializer sees the restored activeTool. After open (click or assistant on mount), shouldRenderAgentStudio stays true across tool and View/Edit changes and renders a single AgentStudioPanel keyed by runId. Visibility is assistant∧edit; otherwise the retained wrapper uses native hidden, aria-hidden, and inert. panelContent returns Editing paused for all tools in view and null for assistant in edit, so it does not mount a second panel. Collapse still unmounts the section (unclaimed). The source test binds the listed strings/regex only; it does not execute the latch, count trees, or prove 0x0/tab/continuity (those are delegated to E2E).",
+    "residual_risks": [
+      "Substring oracles stay green if a second <AgentStudioPanel is added or if hasOpenedAgentStudio is removed while wrapper/inert/key strings remain.",
+      "props.mode === \"view\" is not uniquely bound to agentStudioInactive, so dropping mode from the inactive predicate would still pass.",
+      "Collapse unmounts the retained tree and resets AgentStudioPanel instance state; explicitly unclaimed.",
+      "inert/hidden apply only to the wrapper subtree; portal UI from AgentStudioPanel (not in this slice) would not inherit that boundary."
+    ]
+  }
+}

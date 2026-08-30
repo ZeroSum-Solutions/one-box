@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T12:53:18.698Z",
+  "request": {
+    "task": "T3B closure for Local teammate presentation, strict receipt adapter, data safety, and submit state machine",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx"
+    ],
+    "proofs": [],
+    "diffBytes": 56302
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15906,
+      "completion_tokens": 26750,
+      "total_tokens": 42656,
+      "cost": 0.19212,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.19212,
+        "upstream_inference_prompt_cost": 0.03162,
+        "upstream_inference_completions_cost": 0.1605
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 26469,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "No proof artifacts were supplied. The slice’s oracles are renderToStaticMarkup plus adapter/unit checks: they pin static Idle roster copy, placeholder/no-provider disclosure, data-class help linkage, working submit as natively enabled + aria-disabled, exact five-key envelope rejection for missing/extra/non-null terminal variants, and bound complete vs terminal receipt rules. They do not execute the form/click path, so F-08 focus and duplicate-submit proof is not in this allowlist (criterion assigns that to live browser E2E). Untested but implemented branches include a fully valid six-key proposal with a non-complete receipt, extra keys on a complete envelope, and complete+null proposal; those currently fall through to error in submitAiTeammateAssignment.",
+    "residual_risks": [
+      "AiTeammateRunReceiptV1Schema is outside the slice; if it is non-strict or a wide status enum, extra receipt fields or odd non-complete statuses could still parse as bound.",
+      "PreviewSelection is display-only and omitted from the POST body; truthful canvas copy depends on the parent actually passing selection.",
+      "Idle-valid markup tests assert native disabled absence, not aria-disabled absence; current code omits aria-disabled when not working."
+    ]
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:11:30Z",
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-audit.json",
+    "disposition": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-disposition.json"
+  },
+  "corrections": [
+    {
+      "finding": "F5-CLOSE-01",
+      "red": "npm run verify:plans failed with packetDigest mismatch and reported expected current digest 5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b.",
+      "green": "Within the F5-CLOSE-01 correction step, only authority-manifest.json packetDigest changed. The independent F5-CLOSE-02 and F5-CLOSE-03 corrections are separate entries below. npm run verify:plans then passed for 17 domains, 29 tickets, and 21 program evaluations with that exact packet digest; npm run test:plans passed 48 of 48 tests."
+    },
+    {
+      "finding": "F5-CLOSE-02",
+      "red": "The post-T3/pre-T4 hash ledger contained later T4/T5 collapse behavior, a 32-test later count, and a statement that later receipts bound the edited ledger prose.",
+      "green": "The T3 ledger now states only the T3 tool and View/Edit continuity behavior, restores the historical four-file count to 28, and makes no later-epoch binding claim. The edited ledger bytes are bound here."
+    },
+    {
+      "finding": "F5-CLOSE-03",
+      "red": "The live collapsed-state oracle proved the retained Agent Studio wrapper was inactive but did not prove every other workbench-panel child unmounted.",
+      "green": "The live contract now requires zero header, breadcrumb, composer, or non-retained workbench body children while collapsed. The source integration test pins both workbenchCollapsed conditional guards."
+    }
+  ],
+  "candidateSha256": {
+    "docs/plans/one-box-master/00-authority/authority-manifest.json": "62e9e2804937817ce3fbbc8d0db3ff18900f68666f32b02aaaadaf93b72543e2",
+    "docs/architecture/README.md": "bd0fe8b0c083fca7b8d20589852b9465f16c5ba6b3342a2b166593f467f6dd55",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t3-corrections.md": "68c172e9dd5d15de96ef19fc9a9f92359cf4358846b555838e6c417b6bc0faf9",
+    "scripts/e2e/canvas-contract.mjs": "aff029ced45eac675eab41f03c670a70dc4d9f368528eb7e57eabc8bbb016051",
+    "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx": "8a403f271cb2ca997ef77bfceae7a521fe005b405e0e69b5b13a75a521ad0c62",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-audit.json": "a86e817abbe59c9700ab94e57a3564c81d8c96c2817aab5138536f06b404bc22",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-disposition.json": "8e2cb661e41b17bf198e2eed9d904f0514d59a636b3d30c706a28b8d33d4e944",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t6a-authority-digest-receipt.json": "6147cb6e765ad0d0475a45b50b33d5687334e24bd05d6d9cf9e6d871a9049074",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t6c-collapse-non-retention-receipt.json": "091db23c32223ff96f6d1c03d3a936a44b48089163ace16389a2f11576fb62e2"
+  },
+  "verification": {
+    "authorityRed": "npm run verify:plans failed exactly once with the stale packet digest and reported the deterministic replacement digest",
+    "authorityGreen": "npm run verify:plans passed: 17 domains, 29 tickets, 21 program evaluations; authority packet SHA-256 5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b",
+    "planTests": "npm run test:plans passed 48 of 48",
+    "sourceIntegration": "npm test -- --run src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx passed 1 of 1",
+    "liveCanvasAllWidths": "ONEBOX_BASE_URL=http://127.0.0.1:8791 npm run test:e2e:canvas-contract passed at 1440, 768, and 390 pixels with the non-retained-child absence oracle; no contract or serious/critical accessibility problems detected",
+    "diffCheck": "git diff --check passed"
+  },
+  "modelReviews": {
+    "authorityInitial": {
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t6a-authority-packet-closure-audit.json",
+      "verdict": "FINDINGS",
+      "disposition": "The baseline-wide diff made earlier T5 README edits look like part of the digest-only T6A step. A T6A-only before/after receipt was added to resolve the proof-slicing defect."
+    },
+    "authorityClosure": {
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t6a-authority-packet-closure-reaudit.json",
+      "model": "x-ai/grok-4.6",
+      "effort": "xhigh",
+      "verdict": "CLEAN",
+      "findings": 0
+    },
+    "chronologyClosure": {
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t6b-evidence-chronology-closure-audit.json",
+      "model": "x-ai/grok-4.6",
+      "effort": "xhigh",
+      "verdict": "CLEAN",
+      "findings": 0
+    },
+    "collapseClosure": {
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t6c-non-retained-collapse-oracle-closure-audit.json",
+      "model": "x-ai/grok-4.6",
+      "effort": "xhigh",
+      "verdict": "CLEAN",
+      "findings": 0,
+      "transportNote": "Two broader exact-model requests reached the audit harness 300-second transport timeout without a verdict; the final exact-model review used the hash-bound T6C evidence slice and completed clean."
+    }
+  },
+  "remaining": [
+    "exact Fable 5 clean re-audit",
+    "full same-target gates, security review, independent verification, commit, push, and remote parity"
+  ]
+}

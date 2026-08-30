@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T15:52:39.106Z",
+  "request": {
+    "task": "T4B exact closure: Fable R-05, R-07, and R-08 route boundary",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-audit.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3a-route-closure-audit.json"
+    ],
+    "diffBytes": 18242
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 10538,
+      "completion_tokens": 17625,
+      "total_tokens": 28163,
+      "cost": 0.126826,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.126826,
+        "upstream_inference_prompt_cost": 0.021076,
+        "upstream_inference_completions_cost": 0.10575
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 17224,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Static review of the allowlisted route slice only; disposition/pass claims were not re-executed. R-07 is closed in production: unauthorized/invalid-run/invalid-assignment helpers and GET/POST success all emit Cache-Control no-store, with 403 and POST 400 assertions added. R-08 is closed: afterEach calls vi.restoreAllMocks before unstubAllGlobals, and the producer test immediately after the Date.now collision spy asserts Date.now() is not 1788080000000, which fails if that spy leaked. R-05 is encoded as a deterministic 2000-NUL seven-key POST: HTTP 200, no-store, exact five-key envelope via Object.keys, proposal toBeNull, budget-exhausted/input-bytes-exceeded, null output hashes. 2000 NULs remain schema-valid under trim/max(2000) while canonical JSON \\u0000 escaping is ~12KiB, above maxInputBytes 8192, so the budget expectation is consistent with a canonical-JSON byte check. T3A mapping, auth-before-body, strict seven-key assignment, HTTP runId echo, and local producer are unchanged.",
+    "residual_risks": [
+      "Executor input-byte accounting and receipt shape live outside the slice; the 2000-NUL case is only proven if executeAiTeammateJobV1 measures escaped canonical bytes.",
+      "Receipt assertions use toMatchObject, so extra receipt keys would not fail.",
+      "Complete-path POST 200 and leading-symbol 200 tests still omit cache-control; GET 400 has no dedicated header case (shared helper).",
+      "Collision distinctness still freezes Date.now only; jobSha256 that mixed new Date() wall time could mask a projectId alias.",
+      "jobId still omits run/project identity."
+    ]
+  }
+}

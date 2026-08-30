@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:41:46.591Z",
+  "request": {
+    "task": "T4A2 exact re-audit: close the five prior live Canvas oracle findings",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "scripts/e2e/canvas-contract.mjs"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4a2-live-e2e-closure-audit.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json"
+    ],
+    "diffBytes": 44072
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15851,
+      "completion_tokens": 28174,
+      "total_tokens": 44025,
+      "cost": 0.200554,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.200554,
+        "upstream_inference_prompt_cost": 0.03151,
+        "upstream_inference_completions_cost": 0.169044
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 27696,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The five prior T4A2 live-oracle defects are closed in the candidate openAgentStudio path, judged from the harness text rather than the WIDTHS=1440 receipt. (1) Duplicate retry GET now registers waitForRequest(/api/ai-teammates/ GET, 750ms) before evaluate(click), requires TimeoutError→false, then re-reads rosterGetCount === initial+1 while attempt 0 is still held. (2) During the hold it asserts aria-disabled=true and getAttribute('disabled')===null before the forced click, so HTMLElement.click() can actually exercise the product guard. (3) POST finally releases, awaits postResponse?.catch, then unroute; the waiter is bound to the exact Request. (4) Idle · Read + propose is counted via evaluateAll filtered on display/visibility and non-zero box, not locator.count(). (5) aria-describedby tokens are resolved with getElementById and compared to the exact safety-help string. Initial 503 copy is locator.waitFor (visible default); failed retry asserts activeElement on Try again after 'Retry still unavailable.'; successful retry asserts activeElement on the first restored radio after the 200. Receipt exit 0 is only a run log.",
+    "residual_risks": [
+      "Native-disabled is sampled before waitFor('Trying the local roster again…'), not in the same turn as evaluate(click); a later native disabled would make the duplicate click a no-op and still pass.",
+      "Idle visibility matches Playwright box semantics only; 1px/sr-only copies still count; aria-hidden is not filtered.",
+      "Retry waitForResponse matchers are any GET 503/200 on /api/ai-teammates/, not the held Request object (POST is identity-bound).",
+      "Unexpected POST during the radio-Enter probe leaves postResponse unset, so finally can unroute a held handler.",
+      "Glob **/api/ai-teammates/* is one path segment; deeper or query-only URLs are invisible to rosterGetCount/postCount.",
+      "Second retry asserts exact +1 GET with no extra bounded negative wait.",
+      "Strict Mode double-fetch still fail-closes the exact +1 count."
+    ]
+  }
+}

@@ -327,21 +327,39 @@ effect. The shipped route supplies only a fixed, local, effect-free callback.
 The [AI teammate route](../../src/app/api/ai-teammates/%5Bid%5D/route.ts) is the
 sole HTTP adapter. Its GET returns the static roster and its POST builds one 8
 KiB, one-second local job from a strict bounded assignment; both responses are
-`no-store`. The path ID is validated syntactically and echoed into the job, but
-this foundation route does not load, authenticate, mutate, or persist a run. It
+`no-store`. The path ID is validated syntactically and returned unchanged as the
+HTTP `runId`. An alphanumeric-leading ID is copied unchanged into the job's
+`projectId`; a valid dash- or underscore-leading ID is mapped reversibly to a
+43-character reserved prefix plus lowercase ASCII hex. That mapped image is 51
+to 123 characters, so it cannot collide with the external run-ID grammar's
+4-to-40-character values and remains inside the job contract's 128-character
+bound. This foundation route does not load, authenticate, mutate, or persist a run. It
 performs no provider, credential, network, filesystem, Page IR, site, queue, or
 automatic-application work. The local authorization and request-body boundary
 are documented in the [local API threat
 model](../security/local-api-threat-model.md).
 
-The Workbench exposes Agent Studio only in Edit mode. Teammates is the default
+The Workbench makes Agent Studio interactive only when the Assistant tool and
+Edit mode are active. Teammates is the default
 `Local foundation` pane; the existing Site advice pane stays separately labeled
-and may mutate the site only through its established controls. Both panes remain
-mounted while their visibility changes, so a local assignment and receipt are
-not discarded by switching modes. During local execution, assignment controls
-are locked and run/assignment generation checks discard stale completions. The
-accepted result remains proposal-only and shows its bound teammate, task, fixed
-notice, and complete textual receipt; it has no apply control.
+and may mutate the site only through its established controls. After Agent
+Studio is opened, exactly one instance remains mounted for the current run
+across Workbench-tool, View/Edit, and workbench collapse/reopen changes. While
+the workbench is collapsed, the panel and retained Agent Studio wrapper are
+natively `hidden`, `aria-hidden`, and `inert`; other tool-panel content still
+unmounts. The process-only teammate draft and receipt therefore stay available
+without leaving a second interactive tree in layout, accessibility, or keyboard
+navigation. A run-ID change resets that retained state. During
+local execution, assignment controls are locked, duplicate activation is
+rejected, and run/assignment generation checks discard stale completions. The
+UI states that no model or provider is connected and labels the deterministic
+output as a fixed placeholder. Complete results remain proposal-only, and valid
+non-complete terminal results expose only their receipt. Neither result class
+has an apply control or automatic retry. Agent Studio owns the read-only current-selection banner and
+passes only its tag and edit ID to that text; the Local teammate assignment
+component receives no selection object, and neither value enters its POST or
+job. Its inactive Teammates/Site advice pane is also `hidden`, `aria-hidden`,
+and `inert` while both process-local pane states remain mounted.
 
 This slice has no migration or durable runtime state. Rollback reverts its
 contracts, `src/lib/aiTeammates/`, route, `AiTeammate/` components, Workbench

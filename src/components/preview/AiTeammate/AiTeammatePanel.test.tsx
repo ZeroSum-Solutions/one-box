@@ -38,7 +38,7 @@ describe("LocalAiTeammatePanel", () => {
 
     expect(html).toContain("Loading the local roster…");
     expect(html).toContain("Local foundation");
-    expect(html).toContain("Create proposal");
+    expect(html).toContain("Create placeholder proposal");
     expect(html).toContain("disabled");
   });
 
@@ -60,7 +60,7 @@ describe("LocalAiTeammatePanel", () => {
 
     expect(html).toContain("Loading the local roster…");
     expect(html).toContain(
-      '<button type="submit" class="btn-primary" disabled="">Create proposal</button>',
+      '<button type="submit" class="btn-primary" disabled="">Create placeholder proposal</button>',
     );
   });
 
@@ -82,14 +82,13 @@ describe("LocalAiTeammatePanel", () => {
 
     expect(html).toContain('aria-busy="true"');
     expect(html).toContain('role="status"');
-    expect(html).toContain("Creating a bound local proposal…");
-    expect(html).toContain("Working · Read + propose");
-    expect(html.match(/Working · Read \+ propose/g)).toHaveLength(1);
-    expect(html.match(/Idle · Read \+ propose/g)).toHaveLength(7);
+    expect(html).toContain("Creating a fixed deterministic placeholder…");
+    expect(html).not.toContain("Working · Read + propose");
+    expect(html.match(/Idle · Read \+ propose/g)).toHaveLength(8);
     expect(html).toContain(
-      "Working means one bound local proposal is being created.",
+      "Request progress is reported separately below.",
     );
-    expect(html).not.toContain(
+    expect(html).toContain(
       "Idle means no process, provider, tools, lease, or budget is active.",
     );
     expect(html.match(/type="radio"[^>]*disabled/g)).toHaveLength(8);
@@ -98,11 +97,12 @@ describe("LocalAiTeammatePanel", () => {
       'aria-describedby="ai-teammate-assignment-help ai-teammate-assignment-working"',
     );
     expect(html).toContain(
-      'id="ai-teammate-data-class" aria-describedby="ai-teammate-assignment-working" disabled=""',
+      'id="ai-teammate-data-class" aria-describedby="ai-teammate-data-class-help ai-teammate-assignment-working" disabled=""',
     );
     expect(html).toContain('id="ai-teammate-assignment-working"');
-    expect(html).toContain(
-      '<button type="submit" class="btn-primary" disabled="">Creating…</button>',
+    const workingSubmit = html.match(/<button type="submit"[^>]*>/)?.[0];
+    expect(workingSubmit).toBe(
+      '<button type="submit" class="btn-primary" aria-disabled="true">',
     );
     expect(canChangeAiTeammateAssignment({ kind: "working" })).toBe(false);
   });
@@ -244,10 +244,64 @@ describe("LocalAiTeammatePanel", () => {
     expect(html).toContain('for="ai-teammate-data-class"');
     expect(html).toContain("Project internal");
     expect(html).toContain("Public");
-    expect(html).toContain("Create proposal");
+    expect(html).toContain("Create placeholder proposal");
     expect(html).toContain("disabled");
     expect(html).toContain("Proposal only — nothing is applied automatically.");
     expect(html).not.toContain("Apply proposal");
+  });
+
+  it("states that no model or provider is connected and labels the deterministic action as a placeholder", () => {
+    const html = renderToStaticMarkup(
+      <LocalAiTeammatePanelContent
+        rosterState={{ kind: "ready", teammates: listAiTeammates() }}
+        selectedTeammateId="researcher"
+        task="Draft a bounded placeholder."
+        dataClass="project-internal"
+        submission={{ kind: "idle" }}
+        onRetryRoster={() => undefined}
+        onSelectTeammate={() => undefined}
+        onTaskChange={() => undefined}
+        onDataClassChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+
+    expect(html).toContain("No AI model or provider is connected");
+    expect(html).toContain("fixed deterministic placeholder");
+    expect(html).toContain("Create placeholder proposal");
+    expect(html.match(/Idle · Read \+ propose/g)).toHaveLength(8);
+  });
+
+  it("describes data class as a caller label and warns against sensitive assignment content", () => {
+    const html = renderToStaticMarkup(
+      <LocalAiTeammatePanelContent
+        rosterState={{ kind: "ready", teammates: listAiTeammates() }}
+        selectedTeammateId="researcher"
+        task="Review public evidence only."
+        dataClass="project-internal"
+        submission={{ kind: "idle" }}
+        onRetryRoster={() => undefined}
+        onSelectTeammate={() => undefined}
+        onTaskChange={() => undefined}
+        onDataClassChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('id="ai-teammate-data-class-help"');
+    expect(html).toContain(
+      'id="ai-teammate-data-class" aria-describedby="ai-teammate-data-class-help"',
+    );
+    expect(html).toContain("nothing is scanned or read from the project");
+    for (const warning of [
+      "credentials",
+      "cookies",
+      "client-sensitive",
+      "release",
+      "appointment details",
+    ]) {
+      expect(html).toContain(warning);
+    }
   });
 
   it("announces a terminal proposal receipt with every audit field in text", () => {
@@ -302,7 +356,9 @@ describe("LocalAiTeammatePanel", () => {
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-live="polite"');
     expect(resultHtml).toContain('aria-atomic="true"');
-    expect(resultHtml).toContain("Proposed by:");
+    expect(resultHtml).toContain("Placeholder proposal");
+    expect(html).toContain("No AI model or provider is connected");
+    expect(resultHtml).toContain("Role template:");
     expect(resultHtml).toContain("Assigned task:");
     expect(resultHtml).toContain(
       "Check each criterion against an observable outcome.",
@@ -313,7 +369,7 @@ describe("LocalAiTeammatePanel", () => {
     expect(resultHtml).toContain("Run receipt");
     for (const text of [
       "Check each criterion against an observable outcome.",
-      "Proposed by:",
+      "Role template:",
       "Assigned task:",
       "Challenge the acceptance criteria.",
       "complete",
@@ -385,6 +441,25 @@ describe("LocalAiTeammatePanel", () => {
       kind: "error",
       message: "We could not load the local roster. Try again.",
     });
+  });
+
+  it("rejects an empty assignment locally as a task error without fetching", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      submitAiTeammateAssignment(
+        "run-demo",
+        "researcher",
+        "   ",
+        "project-internal",
+      ),
+    ).resolves.toEqual({
+      kind: "error",
+      origin: "task",
+      message: "Write an assignment between 1 and 2,000 characters.",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("submits only the explicit local read/propose envelope", async () => {
@@ -474,6 +549,7 @@ describe("LocalAiTeammatePanel", () => {
       ),
     ).resolves.toEqual({
       kind: "error",
+      origin: "request",
       message:
         "The local teammate returned an invalid receipt. Nothing was applied; try again.",
     });
@@ -495,7 +571,7 @@ describe("LocalAiTeammatePanel", () => {
         "Find the strongest evidence.",
         "project-internal",
       ),
-    ).resolves.toMatchObject({ kind: "error" });
+    ).resolves.toMatchObject({ kind: "error", origin: "request" });
 
     const residualMismatches = [
       {
@@ -560,8 +636,134 @@ describe("LocalAiTeammatePanel", () => {
           "Find the strongest evidence.",
           "project-internal",
         ),
-      ).resolves.toMatchObject({ kind: "error" });
+      ).resolves.toMatchObject({ kind: "error", origin: "request" });
     }
+  });
+
+  it("preserves a valid non-complete terminal receipt instead of calling it invalid", async () => {
+    const receipt = {
+      schemaVersion: 1 as const,
+      jobId: "job-researcher-budget",
+      jobSha256: "a".repeat(64),
+      teammateId: "researcher" as const,
+      inputSha256: "b".repeat(64),
+      outputSha256: null,
+      partialOutputSha256: null,
+      startedAt: "2026-08-30T07:00:00.000Z",
+      stoppedAt: "2026-08-30T07:00:00.010Z",
+      status: "budget-exhausted" as const,
+      stoppingCondition: "input-bytes-exceeded" as const,
+      retryEligible: false,
+      effectClasses: ["read", "propose"] as const,
+      outputSchemaId: "one-box.proposal.local-foundation.v1",
+      providerCostUsd: 0 as const,
+      executionLane: "deterministic-local" as const,
+    };
+    const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          schemaVersion: 1,
+          lane: "Local foundation",
+          runId: "run-demo",
+          proposal: null,
+          receipt,
+        }),
+      } satisfies Partial<Response>);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      submitAiTeammateAssignment(
+        "run-demo",
+        "researcher",
+        "Bounded input that exceeded the byte budget.",
+        "project-internal",
+      ),
+    ).resolves.toEqual({ kind: "terminal", receipt });
+
+    const invalidTerminalEnvelopes = [
+      {
+        schemaVersion: 1,
+        lane: "Local foundation",
+        runId: "run-demo",
+        proposal: { schemaVersion: 1 },
+        receipt,
+      },
+      {
+        schemaVersion: 1,
+        lane: "Local foundation",
+        runId: "run-demo",
+        receipt,
+      },
+      {
+        schemaVersion: 1,
+        lane: "Local foundation",
+        runId: "run-demo",
+        proposal: null,
+        receipt,
+        output: { hidden: "not part of the local envelope" },
+      },
+    ];
+    for (const envelope of invalidTerminalEnvelopes) {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        json: async () => envelope,
+      } satisfies Partial<Response>);
+      await expect(
+        submitAiTeammateAssignment(
+          "run-demo",
+          "researcher",
+          "Bounded input that exceeded the byte budget.",
+          "project-internal",
+        ),
+      ).resolves.toMatchObject({ kind: "error", origin: "request" });
+    }
+  });
+
+  it("renders a valid non-complete receipt without marking the assignment invalid", () => {
+    const html = renderToStaticMarkup(
+      <LocalAiTeammatePanelContent
+        rosterState={{ kind: "ready", teammates: listAiTeammates() }}
+        selectedTeammateId="researcher"
+        task="Bounded input that exceeded the byte budget."
+        dataClass="project-internal"
+        submission={{
+          kind: "terminal",
+          receipt: {
+            schemaVersion: 1,
+            jobId: "job-researcher-budget",
+            jobSha256: "a".repeat(64),
+            teammateId: "researcher",
+            inputSha256: "b".repeat(64),
+            outputSha256: null,
+            partialOutputSha256: null,
+            startedAt: "2026-08-30T07:00:00.000Z",
+            stoppedAt: "2026-08-30T07:00:00.010Z",
+            status: "budget-exhausted",
+            stoppingCondition: "input-bytes-exceeded",
+            retryEligible: false,
+            effectClasses: ["read", "propose"],
+            outputSchemaId: "one-box.proposal.local-foundation.v1",
+            providerCostUsd: 0,
+            executionLane: "deterministic-local",
+          },
+        }}
+        onRetryRoster={() => undefined}
+        onSelectTeammate={() => undefined}
+        onTaskChange={() => undefined}
+        onDataClassChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Run ended without a placeholder proposal");
+    expect(html).toContain("budget-exhausted");
+    expect(html).toContain("input-bytes-exceeded");
+    expect(html).toContain("Retry eligible");
+    expect(html).toContain("<dt>Retry eligible</dt><dd>No</dd>");
+    expect(html).not.toContain("invalid receipt");
+    expect(html.match(/<textarea[^>]*>/)?.[0]).not.toContain("aria-invalid");
+    expectAssignmentControlsEnabled(html);
   });
 
   it("keeps a failed assignment editable and explains how to recover", () => {
@@ -573,6 +775,7 @@ describe("LocalAiTeammatePanel", () => {
         dataClass="project-internal"
         submission={{
           kind: "error",
+          origin: "request",
           message: "The local teammate returned an invalid receipt.",
         }}
         onRetryRoster={() => undefined}
@@ -585,7 +788,7 @@ describe("LocalAiTeammatePanel", () => {
 
     expect(html).toContain('role="alert"');
     expect(html).toContain("The local teammate returned an invalid receipt.");
-    expect(html).toContain('aria-invalid="true"');
+    expect(html.match(/<textarea[^>]*>/)?.[0]).not.toContain("aria-invalid");
     expect(html).toContain(
       'aria-describedby="ai-teammate-assignment-help ai-teammate-assignment-error"',
     );
@@ -596,5 +799,62 @@ describe("LocalAiTeammatePanel", () => {
     expect(html).toContain("Review the compact canvas controls.");
     expect(html).toContain('<button type="submit" class="btn-primary">');
     expectAssignmentControlsEnabled(html);
+  });
+
+  it("marks only a local task-field validation error as aria-invalid", () => {
+    const html = renderToStaticMarkup(
+      <LocalAiTeammatePanelContent
+        rosterState={{ kind: "ready", teammates: listAiTeammates() }}
+        selectedTeammateId="researcher"
+        task=" "
+        dataClass="project-internal"
+        submission={{
+          kind: "error",
+          origin: "task",
+          message: "Write an assignment between 1 and 2,000 characters.",
+        }}
+        onRetryRoster={() => undefined}
+        onSelectTeammate={() => undefined}
+        onTaskChange={() => undefined}
+        onDataClassChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+
+    expect(html.match(/<textarea[^>]*>/)?.[0]).toContain(
+      'aria-invalid="true"',
+    );
+    expect(html).toContain('id="ai-teammate-assignment-error"');
+    expect(html).toContain(
+      'aria-describedby="ai-teammate-assignment-help ai-teammate-assignment-error"',
+    );
+  });
+
+  it("keeps the retry control focusable and announces progress outside the error alert", () => {
+    const html = renderToStaticMarkup(
+      <LocalAiTeammatePanelContent
+        rosterState={{
+          kind: "error",
+          message: "Temporary local roster failure.",
+          retrying: true,
+        }}
+        selectedTeammateId="researcher"
+        task=""
+        dataClass="project-internal"
+        submission={{ kind: "idle" }}
+        onRetryRoster={() => undefined}
+        onSelectTeammate={() => undefined}
+        onTaskChange={() => undefined}
+        onDataClassChange={() => undefined}
+        onSubmit={() => undefined}
+      />,
+    );
+
+    const retryButton = html.match(/<button[^>]*>Try again<\/button>/)?.[0];
+    expect(retryButton).toContain('aria-disabled="true"');
+    expect(retryButton).not.toContain(' disabled');
+    expect(html).toContain(
+      '</div><p role="status">Trying the local roster again…</p>',
+    );
   });
 });

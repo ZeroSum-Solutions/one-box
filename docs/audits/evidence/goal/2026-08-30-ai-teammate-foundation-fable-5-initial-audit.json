@@ -1,0 +1,325 @@
+{
+  "schemaVersion": 1,
+  "auditId": "OBX-ATF-CANVAS-FABLE5-INITIAL-001",
+  "recordedAt": "2026-08-30",
+  "authority": "advisory model evidence only; this audit authorizes no scope expansion, implementation outside OBX-AUTH-ATF-001, deployment, or release",
+  "driver": {
+    "requestedModel": "claude-fable-5",
+    "reportedModel": "claude-fable-5",
+    "canonicalModel": "claude-fable-5",
+    "effort": "max",
+    "lane": "Claude Code subscription OAuth",
+    "fallback": "none",
+    "subagentsSpawned": 0,
+    "webSearchRequests": 0,
+    "webFetchRequests": 0,
+    "permissionDenials": [],
+    "terminalReason": "completed",
+    "durationApiMs": 895605,
+    "reportedListCostUsdNotBillingReceipt": 11.07615,
+    "sessionId": "bde2b1f4-c821-4434-bf2a-0b630732dfd8"
+    ,
+    "runtimeEvidence": {
+      "outputEnvelopeReportedModelUsageKey": "claude-fable-5",
+      "outputEnvelopeCanonicalModel": "claude-fable-5",
+      "outputEnvelopeInputTokens": 704,
+      "outputEnvelopeOutputTokens": 72368,
+      "outputEnvelopeThinkingTokens": 47874,
+      "outputEnvelopeCacheCreationInputTokens": 276663,
+      "outputEnvelopeCacheReadInputTokens": 1915459,
+      "outputEnvelopeTerminalReason": "completed",
+      "outputEnvelopeIsError": false,
+      "outputEnvelopeSubagentsSpawned": 0,
+      "outputEnvelopeWebSearchRequests": 0,
+      "outputEnvelopeWebFetchRequests": 0,
+      "note": "These are the Claude CLI JSON output-envelope fields captured by the executor. The findings below are a normalized durable copy of the model's structured result, not a verbatim chain-of-thought transcript."
+    }
+  },
+  "target": {
+    "commit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "tree": "7a1a54e421d12cf7e5cc5a1f42877d8ffe6750b5",
+    "selectedSection": "docs/specs/2026-08-29-ai-teammate-foundation-v1.md — Local Canvas and API surface",
+    "integrationBoundary": [
+      "selection and hierarchy continuity",
+      "persistent selection-scoped composer",
+      "Site Advice isolation",
+      "references",
+      "proposals and textual receipts",
+      "preview, diff, and history boundaries",
+      "typed Page IR mutation remains separate and never automatic"
+    ],
+    "correctionAuthority": "OBX-AUTH-ATF-001"
+  },
+  "contentBinding": {
+    "selectedSectionSha256AtTargetCommit": "88db0652329a0bed2ca5ce6e778371959aa340f1e3e1e7a5d678c84f15d1b4ca",
+    "fullSourceSpecSha256AtTargetCommit": "95575b1e432a4a63d7b6b72fe72eb4c7da2b27a834d0158da1773970c68bdf84",
+    "selectedSectionExtraction": "git show <target.commit>:docs/specs/2026-08-29-ai-teammate-foundation-v1.md, from the exact Local Canvas and API surface heading up to but not including the exact Security and data boundary heading"
+  },
+  "orderedInspectionCoverage": [
+    "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+    "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+    "docs/security/local-api-threat-model.md",
+    "docs/architecture/README.md",
+    "docs/specs/2026-08-16-canvas-upgrade.md",
+    "docs/plans/one-box-master/02-canvas/index.md",
+    "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+    "docs/tickets/ai-teammate-foundation/manifest.json and OBX-AT-001.md",
+    "DESIGN.md",
+    "src/components/preview/AiTeammate/AgentStudioPanel.tsx and tests",
+    "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx and tests",
+    "src/components/preview/Workbench.tsx",
+    "src/components/preview/AssistantPanel.tsx",
+    "src/components/ChatComposer.tsx",
+    "src/components/preview/previewState.ts",
+    "src/app/preview/[id]/page.tsx",
+    "src/app/styles/workbench.css and src/app/globals.css",
+    "src/app/api/ai-teammates/[id]/route.ts and route.test.ts",
+    "src/lib/aiTeammates/* and tests",
+    "src/lib/contracts.ts and contracts.test.ts",
+    "src/lib/localApiAuth.ts and src/lib/runstate.ts",
+    "scripts/e2e/canvas-contract.mjs",
+    "scripts/e2e/canvas-coverage.mjs",
+    "scripts/e2e/preview-workbench.mjs",
+    "package.json and prior same-slice verification/audit artifacts"
+  ],
+  "closedCoverageMap": [
+    {
+      "requirement": "Local GET may expose only the validated static registry",
+      "inspected": ["src/app/api/ai-teammates/[id]/route.ts::GET", "src/lib/aiTeammates/registry.ts", "route.test.ts"],
+      "result": "no-finding; keep authorize-first, no-store, exact eight-role registry"
+    },
+    {
+      "requirement": "Local POST validates and executes only the deterministic proposal contract",
+      "inspected": ["route.ts::POST", "executor.ts::executeAiTeammateJobV1", "receiptBinding.ts"],
+      "result": "F-01 and F-04"
+    },
+    {
+      "requirement": "Canvas may show roster, permissions, bounded assignment, proposal state, and textual receipt",
+      "inspected": ["LocalAiTeammatePanel.tsx", "AgentStudioPanel.tsx", "AiTeammatePanel.test.tsx"],
+      "result": "F-02, F-03, F-04, F-05, F-06"
+    },
+    {
+      "requirement": "Accessible names",
+      "inspected": ["LocalAiTeammatePanelContent", "AgentStudioPanelContent", "AiTeammatePanel.test.tsx"],
+      "result": "no-finding for label/name semantics; F-06 for missing described safety semantics"
+    },
+    {
+      "requirement": "Keyboard operation and visible focus",
+      "inspected": ["LocalAiTeammatePanelContent form controls", "scripts/e2e/canvas-contract.mjs::exerciseAgentStudioSurface", "AiTeammateStyles.test.ts"],
+      "result": "F-07 and F-08"
+    },
+    {
+      "requirement": "Textual status and error output",
+      "inspected": ["LocalAiTeammatePanel.tsx submission state and live regions", "route.ts terminal envelope"],
+      "result": "F-04"
+    },
+    {
+      "requirement": "Visible Local foundation label",
+      "inspected": ["LocalAiTeammatePanelContent header", "canvas-contract.mjs boundary assertions"],
+      "result": "no-finding for label presence; F-03 for insufficient no-provider disclosure"
+    },
+    {
+      "requirement": "Do not imply that a provider-backed agent is connected",
+      "inspected": ["LocalAiTeammatePanelContent working/result copy", "route.ts deterministic producer", "registry availability"],
+      "result": "F-03"
+    },
+    {
+      "requirement": "Selection and hierarchy continuity",
+      "inspected": ["Workbench.tsx::panelContent", "SelectionBreadcrumb", "AgentStudioPanel", "preview page tool routing", "canvas-coverage.mjs tree and layers assertions"],
+      "result": "F-02 and F-05; no hierarchy mutation or second selection authority found"
+    },
+    {
+      "requirement": "Persistent selection-scoped composer remains the mutation entry",
+      "inspected": ["Workbench.tsx::PersistentComposer", "ChatComposer.tsx", "canvas-coverage.mjs::assertComposerReach"],
+      "result": "no-finding; teammate panel remains propose-only, but F-05 requires explicit scope disclaimer"
+    },
+    {
+      "requirement": "Site Advice remains isolated from teammate proposals and receipts",
+      "inspected": ["AgentStudioPanelContent panes", "AssistantPanel.tsx", "AgentStudioPanel.test.tsx"],
+      "result": "no-finding; keep separate labelled panes and locked toggle while working"
+    },
+    {
+      "requirement": "References stay with the existing persistent composer",
+      "inspected": ["Workbench.tsx::ReferenceAttachment and PersistentComposer", "LocalAiTeammatePanel.tsx request shape"],
+      "result": "no-finding; no teammate reference affordance or payload expansion"
+    },
+    {
+      "requirement": "Proposal and receipt never auto-apply",
+      "inspected": ["LocalAiTeammatePanel.tsx", "route.ts", "canvas-contract.mjs::assertNoVisibleApplyLikeControls"],
+      "result": "no-finding; F-03 and F-04 concern truthful presentation of the existing proposal/receipt"
+    },
+    {
+      "requirement": "Preview, diff, undo, and history remain separate from teammate execution",
+      "inspected": ["Workbench.tsx", "UndoRedoRail", "AgentStudioPanel onMutationComplete wiring", "canvas-contract.mjs"],
+      "result": "no-finding; teammates do not touch gateRefreshToken, preview state, diff, undo, or history"
+    },
+    {
+      "requirement": "Typed Page IR mutation is separate and never automatic from Agent Studio teammates",
+      "inspected": ["LocalAiTeammatePanel.tsx fetch targets", "route.ts effects and producer", "scoped authorization prohibitedCapabilities"],
+      "result": "no-finding; no mutate/apply/provider path exists"
+    },
+    {
+      "requirement": "Acceptance criteria and non-goals stay binding",
+      "inspected": ["full source spec", "package.json", "authority manifests", "security threat model", "direct implementation paths"],
+      "result": "F-01 through F-08 are inside-slice corrections; future provider, routing, browser, persistence, collaboration, scheduling, and mutation ideas are deferred and were not counted as missing features"
+    }
+  ],
+  "verdict": "FINDINGS",
+  "counts": {
+    "block": 0,
+    "high": 3,
+    "medium": 4,
+    "low": 1
+  },
+  "findings": [
+    {
+      "id": "F-01",
+      "severity": "HIGH",
+      "classification": "correctness",
+      "file": "src/app/api/ai-teammates/[id]/route.ts",
+      "line": 127,
+      "evidence": "The route copies a RunIdSchema value directly into projectId. RunIdSchema allows a leading dash or underscore, while AiTeammateContractIdV1Schema requires the first character to be alphanumeric. makeRunId uses base64url, so valid generated run IDs can reach this mismatch. executeAiTeammateJobV1 parses the job and can throw before a terminal receipt exists; current route tests use only alphanumeric-leading IDs.",
+      "scenario": "A legitimate run whose ID begins with dash or underscore loads Agent Studio but proposal creation reaches an unhandled server failure and the UI wrongly blames the assignment.",
+      "whyItMatters": "A valid subset of application runs cannot use the feature, the failure is misattributed, and the terminal-receipt invariant is bypassed before the executor can bind a receipt.",
+      "smallestSafeCorrection": "Construct a grammar-safe projectId or safe-parse the constructed job and return a stable JSON response; test valid dash- and underscore-leading run IDs.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "computed",
+      "proofGapRef": "PG-02"
+    },
+    {
+      "id": "F-02",
+      "severity": "HIGH",
+      "classification": "interaction",
+      "file": "src/components/preview/Workbench.tsx",
+      "line": 573,
+      "evidence": "AgentStudioPanel is rendered only while the assistant tool is active and is replaced in View mode. Assignment, result, and request-generation state live inside the unmounted subtree. Ordinary Canvas selection changes activeTool to text or selection, so an in-flight result is discarded and typed assignment or process-only receipt is lost. The persistent composer was separately hoisted to survive tool changes.",
+      "scenario": "A user writes an assignment or receives a receipt, then clicks the preview element they are discussing. Canvas changes tools and remounting Agent Studio returns an empty form with no recoverable receipt.",
+      "whyItMatters": "Routine Canvas interaction silently destroys the local work product and contradicts the intended selection-continuity model.",
+      "smallestSafeCorrection": "Keep AgentStudioPanel mounted after first open and hide it when inactive, or otherwise hoist its local state within authorized paths; add a state-continuity oracle. Narrow documentation to the continuity actually guaranteed.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "observed",
+      "proofGapRef": "PG-01"
+    },
+    {
+      "id": "F-03",
+      "severity": "HIGH",
+      "classification": "correctness",
+      "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "line": 637,
+      "evidence": "The route returns a fixed deterministic template, but the UI announces a named teammate as Working, says a proposal is being created, labels the result Proposal, and attributes it as Proposed by the teammate. Local foundation appears only as a badge; no visible sentence says no model/provider is connected or that the result is a fixed placeholder.",
+      "scenario": "A user submits a detailed SEO assignment and reasonably believes the named teammate reviewed it, even though the result is a constant contract-proving sentence.",
+      "whyItMatters": "The selected specification explicitly forbids implying a provider-backed agent is connected; the current attribution does exactly that despite an otherwise sound read/propose boundary.",
+      "smallestSafeCorrection": "Add an explicit no-model/no-provider disclosure, label the output Placeholder proposal or equivalent, and keep roster availability truthfully static while the form live region reports request progress; assert the disclosure in component and Canvas contracts.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "observed",
+      "proofGapRef": "PG-01"
+    },
+    {
+      "id": "F-04",
+      "severity": "MEDIUM",
+      "classification": "correctness",
+      "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "line": 263,
+      "evidence": "The route may validly return HTTP 200 with proposal null and a rejected, failed, cancelled, or budget-exhausted receipt. The client accepts only complete plus proposal and otherwise reports an invalid receipt, advises retry, hides the valid receipt, and marks the assignment textarea invalid regardless of failure source. A canonicalized input can exceed the executor byte budget while staying inside the textarea character limit.",
+      "scenario": "A bounded assignment containing many escaped control characters correctly produces a budget-exhausted receipt, but the pane calls it invalid, flags the text field, and hides the terminal outcome.",
+      "whyItMatters": "The message and retry advice are false, and four of the five specified terminal states cannot be represented by Canvas.",
+      "smallestSafeCorrection": "Represent valid non-complete receipts as a distinct terminal result, render status and stopping condition without false retry advice, and reserve aria-invalid for local field validation; add route and component coverage.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "computed",
+      "proofGapRef": "PG-03"
+    },
+    {
+      "id": "F-05",
+      "severity": "MEDIUM",
+      "classification": "interaction",
+      "file": "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "line": 98,
+      "evidence": "AgentStudioPanel receives selection but forwards it only to Site Advice. Teammates shows neither a selection scope nor a disclaimer, while the selection breadcrumb and persistent composer selection chip surround it. The teammate job contains only task text and carries no editId.",
+      "scenario": "With hero.headline selected, a user asks a teammate to make this punchier and reasonably assumes the live selection is part of the assignment, although it is not sent or recorded.",
+      "whyItMatters": "Selection scopes the next prompt elsewhere in the approved Canvas model, making Teammates the one ambiguous exception.",
+      "smallestSafeCorrection": "Pass selection for display only and state that the local assignment does not carry the current element reference. Do not add editId to the closed job contract in this slice.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "observed",
+      "proofGapRef": "PG-01"
+    },
+    {
+      "id": "F-06",
+      "severity": "MEDIUM",
+      "classification": "accessibility",
+      "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "line": 589,
+      "evidence": "The Data class select offers Project internal and Public without a persistent description. The value is only a caller assertion, not content scanning or project access, but the UI never says so. The user is not warned not to paste credentials, cookies, client-sensitive, release, or appointment data.",
+      "scenario": "A user selects Project internal and pastes sensitive client content, believing the label both grants project context and enforces classification.",
+      "whyItMatters": "The boundary depends on user restraint, while the current control implies powers and enforcement the slice does not have.",
+      "smallestSafeCorrection": "Add persistent descriptive safety copy, bind it to the select with aria-describedby, clarify that nothing is scanned or read from the project, and assert it in component and Canvas contracts.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "observed",
+      "proofGapRef": "PG-01"
+    },
+    {
+      "id": "F-07",
+      "severity": "MEDIUM",
+      "classification": "correctness",
+      "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "line": 1,
+      "evidenceSymbols": [
+        "AiTeammatePanel.test.tsx renderToStaticMarkup tests",
+        "AgentStudioPanel.test.tsx renderToStaticMarkup tests",
+        "scripts/e2e/canvas-contract.mjs::exerciseAgentStudioSurface"
+      ],
+      "evidence": "Component tests use static markup and pure helpers. The Agent Studio E2E surface uses pointer-style check, fill, and click APIs; it contains no keyboard.press path. Source and CSS substring assertions do not prove real keyboard operation, focus visibility, busy locking, or stale-result behavior under real events.",
+      "scenario": "A regression in radio arrow navigation, keyboard submit, or live busy locking can pass every current test while acceptance criterion 5 still claims keyboard proof.",
+      "whyItMatters": "The specification requires keyboard operation and visible focus, but current proof is mostly semantic markup rather than behavior.",
+      "smallestSafeCorrection": "Add a real keyboard path to the existing Canvas E2E and assert focus placement/visibility plus working-state locking. Do not add a runtime or test dependency merely for this slice.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "observed",
+      "proofGapRef": "PG-01"
+    },
+    {
+      "id": "F-08",
+      "severity": "LOW",
+      "classification": "accessibility",
+      "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "line": 624,
+      "evidence": "The focused submit control becomes disabled during submission and the component does not intentionally move focus to the result or restore it when the button re-enables.",
+      "scenario": "A keyboard user activates Create proposal and may lose a coherent focus position while the result is announced, making the next keyboard action unpredictable.",
+      "whyItMatters": "The slice promises keyboard operation and visible focus, but submit-to-result focus behavior is neither designed nor tested.",
+      "smallestSafeCorrection": "Keep the submit control focusable with aria-disabled plus the existing synchronous guard, or intentionally focus the result heading after a committed result; prove the chosen behavior with a keyboard assertion.",
+      "authorityDisposition": "inside-current-scope",
+      "evidenceGrade": "inferred",
+      "proofGapRef": "PG-04"
+    }
+  ],
+  "overreachAssessment": "The implementation does not expose apply, provider calls, browser, persistence, scheduling, memory, collaboration, deployment, or release and stays within the read/propose effect boundary. The overreach is presentational: a UI-invented Working lifecycle and Proposed by attribution make a fixed deterministic template feel like a connected teammate. Three natural-language surfaces remain distinct but crowded; the smallest correction is to clarify scope, data handling, and placeholder status rather than remove the panel.",
+  "underreachAssessment": "Inside the authorized slice, the material underreach is represented by F-01, F-02, F-04, F-05, F-06, F-07, and F-08: edge-run correctness, state continuity, terminal-receipt rendering, selection disclosure, data-class semantics, and real keyboard/focus proof. Explicit future capabilities are not counted as underreach.",
+  "duplicationAssessment": "Agent Studio Teammates, Site Advice, and the persistent composer are three adjacent natural-language surfaces. Source inspection found distinct responsibilities: deterministic teammate proposal, legacy site advice/apply, and selection-scoped edit/apply. No control should be removed in this slice; F-03, F-05, and F-06 provide the minimum disambiguation needed to prevent perceived duplication.",
+  "authorityDriftAssessment": "No implemented provider, network, credential, filesystem, shell, browser, mutate, external-effect, authority, background-process, persistent-storage, Deep Agents, LangGraph, LangSmith, deployment, or release capability was found. All eight corrections were classified inside the current exact paths/effects; adding selection to the job payload, real model work, durable history, or any future capability remains outside the correction cage.",
+  "deferredScopeAssessment": "Blocked A4 motion, the draft operating environment, embedded browser, collaboration/presence, provider and model routing, skills, memory, scheduled/background tasks, persistent proposal history, Page IR mutation, deployment, and release remain explicitly deferred. Residual risks that would require those capabilities are recorded but do not authorize implementation and were not scored as defects merely because they are absent.",
+  "whatToKeep": [
+    "authorize-before-body local route behavior and no-store responses",
+    "strict closed assignment schema and read/propose-only effects",
+    "canonical hashing, immutable receipts, budgets, cancellation, and binding",
+    "client-side envelope binding before accepting any result",
+    "no Apply control and no /api/edit call from Teammates",
+    "Site Advice isolation and inner-pane mounted-state continuity",
+    "selection breadcrumb, undo/redo rail, persistent composer, and history isolation",
+    "native labelled form semantics and assignment preservation on errors",
+    "token-only CSS and compact 44px targets"
+  ],
+  "proofGaps": [
+    { "id": "PG-01", "text": "The Fable run was static and did not execute test, typecheck, build, or E2E commands." },
+    { "id": "PG-02", "text": "F-01 incidence was derived from the base64url alphabet rather than measured against stored runs." },
+    { "id": "PG-03", "text": "F-04 reachability was computed rather than executed." },
+    { "id": "PG-04", "text": "F-08 browser focus behavior was inferred and requires a live browser oracle." },
+    { "id": "PG-05", "text": "The reviewer noted prior immutable evidence targets differ from the pushed aggregation commit; this goal will bind fresh evidence to the corrected final target." }
+  ],
+  "residualRisksNotAcceptedAsCurrentCorrections": [
+    "client POST has no timeout or AbortController",
+    "Site Advice still uses the legacy edit endpoint outside this slice",
+    "hidden Site Advice performs a local fetch when Agent Studio opens",
+    "receipts remain process-only by explicit design",
+    "registry skills and briefs are exposed but not rendered",
+    "future injected proposal callbacks remain a trusted in-process seam"
+  ]
+}

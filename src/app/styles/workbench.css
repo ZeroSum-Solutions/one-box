@@ -482,6 +482,13 @@
   background: var(--surface-carbon);
 }
 
+/* Agent Studio stays process-local and mounted across collapse. Explicitly
+   keep the retained panel out of layout rather than relying only on the
+   browser's user-agent [hidden] rule, which an authored display can override. */
+.workbench-panel[hidden] {
+  display: none;
+}
+
 .workbench-panel__header {
   display: flex;
   align-items: flex-start;

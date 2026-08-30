@@ -52,6 +52,8 @@ export function AgentStudioPanelContent({
         className="agent-studio__pane"
         data-agent-studio-pane="teammates"
         hidden={mode !== "teammates"}
+        aria-hidden={mode !== "teammates"}
+        inert={mode !== "teammates"}
       >
         {teammates}
       </div>
@@ -59,6 +61,8 @@ export function AgentStudioPanelContent({
         className="agent-studio__pane"
         data-agent-studio-pane="site-advice"
         hidden={mode !== "site-advice"}
+        aria-hidden={mode !== "site-advice"}
+        inert={mode !== "site-advice"}
       >
         <section
           className="agent-studio__site-advice"
@@ -95,10 +99,23 @@ export function AgentStudioPanel({
       teammatesBusy={teammatesBusy}
       onModeChange={setMode}
       teammates={
-        <LocalAiTeammatePanel
-          runId={runId}
-          onBusyChange={setTeammatesBusy}
-        />
+        <>
+          <p className="agent-studio__boundary">
+            {selection ? (
+              <>
+                Current Canvas selection: {selection.tag} {selection.editId}.
+                It is context only and is not included in this local
+                assignment. No selection data is sent.
+              </>
+            ) : (
+              <>No Canvas selection is included in this local assignment.</>
+            )}
+          </p>
+          <LocalAiTeammatePanel
+            runId={runId}
+            onBusyChange={setTeammatesBusy}
+          />
+        </>
       }
       siteAdvice={
         <AssistantPanel

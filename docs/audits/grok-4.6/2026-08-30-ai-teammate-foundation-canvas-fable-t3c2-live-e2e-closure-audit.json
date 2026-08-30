@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T14:06:48.393Z",
+  "request": {
+    "task": "T3C2 closure for live Canvas Agent Studio keyboard, selection-body, busy-lock, focus, and continuity oracle",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "scripts/e2e/canvas-contract.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 30561
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 9078,
+      "completion_tokens": 26134,
+      "total_tokens": 35212,
+      "cost": 0.174768,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.174768,
+        "upstream_inference_prompt_cost": 0.017964,
+        "upstream_inference_completions_cost": 0.156804
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 25023,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "BLOCK",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio route handler / postStarted / markPostStarted",
+        "scenario": "First teammate POST is missing, mismatches **/api/ai-teammates/*, or the handler throws (postDataJSON failure, seven-key allowlist mismatch, or selectedEditId leak) before markPostStarted(). await postStarted is an unbounded Promise inside the try, this script is not @playwright/test (no default test timeout), and finally therefore never runs. The seven-key / no-editId proofs deadlock instead of failing, the held request is never continued, and unroute is skipped.",
+        "remediation": "Capture postBody/url in the handler, call markPostStarted() immediately on the first POST (before asserts), await the first POST with an explicit timeout (waitForRequest or Promise.race), run allowlist/leak asserts on the test side, and keep releaseHeldPost()+unroute() in finally."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "focusOutline outlineColor denylist on Create placeholder proposal",
+        "scenario": "Keyboard focus on submit with outline-style not none, outline-width not 0px, and a fully transparent color that is not exactly 'transparent' or 'rgba(0, 0, 0, 0)' (e.g. rgba(255, 255, 255, 0), rgb(0 0 0 / 0), hsla(0,0%,0%,0)) passes the nontransparent-visible-focus claim. boxShadow is computed and ignored.",
+        "remediation": "Parse the computed outline (and, if used, box-shadow) alpha and reject alpha===0; do not string-match two serializations."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "assertRetainedAgentStudioInactive Tab loop (8 presses)",
+        "scenario": "After tool switch or View, eight Tabs from the current control never wrap the page tab cycle. A non-inert retained subtree later in tab order is never sampled, so repeated Tab exclusion can pass while keyboard users can still enter the hidden Agent Studio.",
+        "remediation": "Record the focused element after leaving Agent Studio and Tab until that element is reached again (with a hard cap), asserting every stop is outside the retained node."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio View/Edit restore (end of function)",
+        "scenario": "Tool switch re-checks assignment value, Placeholder proposal heading, and Assigned task text. View then Edit only re-checks assignment value and the heading. Result body, role template, selected QA Challenger, and receipt can drop across View/Edit while the continuity oracle still passes.",
+        "remediation": "After restoring Edit, assert the same assignment value, checked teammate, Assigned task text, and result heading that the tool-switch path already requires."
+      },
+      {
+        "severity": "LOW",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "held-request lock asserts in openAgentStudio",
+        "scenario": "While the first POST is held, only the selected radio, Assignment, Data class, and Site advice are proven disabled. The Teammates mode button and the other seven roster radios can stay operable without failing the busy-lock claim.",
+        "remediation": "Assert isDisabled on both mode buttons and on all eight roster radios during the hold."
+      }
+    ],
+    "proof_assessment": "The Agent Studio path does create a fixture, require a live section editId, open the pane, deep-equal the eight-role roster, wait for selection-context/boundary copy, arrow to QA Challenger, Tab through assignment/data class/submit, hold **/api/ai-teammates/* POST, allowlist seven body keys, stringify-check editId in the body, assert no native disabled + aria-disabled, re-Enter with waitForRequest(750)+postCount through result, unroute in finally on completing paths, then check receipt/no-apply and a retained hidden/aria-hidden/inert/0x0 wrapper. Those steps are present, not proven: interceptor failures hang before finally, focus non-transparency is a brittle string denylist, Tab exclusion is a fixed 8-step sample, and View/Edit continuity is weaker than tool switch.",
+    "residual_risks": [
+      "selectedEditId leak via request URL, query, or headers is not checked; only JSON body keys/stringify.",
+      "selectFirstSection still returns clickedId if the breadcrumb never appears; Agent Studio depends on a later boundary wait rather than a hard selection-commit proof.",
+      "assertRetainedAgentStudioInactive uses one-shot assert.equal(count/attributes) with no retry after tool/mode clicks.",
+      "waitForRequest(750) alone is a timing window; postCount after result is the only coverage through commit.",
+      "frames()[1] and button[type=submit] vs accessible name 'Create placeholder proposal' can target the wrong node if a second iframe or submit exists."
+    ]
+  }
+}

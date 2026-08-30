@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
+  AiTeammateIdV1Schema,
   AiTeammateRegistryV1Schema,
   AiTeammateRunReceiptV1Schema,
 } from "../../../lib/contracts";
@@ -20,16 +21,33 @@ const LOCAL_PROPOSAL_BOUNDARIES = [
   "No tools, providers, networks, credentials, or project mutations were used.",
 ] as const;
 const LOWER_SHA256 = /^[a-f0-9]{64}$/;
+const LOCAL_RESPONSE_KEYS = new Set([
+  "schemaVersion",
+  "lane",
+  "runId",
+  "proposal",
+  "receipt",
+]);
 
 export type AiTeammateRosterState =
   | { kind: "loading" }
-  | { kind: "error"; message: string }
-  | { kind: "ready"; teammates: readonly AiTeammateDefinitionV1[] };
+  | {
+      kind: "error";
+      message: string;
+      retrying?: boolean;
+      focusAfterRetry?: number;
+    }
+  | {
+      kind: "ready";
+      teammates: readonly AiTeammateDefinitionV1[];
+      focusAfterRetry?: number;
+    };
 
 export type AiTeammateSubmissionState =
   | { kind: "idle" }
   | { kind: "working" }
-  | { kind: "error"; message: string }
+  | { kind: "error"; origin: "task" | "request"; message: string }
+  | { kind: "terminal"; receipt: AiTeammateRunReceiptV1 }
   | {
       kind: "result";
       proposal: LocalAiTeammateProposal;
@@ -153,9 +171,28 @@ function isLocalEnvelope(data: unknown, runId: string): data is {
   );
 }
 
+function isExactLocalAssignmentEnvelope(
+  data: unknown,
+  runId: string,
+): data is {
+  readonly schemaVersion: 1;
+  readonly lane: "Local foundation";
+  readonly runId: string;
+  readonly proposal: unknown;
+  readonly receipt: unknown;
+} {
+  return Boolean(
+    isLocalEnvelope(data, runId) &&
+      Object.hasOwn(data, "proposal") &&
+      Object.hasOwn(data, "receipt") &&
+      Object.keys(data).length === LOCAL_RESPONSE_KEYS.size &&
+      Object.keys(data).every((key) => LOCAL_RESPONSE_KEYS.has(key)),
+  );
+}
+
 export async function loadAiTeammates(
   runId: string,
-): Promise<AiTeammateRosterState> {
+): Promise<Exclude<AiTeammateRosterState, { kind: "loading" }>> {
   try {
     const response = await fetch(
       `/api/ai-teammates/${encodeURIComponent(runId)}`,
@@ -189,15 +226,31 @@ export async function loadAiTeammates(
 
 function proposalFrom(data: unknown): LocalAiTeammateProposal | null {
   if (!data || typeof data !== "object") return null;
+  const keys = Object.keys(data);
   if (
+    keys.length !== 6 ||
+    !keys.every((key) =>
+      [
+        "schemaVersion",
+        "teammateId",
+        "task",
+        "recommendation",
+        "boundaries",
+        "notice",
+      ].includes(key),
+    ) ||
     !("schemaVersion" in data) ||
     data.schemaVersion !== 1 ||
     !("teammateId" in data) ||
-    typeof data.teammateId !== "string" ||
+    !AiTeammateIdV1Schema.safeParse(data.teammateId).success ||
     !("task" in data) ||
     typeof data.task !== "string" ||
+    data.task.length < 1 ||
+    data.task.length > 2_000 ||
     !("recommendation" in data) ||
     typeof data.recommendation !== "string" ||
+    data.recommendation.length < 1 ||
+    data.recommendation.length > 500 ||
     !("boundaries" in data) ||
     !Array.isArray(data.boundaries) ||
     data.boundaries.length !== 2 ||
@@ -221,6 +274,7 @@ export async function submitAiTeammateAssignment(
   if (trimmed.length < 1 || trimmed.length > 2_000) {
     return {
       kind: "error",
+      origin: "task",
       message: "Write an assignment between 1 and 2,000 characters.",
     };
   }
@@ -245,29 +299,24 @@ export async function submitAiTeammateAssignment(
     if (!response.ok) {
       return {
         kind: "error",
+        origin: "request",
         message: errorFrom(
           data,
           "We could not create this proposal. Review the assignment and try again.",
         ),
       };
     }
-    const proposal =
-      isLocalEnvelope(data, runId) && "proposal" in data
-        ? proposalFrom(data.proposal)
-        : null;
+    const envelope = isExactLocalAssignmentEnvelope(data, runId)
+      ? data
+      : null;
+    const rawProposal = envelope?.proposal;
+    const proposal = rawProposal === null ? null : proposalFrom(rawProposal);
     const receipt = AiTeammateRunReceiptV1Schema.safeParse(
-      isLocalEnvelope(data, runId) && "receipt" in data
-        ? data.receipt
-        : null,
+      envelope?.receipt ?? null,
     );
-    const isBoundResult =
-      proposal &&
+    const isBoundReceipt =
       receipt.success &&
-      proposal.teammateId === teammateId &&
       receipt.data.teammateId === teammateId &&
-      proposal.task === trimmed &&
-      receipt.data.status === "complete" &&
-      receipt.data.stoppingCondition === "proposal-complete" &&
       receipt.data.executionLane === "deterministic-local" &&
       receipt.data.providerCostUsd === 0 &&
       receipt.data.effectClasses.length === 2 &&
@@ -276,20 +325,39 @@ export async function submitAiTeammateAssignment(
       receipt.data.outputSchemaId === LOCAL_PROPOSAL_SCHEMA_ID &&
       LOWER_SHA256.test(receipt.data.jobSha256) &&
       LOWER_SHA256.test(receipt.data.inputSha256) &&
+      receipt.data.retryEligible === false;
+    const isBoundResult =
+      proposal &&
+      isBoundReceipt &&
+      proposal.teammateId === teammateId &&
+      proposal.task === trimmed &&
+      receipt.data.status === "complete" &&
+      receipt.data.stoppingCondition === "proposal-complete" &&
       receipt.data.outputSha256 !== null &&
       LOWER_SHA256.test(receipt.data.outputSha256) &&
-      receipt.data.partialOutputSha256 === null &&
-      receipt.data.retryEligible === false;
-    return isBoundResult
-      ? { kind: "result", proposal, receipt: receipt.data }
-      : {
-          kind: "error",
-          message:
-            "The local teammate returned an invalid receipt. Nothing was applied; try again.",
-        };
+      receipt.data.partialOutputSha256 === null;
+    if (isBoundResult) {
+      return { kind: "result", proposal, receipt: receipt.data };
+    }
+    if (
+      rawProposal === null &&
+      isBoundReceipt &&
+      receipt.data.status !== "complete" &&
+      receipt.data.outputSha256 === null &&
+      receipt.data.partialOutputSha256 === null
+    ) {
+      return { kind: "terminal", receipt: receipt.data };
+    }
+    return {
+      kind: "error",
+      origin: "request",
+      message:
+        "The local teammate returned an invalid receipt. Nothing was applied; try again.",
+    };
   } catch {
     return {
       kind: "error",
+      origin: "request",
       message:
         "We could not create this proposal. Nothing was applied; try again.",
     };
@@ -334,6 +402,7 @@ function LocalAiTeammateRunPanel({
   const submitting = useRef(false);
   const mounted = useRef(true);
   const rosterGeneration = useRef(0);
+  const rosterReloading = useRef(false);
   const submissionGeneration = useRef(0);
   const selectedTeammateRef = useRef<AiTeammateIdV1>("researcher");
   const taskRef = useRef("");
@@ -360,25 +429,34 @@ function LocalAiTeammateRunPanel({
     return () => {
       mounted.current = false;
       rosterGeneration.current += 1;
+      rosterReloading.current = false;
       submissionGeneration.current += 1;
       submitting.current = false;
     };
   }, [runId]);
 
   async function reloadRoster() {
+    if (rosterReloading.current || rosterState.kind !== "error") return;
+    rosterReloading.current = true;
     const request = {
       generation: ++rosterGeneration.current,
       runId,
     };
-    setRosterState({ kind: "loading" });
-    const next = await loadAiTeammates(runId);
-    const current = { generation: rosterGeneration.current, runId };
-    if (shouldCommitAiTeammateRosterRequest({
-      mounted: mounted.current,
-      request,
-      current,
-    })) {
-      setRosterState(next);
+    setRosterState({ ...rosterState, retrying: true });
+    try {
+      const next = await loadAiTeammates(runId);
+      const current = { generation: rosterGeneration.current, runId };
+      if (shouldCommitAiTeammateRosterRequest({
+        mounted: mounted.current,
+        request,
+        current,
+      })) {
+        setRosterState({ ...next, focusAfterRetry: request.generation });
+      }
+    } finally {
+      if (request.generation === rosterGeneration.current) {
+        rosterReloading.current = false;
+      }
     }
   }
 
@@ -463,6 +541,49 @@ function LocalAiTeammateRunPanel({
   );
 }
 
+function AiTeammateReceiptDetails({
+  receipt,
+  rosterState,
+  notice,
+}: {
+  receipt: AiTeammateRunReceiptV1;
+  rosterState: AiTeammateRosterState;
+  notice: string;
+}) {
+  const teammateName =
+    rosterState.kind === "ready"
+      ? (rosterState.teammates.find(({ id }) => id === receipt.teammateId)
+          ?.displayName ?? receipt.teammateId)
+      : receipt.teammateId;
+
+  return (
+    <div className="ai-teammate-receipt">
+      <h3>Run receipt</h3>
+      <p>{notice}</p>
+      <dl>
+        <div><dt>Status</dt><dd>{receipt.status}</dd></div>
+        <div><dt>Stopping condition</dt><dd>{receipt.stoppingCondition}</dd></div>
+        <div><dt>Teammate</dt><dd>{teammateName}</dd></div>
+        <div><dt>Job ID</dt><dd>{receipt.jobId}</dd></div>
+        <div><dt>Job hash</dt><dd>{receipt.jobSha256}</dd></div>
+        <div><dt>Input hash</dt><dd>{receipt.inputSha256}</dd></div>
+        <div><dt>Output hash</dt><dd>{receipt.outputSha256 ?? "None"}</dd></div>
+        <div><dt>Partial output hash</dt><dd>{receipt.partialOutputSha256 ?? "None"}</dd></div>
+        <div><dt>Started</dt><dd>{receipt.startedAt}</dd></div>
+        <div><dt>Stopped</dt><dd>{receipt.stoppedAt}</dd></div>
+        <div><dt>Retry eligible</dt><dd>{receipt.retryEligible ? "Yes" : "No"}</dd></div>
+        <div>
+          <dt>Effects</dt>
+          <dd>{receipt.effectClasses.join(", ").replace(/^./, (letter) => letter.toUpperCase())}</dd>
+        </div>
+        <div><dt>Lane</dt><dd>{receipt.executionLane}</dd></div>
+        <div><dt>Output schema</dt><dd>{receipt.outputSchemaId}</dd></div>
+        <div><dt>External cost</dt><dd>None</dd></div>
+      </dl>
+    </div>
+  );
+}
+
 export function LocalAiTeammatePanelContent({
   rosterState,
   selectedTeammateId,
@@ -488,9 +609,32 @@ export function LocalAiTeammatePanelContent({
 }) {
   const isWorking = submission.kind === "working";
   const hasError = submission.kind === "error";
+  const hasTaskError = hasError && submission.origin === "task";
+  const retryingRoster =
+    rosterState.kind === "error" && rosterState.retrying === true;
+  const retryRosterRef = useRef<HTMLButtonElement>(null);
+  const firstRosterRadioRef = useRef<HTMLInputElement>(null);
+  const restoredRosterFocus = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (
+      rosterState.kind === "loading" ||
+      rosterState.focusAfterRetry === undefined ||
+      restoredRosterFocus.current === rosterState.focusAfterRetry ||
+      retryingRoster
+    ) {
+      return;
+    }
+    restoredRosterFocus.current = rosterState.focusAfterRetry;
+    if (rosterState.kind === "ready") firstRosterRadioRef.current?.focus();
+    if (rosterState.kind === "error") retryRosterRef.current?.focus();
+  }, [retryingRoster, rosterState]);
   const taskDescriptionIds = [
     "ai-teammate-assignment-help",
     ...(hasError ? ["ai-teammate-assignment-error"] : []),
+    ...(isWorking ? ["ai-teammate-assignment-working"] : []),
+  ].join(" ");
+  const dataClassDescriptionIds = [
+    "ai-teammate-data-class-help",
     ...(isWorking ? ["ai-teammate-assignment-working"] : []),
   ].join(" ");
   const canSubmit =
@@ -509,30 +653,47 @@ export function LocalAiTeammatePanelContent({
       <p className="ai-teammate-panel__notice">
         Proposal only — nothing is applied automatically.
       </p>
-
+      <p className="agent-studio__boundary">
+        No AI model or provider is connected in this Local foundation; it
+        returns a fixed deterministic placeholder to prove the read/propose
+        and receipt boundaries.
+      </p>
       {rosterState.kind === "loading" && (
         <p role="status">Loading the local roster…</p>
       )}
       {rosterState.kind === "error" && (
-        <div role="alert">
-          <p>{rosterState.message}</p>
-          <button type="button" className="btn-ghost" onClick={onRetryRoster}>
-            Try again
-          </button>
-        </div>
+        <>
+          <div role="alert">
+            <p>{rosterState.message}</p>
+            <button
+              ref={retryRosterRef}
+              type="button"
+              className="btn-ghost"
+              aria-disabled={retryingRoster || undefined}
+              onClick={() => {
+                if (!retryingRoster) onRetryRoster();
+              }}
+            >
+              Try again
+            </button>
+          </div>
+          {retryingRoster && (
+            <p role="status">Trying the local roster again…</p>
+          )}
+        </>
       )}
       {rosterState.kind === "ready" && (
         <fieldset className="ai-teammate-roster">
           <legend>Choose a teammate</legend>
           <p>
-            {isWorking
-              ? "Working means one bound local proposal is being created. The other teammates remain idle."
-              : "Idle means no process, provider, tools, lease, or budget is active."}
+            Idle means no process, provider, tools, lease, or budget is active.
+            Request progress is reported separately below.
           </p>
           <div className="ai-teammate-roster__grid">
-            {rosterState.teammates.map((teammate) => (
+            {rosterState.teammates.map((teammate, index) => (
               <label className="ai-teammate-role" key={teammate.id}>
                 <input
+                  ref={index === 0 ? firstRosterRadioRef : undefined}
                   type="radio"
                   name="ai-teammate"
                   value={teammate.id}
@@ -544,9 +705,7 @@ export function LocalAiTeammatePanelContent({
                   <strong>{teammate.displayName}</strong>
                   <small>{teammate.specialty}</small>
                   <small>
-                    {isWorking && selectedTeammateId === teammate.id
-                      ? "Working"
-                      : `${teammate.availability[0].toUpperCase()}${teammate.availability.slice(1)}`}
+                    {`${teammate.availability[0].toUpperCase()}${teammate.availability.slice(1)}`}
                     {" · "}
                     {teammate.effectClasses
                       .join(" + ")
@@ -579,7 +738,7 @@ export function LocalAiTeammatePanelContent({
         <textarea
           id="ai-teammate-task"
           aria-describedby={taskDescriptionIds}
-          aria-invalid={hasError || undefined}
+          aria-invalid={hasTaskError || undefined}
           maxLength={2_000}
           disabled={isWorking}
           value={task}
@@ -587,11 +746,15 @@ export function LocalAiTeammatePanelContent({
         />
 
         <label htmlFor="ai-teammate-data-class">Data class</label>
+        <p id="ai-teammate-data-class-help">
+          This is your label for the assignment text; nothing is scanned or
+          read from the project. Enter only public or project-internal content.
+          Do not paste credentials, cookies, client-sensitive information,
+          release data, or appointment details.
+        </p>
         <select
           id="ai-teammate-data-class"
-          aria-describedby={
-            isWorking ? "ai-teammate-assignment-working" : undefined
-          }
+          aria-describedby={dataClassDescriptionIds}
           disabled={isWorking}
           value={dataClass}
           onChange={(event) =>
@@ -618,11 +781,16 @@ export function LocalAiTeammatePanelContent({
             role="status"
             aria-live="polite"
           >
-            Creating a bound local proposal…
+            Creating a fixed deterministic placeholder…
           </p>
         )}
-        <button type="submit" className="btn-primary" disabled={!canSubmit}>
-          {isWorking ? "Creating…" : "Create proposal"}
+        <button
+          type="submit"
+          className="btn-primary"
+          disabled={!canSubmit && !isWorking}
+          aria-disabled={isWorking || undefined}
+        >
+          {isWorking ? "Creating placeholder…" : "Create placeholder proposal"}
         </button>
       </form>
 
@@ -634,9 +802,9 @@ export function LocalAiTeammatePanelContent({
           aria-live="polite"
           aria-atomic="true"
         >
-          <h3 id="ai-teammate-result-heading">Proposal</h3>
+          <h3 id="ai-teammate-result-heading">Placeholder proposal</h3>
           <p>
-            <strong>Proposed by:</strong>{" "}
+            <strong>Role template:</strong>{" "}
             {rosterState.kind === "ready"
               ? (rosterState.teammates.find(
                   ({ id }) => id === submission.proposal.teammateId,
@@ -648,84 +816,34 @@ export function LocalAiTeammatePanelContent({
           </p>
           <p>{submission.proposal.recommendation}</p>
 
-          <div
-            className="ai-teammate-receipt"
-          >
-            <h3>Run receipt</h3>
-            <p>{submission.proposal.notice}</p>
-            <dl>
-              <div>
-                <dt>Status</dt>
-                <dd>{submission.receipt.status}</dd>
-              </div>
-              <div>
-                <dt>Stopping condition</dt>
-                <dd>{submission.receipt.stoppingCondition}</dd>
-              </div>
-              <div>
-                <dt>Teammate</dt>
-                <dd>
-                  {rosterState.kind === "ready"
-                    ? (rosterState.teammates.find(
-                        ({ id }) => id === submission.receipt.teammateId,
-                      )?.displayName ?? submission.receipt.teammateId)
-                    : submission.receipt.teammateId}
-                </dd>
-              </div>
-              <div>
-                <dt>Job ID</dt>
-                <dd>{submission.receipt.jobId}</dd>
-              </div>
-              <div>
-                <dt>Job hash</dt>
-                <dd>{submission.receipt.jobSha256}</dd>
-              </div>
-              <div>
-                <dt>Input hash</dt>
-                <dd>{submission.receipt.inputSha256}</dd>
-              </div>
-              <div>
-                <dt>Output hash</dt>
-                <dd>{submission.receipt.outputSha256 ?? "None"}</dd>
-              </div>
-              <div>
-                <dt>Partial output hash</dt>
-                <dd>{submission.receipt.partialOutputSha256 ?? "None"}</dd>
-              </div>
-              <div>
-                <dt>Started</dt>
-                <dd>{submission.receipt.startedAt}</dd>
-              </div>
-              <div>
-                <dt>Stopped</dt>
-                <dd>{submission.receipt.stoppedAt}</dd>
-              </div>
-              <div>
-                <dt>Retry eligible</dt>
-                <dd>{submission.receipt.retryEligible ? "Yes" : "No"}</dd>
-              </div>
-              <div>
-                <dt>Effects</dt>
-                <dd>
-                  {submission.receipt.effectClasses
-                    .join(", ")
-                    .replace(/^./, (letter) => letter.toUpperCase())}
-                </dd>
-              </div>
-              <div>
-                <dt>Lane</dt>
-                <dd>{submission.receipt.executionLane}</dd>
-              </div>
-              <div>
-                <dt>Output schema</dt>
-                <dd>{submission.receipt.outputSchemaId}</dd>
-              </div>
-              <div>
-                <dt>External cost</dt>
-                <dd>None</dd>
-              </div>
-            </dl>
-          </div>
+          <AiTeammateReceiptDetails
+            receipt={submission.receipt}
+            rosterState={rosterState}
+            notice={submission.proposal.notice}
+          />
+        </section>
+      )}
+
+      {submission.kind === "terminal" && (
+        <section
+          className="ai-teammate-result"
+          aria-labelledby="ai-teammate-terminal-heading"
+          role="alert"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <h3 id="ai-teammate-terminal-heading">
+            Run ended without a placeholder proposal
+          </h3>
+          <p>
+            The receipt below is valid. Nothing was applied, and this run is
+            not eligible for an automatic retry.
+          </p>
+          <AiTeammateReceiptDetails
+            receipt={submission.receipt}
+            rosterState={rosterState}
+            notice="No placeholder proposal was produced or applied."
+          />
         </section>
       )}
     </section>

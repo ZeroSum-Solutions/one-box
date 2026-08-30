@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T17:49:25Z",
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "section": "complete approved Canvas core-interaction integration boundary plus authorized deterministic local AI teammate read-and-propose surface"
+  },
+  "review": {
+    "reviewer": "Fable 5",
+    "requestedModel": "claude-fable-5",
+    "reportedCanonicalModel": "claude-fable-5",
+    "effort": "max",
+    "accessLane": "Claude Code subscription OAuth",
+    "authMethod": "claude.ai",
+    "fallbackConfigured": false,
+    "terminalReason": "completed",
+    "sessionId": "e7cf2b0b-064d-48f6-944c-168f4b60ea0e",
+    "durationApiMs": 763028,
+    "turns": 76,
+    "webSearchRequests": 0,
+    "subagentsSpawned": 0,
+    "permissionDenials": [],
+    "mainModelUsage": {
+      "inputTokens": 338,
+      "cacheCreationInputTokens": 331347,
+      "cacheReadInputTokens": 910810,
+      "outputTokens": 63032,
+      "provider": "firstParty",
+      "costUsdReportedByCli": 10.694606
+    },
+    "captureNote": "Claude Code returned one schema-validated result with no web, delegation, permission denial, or reviewer fallback."
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "closureAssessment": {
+      "F5-FINAL-01": "Behavioral binding structure closed: T3, T4, and T5 contain distinct candidate epochs and the T4 two-file result is 23 tests. Historical prose still contains three later-epoch statements.",
+      "F5-FINAL-02": "Product behavior closed: the run-keyed Agent Studio state survives collapse and the retained subtree is hidden, inert, zero-layout, and excluded from focus at every default width. The no-unintended-retention half lacks a live absence oracle."
+    },
+    "findings": [
+      {
+        "id": "F5-CLOSE-01",
+        "severity": "MEDIUM",
+        "category": "evidence / authority-packet binding",
+        "file": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "lineOrSymbol": "packetDigest",
+        "scenario": "The T5 architecture README correction changes an authority-packet digest input, but packetDigest still binds the T3-era README bytes.",
+        "contractEffect": "The current authority packet is stale and the same-target verify:plans gate is expected to fail; product behavior and scope are unaffected.",
+        "smallestSafeCorrection": "Refresh only packetDigest from the verifier-reported digest, rerun verify:plans and test:plans, and bind the manifest hash and transcript in the next receipt.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "F5-CLOSE-02",
+        "severity": "LOW",
+        "category": "evidence / historical-binding prose",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t3-corrections.md",
+        "lineOrSymbol": "F-02 GREEN cell, executed-proof count, closing binding paragraph",
+        "scenario": "The T3 hash manifest is correctly historical, but surrounding prose records later T4/T5 behavior and test counts under the T3 heading.",
+        "contractEffect": "A reader cannot reconcile the T3-bound candidate with every T3 proof statement; product behavior and authority are unaffected.",
+        "smallestSafeCorrection": "Restore the T3-era 28-test and tool/View-Edit statements, or explicitly mark later amendments and bind them to their later receipts; state that T5 binds the edited T3 ledger bytes.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "F5-CLOSE-03",
+        "severity": "LOW",
+        "category": "evidence / missing oracle for documented guarantee",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "lineOrSymbol": "collapsed Agent Studio state block",
+        "scenario": "The harness proves the retained Agent Studio subtree is inactive but does not prove that all other tool-panel content unmounts while collapsed.",
+        "contractEffect": "The documented no-unintended-retention half is established by source inspection rather than a live oracle; current product behavior is correct.",
+        "smallestSafeCorrection": "Add collapsed-state absence assertions for header, breadcrumb, composer, and every non-retained workbench body child, then rerun all widths.",
+        "acceptanceRecommendation": "ACCEPT"
+      }
+    ],
+    "overreachAssessment": "No capability overreach or authority drift was found. No provider, persistence, background work, model routing, credentials, filesystem, shell, embedded browser, collaboration, deployment, release, blocked A4 motion, or new Page IR mutation was added.",
+    "underreachAssessment": "The complete approved Canvas boundary is represented in current product bytes. Remaining underreach is limited to the three evidence and proof findings above.",
+    "authorityAssessment": "OBX-AUTH-ATF-001 remains unchanged at read plus propose with the same path cage and zero runtime dependencies. The authority defect is a stale digest binding, not expanded scope.",
+    "proofAssessment": "The reviewer read the normative, implementation, test, harness, and receipt surfaces without commands, web, or delegation. It validated the three evidence epochs and the collapse path by source, while independently identifying the stale digest, historical prose drift, and missing non-retained-child absence oracle.",
+    "residualRisks": [
+      "The reviewer did not recompute receipt SHA-256 values because its session was read-only.",
+      "The exact Grok T5B re-audit predates the later all-width receipt amendment.",
+      "Full deterministic, security, independent verification, commit, push, and remote parity gates remain pending."
+    ]
+  }
+}

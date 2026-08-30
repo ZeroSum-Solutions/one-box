@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:32:37.548Z",
+  "request": {
+    "task": "T4A1 exact re-audit: close the four prior component accessibility findings",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4a1-component-accessibility-closure-audit.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json"
+    ],
+    "diffBytes": 64085
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 21225,
+      "completion_tokens": 26003,
+      "total_tokens": 47228,
+      "cost": 0.198276,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.198276,
+        "upstream_inference_prompt_cost": 0.042258,
+        "upstream_inference_completions_cost": 0.156018
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 25601,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The four prior T4A1 items are closed on this candidate. origin is required and splits task vs request; aria-invalid is only origin===\"task\"; submitAiTeammateAssignment(\"   \") returns origin:\"task\" with fetch never called; request mismatches assert origin:\"request\". Roster retry keeps Try again mounted, sets aria-disabled without native disabled, ref-gates duplicates before state, and renders role=status as a sibling after the alert close. Focus restore is useLayoutEffect plus restoredRosterFocus generation ref (one-shot, before paint); failed retry focuses the still-mounted button, success focuses the first radio. Unit file still cannot execute that effect (renderToStaticMarkup only), but the execution-receipt R-03 oracle records held retry, duplicate-click GET suppression, failed-retry refocus, and successful-retry first-radio focus. That matches the code paths; treat it as evidence of live coverage, not as a substitute for a DOM unit lock on useLayoutEffect.",
+    "residual_risks": [
+      "createProposal still returns on !task.trim() and the submit control is disabled when trim is empty, so origin:\"task\" / aria-invalid is unreachable through the real panel path",
+      "allowlisted tests never click Try again, never set focusAfterRetry, and cannot fail if useLayoutEffect is reverted to useEffect",
+      "focusAfterRetry is never cleared from roster state (mitigated only by the Content ref)",
+      "hung roster GET leaves error+retrying and aria-disabled Try again indefinitely",
+      "empty ready roster: first radio focus is a silent no-op after the retry button unmounts",
+      "same-commit alert mutation (aria-disabled) may still compete with the polite retry status in some AT",
+      "working submit is natively enabled (disabled={!canSubmit && !isWorking}) and relies on canSubmit plus submitting.current"
+    ]
+  }
+}

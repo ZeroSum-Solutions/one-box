@@ -17,6 +17,44 @@ describe("AgentStudioPanel", () => {
     expect(html).toContain('aria-pressed="false">Site advice');
     expect(html).toContain("Local foundation");
     expect(html).toContain("Loading the local roster…");
+    expect(html).toContain(
+      'data-agent-studio-pane="site-advice" hidden="" aria-hidden="true" inert=""',
+    );
+    expect(html).not.toContain(
+      'data-agent-studio-pane="teammates" hidden=""',
+    );
+  });
+
+  it("shows the current selection only as excluded context for teammate assignments", () => {
+    const html = renderToStaticMarkup(
+      <AgentStudioPanel
+        runId="run-demo"
+        selection={{
+          editId: "hero.headline",
+          tag: "h1",
+          text: "Build trust faster",
+          behavior: "text",
+        }}
+      />,
+    );
+    const teammatesStart = html.indexOf(
+      'data-agent-studio-pane="teammates"',
+    );
+    const siteAdviceStart = html.indexOf(
+      'data-agent-studio-pane="site-advice"',
+    );
+    const teammatesHtml = html.slice(teammatesStart, siteAdviceStart);
+
+    expect(teammatesHtml).toContain(
+      "Current Canvas selection: h1 hero.headline.",
+    );
+    expect(teammatesHtml).toContain("not included in this local assignment");
+    expect(teammatesHtml).toContain("No selection data is sent");
+    expect(teammatesHtml.match(/hero\.headline/g)).toHaveLength(1);
+    expect(teammatesHtml).not.toMatch(
+      /<(?:input|textarea|select|button)[^>]*(?:hero\.headline|data-edit-id)/,
+    );
+    expect(teammatesHtml).not.toContain("Build trust faster");
   });
 
   it("keeps both modes mounted while hiding the inactive pane", () => {
@@ -38,7 +76,7 @@ describe("AgentStudioPanel", () => {
     );
     expect(html).toContain("Local teammate surface");
     expect(html).toContain(
-      'data-agent-studio-pane="teammates" hidden=""',
+      'data-agent-studio-pane="teammates" hidden="" aria-hidden="true" inert=""',
     );
     expect(html).toContain('data-agent-studio-pane="site-advice"');
     expect(html).not.toContain(

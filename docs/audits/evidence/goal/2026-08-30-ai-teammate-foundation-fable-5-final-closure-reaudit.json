@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:26:06Z",
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "section": "complete approved Canvas core-interaction integration boundary plus authorized deterministic local AI teammate read-and-propose surface"
+  },
+  "review": {
+    "reviewer": "Fable 5",
+    "requestedModel": "claude-fable-5",
+    "reportedCanonicalModel": "claude-fable-5",
+    "effort": "max",
+    "accessLane": "Claude Code subscription OAuth",
+    "authMethod": "claude.ai",
+    "fallbackConfigured": false,
+    "terminalReason": "completed",
+    "sessionId": "ec4b26c4-0db8-4582-a81d-521590cc0aba",
+    "durationApiMs": 776758,
+    "turns": 108,
+    "webSearchRequests": 0,
+    "subagentsSpawned": 0,
+    "permissionDenials": [],
+    "mainModelUsage": {
+      "inputTokens": 592,
+      "cacheCreationInputTokens": 400217,
+      "cacheReadInputTokens": 2157856,
+      "outputTokens": 68945,
+      "provider": "firstParty",
+      "costUsdReportedByCli": 13.617464
+    },
+    "captureNote": "Claude Code returned one schema-validated result with no web, delegation, permission denial, or reviewer fallback."
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "closureAssessment": {
+      "F5-CLOSE-01": "CLOSED. The T6A-only receipt, current verifier, manifest, and clean exact-Grok re-audit consistently prove the digest-only authority packet refresh with unchanged read-plus-propose authorization.",
+      "F5-CLOSE-02": "PARTIALLY CLOSED. F-02 and the 28-test epoch were restored, but T3 ledger rows F-03, F-06, and F-07 still describe live oracles first added in T4.",
+      "F5-CLOSE-03": "CLOSED. Current source and live all-width proof establish exactly one retained inactive Agent Studio subtree and zero other workbench content while collapsed, with continuity after reopen."
+    },
+    "findings": [
+      {
+        "id": "F5-RE-01",
+        "severity": "LOW",
+        "category": "evidence / historical-binding prose",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t3-corrections.md",
+        "lineOrSymbol": "F-03, F-06, and F-07 GREEN cells",
+        "scenario": "The T3 ledger still attributes three live oracles to the post-T3/pre-T4 epoch even though accepted R-03/R-06 evidence proves they entered during T4: eight Idle-row counting, exact live help-text plus aria-describedby resolution, and failed/successful roster-retry focus.",
+        "contractEffect": "F5-CLOSE-02 remains partially open because three T3 proof statements cannot be reconciled with the T3-bound harness and source hashes; product behavior and authority are unaffected.",
+        "smallestSafeCorrection": "Edit only the three GREEN cells to describe T3-era component/unit proof and the T3 live boundary/no-apply and completion-focus oracles, leaving the hash manifest and every product/test/harness byte untouched. Bind the edited ledger in a later receipt and exact-Grok re-audit it with the R-03/R-06 evidence pack.",
+        "acceptanceRecommendation": "ACCEPT"
+      }
+    ],
+    "overreachAssessment": "No capability overreach or authority drift was found.",
+    "underreachAssessment": "The complete product boundary is represented and earlier product findings remain closed. The only remaining underreach is the T3 evidence chronology finding above.",
+    "authorityAssessment": "OBX-AUTH-ATF-001 remains exactly read plus propose with the same path cage and zero runtime dependencies; the current packet digest is internally consistent. The finding is evidence-only.",
+    "proofAssessment": "The reviewer read current normative, product, test, harness, and audit surfaces without commands, web, or delegation. It closed the authority and collapse findings and derived F5-RE-01 by comparing the current T3 cells with the accepted R-03/R-06 T4 reproduction artifacts.",
+    "residualRisks": [
+      "Receipt hashes and command results were internally checked but not recomputed or re-executed in the read-only reviewer session.",
+      "Full current-tree deterministic, security, independent verification, commit, push, and remote parity gates remain pending."
+    ]
+  }
+}

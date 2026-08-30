@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T17:19:02.302Z",
+  "request": {
+    "task": "T5B exact closure: F5-FINAL-02 Agent Studio collapse continuity",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t5-corrections.json",
+      "scripts/e2e/canvas-contract.mjs",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-audit.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-disposition.json"
+    ],
+    "diffBytes": 82099
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24038,
+      "completion_tokens": 27946,
+      "total_tokens": 51984,
+      "cost": 0.21556,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.21556,
+        "upstream_inference_prompt_cost": 0.047884,
+        "upstream_inference_completions_cost": 0.167676
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 27286,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/Workbench.tsx",
+        "line": "section.workbench-panel hidden={workbenchCollapsed} (retained wrapper still nested inside)",
+        "scenario": "Collapse used to omit `.workbench-panel` from the DOM, which is what gives the preview the full viewport (compact default is collapsed). This slice keeps the panel mounted and only sets the HTML `hidden` attribute. Author `display` on `.workbench-panel` (flex/grid/block) overrides non-!important UA `[hidden] { display: none }`, so the rail can still be followed by a full-width empty panel. `assertRetainedAgentStudioInactive` only 0×0-checks `[data-retained-agent-studio]` (a classless inner div) and never asserts `.workbench-panel` computed `display`, box, or detachment. Continuity assertions can pass while compact collapse is regressed.",
+        "remediation": "Hoist the run-keyed retained Agent Studio wrapper to a sibling of `section.workbench-panel` under the aside; restore unmounting the panel when `workbenchCollapsed`. Keep the wrapper `hidden`/`aria-hidden`/`inert` when inactive or collapsed. In the live collapse step, assert `.workbench-panel` is detached (or `getComputedStyle(panel).display === \"none\"` and 0×0) in addition to the retained-wrapper checks."
+      }
+    ],
+    "proof_assessment": "The live oracle in `openAgentStudio` is reachable from `workbench-agent-studio` and non-vacuous for process-local continuity: after collapse/reopen it re-reads assignment text, selected teammate, proposal heading/body, and receipt heading from the same mounted tree, and the tab-cycle helper fails if focus enters that tree. Isolation proof is only on the inner retained node (attribute presence + 0×0 + Tab), not on the collapsed panel that this change left mounted. Run-change reset is a source grep (`key={props.runId}`, `<Workbench key={id}`), not a live two-run step. Claimed verification is self-attested 1440 only; 768/390 are not in the proof. No product persistence/provider/route/mutation/A4 expansion in the Workbench change.",
+    "residual_risks": [
+      "Compact 768/390 live execution is still pending; collapse layout failure is most likely there.",
+      "`hasOpenedAgentStudio` is not run-keyed; reset depends on preview `Workbench key={id}` plus `AgentStudioPanel key={props.runId}`.",
+      "`WorkbenchAgentStudio.test.tsx` is string-matching only and cannot catch runtime collapse/a11y failures.",
+      "Tab-cycle inert proof is Chromium/Playwright-specific and is not independent of `hidden`/display:none.",
+      "The collapse oracle is nested behind a long roster-retry/POST/keyboard setup; earlier failure skips F5-FINAL-02.",
+      "Site Advice remains a mounted, separately governed mutation surface inside the retained tree."
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:26:06Z",
+  "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-reaudit.json",
+  "authorization": "OBX-AUTH-ATF-001",
+  "dispositions": [
+    {
+      "id": "F5-RE-01",
+      "decision": "ACCEPT",
+      "reason": "The R-03 and R-06 reproduction artifacts establish that the three named live oracles were introduced in T4, so T3 must not claim them as hash-bound T3 proof."
+    }
+  ],
+  "scopeDecision": "Correct only historical evidence prose and its later receipt binding; no product, test, harness, authority, or capability change is authorized."
+}

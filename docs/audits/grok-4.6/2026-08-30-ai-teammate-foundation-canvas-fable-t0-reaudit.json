@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T10:58:38.728Z",
+  "request": {
+    "task": "T0 corrected Canvas Agent Studio audit scope, authority cage, and baseline",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-baseline-runs.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md"
+    ],
+    "proofs": [],
+    "diffBytes": 9047
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 3865,
+      "completion_tokens": 18771,
+      "total_tokens": 22636,
+      "cost": 0.114596,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 3840,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.114596,
+        "upstream_inference_prompt_cost": 0.00197,
+        "upstream_inference_completions_cost": 0.112626
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 18187,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md",
+        "line": "23-26",
+        "scenario": "T0 claims to freeze named Canvas contracts A1, A2, A3, B1, B2, B3, G1–G9, and M1 from docs/specs/2026-08-16-canvas-upgrade.md as indexed by docs/plans/one-box-master/02-canvas/index.md. Those IDs are bound only by name plus the repo commit/tree; unlike Local Canvas and API surface they have no file or section SHA-256. An auditor cannot detect a later subsection swap or a wrong A/B/G/M byte range, so the named-criteria half of the required hash bind is missing.",
+        "remediation": "At tree 7a1a54e421d12cf7e5cc5a1f42877d8ffe6750b5 record SHA-256 for canvas-upgrade.md, the canvas index, and each named criterion’s exact inclusive/exclusive byte range (encoding and trailing-newline rule stated)."
+      }
+    ],
+    "proof_assessment": "Byte counts that can be recomputed from embedded transcripts match the artifact (verify:plans stdout 247; focused vitest stdout 698). Exit 0, shared cwd, spawnSync argv, three transcriptSha256 fields, authority-packet SHA-256, and baselineEvidence:false for the zsh [id] glob are internally consistent. Tree/section/transcript SHA-256 values and OBX-AUTH-ATF-001 itself are not recomputable from this slice; they are claims, not checked oracles. Named Canvas criteria are not section-hashed. The path cage is not self-contained. The transcript preimage function is not uniquely specified.",
+    "residual_risks": [
+      "Section, tree, authority-packet, and transcript SHA-256 values cannot be verified without re-reading the frozen tree or re-running the commands.",
+      "npm run still may invoke an inner script shell even when the outer spawnSync sets shell false.",
+      "test:plans is bound only by a 9183-byte hash plus an editorial tail, so the 48/48 oracle cannot be inspected from the receipt.",
+      "Focused 8-file/37-test baseline does not execute the three Canvas E2E harnesses listed in the inventory, so named A/B/G/M contracts are scoped on paper only.",
+      "Prohibited persistent-storage versus the retained persistent selection-scoped composer can still be misread as a write grant if the dependency disclaimer is ignored."
+    ]
+  }
+}

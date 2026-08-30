@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T12:42:28.058Z",
+  "request": {
+    "task": "T3B exact Fable corrections for Local teammate presentation, receipt adapter, data safety, and submit state machine",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx"
+    ],
+    "proofs": [],
+    "diffBytes": 51902
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 14637,
+      "completion_tokens": 20547,
+      "total_tokens": 35184,
+      "cost": 0.152364,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.152364,
+        "upstream_inference_prompt_cost": 0.029082,
+        "upstream_inference_completions_cost": 0.123282
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 19546,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "submitAiTeammateAssignment",
+        "scenario": "A 200 local envelope with a schema-valid non-complete receipt (null output/partial hashes, bound lane/effects/cost/retryEligible/teammateId) but a non-null proposal that fails proposalFrom (wrong notice/boundaries, extra garbage object, or non-object) is coerced to proposal===null because proposalFrom returns null. That path returns kind:\"terminal\" instead of invalid. Missing `proposal` key is likewise treated as null. Concrete input: POST success body `{..., proposal: {schemaVersion:1}, receipt: budget-exhausted/null hashes/...}` → UI shows a valid terminal receipt, not the invalid-receipt error. This breaks exact schema binding and can hide a malformed complete-ish payload behind the non-complete adapter.",
+        "remediation": "Treat terminal only when the envelope is local and `proposal` is strictly JSON null (and, if the contract has them, output/partial strictly null). If `proposal` is present and non-null, parse with proposalFrom; parse failure or any non-complete+proposal combination must return the invalid-receipt error. Do not use proposalFrom(null)/missing-key as success."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "LocalAiTeammatePanel / LocalAiTeammatePanelContent `selection`",
+        "scenario": "The allowlisted change adds `selection?: PreviewSelection`, imports `../previewState`, and interpolates `selection.tag` and `selection.editId` into Agent Studio. Criterion forbids adding a selection payload (and parent is not on the allowlist, so the truthy branch is dead in this slice). Even with “not sent” copy, selection identifiers are now a panel input/UI surface the fables did not ask to add.",
+        "remediation": "Remove the PreviewSelection import and prop. If honesty copy is required, keep a static sentence that no Canvas selection is included in the local assignment; never accept or render selection fields."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "renders a valid non-complete receipt without marking the assignment invalid / announces a terminal proposal receipt / locks every assignment control",
+        "scenario": "Oracles can pass while F-03/F-08/schema binding fail. Terminal test uses `toContain(\"No\")` which already matches “No AI model”, “No mutation”, “None”, “No placeholder…”, so retryEligible is not proven. Complete-result test never requires the “Placeholder proposal” heading or the no-model notice on the result surface, so a real-model “Proposal”/“Proposed by” regression still passes. No test feeds a non-null invalid proposal with a non-complete receipt (the HIGH path). Working submit only checks `not.toContain(\"disabled=\\\"\\\"\")`, so `disabled=\"true\"`/`disabled=\"disabled\"` would false-green F-08. Duplicate-guard (`submitting.current`) and focus-stability are untested (static markup).",
+        "remediation": "Assert exact terminal dl text (e.g. Retry eligible → No), exact result heading “Placeholder proposal” plus the no-model notice in result/working/error, adapter cases for missing proposal key and non-null unparsable proposal with non-complete receipts expecting kind:\"error\", and the working submit tag as natively enabled (`<button type=\"submit\"` without any disabled attr) with aria-disabled=\"true\". Add a synchronous double-submit unit around createProposal/submitting."
+      }
+    ],
+    "proof_assessment": "No proof artifacts were supplied beyond the diff. Assertions in AiTeammatePanel.test.tsx were treated as claims, not evidence; several are substring-weak and never execute createProposal, unmount/abort, or the invalid-proposal+non-complete adapter path.",
+    "residual_risks": [
+      "AiTeammateRunReceiptV1Schema is outside the slice; if non-complete statuses may legally set retryEligible true or non-null partial/output hashes, isBoundReceipt still classifies them as invalid (false invalid) or, conversely, any Zod-success status other than complete is labeled a valid terminal run.",
+      "In-flight fetch is not aborted on unmount; only generation/mounted commit guards apply.",
+      "Focus stability when the focused textarea/select/radio becomes disabled on submit is browser-dependent and unverified."
+    ]
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T13:52:14.871Z",
+  "request": {
+    "task": "T3C1A final closure for Agent Studio mode isolation and display-only Canvas selection context",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-selection-display-boundary-proof.md"
+    ],
+    "diffBytes": 8015
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 3392,
+      "completion_tokens": 24516,
+      "total_tokens": 27908,
+      "cost": 0.153688,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.153688,
+        "upstream_inference_prompt_cost": 0.006592,
+        "upstream_inference_completions_cost": 0.147096
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 24183,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The slice matches the proof’s call-site claims: LocalAiTeammatePanel is invoked with only runId and onBusyChange; tag/editId render once in a teammates <p> with not-included/not-sent copy; selection.text is not interpolated there; AssistantPanel still receives the full selection object. The LAT SHA-256/rg/typecheck statements are not independently reproducible from this allowlist (LocalAiTeammatePanel.tsx is absent). Vitest 20/20 and POST/tab-exclusion are asserted elsewhere, not by this SSR file. Treat the hash note as supporting evidence for the missing prop, not as runtime proof that assignment code cannot observe sibling DOM or a mounted AssistantPanel.",
+    "residual_risks": [
+      "SSR substring oracles never assert the active pane lacks inert/aria-hidden=\"true\"; they also would not catch hidden=\"false\"/inert=\"false\" (HTML presence semantics) if React serialization changed.",
+      "disabled={teammatesBusy} locks the external seg-pills but, if busy flips while a mode button is focused, typical browsers move focus to body; the busy test only counts disabled attributes.",
+      "Both panes stay mounted, so AssistantPanel still holds full selection (including text) while Teammates shows “No selection data is sent.” Background use of that prop is outside this slice.",
+      "Default-mode and form-control checks cannot exercise client mode switches, focus, or textarea/button children; attribute-order toContain checks are coupled to React SSR serialization."
+    ]
+  }
+}

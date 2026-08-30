@@ -21,6 +21,22 @@ const LANE_LABEL = "Local foundation";
 const PROPOSAL_SCHEMA_ID = "one-box.proposal.local-foundation.v1";
 const PROPOSAL_ONLY_NOTICE =
   "Proposal only — no project or site changes were applied.";
+const NO_STORE_HEADERS = { "Cache-Control": "no-store" } as const;
+const NORMALIZED_LEADING_RUN_ID_PREFIX =
+  "normalized-leading-run-id-0000000000000000-";
+
+function teammateProjectId(runId: string): string {
+  if (/^[A-Za-z0-9]/.test(runId)) return runId;
+
+  // Run IDs are ASCII and at most 40 characters. Hex is reversible, and the
+  // 43-character prefix makes every normalized value longer than any external
+  // run ID, so this mapping cannot alias an already-legal ID. The longest
+  // result is 123 characters, inside the teammate contract's 128-char bound.
+  const encoded = Array.from(runId, (character) =>
+    character.charCodeAt(0).toString(16).padStart(2, "0"),
+  ).join("");
+  return `${NORMALIZED_LEADING_RUN_ID_PREFIX}${encoded}`;
+}
 
 const LocalAssignmentV1Schema = z
   .object({
@@ -53,12 +69,15 @@ const LocalProposalV1Schema = z
 function unauthorizedResponse(): Response {
   return Response.json(
     { error: "Unauthorized local API request" },
-    { status: 403 },
+    { status: 403, headers: NO_STORE_HEADERS },
   );
 }
 
 function invalidRunResponse(): Response {
-  return Response.json({ error: "Invalid run id" }, { status: 400 });
+  return Response.json(
+    { error: "Invalid run id" },
+    { status: 400, headers: NO_STORE_HEADERS },
+  );
 }
 
 function invalidAssignmentResponse(): Response {
@@ -67,7 +86,7 @@ function invalidAssignmentResponse(): Response {
       error:
         "Assignment must name one teammate, one bounded task, public or project-internal data, explicit read/propose effects, and empty parent and child tool grants.",
     },
-    { status: 400 },
+    { status: 400, headers: NO_STORE_HEADERS },
   );
 }
 
@@ -88,7 +107,7 @@ export async function GET(
       runId: parsedRunId.data,
       teammates: listAiTeammates(),
     },
-    { headers: { "Cache-Control": "no-store" } },
+    { headers: NO_STORE_HEADERS },
   );
 }
 
@@ -124,7 +143,7 @@ export async function POST(
   const job = {
     schemaVersion: 1 as const,
     jobId: `job-${assignment.teammateId}-${inputSha256.slice(0, 16)}`,
-    projectId: parsedRunId.data,
+    projectId: teammateProjectId(parsedRunId.data),
     taskId: `task-${inputSha256.slice(0, 20)}`,
     actorId: "local-owner",
     teammateId: assignment.teammateId,

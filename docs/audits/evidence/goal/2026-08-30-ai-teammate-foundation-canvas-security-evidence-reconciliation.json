@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T19:28:00Z",
+  "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+  "authorization": "OBX-AUTH-ATF-001",
+  "status": "AUTHORIZED_PENDING_FINAL_VERIFICATION",
+  "inputs": {
+    "derivedWriteAuthorization": {
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-packet-digest-derived-write-authorization.json",
+      "sha256": "5aa48df3c780dc530a48bf6c699c185dc257510c9e76bb2638dbcad46b8a5fa2",
+      "status": "authorized",
+      "allowedPath": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "allowedJsonPointers": ["/packetDigest"]
+    },
+    "securityReport": {
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-review.json",
+      "sha256": "03bc892b2a514958c3c39cfc09e60f6e1aa2e65473d3cf715194865759ff9580",
+      "validator": "PASS"
+    },
+    "commandEvidence": {
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-command-evidence.md",
+      "sha256": "5d3613fcd212db97445414b3293488b92a64c750a3514ebc463f31f73b2193d4"
+    },
+    "exactGrokAudit": {
+      "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-final-security-corrected-evidence-audit.json",
+      "sha256": "bd1a596333d176d51d51f012f9703f309c1a5488310583eb4186c9cc5c05d1b5",
+      "model": "x-ai/grok-4.6",
+      "effort": "high",
+      "verdict": "FINDINGS",
+      "findingCount": 9
+    },
+    "independentVerification": {
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-independent-verification.json",
+      "sha256": "5b4150d7f9e0c769277cc212d5a6dfd54d4d17a31a0479d39ba0d14c35ffdbc9",
+      "verdict": "PASS"
+    },
+    "sharedFileDiffReview": {
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-shared-file-diff-review.json",
+      "sha256": "f36050631599fa0c828fcde63c0c55d77ce4c9fcb8491510bbb0c22b136ae149",
+      "verdict": "PASS"
+    }
+  },
+  "dispositions": [
+    {
+      "finding": "OBX-AUTH-ATF-001 path-cage and authority-capability breach",
+      "status": "CLOSED_BY_EXPLICIT_OWNER_AUTHORITY",
+      "evidence": "The owner explicitly authorized the exact authority-manifest path only for deterministic packetDigest refreshes after already-authorized input changes. The bound authorization permits only /packetDigest, requires the verifier-computed value, and prohibits every other manifest change.",
+      "next": "Recompute the digest, prove the single-field hunk, and include this authorization in final independent and exact-model review."
+    },
+    {
+      "finding": "exactModel gate failed",
+      "status": "CLOSED_AS_EXECUTION_GATE",
+      "evidence": "A fresh exact x-ai/grok-4.6 high-effort audit is now bound above. Its FINDINGS verdict remains authoritative and prevents closure until corrections and a clean re-audit."
+    },
+    {
+      "finding": "independentVerification gate unmet",
+      "status": "CLOSED",
+      "evidence": "The separately named read-only verifier record binds product-source hashes, every Canvas criterion, deterministic gates, live widths, residuals, and PASS."
+    },
+    {
+      "finding": "Census is circular and not independently captured",
+      "status": "CLOSED",
+      "evidence": "Command evidence CMD-005 lines 40 through 128 reproduces all 83 ordered git diff paths and asserts byte equality with both report arrays."
+    },
+    {
+      "finding": "Prohibited-capability scan is fail-open and under-scoped",
+      "status": "CLOSED",
+      "evidence": "Command evidence CMD-006 lines 130 through 143 records the fail-closed wrapper, every changed runtime/test/E2E/shared implementation path, expanded sink vocabulary, complete raw-hit classification, and no unreviewed production sink."
+    },
+    {
+      "finding": "sharedFileDiffReviewRequired not evidenced",
+      "status": "CLOSED",
+      "evidence": "The bound shared-file review covers all five changed allowedExactPath shared files with before/after SHA-256 values, numstat, hunk responsibility, and PASS."
+    },
+    {
+      "finding": "Coverage citations bind wrong lines or wrong files",
+      "status": "CLOSED",
+      "evidence": "The validated report now points prompt injection to command evidence line 34, export to 36, audit-only classification to 37, focused tests to 23, the complete capability scan to 132, and each changed test classification to its own assertion file."
+    },
+    {
+      "finding": "targetChangeInvalidatesReview is not closed",
+      "status": "OPEN_UNTIL_FINAL_AUTHORIZED_TARGET",
+      "evidence": "Product-source hashes remain unchanged and are bound by independent verification; evidence-only corrections continue. A final immutable target, current candidate census, scans, and exact-model clean audit must be captured only after the owner-authority decision."
+    },
+    {
+      "finding": "Validator claim is unreproducible",
+      "status": "CLOSED",
+      "evidence": "CMD-007 records the exact report path, validator path, validator SHA-256 78a0a6ffeefaae80fc710ded11db723b3b3edcde1776bd143728e67ffe7bc9f4, exit 0, and exact OK output."
+    }
+  ],
+  "runtimeSecurity": {
+    "verdict": "PASS",
+    "note": "Independent security review found no exploitable runtime defect. The current failure is governance authorization plus not-yet-final evidence closure."
+  },
+  "finalClosureRequirements": [
+    "one immutable authorized target with complete current path and hash census",
+    "candidate-set and final receipt secrets scans",
+    "fresh independent evidence-coherence verification",
+    "fresh exact x-ai/grok-4.6 security audit returning CLEAN",
+    "conventional commit, push, and remote parity"
+  ]
+}

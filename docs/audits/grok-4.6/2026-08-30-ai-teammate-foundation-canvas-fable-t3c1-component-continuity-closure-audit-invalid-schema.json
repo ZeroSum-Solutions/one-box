@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T13:26:08Z",
+  "request": {
+    "task": "T3C1 closure for retained Agent Studio component state and display-only selection context",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0"
+  },
+  "transport": {
+    "clientTimeoutMs": 600000,
+    "result": "invalid-verdict-schema",
+    "verdictReturned": false,
+    "note": "The provider returned content, but it did not match the required verdict/findings/proof_assessment/residual_risks JSON contract. The harness rejected it and wrote no audit. This is unavailable evidence, not a verdict; the unchanged candidate is decomposed again."
+  }
+}

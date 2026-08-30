@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:42:01Z",
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "bindingNote": "The hashes below bind the post-T4, pre-F5-final candidate. Later F5-FINAL corrections are bound by a separate T5 receipt.",
+    "candidateSha256": {
+      "scripts/e2e/canvas-contract.mjs": "fe83fcedd849ec97753ac94cfba991fd45bce46d2494ae747f6b7be0e5e0c46c",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx": "5a537f2da5ea750e85d871e69cfe71c31f3cfc8d213f15a038f1632920e28cf8",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx": "680aa80fd11bac06fc83d0766fb2aab901281021080f7275f87923549ef4a84a",
+      "src/app/api/ai-teammates/[id]/route.ts": "d9a512f0bfe53f9d4ed96fb8be30c6b2a4db922c04b7898d572f1156f285d7b5",
+      "src/app/api/ai-teammates/[id]/route.test.ts": "f69ba64037ad49680291d19dfda6671f0ded69c40fd535775152393daa39738d"
+    }
+  },
+  "red": [
+    {
+      "finding": "R-01",
+      "command": "npx vitest run src/components/preview/AiTeammate/AiTeammatePanel.test.tsx src/app/api/ai-teammates/[id]/route.test.ts",
+      "observed": "request-origin invalid receipt kept aria-invalid=true and lacked origin; two component assertions failed"
+    },
+    {
+      "finding": "R-03",
+      "command": "WIDTHS=1440 ONEBOX_BASE_URL=http://127.0.0.1:8791 npm run test:e2e:canvas-contract",
+      "observed": "workbench-agent-studio@1440: roster retry control unmounted while loading; 0 !== 1"
+    },
+    {
+      "finding": "R-07",
+      "command": "same focused Vitest run",
+      "observed": "three 403/400 checks received cache-control=null instead of no-store"
+    }
+  ],
+  "green": [
+    {
+      "command": "npm test -- --run src/components/preview/AiTeammate/AiTeammatePanel.test.tsx src/components/preview/AiTeammate/AgentStudioPanel.test.tsx src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx 'src/app/api/ai-teammates/[id]/route.test.ts'",
+      "result": "4 files passed; 32 tests passed",
+      "covers": ["R-01", "R-05", "R-07", "R-08"]
+    },
+    {
+      "command": "npx vitest run src/components/preview/AiTeammate/AgentStudioPanel.test.tsx src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "result": "2 files passed; 23 tests passed",
+      "covers": ["selection display boundary", "R-01"]
+    },
+    {
+      "command": "npm run typecheck",
+      "result": "Next route type generation and tsc --noEmit passed",
+      "covers": ["R-01", "R-03", "R-05", "R-07", "R-08"]
+    },
+    {
+      "command": "WIDTHS=1440 ONEBOX_BASE_URL=http://127.0.0.1:8791 npm run test:e2e:canvas-contract",
+      "result": "exit 0; workbench-agent-studio@1440 passed; axe found no serious/critical violations; final summary: No contract or accessibility problems detected.",
+      "expectedConsole": [
+        "fixture-generated favicon 404",
+        "intentional initial and first-retry roster 503 responses used to exercise both recovery outcomes"
+      ],
+      "explicitOracles": {
+        "R-02": "focused QA radio + Enter produced no matching POST request within 500 ms, postCount remained 0, and document.activeElement remained the QA radio; subsequent submit produced exactly one POST through result commit",
+        "R-03": "focused Try again remained mounted, non-native-disabled, and aria-disabled while the first user-triggered GET was held; a forced duplicate click did not add a GET; the failed retry restored focus to Try again and cleared aria-disabled; the second held retry succeeded and focused the first restored roster radio",
+        "R-06": "exactly eight visible Idle · Read + propose rows; exact caller-asserted/no-scan sensitive-data help; data-class aria-describedby includes ai-teammate-data-class-help"
+      },
+      "covers": ["R-02 rejection", "R-03", "R-06"]
+    }
+  ],
+  "modelReview": {
+    "routeClosure": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4b-route-closure-audit.json",
+    "routeVerdict": "CLEAN",
+    "accessibilityAggregateAttempt": "timed out after 900 seconds and is unavailable, not a pass",
+    "componentAccessibilityClosure": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4a1-component-accessibility-closure-reaudit.json",
+    "componentAccessibilityVerdict": "CLEAN",
+    "liveE2eClosure": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4a2-live-e2e-closure-reaudit.json",
+    "liveE2eVerdict": "CLEAN",
+    "evidenceGovernanceInitial": "FINDINGS; superseded by the exact closure re-audit after its proof-binding findings were corrected",
+    "evidenceGovernanceClosure": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4c-evidence-governance-closure-reaudit.json",
+    "evidenceGovernanceVerdict": "CLEAN"
+  },
+  "remaining": [
+    "exact Fable 5 final re-audit",
+    "same-target full gates, security review, independent verification, commit, push, and remote parity"
+  ]
+}

@@ -310,7 +310,7 @@ async function selectFirstSection(page, label) {
   const child = page.frames()[1];
   if (!child) {
     console.log(`[canvas-contract]   ! ${label}: no iframe child frame found`);
-    return;
+    return null;
   }
   const clickedId = await child
     .evaluate(() => {
@@ -324,7 +324,7 @@ async function selectFirstSection(page, label) {
     .catch(() => null);
   if (!clickedId) {
     console.log(`[canvas-contract]   ! ${label}: no <section data-edit-id> found in the iframe -- selection setup skipped`);
-    return;
+    return null;
   }
   const gotBreadcrumb = await page
     .locator(".workbench-breadcrumb")
@@ -335,6 +335,7 @@ async function selectFirstSection(page, label) {
     console.log(`[canvas-contract]   ! ${label}: selected ${clickedId} but .workbench-breadcrumb never appeared`);
   }
   await page.waitForTimeout(400);
+  return clickedId;
 }
 
 async function openLayersTool(page, label) {
@@ -491,23 +492,212 @@ async function assertNoVisibleApplyLikeControls(teammatePane, label) {
   );
 }
 
-async function openAgentStudio(page, label, width) {
+async function assertRetainedAgentStudioInactive(page, retained, label) {
+  await retained.waitFor({ state: "attached", timeout: 5000 });
+  assert.equal(await retained.count(), 1, `${label}: expected exactly one retained Agent Studio`);
+  assert.equal(await retained.getAttribute("hidden"), "", `${label}: retained Agent Studio is not native-hidden`);
+  assert.equal(await retained.getAttribute("aria-hidden"), "true", `${label}: retained Agent Studio is exposed to accessibility APIs`);
+  assert.notEqual(await retained.getAttribute("inert"), null, `${label}: retained Agent Studio remains interactive`);
+  const box = await retained.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return { width: rect.width, height: rect.height };
+  });
+  assert.deepEqual(box, { width: 0, height: 0 }, `${label}: hidden Agent Studio still occupies layout`);
+  assert.equal(await retained.locator(":focus").count(), 0, `${label}: retained Agent Studio owns focus`);
+  const tabAnchor = "data-agent-studio-tab-cycle-anchor";
+  const hasAnchor = await page.evaluate((attribute) => {
+    if (!(document.activeElement instanceof HTMLElement)) return false;
+    document.activeElement.setAttribute(attribute, "true");
+    return true;
+  }, tabAnchor);
+  assert.equal(hasAnchor, true, `${label}: no outside focus anchor for tab-cycle proof`);
+  let wrapped = false;
+  let leftAnchor = false;
+  try {
+    for (let step = 0; step < 256; step += 1) {
+      await page.keyboard.press("Tab");
+      const state = await retained.evaluate((element, attribute) => ({
+        inside: element.contains(document.activeElement),
+        wrapped: document.activeElement?.getAttribute(attribute) === "true",
+      }), tabAnchor);
+      assert.equal(state.inside, false, `${label}: Tab entered the hidden/inert Agent Studio subtree`);
+      if (!state.wrapped) leftAnchor = true;
+      if (state.wrapped && leftAnchor) {
+        wrapped = true;
+        break;
+      }
+    }
+  } finally {
+    await page.locator(`[${tabAnchor}]`).evaluateAll((elements, attribute) => {
+      for (const element of elements) element.removeAttribute(attribute);
+    }, tabAnchor);
+  }
+  assert.equal(wrapped, true, `${label}: Tab did not complete a full page focus cycle`);
+}
+
+async function openAgentStudio(page, label, width, selectedEditId) {
   const agentStudioButton = page.getByRole("button", {
     name: "Agent Studio",
     exact: true,
   });
   await agentStudioButton.waitFor({ timeout: 5000 });
-  await agentStudioButton.click();
+  const teammateRoutePattern = "**/api/ai-teammates/*";
+  let rosterGetCount = 0;
+  let rosterRetryActivated = false;
+  let rosterRetryAttempt = 0;
+  const retryHolds = Array.from({ length: 2 }, () => {
+    let release;
+    const promise = new Promise((resolve) => {
+      release = resolve;
+    });
+    return { promise, release, released: false };
+  });
+  const releaseRetryHold = (attempt) => {
+    const hold = retryHolds[attempt];
+    if (!hold || hold.released) return;
+    hold.released = true;
+    hold.release();
+  };
+  await page.route(teammateRoutePattern, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+    rosterGetCount += 1;
+    if (!rosterRetryActivated) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Temporary local roster failure." }),
+      });
+      return;
+    }
+    const attempt = rosterRetryAttempt;
+    rosterRetryAttempt += 1;
+    const hold = retryHolds[attempt];
+    if (!hold) {
+      await route.abort("failed");
+      return;
+    }
+    await hold.promise;
+    if (attempt === 0) {
+      await route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Retry still unavailable." }),
+      });
+      return;
+    }
+    await route.continue();
+  });
 
   const agentStudio = page.locator(".agent-studio");
   const teammatePane = agentStudio.locator(
     '[data-agent-studio-pane="teammates"]:visible',
   );
-  await teammatePane.waitFor({ state: "visible", timeout: 8000 });
-  await teammatePane.getByText("Local foundation", { exact: true }).waitFor({
-    timeout: 8000,
-  });
+  let firstRetryResponse;
+  let secondRetryResponse;
+  try {
+    await agentStudioButton.click();
+    await teammatePane.waitFor({ state: "visible", timeout: 8000 });
+    await teammatePane.getByText("Local foundation", { exact: true }).waitFor({
+      timeout: 8000,
+    });
+    await teammatePane.getByText("Temporary local roster failure.", { exact: true }).waitFor();
+    assert.ok(rosterGetCount >= 1, `${label}: initial Local roster GET escaped the retry fixture`);
+    assert.match(
+      (await teammatePane.textContent()) ?? "",
+      /Temporary local roster failure\./,
+      `${label}: intercepted roster failure was not rendered`,
+    );
+    const retryRoster = teammatePane.getByRole("button", {
+      name: "Try again",
+      exact: true,
+    });
+    await retryRoster.waitFor({ timeout: 8000 });
+    await retryRoster.focus();
+    const initialRosterGetCount = rosterGetCount;
+    rosterRetryActivated = true;
+    firstRetryResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        response.url().includes("/api/ai-teammates/") &&
+        response.status() === 503,
+      { timeout: 8000 },
+    );
+    await retryRoster.click();
+    await page.waitForTimeout(100);
+    assert.equal(await retryRoster.count(), 1, `${label}: roster retry control unmounted while loading`);
+    assert.equal(await retryRoster.getAttribute("aria-disabled"), "true", `${label}: roster retry did not expose its busy state`);
+    assert.equal(await retryRoster.getAttribute("disabled"), null, `${label}: roster retry used native disabled and made the duplicate guard untestable`);
+    assert.equal(await retryRoster.evaluate((element) => document.activeElement === element), true, `${label}: roster retry dropped focus while loading`);
+    await teammatePane.getByText("Trying the local roster again…", { exact: true }).waitFor();
+    const duplicateRosterRequest = page
+      .waitForRequest(
+        (request) =>
+          request.method() === "GET" &&
+          request.url().includes("/api/ai-teammates/"),
+        { timeout: 750 },
+      )
+      .then(
+        () => true,
+        (error) => {
+          if (error?.name === "TimeoutError") return false;
+          throw error;
+        },
+      );
+    await retryRoster.evaluate((button) => button.click());
+    assert.equal(
+      await duplicateRosterRequest,
+      false,
+      `${label}: aria-disabled roster retry allowed a duplicate GET`,
+    );
+    assert.equal(rosterGetCount, initialRosterGetCount + 1, `${label}: roster retry allowed a duplicate GET`);
+    releaseRetryHold(0);
+    await firstRetryResponse;
+    await teammatePane.getByText("Retry still unavailable.", { exact: true }).waitFor({ timeout: 8000 });
+    assert.equal(
+      await retryRoster.evaluate((element) => document.activeElement === element),
+      true,
+      `${label}: failed roster retry did not restore focus to Try again`,
+    );
+    assert.equal(
+      await retryRoster.getAttribute("aria-disabled"),
+      null,
+      `${label}: failed roster retry left Try again aria-disabled`,
+    );
+
+    const secondRosterGetCount = rosterGetCount;
+    secondRetryResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        response.url().includes("/api/ai-teammates/") &&
+        response.status() === 200,
+      { timeout: 8000 },
+    );
+    await retryRoster.click();
+    await teammatePane.getByText("Trying the local roster again…", { exact: true }).waitFor();
+    assert.equal(await retryRoster.count(), 1, `${label}: second roster retry control unmounted while loading`);
+    assert.equal(await retryRoster.getAttribute("aria-disabled"), "true", `${label}: second roster retry did not expose its busy state`);
+    assert.equal(await retryRoster.getAttribute("disabled"), null, `${label}: second roster retry used native disabled`);
+    assert.equal(rosterGetCount, secondRosterGetCount + 1, `${label}: second roster retry did not issue exactly one GET`);
+    releaseRetryHold(1);
+    await secondRetryResponse;
+    const firstReadyRadio = teammatePane.getByRole("radio").first();
+    await firstReadyRadio.waitFor({ timeout: 8000 });
+    assert.equal(await firstReadyRadio.evaluate((element) => document.activeElement === element), true, `${label}: successful roster retry did not move focus to the restored roster`);
+  } finally {
+    releaseRetryHold(0);
+    releaseRetryHold(1);
+    await firstRetryResponse?.catch(() => undefined);
+    await secondRetryResponse?.catch(() => undefined);
+    await page.unroute(teammateRoutePattern);
+  }
   await teammatePane.locator(".ai-teammate-roster").waitFor({ timeout: 8000 });
+  await teammatePane
+    .locator(".agent-studio__boundary", { hasText: selectedEditId })
+    .getByText("No selection data is sent.", { exact: false })
+    .waitFor({ timeout: 5000 });
 
   const radios = teammatePane.getByRole("radio");
   await radios.first().waitFor({ timeout: 8000 });
@@ -522,6 +712,25 @@ async function openAgentStudio(page, label, width) {
     renderedRoles,
     AGENT_STUDIO_ROLES,
     `${label}: Agent Studio must expose the exact eight-role local roster`,
+  );
+  const visibleIdleRows = await teammatePane
+    .getByText("Idle · Read + propose", { exact: true })
+    .evaluateAll((elements) =>
+      elements.filter((element) => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return (
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          rect.width > 0 &&
+          rect.height > 0
+        );
+      }).length,
+    );
+  assert.equal(
+    visibleIdleRows,
+    8,
+    `${label}: Local foundation roster stopped reporting eight static Idle rows`,
   );
 
   const requiredControls = [
@@ -539,9 +748,41 @@ async function openAgentStudio(page, label, width) {
       throw new Error(`${label}: Agent Studio ${controlName} control is missing`);
     });
   }
+  const dataClassControl = teammatePane.getByRole("combobox", {
+    name: "Data class",
+    exact: true,
+  });
+  const dataClassDescription = await dataClassControl.getAttribute("aria-describedby");
+  assert.ok(
+    dataClassDescription?.split(/\s+/).includes("ai-teammate-data-class-help"),
+    `${label}: Data class is not linked to its caller-asserted safety help`,
+  );
+  const exactDataClassHelp =
+    "This is your label for the assignment text; nothing is scanned or read from the project. Enter only public or project-internal content. Do not paste credentials, cookies, client-sensitive information, release data, or appointment details.";
+  const linkedDataClassHelp = await dataClassControl.evaluate(
+    (element, expectedText) => {
+      const normalize = (value) => value?.replace(/\s+/g, " ").trim() ?? "";
+      const ids = element.getAttribute("aria-describedby")?.split(/\s+/) ?? [];
+      const help = ids
+        .map((id) => document.getElementById(id))
+        .find((candidate) => candidate?.id === "ai-teammate-data-class-help");
+      return {
+        found: Boolean(help),
+        text: normalize(help?.textContent),
+        matches: normalize(help?.textContent) === expectedText,
+      };
+    },
+    exactDataClassHelp,
+  );
+  assert.deepEqual(
+    linkedDataClassHelp,
+    { found: true, text: exactDataClassHelp, matches: true },
+    `${label}: Data class describedby does not resolve to the exact safety help`,
+  );
 
   for (const boundary of [
     "Proposal only — nothing is applied automatically.",
+    "No AI model or provider is connected in this Local foundation; it returns a fixed deterministic placeholder to prove the read/propose and receipt boundaries.",
     "Read + propose only",
     "No mutation, external effect, or authority",
   ]) {
@@ -557,15 +798,17 @@ async function openAgentStudio(page, label, width) {
     );
   }
 
-  const createProposal = teammatePane.getByRole("button", {
-    name: "Create proposal",
-    exact: true,
-  });
-  await createProposal.waitFor({ timeout: 5000 });
+  const createProposal = teammatePane.locator('button[type="submit"]');
+  await teammatePane
+    .getByRole("button", {
+      name: "Create placeholder proposal",
+      exact: true,
+    })
+    .waitFor({ timeout: 5000 });
   assert.equal(
     await createProposal.isDisabled(),
     true,
-    `${label}: Create proposal must remain disabled without an assignment`,
+    `${label}: Create placeholder proposal must remain disabled without an assignment`,
   );
   // Before any mode switch, prove every visible Teammates control meets the
   // compact-layout 44x44 hit-target contract at mobile and tablet widths.
@@ -583,22 +826,277 @@ async function openAgentStudio(page, label, width) {
   const selectedTeammate = "QA Challenger";
   const assignment =
     "Review the current homepage proposal for bounded launch risks.";
-  await teammatePane.getByRole("radio", { name: new RegExp(selectedTeammate) }).check();
-  await teammatePane
-    .getByRole("textbox", { name: "Assignment", exact: true })
-    .fill(assignment);
+
+  const firstRadio = radios.first();
+  assert.equal(await firstRadio.isChecked(), true, `${label}: roster did not start on Researcher`);
+  assert.equal(
+    await teammatePane.getByRole("radio", { name: new RegExp(selectedTeammate) }).isChecked(),
+    false,
+    `${label}: QA Challenger was already selected before keyboard navigation`,
+  );
+  await firstRadio.focus();
+  for (let step = 0; step < 5; step += 1) {
+    await page.keyboard.press("ArrowRight");
+  }
+  const selectedRadio = teammatePane.getByRole("radio", {
+    name: new RegExp(selectedTeammate),
+  });
+  assert.equal(
+    await selectedRadio.isChecked(),
+    true,
+    `${label}: keyboard arrow navigation did not select ${selectedTeammate}`,
+  );
+
+  await page.keyboard.press("Tab");
+  const assignmentControl = teammatePane.getByRole("textbox", {
+    name: "Assignment",
+    exact: true,
+  });
+  assert.equal(
+    await assignmentControl.evaluate((element) => document.activeElement === element),
+    true,
+    `${label}: Tab from the roster did not reach Assignment`,
+  );
+  await page.keyboard.type(assignment);
+  await page.keyboard.press("Tab");
+  assert.equal(
+    await dataClassControl.evaluate((element) => document.activeElement === element),
+    true,
+    `${label}: Tab from Assignment did not reach Data class`,
+  );
+  await page.keyboard.press("Tab");
+  assert.equal(
+    await createProposal.evaluate((element) => document.activeElement === element),
+    true,
+    `${label}: Tab from Data class did not reach Create placeholder proposal`,
+  );
+  const focusOutline = await createProposal.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const parseColor = (value) => {
+      const values = value.match(/[\d.]+/g)?.map(Number) ?? [];
+      return {
+        red: values[0] ?? 0,
+        green: values[1] ?? 0,
+        blue: values[2] ?? 0,
+        alpha: values[3] ?? 1,
+      };
+    };
+    return {
+      style: style.outlineStyle,
+      width: style.outlineWidth,
+      outline: parseColor(style.outlineColor),
+      background: parseColor(style.backgroundColor),
+    };
+  });
+  assert.notEqual(
+    focusOutline.style,
+    "none",
+    `${label}: keyboard-focused Create placeholder proposal has no visible outline`,
+  );
+  assert.notEqual(
+    focusOutline.width,
+    "0px",
+    `${label}: keyboard-focused Create placeholder proposal outline has zero width`,
+  );
+  assert.ok(focusOutline.outline.alpha >= 0.5, `${label}: keyboard-focused Create placeholder proposal outline is effectively transparent`);
+  assert.notDeepEqual(
+    [focusOutline.outline.red, focusOutline.outline.green, focusOutline.outline.blue],
+    [focusOutline.background.red, focusOutline.background.green, focusOutline.background.blue],
+    `${label}: focus outline blends into the submit background`,
+  );
   assert.equal(
     await createProposal.isEnabled(),
     true,
-    `${label}: a bounded assignment must enable Create proposal`,
+    `${label}: a bounded assignment must enable Create placeholder proposal`,
   );
-  await createProposal.click();
+
+  let postCount = 0;
+  let releasePost;
+  const heldPost = new Promise((resolve) => {
+    releasePost = resolve;
+  });
+  await page.route(teammateRoutePattern, async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    postCount += 1;
+    await heldPost;
+    await route.continue();
+  });
 
   const result = teammatePane.locator(".ai-teammate-result");
-  await result.waitFor({ state: "visible", timeout: 10000 });
-  await result.getByRole("heading", { name: "Proposal", exact: true }).waitFor();
-  await result.getByText(`Proposed by: ${selectedTeammate}`, { exact: true }).waitFor();
+  let postReleased = false;
+  let postResponse;
+  const releaseHeldPost = () => {
+    if (postReleased) return;
+    postReleased = true;
+    releasePost();
+  };
+  try {
+    const radioSubmitRequest = page
+      .waitForRequest(
+        (request) =>
+          request.method() === "POST" &&
+          request.url().includes("/api/ai-teammates/"),
+        { timeout: 500 },
+      )
+      .then(
+        () => true,
+        (error) => {
+          if (error?.name === "TimeoutError") return false;
+          throw error;
+        },
+      );
+    await selectedRadio.focus();
+    await page.keyboard.press("Enter");
+    assert.equal(
+      await radioSubmitRequest,
+      false,
+      `${label}: Enter on a roster radio implicitly submitted the assignment`,
+    );
+    assert.equal(postCount, 0, `${label}: roster keyboard use reached the POST handler`);
+    assert.equal(
+      await selectedRadio.evaluate((element) => document.activeElement === element),
+      true,
+      `${label}: roster keyboard use dropped focus`,
+    );
+    await createProposal.focus();
+    const firstPostRequest = page.waitForRequest(
+      (request) =>
+        request.method() === "POST" &&
+        request.url().includes("/api/ai-teammates/"),
+      { timeout: 5000 },
+    );
+    await page.keyboard.press("Enter");
+    const postRequest = await firstPostRequest;
+    postResponse = page.waitForResponse(
+      (response) => response.request() === postRequest,
+      { timeout: 10000 },
+    );
+    const postBody = postRequest.postDataJSON();
+    assert.deepEqual(
+      Object.keys(postBody).sort(),
+      [
+        "childToolGrants",
+        "dataClass",
+        "effectClasses",
+        "schemaVersion",
+        "task",
+        "teammateId",
+        "toolGrants",
+      ],
+      `${label}: teammate POST gained selection or another unauthorized field`,
+    );
+    assert.equal(
+      JSON.stringify(postBody).includes(selectedEditId),
+      false,
+      `${label}: teammate POST leaked the selected edit ID`,
+    );
+    const postUrl = new URL(postRequest.url());
+    assert.equal(postUrl.search, "", `${label}: teammate POST gained an unauthorized query payload`);
+    assert.equal(
+      decodeURIComponent(postUrl.pathname).includes(selectedEditId),
+      false,
+      `${label}: teammate POST leaked the selected edit ID in its path`,
+    );
+    assert.equal(
+      JSON.stringify(postRequest.headers()).includes(selectedEditId),
+      false,
+      `${label}: teammate POST leaked the selected edit ID in headers`,
+    );
+    await teammatePane.getByText("Creating a fixed deterministic placeholder…", { exact: true }).waitFor();
+    assert.equal(
+      await createProposal.getAttribute("disabled"),
+      null,
+      `${label}: working submit must not use native disabled`,
+    );
+    assert.equal(await createProposal.getAttribute("aria-disabled"), "true", `${label}: working submit must expose aria-disabled`);
+    assert.equal(
+      await createProposal.evaluate((element) => document.activeElement === element),
+      true,
+      `${label}: focus left the submit control while the local request was held`,
+    );
+    assert.equal(await radios.count(), 8, `${label}: roster disappeared during a held request`);
+    assert.equal(
+      await radios.evaluateAll(
+        (inputs) =>
+          inputs.length === 8 && inputs.every((input) => input.disabled),
+      ),
+      true,
+      `${label}: at least one roster option remained enabled during a held request`,
+    );
+    assert.equal(
+      await assignmentControl.getAttribute("disabled"),
+      "",
+      `${label}: assignment is not natively disabled during a held request`,
+    );
+    assert.equal(
+      await dataClassControl.getAttribute("disabled"),
+      "",
+      `${label}: data class is not natively disabled during a held request`,
+    );
+    for (const modeName of ["Teammates", "Site advice"]) {
+      const modeButton = agentStudio.getByRole("button", {
+        name: modeName,
+        exact: true,
+      });
+      assert.equal(
+        await modeButton.getAttribute("disabled"),
+        "",
+        `${label}: ${modeName} mode is not natively disabled during a held request`,
+      );
+      await modeButton.evaluate((button) => button.click());
+    }
+    assert.equal(
+      await agentStudio.getByRole("button", { name: "Teammates", exact: true }).getAttribute("aria-pressed"),
+      "true",
+      `${label}: forced mode activation left Teammates during a held request`,
+    );
+    assert.equal(
+      await agentStudio.getByRole("button", { name: "Site advice", exact: true }).getAttribute("aria-pressed"),
+      "false",
+      `${label}: forced mode activation opened Site advice during a held request`,
+    );
+    assert.equal(postCount, 1, `${label}: mode activation changed the held request count`);
+    const duplicateRequest = page
+      .waitForRequest(
+        (request) =>
+          request.method() === "POST" &&
+          request.url().includes("/api/ai-teammates/"),
+        { timeout: 750 },
+      )
+      .then(
+        () => true,
+        (error) => {
+          if (error?.name === "TimeoutError") return false;
+          throw error;
+        },
+      );
+    await page.keyboard.press("Enter");
+    assert.equal(
+      await duplicateRequest,
+      false,
+      `${label}: aria-disabled submit allowed a duplicate request`,
+    );
+    assert.equal(postCount, 1, `${label}: duplicate request reached the route handler`);
+    releaseHeldPost();
+    await result.waitFor({ state: "visible", timeout: 10000 });
+    await postResponse;
+    assert.equal(postCount, 1, `${label}: duplicate request appeared during result commit`);
+  } finally {
+    releaseHeldPost();
+    await postResponse?.catch(() => undefined);
+    await page.unroute(teammateRoutePattern);
+  }
+  await result.getByRole("heading", { name: "Placeholder proposal", exact: true }).waitFor();
+  await result.getByText(`Role template: ${selectedTeammate}`, { exact: true }).waitFor();
   await result.getByText(`Assigned task: ${assignment}`, { exact: true }).waitFor();
+  assert.equal(
+    await createProposal.evaluate((element) => document.activeElement === element),
+    true,
+    `${label}: focus did not remain on submit after the result committed`,
+  );
 
   const receipt = result.locator(".ai-teammate-receipt");
   await receipt.getByRole("heading", { name: "Run receipt", exact: true }).waitFor();
@@ -617,13 +1115,123 @@ async function openAgentStudio(page, label, width) {
 
   for (const boundary of [
     "Proposal only — nothing is applied automatically.",
+    "No AI model or provider is connected in this Local foundation; it returns a fixed deterministic placeholder to prove the read/propose and receipt boundaries.",
     "Read + propose only",
     "No mutation, external effect, or authority",
   ]) {
     await teammatePane.getByText(boundary, { exact: true }).waitFor();
   }
   await assertNoVisibleApplyLikeControls(teammatePane, `${label}: completed receipt`);
-  await page.waitForTimeout(500);
+
+  await page.getByRole("button", { name: "Selection and layout", exact: true }).click();
+  const retainedAgentStudio = page.locator('[data-retained-agent-studio="true"]');
+  await assertRetainedAgentStudioInactive(page, retainedAgentStudio, `${label}: tool switch`);
+
+  await agentStudioButton.click();
+  const restoredPane = page.locator('[data-agent-studio-pane="teammates"]:visible');
+  await restoredPane.waitFor({ state: "visible", timeout: 5000 });
+  assert.equal(
+    await restoredPane.getByRole("textbox", { name: "Assignment", exact: true }).inputValue(),
+    assignment,
+    `${label}: assignment was lost after leaving and returning to Agent Studio`,
+  );
+  await restoredPane.getByRole("heading", { name: "Placeholder proposal", exact: true }).waitFor();
+  assert.equal(await selectedRadio.isChecked(), true, `${label}: selected teammate was lost after the tool switch`);
+  await restoredPane.getByText(`Role template: ${selectedTeammate}`, { exact: true }).waitFor();
+  await restoredPane.getByText(`Assigned task: ${assignment}`, { exact: true }).waitFor();
+  await restoredPane.getByRole("heading", { name: "Run receipt", exact: true }).waitFor();
+
+  await page.getByRole("button", { name: "View", exact: true }).click();
+  await waitForMode(page, "View");
+  await assertRetainedAgentStudioInactive(page, retainedAgentStudio, `${label}: View mode`);
+  await enterEditModeStrict(page, `${label}: restore Edit mode`);
+  await restoredPane.waitFor({ state: "visible", timeout: 5000 });
+  assert.equal(
+    await restoredPane.getByRole("textbox", { name: "Assignment", exact: true }).inputValue(),
+    assignment,
+    `${label}: assignment was lost across View/Edit`,
+  );
+  await restoredPane.getByRole("heading", { name: "Placeholder proposal", exact: true }).waitFor();
+  assert.equal(await selectedRadio.isChecked(), true, `${label}: selected teammate was lost across View/Edit`);
+  await restoredPane.getByText(`Role template: ${selectedTeammate}`, { exact: true }).waitFor();
+  await restoredPane.getByText(`Assigned task: ${assignment}`, { exact: true }).waitFor();
+  await restoredPane.getByRole("heading", { name: "Run receipt", exact: true }).waitFor();
+
+  const collapseWorkbench = page.getByRole("button", {
+    name: "Collapse workbench",
+    exact: true,
+  });
+  await collapseWorkbench.click();
+  const reopenWorkbench = page.getByRole("button", {
+    name: "Reopen workbench",
+    exact: true,
+  });
+  await reopenWorkbench.waitFor({ state: "visible", timeout: 5000 });
+  const collapsedPanelState = await page.locator(".workbench-panel").evaluate(
+    (element) => {
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return {
+        hidden: element.hasAttribute("hidden"),
+        ariaHidden: element.getAttribute("aria-hidden"),
+        inert: element.hasAttribute("inert"),
+        display: style.display,
+        width: rect.width,
+        height: rect.height,
+      };
+    },
+  );
+  assert.deepEqual(
+    collapsedPanelState,
+    {
+      hidden: true,
+      ariaHidden: "true",
+      inert: true,
+      display: "none",
+      width: 0,
+      height: 0,
+    },
+    `${label}: collapsed workbench panel remained in layout or accessibility`,
+  );
+  const collapsedNonRetainedContent = page.locator(
+    ".workbench-panel__header, .workbench-breadcrumb, .workbench-composer, .workbench-panel__body > :not([data-retained-agent-studio])",
+  );
+  assert.equal(
+    await collapsedNonRetainedContent.count(),
+    0,
+    `${label}: non-retained workbench content remained mounted after collapse`,
+  );
+  await assertRetainedAgentStudioInactive(
+    page,
+    retainedAgentStudio,
+    `${label}: collapsed workbench`,
+  );
+  await reopenWorkbench.click();
+  await restoredPane.waitFor({ state: "visible", timeout: 5000 });
+  assert.equal(
+    await restoredPane
+      .getByRole("textbox", { name: "Assignment", exact: true })
+      .inputValue(),
+    assignment,
+    `${label}: assignment was lost across collapse/reopen`,
+  );
+  await restoredPane
+    .getByRole("heading", { name: "Placeholder proposal", exact: true })
+    .waitFor();
+  assert.equal(
+    await selectedRadio.isChecked(),
+    true,
+    `${label}: selected teammate was lost across collapse/reopen`,
+  );
+  await restoredPane
+    .getByText(`Role template: ${selectedTeammate}`, { exact: true })
+    .waitFor();
+  await restoredPane
+    .getByText(`Assigned task: ${assignment}`, { exact: true })
+    .waitFor();
+  await restoredPane
+    .getByRole("heading", { name: "Run receipt", exact: true })
+    .waitFor();
 }
 
 // Each surface is captured under its own label so a G9/G7 failure names
@@ -679,7 +1287,9 @@ const SURFACES = [
     wait: 7000,
     async setup(page, label, width) {
       await ensureWorkbenchOpen(page, { strict: true, label });
-      await openAgentStudio(page, label, width);
+      const selectedEditId = await selectFirstSection(page, label);
+      assert.ok(selectedEditId, `${label}: Agent Studio proof requires a live Canvas selection`);
+      await openAgentStudio(page, label, width, selectedEditId);
     },
   },
 ];

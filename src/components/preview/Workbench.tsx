@@ -553,6 +553,15 @@ function PersistentComposer(props: WorkbenchProps) {
 
 export function Workbench(props: WorkbenchProps) {
   const active = TOOLS.find((tool) => tool.id === props.activeTool) ?? TOOLS[0];
+  const workbenchCollapsed = props.size === "collapsed";
+  const [hasOpenedAgentStudio, setHasOpenedAgentStudio] = useState(
+    props.activeTool === "assistant",
+  );
+  const shouldRenderAgentStudio =
+    props.activeTool === "assistant" || hasOpenedAgentStudio;
+  const agentStudioInactive =
+    props.activeTool !== "assistant" || props.mode === "view";
+  const agentStudioHidden = agentStudioInactive || workbenchCollapsed;
   const isTextTarget =
     props.selection?.behavior === "text" ||
     props.selection?.behavior === "interactive";
@@ -570,15 +579,7 @@ export function Workbench(props: WorkbenchProps) {
       );
     }
 
-    if (props.activeTool === "assistant") {
-      return (
-        <AgentStudioPanel
-          runId={props.runId}
-          selection={props.selection}
-          onMutationComplete={props.onStructuredMutationComplete}
-        />
-      );
-    }
+    if (props.activeTool === "assistant") return null;
 
     if (props.activeTool === "selection") {
       if (!props.selection) {
@@ -751,7 +752,10 @@ export function Workbench(props: WorkbenchProps) {
             aria-label={tool.label}
             aria-pressed={props.activeTool === tool.id}
             title={tool.label}
-            onClick={() => props.onActiveToolChange(tool.id)}
+            onClick={() => {
+              if (tool.id === "assistant") setHasOpenedAgentStudio(true);
+              props.onActiveToolChange(tool.id);
+            }}
           >
             <span className="workbench-tool__icon">
               <ToolIcon tool={tool.id} />
@@ -840,8 +844,15 @@ export function Workbench(props: WorkbenchProps) {
         </button>
       </nav>
 
-      {props.size !== "collapsed" && (
-        <section className="workbench-panel" aria-labelledby="workbench-title">
+      <section
+        className="workbench-panel"
+        aria-labelledby={workbenchCollapsed ? undefined : "workbench-title"}
+        hidden={workbenchCollapsed}
+        aria-hidden={workbenchCollapsed || undefined}
+        inert={workbenchCollapsed || undefined}
+      >
+        {!workbenchCollapsed && (
+          <>
           <div className="workbench-panel__header">
             <div>
               <p className="eyebrow">{"{ Workbench }"}</p>
@@ -873,13 +884,33 @@ export function Workbench(props: WorkbenchProps) {
               onSelectAncestor={props.onSelectAncestor}
             />
           )}
-          <div className="workbench-panel__body">
+          </>
+        )}
+        <div className="workbench-panel__body">
+          {shouldRenderAgentStudio && (
+            <div
+              data-retained-agent-studio="true"
+              hidden={agentStudioHidden}
+              aria-hidden={agentStudioHidden}
+              inert={agentStudioHidden}
+            >
+              <AgentStudioPanel
+                key={props.runId}
+                runId={props.runId}
+                selection={props.selection}
+                onMutationComplete={props.onStructuredMutationComplete}
+              />
+            </div>
+          )}
+          {!workbenchCollapsed && (
+            <>
             {panelContent()}
             {props.mode === "edit" && <hr className="hairline" aria-hidden="true" />}
             <PersistentComposer {...props} />
-          </div>
-        </section>
-      )}
+            </>
+          )}
+        </div>
+      </section>
     </aside>
   );
 }

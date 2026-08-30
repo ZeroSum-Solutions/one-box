@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T17:49:25Z",
+  "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-audit.json",
+  "authorization": "OBX-AUTH-ATF-001",
+  "dispositions": [
+    {
+      "id": "F5-CLOSE-01",
+      "decision": "ACCEPT",
+      "reason": "The README is a packet-digest input and changed after the prior digest-only refresh; the deterministic plan verifier must bind current canonical bytes."
+    },
+    {
+      "id": "F5-CLOSE-02",
+      "decision": "ACCEPT",
+      "reason": "Evidence history must distinguish T3 facts from later T4/T5 amendments rather than combining historical hashes with current prose."
+    },
+    {
+      "id": "F5-CLOSE-03",
+      "decision": "ACCEPT",
+      "reason": "The canonical unmount guarantee deserves a direct live absence oracle, and the correction changes only the bounded test harness."
+    }
+  ],
+  "scopeDecision": "No product capability expansion is authorized. Corrections are limited to packet digest binding, evidence chronology, and collapse-contract proof."
+}

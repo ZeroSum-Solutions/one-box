@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T12:36:13.160Z",
+  "request": {
+    "task": "T3A closure for exact Fable F-01 route normalization and bound receipt production",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts"
+    ],
+    "proofs": [],
+    "diffBytes": 14395
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4807,
+      "completion_tokens": 17324,
+      "total_tokens": 22131,
+      "cost": 0.113366,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.113366,
+        "upstream_inference_prompt_cost": 0.009422,
+        "upstream_inference_completions_cost": 0.103944
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 17000,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Static review of the allowlisted route slice only; no execution proof was supplied. After RunIdSchema acceptance, alphanumeric-leading IDs are copied byte-for-byte into job.projectId; other accepted IDs (dash/underscore-leading under an ASCII 4–40 run-id grammar) are prefixed with the 43-char constant and lowercase 2-digit hex of every code unit. That image is length 51–123, so it cannot equal any 4–40 external run ID and stays inside a 1–128 ID bound. Hex of the full original id is injective and reversible for ASCII. Response runId is still parsedRunId.data. Auth, read+propose-only assignment, and empty grants are unchanged. New tests cover short and 40-char dash/underscore IDs at HTTP 200 with original runId and receipt.status complete, and the frozen Date.now pair -abc1 vs run--abc1 via distinct jobSha256 (this pair fails the old run- prefix alias).",
+    "residual_risks": [
+      "Executor/projectId schema and timestamp source are outside the slice; HTTP 200 is the only evidence the mapped id is accepted.",
+      "vi.spyOn(Date, now) does not freeze new Date(); if jobSha256 mixed in wall-clock fields the specified pair would be a weaker collision oracle.",
+      "jobId still omits run/project identity; distinctness is only claimed on receipt.jobSha256."
+    ]
+  }
+}

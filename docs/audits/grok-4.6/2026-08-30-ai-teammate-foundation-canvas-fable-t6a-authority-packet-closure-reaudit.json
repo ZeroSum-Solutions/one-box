@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:06:07.973Z",
+  "request": {
+    "task": "T6A exact re-audit: close authority digest proof-slicing findings",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/plans/one-box-master/00-authority/authority-manifest.json"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t6a-authority-digest-receipt.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t5-corrections.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t6a-authority-packet-closure-audit.json"
+    ],
+    "diffBytes": 6490
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 6325,
+      "completion_tokens": 13730,
+      "total_tokens": 20055,
+      "cost": 0.094838,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.094838,
+        "upstream_inference_prompt_cost": 0.012458,
+        "upstream_inference_completions_cost": 0.08238
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 13322,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "F5-CLOSE-01 is judged as the T6A step, not the collapsed 899b394 worktree. Allowlist and hunk change only packetDigest (5efe9242…); implementationAuthorized, governancePolicies, authority classes, and domain records are untouched. T6A receipt is step-scoped: before 1b86107b…/d640b6a2…, after 5efe9242…/62e9e280…, substitution of only that field claimed to recreate the T3-bound manifest hash, README bd0fe8b0… frozen and equal to the T5 candidate, canonicalInputFilesChangedDuringStep false, authorizationFieldsChanged false, verify:plans RED expected 5efe9242… then GREEN 17/29/21, test:plans 48/48, no scope drift. Prior Grok BLOCK/HIGH on architecture README and HIGH on digest-of-wrong-tree are harness-base false positives: T5 already bound those README bytes, and they are not in this allowlist. Prior MEDIUM on the combined T6 receipt is superseded by this T6A-only artifact. Git minus digest f17059ec… is the original-commit field, not the T6A predecessor; treating it as the step before-state would repeat the slicing error.",
+    "residual_risks": [
+      "Packet digest was not recomputed here from canonical packet bytes.",
+      "verify:plans and test:plans were not rerun here; RED/GREEN and 48/48 are receipt claims.",
+      "RED text does not echo the on-disk stale digest, so it does not independently distinguish 1b86107b… from any other mismatch.",
+      "T3 ledger that supposedly bound 1b86107b…/d640b6a2… is not in this pack.",
+      "HEAD equals baseline; committed closure is outside the git range."
+    ]
+  }
+}

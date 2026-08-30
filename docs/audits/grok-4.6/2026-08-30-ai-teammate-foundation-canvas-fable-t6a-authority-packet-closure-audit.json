@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T17:59:21.522Z",
+  "request": {
+    "task": "T6A exact closure: refresh authority packet digest after bounded T5/T6 inputs",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-audit.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-disposition.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t6-closure-receipt.json"
+    ],
+    "diffBytes": 20827
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 8630,
+      "completion_tokens": 10555,
+      "total_tokens": 19185,
+      "cost": 0.080398,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.080398,
+        "upstream_inference_prompt_cost": 0.017068,
+        "upstream_inference_completions_cost": 0.06333
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 9710,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "BLOCK",
+        "file": "docs/architecture/README.md",
+        "line": "AI teammate route path-ID paragraph and Workbench Agent Studio mount contract",
+        "scenario": "F5-CLOSE-01 closes only if packetDigest alone is refreshed after already-bounded T5/T6 architecture bytes. The slice also rewrites canonical architecture prose (HTTP runId vs mapped projectId, Assistant+Edit interactivity, retained mount, hidden/aria-hidden/inert collapse, duplicate-activation reject, selection isolation). That retargets authority-packet inputs and is not a digest-only refresh. BASE and WORKTREE HEAD are both 899b39433c4be242b4b3adcd39f3e6cd53df99c0, the same baseline the Fable 5 audit already found digest-stale, so committed closure is not shown.",
+        "remediation": "Restore docs/architecture/README.md to the frozen T5/T6 canonical bytes; change only authority-manifest.json packetDigest to the verifier-reported digest; rerun verify:plans and test:plans on that digest-only tree."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "line": "packetDigest",
+        "scenario": "The T6 receipt says verify:plans reported 5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b against a tree where only packetDigest was stale, then passed after that single field write. This slice also modifies the architecture README, so that value is not proven to be the deterministic digest of the current packet. Binding the pre-edit digest would either fail verify:plans or bind the wrong architecture bytes.",
+        "remediation": "Freeze architecture bytes first, run verify:plans once, write only the newly reported packetDigest, rerun verify:plans and test:plans, and bind the digest-only manifest hash."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t6-closure-receipt.json",
+        "line": "corrections[F5-CLOSE-01].green / candidateSha256",
+        "scenario": "T6A proof is a combined T6 receipt that also claims F5-CLOSE-02/03 edits (t3-corrections.md, canvas-contract.mjs, WorkbenchAgentStudio.test.tsx) outside this allowlist, while stating 'Only authority-manifest.json packetDigest changed.' That oracle contradicts the two-file slice and cannot certify T6A exact closure or OBX-AUTH-ATF-001 read-plus-propose non-drift by itself.",
+        "remediation": "Replace it with a T6A-only receipt over the digest-only manifest diff, limited hashes, and fresh verify:plans plus test:plans output."
+      }
+    ],
+    "proof_assessment": "Deterministic proof is internally inconsistent with the slice: it asserts a digest-only F5-CLOSE-01 green path and matching packet SHA-256 5efe9242…, but the supplied diff rewrites architecture README, the git range is empty (HEAD equals the defective audit baseline), and the same receipt mixes in-scope digest closure with out-of-scope F5-CLOSE-02/03 file hashes. Manifest authorization fields other than packetDigest are unchanged in the JSON hunk, but that does not make the closure criterion hold.",
+    "residual_risks": [
+      "Packet digest was not independently recomputed from current canonical packet bytes in this review.",
+      "verify:plans and test:plans were not rerun here; pass counts are receipt-only.",
+      "F5-CLOSE-02 and F5-CLOSE-03 remain outside T6A; using the combined T6 receipt as T6A evidence can hide an unbound README edit or a stale digest."
+    ]
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T15:46:00Z",
+  "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-audit.json",
+  "policy": "Accept only a reproducible in-scope defect. Reject an allegation contradicted by a current deterministic or live oracle. Defer only future scope.",
+  "summary": {
+    "accepted": 7,
+    "rejected": 1,
+    "deferred": 0
+  },
+  "dispositions": [
+    {
+      "id": "R-01",
+      "decision": "ACCEPT",
+      "reproduction": "Focused RED: request-origin invalid-receipt markup rendered textarea aria-invalid=true and submitAiTeammateAssignment omitted an error origin; two focused tests failed.",
+      "correction": "Submission errors now carry task or request origin; aria-invalid is emitted only for task-origin validation while every error alert remains described.",
+      "proof": "Focused component and route suite passes; retained receipt: docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json."
+    },
+    {
+      "id": "R-02",
+      "decision": "REJECT",
+      "reproduction": "Current Chromium live oracle focused the selected QA radio, pressed Enter, observed zero POST requests, retained that radio as document.activeElement, then completed the normal submit flow with exactly one POST.",
+      "reason": "The claimed implicit radio submission and BODY focus drop do not reproduce. The negative live oracle remains in the retained harness.",
+      "proof": "The R-02 explicitOracles entry in docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json records zero POST, retained radio focus, and the later exactly-one-POST submit; the WIDTHS=1440 Canvas contract exited 0."
+    },
+    {
+      "id": "R-03",
+      "decision": "ACCEPT",
+      "reproduction": "Held-retry RED in Chromium: roster retry control unmounted while loading (0 !== 1).",
+      "correction": "The error/retry surface remains mounted; retry exposes aria-disabled, a synchronous ref rejects duplicate GETs, status is announced, and success focuses the first restored roster radio.",
+      "proof": "The R-03 explicitOracles entry in docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json records the held-retry focus and duplicate-count pass."
+    },
+    {
+      "id": "R-04",
+      "decision": "ACCEPT",
+      "reproduction": "Both cited evidence filenames lacked the authorization's required 2026-08-30-ai-teammate-foundation- prefix.",
+      "correction": "Both artifacts were moved under the exact prefix; a superseding relocation receipt maps historical immutable Grok references to current paths and hashes.",
+      "proof": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-evidence-relocation-receipt.md records baseline-tree absence, worktree absence, current paths, and current hashes."
+    },
+    {
+      "id": "R-05",
+      "decision": "ACCEPT",
+      "reproduction": "No retained route test covered a schema-valid non-complete HTTP envelope.",
+      "correction": "A 2,000-NUL route case now asserts HTTP 200, no-store, exactly five keys, proposal=null, budget-exhausted/input-bytes-exceeded, and null output hashes.",
+      "proof": "The focused route result is retained in docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json and exact Grok route closure is CLEAN."
+    },
+    {
+      "id": "R-06",
+      "decision": "ACCEPT",
+      "reproduction": "The live harness contained no Idle-row count, safety-help text, or data-class aria-describedby assertion despite the correction ledger's live-proof language.",
+      "correction": "The live Canvas oracle now requires all eight Idle · Read + propose rows, exact safety help, and the help ID in aria-describedby.",
+      "proof": "The R-06 explicitOracles entry in docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json records the live assertions and exit 0."
+    },
+    {
+      "id": "R-07",
+      "decision": "ACCEPT",
+      "reproduction": "Three focused RED assertions found cache-control=null on 403 and 400 route responses while canonical docs said responses are no-store.",
+      "correction": "All route error helpers now use one no-store header constant; 403, malformed-run 400, and every invalid-assignment 400 case assert it.",
+      "proof": "The focused route result is retained in docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json and exact Grok route closure is CLEAN."
+    },
+    {
+      "id": "R-08",
+      "decision": "ACCEPT",
+      "reproduction": "The collision test installed a Date.now spy while afterEach called only vi.unstubAllGlobals; Vitest defaults do not restore spies.",
+      "correction": "afterEach now calls vi.restoreAllMocks before vi.unstubAllGlobals, and the following timing test asserts the frozen value is absent.",
+      "proof": "The focused route result is retained in docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json and exact Grok route closure is CLEAN."
+    }
+  ],
+  "boundary": "No provider, persistence, filesystem/network/tool access, Page IR/site mutation, browser product capability, collaboration, scheduling, deployment, release, or A4 scope was added."
+}

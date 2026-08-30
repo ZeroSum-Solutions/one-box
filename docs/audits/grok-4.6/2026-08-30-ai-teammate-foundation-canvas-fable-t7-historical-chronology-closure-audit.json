@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:30:36.997Z",
+  "request": {
+    "task": "T7 exact closure: restore remaining T3 historical evidence chronology",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t3-corrections.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t7-historical-chronology-receipt.json"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-audit.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-reaudit.json"
+    ],
+    "diffBytes": 9371
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 10753,
+      "completion_tokens": 11924,
+      "total_tokens": 22677,
+      "cost": 0.092858,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.092858,
+        "upstream_inference_prompt_cost": 0.021314,
+        "upstream_inference_completions_cost": 0.071544
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 11587,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "F-03/F-06/F-07 GREEN cells no longer attribute the T4 live oracles named by F5-RE-01 and proven by accepted R-03/R-06. F-03 keeps component eight static Idle rows plus live boundary-text/no-apply only, not the T4 live Idle · Read + propose row-count. F-06 is unit described-by/help-text only, not live-DOM help or aria-describedby. F-07 is keyboard, outline, held-POST, busy-lock, single request, and completion-focus, not failed/successful Try-again/reloadRoster focus. Other ledger rows, the 12-hash T3 manifest, 4-file/28-test record, and WIDTHS=1440 result show no T4 32-test or R-03/R-06 live-oracle contamination. Allowlisted product/test/harness/authority bytes are untouched. The T7 receipt binds before/after ledger hashes and assigns the later live oracles to the T4 R-03/R-06 execution evidence.",
+    "residual_risks": [
+      "Supplied git slice is a full-file add against 899b394, so the receipt claim that only three GREEN cells changed is not independently diff-attested here.",
+      "after.ledgerSha256 was not recomputed in this review.",
+      "T7 receipt cites fable-5-final-closure-reaudit-disposition.json, which was not in the supplied proof pack."
+    ]
+  }
+}

@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T13:02:09.938Z",
+  "request": {
+    "task": "T3C exact Fable corrections for Agent Studio current-run continuity, display-only Canvas context, and live keyboard proof",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "scripts/e2e/canvas-contract.mjs",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [],
+    "diffBytes": 38713
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 10561,
+      "completion_tokens": 28177,
+      "total_tokens": 38738,
+      "cost": 0.189992,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.189992,
+        "upstream_inference_prompt_cost": 0.02093,
+        "upstream_inference_completions_cost": 0.169062
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 26660,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+        "line": "shows the current selection only as excluded context for teammate assignments",
+        "scenario": "AgentStudioPanel SSRs Teammates and Site advice together; Site advice still receives the same selection. Input selection.editId=hero.headline can satisfy expect(html).toContain('hero.headline') from AssistantPanel while Teammates never shows that selection. The disclaimer substrings can also pass as static copy even if a hidden input/data-* still carries editId into the teammate job. F-05 display-only context is not proven.",
+        "remediation": "Scope assertions to [data-agent-studio-pane='teammates']: require the current selection to appear only as read-only text there, assert no form control/data attribute in that pane contains editId/text/tag, and assert the teammate request builder POST/job body omits selection/editId."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio teammateRoutePattern handler",
+        "scenario": "workbench-agent-studio never selects a canvas node, then the held **/api/ai-teammates/* route only increments postCount and continue()s. Concrete state: section selected (editId present) or even selection=null; a POST body that includes selection/editId still yields a green F-08 run. This slice newly forwards selection into LocalAiTeammatePanel, so F-05 'no selection/editId may enter the teammate POST/job' is untested at the only live oracle.",
+        "remediation": "Select an element before opening Agent Studio. In the POST intercept, parse request.postDataJSON() and assert there is no selection, editId, tag, text, or equivalent field; fail the route if present. Keep the hold/lock/single-POST checks."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "await page.waitForTimeout(100) after second Enter",
+        "scenario": "While the first POST is held, a second Enter is followed by a 100ms sleep then assert postCount===1. A duplicate POST queued after 100ms (retry, deferred native submit, continue()-time double fire) leaves the assertion green. This is a false-green F-08 duplicate-submit proof. The trailing waitForTimeout(500) similarly masks layout/focus instability.",
+        "remediation": "Do not sleep. Keep the first request held and expect.poll/waitForEvent that no second matching POST arrives for a realistic timeout; after release, assert postCount stays 1 through result commit. Replace the 500ms sleep with a concrete locator/stability condition."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/Workbench.tsx",
+        "line": "hasOpenedAgentStudio",
+        "scenario": "The retain latch is session-global, while AgentStudioPanel is keyed only by runId. Open Agent Studio on run A, switch tools, reuse the same Workbench with runId B: hasOpenedAgentStudio stays true so a hidden instance mounts and can fetch/run effects for B without being opened on B. That violates 'opened for the keyed current run' and makes reset/continuity depend on a latch the runId key does not clear. The live oracle never changes runs or View/Edit.",
+        "remediation": "Replace the boolean with openedForRunId; render only when activeTool==='assistant' || openedForRunId===props.runId; set openedForRunId=props.runId only when assistant is opened. Keep key={props.runId} on the panel."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "retainedAgentStudio attribute checks after Selection and layout",
+        "scenario": "F-02/F-08 require one instance to survive tool and View/Edit transitions and to be absent from focus/layout/interaction while inactive. The oracle only clicks another tool and checks hidden=='', aria-hidden==true, inert!=null, and :focus count 0. It never toggles View/Edit, never Tabs to prove the subtree is skipped, and never asserts a 0x0 box. CSS overriding [hidden] or a non-working inert boolean still false-greens; draft/result continuity after View/Edit is unproven. WorkbenchAgentStudio.test.tsx only substring-matches source and will not catch agentStudioInactive omitting mode==='view'.",
+        "remediation": "After tool switch and after View then Edit: assert count===1, getBoundingClientRect width/height 0, Tab cycles do not land inside [data-retained-agent-studio], then restore and check assignment/result. Add a rendered Workbench test that mode==='view' sets native hidden, aria-hidden, and inert."
+      },
+      {
+        "severity": "LOW",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "createProposal focusOutline outlineStyle/outlineWidth",
+        "scenario": "Visible-focus proof only rejects outlineStyle==='none' and outlineWidth==='0px'. outline: 1px solid transparent (or equivalent) passes while there is no perceptible focus indicator. Roster/Assignment/Data class focus is never checked.",
+        "remediation": "Assert a non-transparent outline or box-shadow on :focus-visible for the submit control (and at least one roster/field control), not merely non-none outline style."
+      }
+    ],
+    "proof_assessment": "No proof artifacts were supplied. canvas-contract.mjs adds a real keyboard/hold/lock/single-POST/focus path, but it never inspects the teammate POST body, never establishes a canvas selection, uses waitForTimeout as a duplicate-submit oracle, and treats hidden/aria-hidden/inert attributes as proof of F-02 absence from layout/focus/interaction without View/Edit or Tab/box checks. AgentStudioPanel tests are unscoped SSR substrings; Workbench integration is a source read, not a runtime state-machine test.",
+    "residual_risks": [
+      "LocalAiTeammatePanel and the teammate POST/job composer are outside the allowlist; display copy can claim 'No selection data is sent' while the request still includes selection.",
+      "Author CSS can override [hidden] { display:none }, which attribute checks would not catch.",
+      "Collapsing the workbench unmounts the retained tree and drops draft/result even when the runId key is unchanged.",
+      "inert={false}/inert={true} behavior depends on React major and browser; attribute presence is not equivalent to making the subtree non-tabbable.",
+      "ArrowRight × 5 is coupled to roster order; a role reorder false-reds or selects the wrong teammate.",
+      "page.unroute is not in a finally; a failed wait after page.route can leak the hold interceptor.",
+      "PersistentComposer remains mounted and interactive beside Agent Studio and in view mode; out of F-05 scope but still a second submit tree on the same surface."
+    ]
+  }
+}

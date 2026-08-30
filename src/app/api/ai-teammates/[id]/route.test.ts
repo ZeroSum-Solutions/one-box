@@ -35,6 +35,7 @@ function assignment(overrides: Record<string, unknown> = {}) {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -92,6 +93,7 @@ describe("local AI teammate route", () => {
     );
 
     expect(response.status).toBe(403);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     await expect(response.json()).resolves.toEqual({
       error: "Unauthorized local API request",
     });
@@ -115,6 +117,7 @@ describe("local AI teammate route", () => {
     const response = await POST(request, context());
 
     expect(response.status).toBe(403);
+    expect(response.headers.get("cache-control")).toBe("no-store");
     expect(jsonRead).not.toHaveBeenCalled();
     expect(textRead).not.toHaveBeenCalled();
     expect(request.bodyUsed).toBe(false);
@@ -129,6 +132,7 @@ describe("local AI teammate route", () => {
       context("bad run id"),
     );
     expect(malformedRun.status).toBe(400);
+    expect(malformedRun.headers.get("cache-control")).toBe("no-store");
 
     const invalidBodies = [
       { ...assignment(), toolGrants: undefined },
@@ -147,10 +151,66 @@ describe("local AI teammate route", () => {
     for (const body of invalidBodies) {
       const response = await POST(authorizedRequest(body), context());
       expect(response.status, JSON.stringify(body)).toBe(400);
+      expect(response.headers.get("cache-control"), JSON.stringify(body)).toBe(
+        "no-store",
+      );
     }
   });
 
+  it("returns a bound receipt for valid run IDs whose first character is not a teammate contract-id character", async () => {
+    for (const edgeRunId of [
+      "-abc1",
+      "_abc1",
+      `-${"a".repeat(39)}`,
+      `_${"a".repeat(39)}`,
+    ]) {
+      const response = await POST(
+        authorizedRequest(assignment()),
+        context(edgeRunId),
+      );
+      const payload = (await response.json()) as {
+        runId: string;
+        proposal: { teammateId: string } | null;
+        receipt: { status: string; teammateId: string };
+      };
+
+      expect(response.status, edgeRunId).toBe(200);
+      expect(payload.runId, edgeRunId).toBe(edgeRunId);
+      expect(payload.proposal?.teammateId, edgeRunId).toBe("researcher");
+      expect(payload.receipt, edgeRunId).toMatchObject({
+        status: "complete",
+        teammateId: "researcher",
+      });
+    }
+  });
+
+  it("keeps normalized leading-symbol run IDs distinct from legal external run IDs", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_788_080_000_000);
+
+    const leadingSymbol = await POST(
+      authorizedRequest(assignment()),
+      context("-abc1"),
+    );
+    const alreadyLegal = await POST(
+      authorizedRequest(assignment()),
+      context("run--abc1"),
+    );
+    const leadingReceipt = (await leadingSymbol.json()) as {
+      receipt: { jobSha256: string };
+    };
+    const legalReceipt = (await alreadyLegal.json()) as {
+      receipt: { jobSha256: string };
+    };
+
+    expect(leadingSymbol.status).toBe(200);
+    expect(alreadyLegal.status).toBe(200);
+    expect(leadingReceipt.receipt.jobSha256).not.toBe(
+      legalReceipt.receipt.jobSha256,
+    );
+  });
+
   it("uses only the deterministic local producer and returns a proposal plus bound terminal receipt", async () => {
+    expect(Date.now()).not.toBe(1_788_080_000_000);
     const network = vi.fn(() => {
       throw new Error("network access is forbidden in Local foundation");
     });
@@ -232,5 +292,38 @@ describe("local AI teammate route", () => {
     expect(Date.parse(first.receipt.stoppedAt)).toBeGreaterThanOrEqual(
       Date.parse(first.receipt.startedAt),
     );
+  });
+
+  it("returns the exact five-key literal-null terminal envelope when canonical input exceeds the budget", async () => {
+    const response = await POST(
+      authorizedRequest(assignment({ task: "\0".repeat(2_000) })),
+      context(),
+    );
+    const payload = (await response.json()) as {
+      proposal: unknown;
+      receipt: {
+        status: string;
+        stoppingCondition: string;
+        outputSha256: string | null;
+        partialOutputSha256: string | null;
+      };
+    };
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(Object.keys(payload).sort()).toEqual([
+      "lane",
+      "proposal",
+      "receipt",
+      "runId",
+      "schemaVersion",
+    ]);
+    expect(payload.proposal).toBeNull();
+    expect(payload.receipt).toMatchObject({
+      status: "budget-exhausted",
+      stoppingCondition: "input-bytes-exceeded",
+      outputSha256: null,
+      partialOutputSha256: null,
+    });
   });
 });

@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:30:47Z",
+  "finding": "F5-RE-01",
+  "authorization": "OBX-AUTH-ATF-001",
+  "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-reaudit.json",
+  "disposition": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-reaudit-disposition.json",
+  "before": {
+    "ledgerSha256": "68c172e9dd5d15de96ef19fc9a9f92359cf4358846b555838e6c417b6bc0faf9",
+    "problem": "F-03 attributed the live eight-Idle-row count to T3; F-06 attributed exact live help-text and aria-describedby resolution to T3; F-07 attributed failed and successful roster-retry focus to T3. Accepted R-03/R-06 evidence proves those live oracles entered in T4."
+  },
+  "change": {
+    "onlyFile": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t3-corrections.md",
+    "onlyCells": ["F-03 GREEN", "F-06 GREEN", "F-07 GREEN"],
+    "F-03": "T3 binds component proof for boundary, placeholder labels, and eight static Idle rows plus live boundary-text and no-apply checks; it no longer claims the T4 live row-count oracle.",
+    "F-06": "T3 binds unit proof for exact help and aria-describedby; it no longer claims the T4 live-DOM resolution oracle.",
+    "F-07": "T3 binds the keyboard, focus-outline, held-POST, busy-lock, single-request, and completion-focus live path; it no longer claims the T4 failed/successful roster-retry focus oracle.",
+    "historicalSourceHashesChanged": false,
+    "productTestHarnessOrAuthorityBytesChanged": false
+  },
+  "after": {
+    "ledgerSha256": "f12c81dad5bcf6270e5ed10a85e527cd47bfb6f20139c63bad77984e5223dc2c",
+    "currentT3FocusedResult": "4 files, 28 tests",
+    "currentT3LiveResult": "WIDTHS=1440 Canvas contract",
+    "laterEpochBinding": "The T4 execution and closure receipts continue to bind the T4 source/harness epoch and its R-03/R-06 explicit live oracles; this T7 receipt binds only the corrected historical ledger bytes."
+  },
+  "verification": {
+    "diffCheck": "git diff --check passed",
+    "planPacketEffect": "none; docs/audits evidence is excluded from the authority packet digest"
+  },
+  "modelReview": {
+    "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t7-historical-chronology-closure-audit.json",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "verdict": "CLEAN",
+    "findings": 0
+  }
+}
