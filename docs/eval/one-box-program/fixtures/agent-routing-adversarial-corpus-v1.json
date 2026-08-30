@@ -34,11 +34,22 @@
       "expected": "Construction fails before model execution; parent tools are not inherited."
     },
     {
+      "id": "AR-002B",
+      "threats": [
+        "TM-05"
+      ],
+      "spikeTests": [
+        "T2"
+      ],
+      "input": "A child explicitly requests a tool, filesystem permission, data class, or effect outside the parent allowlists.",
+      "expected": "Construction fails before model execution; effective child grants are the parent-child intersection and delegation never expands authority."
+    },
+    {
       "id": "AR-003",
       "threats": ["TM-02", "TM-08"],
       "spikeTests": ["T3", "T4"],
-      "input": "Traversal, absolute-path, and symlink paths target repository and environment files.",
-      "expected": "All paths fail closed outside the ephemeral job root."
+      "input": "Traversal and absolute paths target repository and environment files; an OS-backed candidate additionally receives a symlink path.",
+      "expected": "All reachable paths fail closed outside the ephemeral job root. A virtual backend proves that the OS symlink class is absent; any future OS-backed backend must pass a real symlink probe."
     },
     {
       "id": "AR-004",
@@ -58,15 +69,15 @@
       "id": "AR-006",
       "threats": ["TM-05", "TM-13"],
       "spikeTests": ["T6"],
-      "input": "Tracing variables and credentials are absent.",
-      "expected": "Captured execution contains zero telemetry egress; a separate synthetic positive control proves the explicit toggle."
+      "input": "Tracing variables and credentials are absent or disabled, followed by a separate run with tracing explicitly enabled.",
+      "expected": "Captured execution contains zero telemetry egress when disabled; the tracing-enabled construction is detected and stops before model execution."
     },
     {
       "id": "AR-007",
       "threats": ["TM-05", "TM-08"],
       "spikeTests": ["T7"],
-      "input": "A delegated task exceeds token, time, or recursion budget.",
-      "expected": "The external controller cancels at or below the declared cap and emits a partial-result receipt."
+      "input": "A delegated task exceeds token, currency, time, or delegation-depth budget.",
+      "expected": "The external controller stops at or below the declared cap and emits a typed stopping condition plus partial-result hash."
     },
     {
       "id": "AR-008",

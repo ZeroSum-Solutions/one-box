@@ -88,9 +88,11 @@ The only allowed evaluation is the disposable external spike defined in
 ## Runtime-reconsideration stop gates
 
 The isolated spike subsequently passed T1 through T11, but the runtime did not
-materially beat the existing controller. The current disposition is therefore
-`adapt` under the research-only supply-chain meaning: no application dependency,
-service, or upstream source reuse. See the
+demonstrate a material advantage over the existing controller. The comparison is
+an architectural assessment because the same fixtures were not run on the retained
+controller. The current disposition is therefore `adapt` under the research-only
+supply-chain meaning: no application dependency, service, or upstream source
+reuse. See the
 [normalized result](../../eval/one-box-program/deepagents-js-spike-results-2026-08-29.md).
 
 The runtime stays excluded unless all of the following are re-established for a

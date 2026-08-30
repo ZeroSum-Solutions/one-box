@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T04:27:26.559Z",
+  "request": {
+    "task": "Re-audit Deep Agents teammate corrections and pattern-only decision",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "9d4ddfddc83efa2af5a560500cd87c787b7035f3",
+    "head": "9d4ddfddc83efa2af5a560500cd87c787b7035f3",
+    "files": [
+      "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+      "docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md",
+      "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-final-audit.json",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md",
+      "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md",
+      "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md",
+      "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md"
+    ],
+    "proofs": [
+      "docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md"
+    ],
+    "diffBytes": 116718
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 31955,
+      "completion_tokens": 15719,
+      "total_tokens": 47674,
+      "cost": 0.158032,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.158032,
+        "upstream_inference_prompt_cost": 0.063718,
+        "upstream_inference_completions_cost": 0.094314
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 15186,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The 12 preserved first-audit findings are substantively addressed in the allowlisted files: parent∩child grants with fail-closed expansion, missing/null vs explicit [], enumerated terminal states and non-human transitions, Canvas as sole design-mutation surface, accessibility contract, ADR/ledger adapt-patterns-only, architectural-only baseline label, T1–T11 rebound to external commit 00922f29e0f2ed6f59e6016be9e26f2ef95e56ef and evidence SHA-256 aab5f21a6a868cd2aa30e13ea1475244c7abe43bc6301cfe95469eeecd53edcd, virtual-backend symlink-class boundary, tracing-on fail-closed, and token/currency/time/delegation-depth receipts. In-slice proof is documentary plus hashes; the external spike bodies are not in this git object, so PASS rows are bound claims, not reproduced execution. The disposition table is not authority. No remaining BLOCK/HIGH/MEDIUM packet defect that reopens human authority or converts the architectural comparison into performance evidence.",
+    "residual_risks": [
+      "External spike tree, vitest/typecheck/audit bodies, and lockfile bytes are outside this slice; pin/integrity/network/credential/15-of-15 claims cannot be reproduced here.",
+      "T4/T6/T7 extra probes share the same vitest.json hash; resultEnvironment.tracingForcedOff is true for every test, so tracing-on fail-closed is not a separately named environment object.",
+      "Preserved first-audit request.head equals corrected HEAD 9d4ddfdd while findings describe pre-correction bytes.",
+      "authority-manifest packetDigest c2d618b8… is asserted, not recomputed in this review.",
+      "Evaluation-plan T2 PASS text still omits parent∩child; the requirement lives in the operating model, AR-002B, and spike T2 prose.",
+      "ADR Consequences still says a passing spike needs a later accepted ADR/ledger change, which is stale relative to the recorded adapt-patterns-only decision.",
+      "Named legal review of deepagents@1.13.2 and transitives remains incomplete; safe only while codeUseAllowed stays false.",
+      "Operating-environment index.md, OBX-P180/OBX-P310, PROG-EVAL-SEC-AGENT-001, and PROG-EVAL-COST-001 are cited but not in this slice."
+    ]
+  }
+}

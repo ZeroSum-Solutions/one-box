@@ -26,7 +26,7 @@ bounded isolated run
   propose -> challenge -> verify -> receipt -> stop
         |
         v
-human decision or guarded ONE BOX transition
+receipt persistence + mechanical state; named human decisions
 ```
 
 This preserves the useful teammate experience without turning a model into a
@@ -49,7 +49,9 @@ and costs are visible, and independent/human gates remain outside the model.
 The UI may retain teammate identity, description, avatar, specialty, skills,
 default route preferences, permitted data classes, memory namespace, activity
 history, and current availability. It may show `idle`, `queued`, `running`,
-`waiting-for-input`, `challenging`, `blocked`, or `complete`.
+`waiting-for-input`, `challenging`, `blocked`, `complete`, `failed`, `cancelled`,
+`rejected`, or `budget-exhausted`. Every terminal state emits a typed receipt with
+the stopping condition, partial-output hash when one exists, and retry eligibility.
 
 The roster is not a set of background daemons. `idle` means no process, tools,
 provider session, lease, or budget is active. Schedules create a new bounded job;
@@ -93,7 +95,8 @@ Every run declares before provider execution:
 
 - tenant, project, task, actor, teammate identity, and immutable input hash;
 - provider, model, revision, effort, region/transfer policy, and retention;
-- exact tools and permissions; omission means no tools, never inheritance;
+- explicit parent and child tool and permission arrays; missing or `null` arrays
+  are construction errors, while an explicitly written `[]` means no grant;
 - allowed data classes and redaction policy;
 - token, currency, time, concurrency, delegation-depth, and output-size budgets;
 - timeout, cancellation, retry, and fallback behavior;
@@ -113,12 +116,24 @@ Tools are separated into `read`, `propose`, `mutate`, `external-effect`, and
 or any later runtime is wrapped so an omitted subagent tool list is a construction
 error.
 
+Every child tool, filesystem grant, data class, and effect must be a subset of its
+parent's declared grants. Effective child grants are the intersection of parent and
+child allowlists. Any requested child grant outside the parent set fails
+construction before model execution; delegation can reduce authority but never
+expand it.
+
 - Research evaluation starts with `read` and `propose` only.
 - `mutate` requires an implementation-authorized ticket and the guarded ONE BOX
   mutation or repository workflow.
 - `external-effect` requires the effect-specific ticket, human gate, idempotency,
   and receipt.
 - `authority` is never available to a model, skill, worker, or provider.
+
+The only non-human post-run transitions are: persist the immutable receipt, record
+a deterministic verification result, stop/cancel the run, and enqueue an already
+authorized next bounded job. Accepting or applying a proposal, qualifying a
+candidate, changing scope, accepting risk, authorizing a ticket, releasing, or
+publishing always requires the named human gate defined by the owning contract.
 
 Filesystem access is virtual and rooted to one ephemeral job workspace. Real local
 filesystem or shell backends are denied by default and require a separate accepted
@@ -173,13 +188,20 @@ The Canvas shell should expose:
 - clear separation between `proposal`, `mechanically verified`, `human accepted`,
   `qualified`, and `released`.
 
+Roster controls, assignment fields, compare mode, activity filters, and interrupt
+cards require complete keyboard operation, accessible names and descriptions,
+visible focus, and textual state/error labels that do not rely on color. Approve,
+reject, cancel, and resume events must be announced to assistive technology.
+
 ## Adoption boundary
 
 The roster, task model, route policy, permissions, receipts, activity history,
-human gates, and UI are ONE BOX-native regardless of runtime choice. Deep Agents
-JS is only a candidate bounded execution runtime for the isolated job plane. Its
-failure or removal must not remove the teammate UX, project history, or authority
-chain.
+human gates, and UI are ONE BOX-native regardless of runtime choice. The completed
+Deep Agents JS evaluation is `adapt-patterns-only`; it is not a current job-plane
+runtime candidate. Its delegation, interrupt, and nested-stream ideas may inform
+ONE BOX-native contracts, but no upstream runtime or code enters the application.
+A future runtime reconsideration requires a new intake and authorization and must
+not remove the teammate UX, project history, or authority chain.
 
 ## Exit criteria
 

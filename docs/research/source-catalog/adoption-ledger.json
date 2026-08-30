@@ -517,14 +517,14 @@
       "recordCompleteness": "incomplete",
       "missingControls": [
         "named legal review of exact direct and transitive license obligations",
-        "no material runtime advantage over the existing controller",
+        "no same-fixture baseline metrics or demonstrated material runtime advantage over the existing controller",
         "upstream exact-optional declaration incompatibility and mandatory fail-closed wrapper burden",
-        "exact Grok 4.6 completed-packet audit and independent verification",
+        "independent verification of the completed pattern-only packet",
         "named owner acceptance and review expiry for any future reconsideration"
       ],
       "permissionsSummary": "External disposable workspace only; synthetic read/propose fixtures; application filesystem, shell, browser, credentials, client data and authority tools denied",
       "dataClass": "internal synthetic fixtures only",
-      "telemetry": "synthetic negative evidence passed with tracing forced off, fetch capture, OS network deny and blocked curl positive control; no provider or production telemetry use is authorized",
+      "telemetry": "synthetic negative evidence passed with tracing forced off, fetch capture, tracing-on construction rejected before model execution, OS network deny and blocked curl positive control; no provider or production telemetry use is authorized",
       "codeUseAllowed": false,
       "serviceUseAllowed": false,
       "releaseUseAllowed": false,

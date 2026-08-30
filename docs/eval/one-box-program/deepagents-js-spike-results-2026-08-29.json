@@ -13,22 +13,119 @@
   "externalSpike": {
     "path": "/Users/zero-suminc./Inbox/misc/one-box-deepagents-js-spike-20260829",
     "branch": "spike/deepagents-js-runtime",
-    "commit": "32ea73c009f2cc711ca4d5f6a4f4d374ecee7715",
-    "evidenceSha256": "63c69727c605a05417247442e0f9ecf448b8a4912452514b48995550335d1973",
+    "commit": "00922f29e0f2ed6f59e6016be9e26f2ef95e56ef",
+    "evidenceSha256": "aab5f21a6a868cd2aa30e13ea1475244c7abe43bc6301cfe95469eeecd53edcd",
     "lockfileSha256": "994bd6f04d5ad2266e40d8a138db30a2e6d690c1650a6242743f422c6a306bb7"
   },
+  "resultEnvironment": {
+    "node": "v22.22.3",
+    "platform": "darwin",
+    "arch": "arm64",
+    "dataClass": "internal-synthetic",
+    "tracingForcedOff": true,
+    "realCredentialsUsed": false,
+    "paidCalls": 0
+  },
   "results": [
-    { "id": "T1", "result": "PASS" },
-    { "id": "T2", "result": "PASS" },
-    { "id": "T3", "result": "PASS" },
-    { "id": "T4", "result": "PASS" },
-    { "id": "T5", "result": "PASS" },
-    { "id": "T6", "result": "PASS" },
-    { "id": "T7", "result": "PASS" },
-    { "id": "T8", "result": "PASS" },
-    { "id": "T9", "result": "PASS" },
-    { "id": "T10", "result": "PASS" },
-    { "id": "T11", "result": "PASS" }
+    {
+      "id": "T1",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" },
+        { "path": "package-lock.json", "sha256": "994bd6f04d5ad2266e40d8a138db30a2e6d690c1650a6242743f422c6a306bb7" }
+      ]
+    },
+    {
+      "id": "T2",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" }
+      ]
+    },
+    {
+      "id": "T3",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" }
+      ]
+    },
+    {
+      "id": "T4",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" }
+      ]
+    },
+    {
+      "id": "T5",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" },
+        { "path": "evidence/raw/os-network-sandbox.json", "sha256": "9492562a7bcb6204e1bbd270954cdf6ec1886216307e7f9b54a8890e42fd6fb0" }
+      ]
+    },
+    {
+      "id": "T6",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" },
+        { "path": "evidence/raw/os-network-sandbox.json", "sha256": "9492562a7bcb6204e1bbd270954cdf6ec1886216307e7f9b54a8890e42fd6fb0" }
+      ]
+    },
+    {
+      "id": "T7",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" }
+      ]
+    },
+    {
+      "id": "T8",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" }
+      ]
+    },
+    {
+      "id": "T9",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" }
+      ]
+    },
+    {
+      "id": "T10",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" },
+        { "path": "package-lock.json", "sha256": "994bd6f04d5ad2266e40d8a138db30a2e6d690c1650a6242743f422c6a306bb7" }
+      ]
+    },
+    {
+      "id": "T11",
+      "result": "PASS",
+      "environmentRef": "resultEnvironment",
+      "evidence": [
+        { "path": "evidence/raw/typecheck.json", "sha256": "f2d47b3f5e9c3acfc76a7b58aeb6e29e6f71f932ca576d09d5d9ce198f5c4094" },
+        { "path": "evidence/raw/vitest.json", "sha256": "ee5976afff2933f0ea27a45fb46b1572073144ce294cf69d6bb30276997e8b0f" },
+        { "path": "evidence/raw/vitest-command.json", "sha256": "848182a0ab499849ea5f872806a4cfc57c377c6894cb6ec8e99e73180df6aa36" },
+        { "path": "evidence/dependency-census.json", "sha256": "1889e2432190abdd03682d8b253808fd30e7fe210f9d6ae59066662be02c2d8f" },
+        { "path": "evidence/raw/npm-audit.json", "sha256": "0fbb81476bfbc7464fac41b4ca22d80d4c50ac623bd35c901c6296039705994a" },
+        { "path": "evidence/raw/npm-ls-production.json", "sha256": "9512de24d036d509a705a2bddbe83a051623cc0f7114f6d343ba0f9f6e8eaa52" },
+        { "path": "evidence/raw/os-network-sandbox.json", "sha256": "9492562a7bcb6204e1bbd270954cdf6ec1886216307e7f9b54a8890e42fd6fb0" },
+        { "path": "package-lock.json", "sha256": "994bd6f04d5ad2266e40d8a138db30a2e6d690c1650a6242743f422c6a306bb7" }
+      ]
+    }
   ],
   "supplyChain": {
     "lockedPackageEntriesIncludingDev": 149,
@@ -45,12 +142,16 @@
     "tracingForcedOff": true,
     "networkDeniedTestPassed": true,
     "networkPositiveControlBlocked": true,
+    "deterministicAssertionsPassed": 15,
+    "deterministicAssertionsTotal": 15,
     "applicationPackageSha256BeforeAndAfter": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e",
     "applicationLockSha256BeforeAndAfter": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"
   },
   "comparison": {
-    "materialRuntimeAdvantage": false,
-    "requiredPolicyWrapperLines": 196,
+    "classification": "architectural-assessment-only",
+    "sameFixtureBaselineMetricsCollected": false,
+    "materialRuntimeAdvantageDemonstrated": false,
+    "requiredPolicyWrapperLines": 275,
     "upstreamStrictTypeLimitation": "Declarations did not pass with exactOptionalPropertyTypes enabled and skipLibCheck disabled at the pinned graph.",
     "runtimeStrengths": [
       "subagent delegation",
@@ -68,6 +169,13 @@
   },
   "overall": "PASS",
   "decision": "adapt-patterns-only",
-  "rationale": "The primitives work, but the dependency, state, telemetry, and mandatory safety-wrapper burden do not materially beat extending the current bounded ONE BOX controller for the presently planned teammate jobs.",
+  "reviews": {
+    "firstAudit": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-final-audit.json",
+    "firstVerdict": "FINDINGS",
+    "correctionsReaudit": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-corrections-reaudit.json",
+    "correctionsVerdict": "CLEAN",
+    "authority": "advisory-review-input-only"
+  },
+  "rationale": "The primitives work, but this spike did not demonstrate a material advantage over extending the current bounded ONE BOX controller. Same-fixture baseline metrics were not collected, so pattern-only adaptation is the conservative no-adoption decision rather than a comparative performance claim.",
   "authorityBoundary": "Research evidence only. No application dependency, runtime, service, route, state, memory, approval, release, or implementation authority is created."
 }

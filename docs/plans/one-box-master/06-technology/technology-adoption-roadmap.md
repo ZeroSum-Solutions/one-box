@@ -28,7 +28,7 @@ Exit: authority register is accepted for the next implementation plan, browser P
 - Add hostile-content fixtures before any browser-linked model evaluation.
 - Prototype Puck interaction patterns and research Motion requirements against synthetic fixtures only; these reports do not clear the A4 visual motion-authoring stop.
 - Run any pre-authorization Electron Forge packaging, signing, notarization, and update experiment in a disposable out-of-tree spike with no remote content. Retain reports and receipts only, not application shell code.
-- The pinned Deep Agents JavaScript SDK completed its disposable out-of-tree synthetic job-plane spike under OBX-P180. T1 through T11 passed and application package/lock hashes stayed unchanged, but the comparative result was `adapt-patterns-only`: retain the ONE BOX controller and import no runtime dependency. This separate candidate does not change the cataloged Python `deepagents` row.
+- The pinned Deep Agents JavaScript SDK completed its disposable out-of-tree synthetic job-plane spike under OBX-P180. T1 through T11 passed and application package/lock hashes stayed unchanged, but no material advantage was demonstrated; the baseline comparison remains architectural rather than same-fixture performance evidence. The decision is `adapt-patterns-only`: retain the ONE BOX controller and import no runtime dependency. This separate candidate does not change the cataloged Python `deepagents` row.
 
 Exit: capability-specific thresholds are declared; benchmark inputs are rights-reviewed and hashed; results include cold start, p50/p95, unified memory, disk, energy, output drift, and attempted egress.
 

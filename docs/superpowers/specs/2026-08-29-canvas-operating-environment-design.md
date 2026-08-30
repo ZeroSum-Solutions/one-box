@@ -20,6 +20,12 @@ The product will have one shell with seven workspaces:
 6. Qualify
 7. Ship
 
+Canvas is the pinned default home and the only primary design-and-mutation
+workspace. Browser, Plan, Team, Review, Qualify, and Ship are focused adjuncts: a
+person may intentionally bring one to the center, but none becomes the default
+workspace, mutates the candidate directly, or displaces Canvas as the place where
+design proposals are previewed and applied.
+
 Agent Studio remains reachable from every workspace. It owns conversation, model selection, skill invocation, plans, proposals, and task execution. It does not bypass Page IR, candidate gates, client locks, release approval, or production promotion.
 
 The candidate delivery shape is a signed Apple-silicon desktop app backed by a shared cloud project service. It is architecture exploration, not a selected topology or implementation authorization. No retained Electron or other native shell, remote-content host, browser profile, CDP adapter, capture bridge, packaging integration, or updater may begin until a rewritten browser plan closes EB-001 through EB-021 with an owner, threat, deterministic oracle, fixture, exit gate, and retained-code boundary for every finding and passes the required human and independent reviews. A later accepted topology must decide which desktop and cloud responsibilities remain.
@@ -51,7 +57,7 @@ The five-zone Canvas anatomy remains intact:
 - contextual right inspector;
 - bottom status shelf.
 
-The left rail gains a workspace switcher. Only one primary workspace occupies the center at a time. Agent Studio can appear as a right drawer, bottom sheet, or focused full workspace. This prevents the new functions from crowding the design surface.
+The left rail gains a workspace switcher. Only one focused workspace occupies the center at a time, with Canvas remaining the pinned default and sole design-mutation surface. Agent Studio normally appears as a right drawer or bottom sheet. A person may deliberately open its focused planning view, but that view cannot apply a Canvas mutation and must return to Canvas for preview and application. This prevents the new functions from crowding or silently replacing the design surface.
 
 ### 3.1 Always visible
 
@@ -103,6 +109,9 @@ model/effort route, parent and subagent tool lists, data class, budget, deadline
 fallback policy, output schema, cancellation path, and receipt. The deterministic
 ONE BOX orchestrator owns scheduling and lifecycle state. Each agent returns a
 typed proposal or challenge; guarded product services own validation and apply.
+Missing parent or child allowlists are construction errors, and every child grant
+is intersected with the parent's grants before execution. An agent can never apply
+or approve its own proposal.
 See the [AI teammate operating model](../../plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md).
 
 ### 4.1 Model registry
@@ -386,7 +395,10 @@ Useful patterns in the inspected tree:
 
 The repository does not provide the architecture ONE BOX needs for team identity, shared projects, Page IR authority, evidence, client approval, qualification, deployment, or an embedded browser. Its current local setup also accepts provider keys and treats generated single-file HTML as the editable file state.
 
-### 10.2 Adopt
+### 10.2 Patterns to adapt
+
+This is pattern extraction only. Ledger entry `SC-GH-005` remains `adapt`; no
+repository source, dependency, or generated file is cleared for retained use.
 
 - multimodal screenshot and recording intake;
 - streamed agent and tool events;
