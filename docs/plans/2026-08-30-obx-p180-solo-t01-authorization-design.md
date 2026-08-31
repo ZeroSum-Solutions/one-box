@@ -98,6 +98,9 @@ implementationAuthorized: true
 projectId: "one-box"
 branch: "research/la-appointment-field-study"
 baseCommit: "b6486fdfa4601b315944ad099bf2beba1c053e91"
+activationBaseCommit: the stored full commit ID immediately before authority implementation
+activationWriteSet: the exact ordered goal write set defined below
+preExistingUntrackedBaseline: the exact path/hash rows captured at activation start
 parentTicketId: "OBX-P180"
 parentTicketStatus: "proposed"
 childTicketIds: ["OBX-P180-T01"]
@@ -330,7 +333,7 @@ Each receipt must be parsed, not existence-checked. Each uses the exact top-leve
 `amendmentId`, `amendmentHash`, `baseCommit`, `targetPaths`, `targetHashes`, `verdict`,
 `findings`, `independentHumanReview`, and `capturedAt`. The two model receipts
 additionally require `requestedModel`, `providerReportedModel`, and `effort`.
-Unknown/missing keys fail closed. Every `targetHashes` entry contains only `path`,
+Unknown/missing keys fail closed at every object level. Every `targetHashes` entry contains only `path`,
 `algorithm: "sha256"`, and the final lowercase digest, in the same order as
 `targetPaths`; the verifier rehashes every target.
 
@@ -428,7 +431,12 @@ The positive oracle requires all of the following simultaneously:
 - exact amendment identity/hash; and
 - exact parsed security/Grok/Fable evidence.
 
-Negative tests must individually prove rejection for every case below:
+Negative tests must individually prove rejection for every case below. Each fixture that
+mutates a stored solo-record field recomputes `authorizationHash.digest` and every other
+derived checksum not under test, so the targeted field guard is exercised against a
+hash-consistent forged record. Case 17 alone intentionally preserves or introduces a
+self-hash mismatch. File, amendment, manifest, and receipt mutations likewise refresh
+unrelated derived values unless the named mismatch is the behavior under test.
 
 1. any ATF field, nested value, array item, or canonical digest changes;
 2. `globalImplementationAuthorized: true` or a changed registry program/status/key set;
@@ -460,7 +468,9 @@ Negative tests must individually prove rejection for every case below:
 17. authorization self-hash omission, unknown exclusion, algorithm/canonicalization drift,
     or digest mismatch; and
 18. any extra write outside the exact goal write set below, including an arbitrary file
-    under `docs/audits/`.
+    under `docs/audits/`; this case is exercised through the source-scope census described
+    below, whose test injects the extra path into a hash-consistent changed-path fixture; and
+19. an otherwise valid active record evaluated at a time strictly later than `expiresAt`.
 
 ## Exact invalidators
 
@@ -510,9 +520,29 @@ docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json
 docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json
 ```
 
-The design re-audit may additionally create only
-`docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-reaudit.json` before activation.
-The existing adverse receipt remains read-only.
+The verifier exposes a pure `verifySoloActivationSourceScope` decision that consumes the
+captured output of `git diff --name-only <activationBaseCommit>...HEAD` and
+`git status --porcelain=v1 -uall`. It requires the committed changed-path set to equal the
+stored `activationWriteSet` and the untracked set to equal the stored
+`preExistingUntrackedBaseline` by exact path and SHA-256. The activation command captures
+those two Git outputs; the unit test supplies the same normalized arrays and proves that an
+otherwise inert extra `docs/audits/` path fails. This is the mechanical oracle for negative
+case 18; receipt parsing alone is not claimed to inventory the working tree.
+
+Before `activationBaseCommit` is captured, the design-review history may contain only
+these exact immutable receipts:
+
+```text
+docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-audit.json
+docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-reaudit.json
+docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-design-audit.json
+docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-final-audit.json
+docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-design-final-audit.json
+```
+
+Those pre-activation receipts are not members of `activationWriteSet`. They are committed
+before the activation base is frozen and become read-only history at that point. No design
+receipt may be overwritten or presented as an activation receipt.
 
 Within the registry, the only allowed changes from the frozen base are top-level
 `schemaVersion: 1 -> 2` and appending the one exact solo record; the top-level key set,

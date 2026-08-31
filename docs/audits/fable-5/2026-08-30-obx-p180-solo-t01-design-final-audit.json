@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "obx-model-audit-receipt-v1",
+  "taskId": "OBX-P180-SOLO-T01-DESIGN-FINAL",
+  "createdAt": "2026-08-30",
+  "designPath": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+  "designSha256": "538f3dfd1965f73e094b134ee3bfa6f46f35a9b95ddb3a8a4387a27329c6cef7",
+  "grokReceiptPath": "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-final-audit.json",
+  "request": {
+    "model": "claude-fable-5",
+    "effort": "max",
+    "mode": "read-only",
+    "safeMode": true,
+    "restricted": true,
+    "availableTools": ["Read", "Grep"],
+    "disallowedTools": ["Task", "Agent"],
+    "permissionMode": "plan",
+    "sessionPersistence": false,
+    "fallbackModel": null
+  },
+  "execution": {
+    "sessionId": "3f10143a-2f14-45e2-ad25-6556b6cd2e02",
+    "resultUuid": "21092c64-c77f-48c5-8b37-8700f8d25a04",
+    "terminalReason": "completed",
+    "stopReason": "end_turn",
+    "isError": false,
+    "permissionDenials": [],
+    "subagentsSpawned": 0,
+    "subagentsCompleted": 0,
+    "requestedReviewerModel": "claude-fable-5",
+    "substantiveReviewerModel": "claude-fable-5",
+    "substantiveReviewerCanonicalModel": "claude-fable-5",
+    "substantiveReviewerProvider": "firstParty"
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "model": "claude-fable-5",
+    "effort": "max",
+    "findings": [],
+    "residualRisks": [
+      "Pinned digests that could not be recomputed in the Read/Grep-only model session fail closed and must be mechanically rehashed at activation.",
+      "Implementation must hash every pre-existing untracked baseline path after capturing git status so verifySoloActivationSourceScope receives exact path/SHA-256 rows.",
+      "The solo validator must pin the stored activationWriteSet to the exact eight-file activation write set; a hash-consistent broadened value must fail.",
+      "The source-scope census does not use --ignored; ignored files carry no commit authority but are outside that census.",
+      "The final Grok activation receipt must freeze before the final Fable activation receipt is captured because Fable target hashes include Grok.",
+      "Model receipts remain advisory; independentHumanReview stays NOT_AVAILABLE/false and the sole MEDIUM separation finding remains owner-accepted risk.",
+      "The frozen risk-exceptions README remains stale by design after the exact owner amendment is created; the verifier pins that default text rather than generalizing it."
+    ],
+    "approvalReadiness": "Ready for owner approval. Every prior Grok HIGH/MEDIUM finding, all three initial Fable LOW clarifications, and the separate expired-record gap are closed in the audited design bytes. Approval authorizes only the recorded solo T01 exception; nothing activates until every gate, receipt, and execution-time rehash passes, and model review remains advisory throughout."
+  }
+}

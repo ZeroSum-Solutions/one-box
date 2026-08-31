@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T06:09:15.899Z",
+  "request": {
+    "task": "OBX-P180-SOLO-T01-DESIGN-FINAL",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "08c03b4",
+    "head": "08c03b44eb7547ccbc9c033478e11439a23fb861",
+    "files": [
+      "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-reaudit.json",
+      "docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-design-audit.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/governance/reviewer-roles.md",
+      "docs/governance/risk-exceptions/README.md"
+    ],
+    "diffBytes": 29291,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 8000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 20301,
+      "completion_tokens": 17053,
+      "total_tokens": 37354,
+      "cost": 0.142728,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.142728,
+        "upstream_inference_prompt_cost": 0.04041,
+        "upstream_inference_completions_cost": 0.102318
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 16647,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The supplied diff is design prose only. Live proof remains pre-activation: registry schemaVersion 1, ATF-only, globalImplementationAuthorized false, packet/governance still CLOSED/NOT AUTHORIZED and non-waivable. Prior Grok HIGH/MEDIUM items stay pinned in the unchanged body (NOT_AVAILABLE/false roles, EXCEPT_T01_SOLO/NOT_SATISFIED, nested rehash, exact receipts/paths/effects/invalidators, exact amendment tuple, no T02+/runtime/provider/persistence/UI/Page-IR/deployment/release authority). The three Fable LOWs are closed in-text: hash-consistent mutated fixtures with case 17 reserved; receipt unknown keys fail at every object level; case 18 uses pure verifySoloActivationSourceScope over captured git diff --name-only and porcelain -uall plus an extra-path fixture. Case 19 is a distinct now>expiresAt negative. activationBaseCommit, activationWriteSet, and preExistingUntrackedBaseline are stored fields; pre-activation design receipts are a closed immutable allowlist; placeholders remain invalid. Claimed design digest 538f3dfd… is not recomputed from these bytes.",
+    "residual_risks": [
+      "Specified git name-only/porcelain inputs do not carry SHA-256; untracked baseline hash equality depends on a separate normalize/hash step not named in the capture commands.",
+      "Case 18 compares the tree to stored activationWriteSet; that stored array must still be value-pinned to the hard-coded eight-file goal set or a hash-consistent broadened write set plus matching extra files would satisfy the census.",
+      "git status without --ignored will not see ignored extra files.",
+      "Model receipts stay advisory; independentHumanReview remains NOT_AVAILABLE/false.",
+      "Concrete timestamps and digests are still execution-time stored values, not literals in this markdown."
+    ]
+  }
+}

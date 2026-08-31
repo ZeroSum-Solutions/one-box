@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "obx-model-audit-receipt-v1",
+  "taskId": "OBX-P180-SOLO-T01-DESIGN",
+  "createdAt": "2026-08-30",
+  "reviewedCommit": "08c03b44eb7547ccbc9c033478e11439a23fb861",
+  "designPath": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+  "designSha256": "eb75b9cee5c6229219875aa081e98627f73fd144c77cd2ad041e7e11816dd3d2",
+  "request": {
+    "model": "claude-fable-5",
+    "effort": "max",
+    "mode": "read-only",
+    "safeMode": true,
+    "restricted": true,
+    "availableTools": ["Read", "Grep"],
+    "disallowedTools": ["Task", "Agent"],
+    "permissionMode": "plan",
+    "sessionPersistence": false,
+    "fallbackModel": null
+  },
+  "execution": {
+    "sessionId": "6968681c-e963-40fa-b91c-7529ac0cbf19",
+    "resultUuid": "30375b2c-0105-4327-914b-a4e5e827dd14",
+    "terminalReason": "completed",
+    "stopReason": "end_turn",
+    "isError": false,
+    "permissionDenials": [],
+    "subagentsSpawned": 0,
+    "subagentsCompleted": 0,
+    "requestedReviewerModel": "claude-fable-5",
+    "substantiveReviewerModel": "claude-fable-5",
+    "substantiveReviewerCanonicalModel": "claude-fable-5",
+    "substantiveReviewerProvider": "firstParty"
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "model": "claude-fable-5",
+    "effort": "max",
+    "findings": [
+      {
+        "severity": "LOW",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": 431,
+        "scenario": "Negative cases 4-7 mutate stored record fields, but any field mutation also breaks the canonical self-hash, so every such fixture can collapse into the case-17 authorization-hash-mismatch rejection and the targeted guard is never individually exercised against a hash-consistent forged record.",
+        "remediation": "State that each mutated negative copy recomputes /authorizationHash/digest so the targeted guard, not the self-hash check, produces the rejection; reserve case 17 for the hash-mismatch proof."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": 462,
+        "scenario": "Case 18 requires the verifier-driven negative suite to prove rejection of an extra write outside the exact goal write set, but the verifier reads only three exact receipt paths and no inventory/census mechanism is specified, so an inert extra file may be undetectable by verify-plan-authority alone.",
+        "remediation": "Name the mechanism that proves case 18: a pinned write-set inventory in the verifier or the diff/source-census gate with its own fixture."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": 334,
+        "scenario": "The receipt fail-closed sentence pins only enumerated top-level keys, unlike the registry-record contract which fails closed at every object level; an extra nested key could survive schema validation and rely only on pinned-value checks.",
+        "remediation": "Append 'at every object level' to the receipt fail-closed sentence."
+      }
+    ],
+    "residualRisks": [
+      "The CLEAN Grok design re-audit does not itself record the final design digest; final activation audits must bind the exact design hash.",
+      "Pinned constants that cannot be recomputed in a read-only model session fail closed rather than open and must be mechanically rehashed by the implementation verifier.",
+      "The exact owner amendment intentionally differs from the default solo-maintainer governance text and depends on explicit owner acceptance of the MEDIUM separation risk.",
+      "Model receipts remain advisory and do not create independent human review."
+    ],
+    "approvalReadiness": "Ready for human owner approval as written. The three LOW items are implementation-detail clarifications that fail closed and do not contradict written-spec readiness; approval authorizes only the recorded solo exception, not implementation until every gate, receipt, and execution-time rehash passes."
+  }
+}
