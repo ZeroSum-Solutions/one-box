@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "amendmentId": "OBX-P180-T01-SOLO-AMENDMENT-001",
+  "recordKind": "owner-solo-child-ticket-governance-amendment-v1",
+  "status": "ACTIVE",
+  "authorizationId": "OBX-AUTH-P180-T01-SOLO-001",
+  "projectId": "one-box",
+  "branch": "research/la-appointment-field-study",
+  "baseCommit": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+  "activationBaseCommit": "66f9afeaaf1e9b37d4bd1ef5437a88e1f6a425bd",
+  "parentTicketId": "OBX-P180",
+  "childTicketIds": [
+    "OBX-P180-T01"
+  ],
+  "ownerDirection": {
+    "actorId": "person:devin-wiggins",
+    "name": "Devin Wiggins",
+    "sourceThreadId": "01a0553b-ef7d-7b42-9f59-7204480be636",
+    "decision": "ACCEPT_EXACT_SOLO_T01_RISK",
+    "recordedAt": "2026-08-31T13:33:33Z"
+  },
+  "standardWaiverEligible": false,
+  "nonWaivableDefaultPreserved": true,
+  "unavailableControls": [
+    {
+      "controlId": "owner-assignment-v1-t01",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "implementation-lead",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "model-skill-security-owner",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "job-sandbox-owner",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "implementation-actor-authorizer-separation",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "independent-human-security-review",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    }
+  ],
+  "requirementExceptions": [
+    {
+      "requirementId": "P180-R014",
+      "exceptionStatus": "EXCEPT_T01_SOLO",
+      "satisfactionStatus": "NOT_SATISFIED",
+      "waivedClauses": [
+        "named-human-operating-role-coverage-for-three-t01-roles",
+        "accepted-current-owner-assignment-v1-records",
+        "distinct-per-role-escalation-humans"
+      ]
+    },
+    {
+      "requirementId": "P180-R015",
+      "exceptionStatus": "EXCEPT_T01_SOLO",
+      "satisfactionStatus": "NOT_SATISFIED",
+      "waivedClauses": [
+        "t01-current-owner-assignment-entry-gate"
+      ]
+    },
+    {
+      "requirementId": "P180-R016",
+      "exceptionStatus": "EXCEPT_T01_SOLO",
+      "satisfactionStatus": "NOT_SATISFIED",
+      "waivedClauses": [
+        "implementation-lead-authorizer-separation",
+        "ordinary-exact-owner-roster"
+      ]
+    }
+  ],
+  "acceptedRisk": {
+    "findingId": "OBX-P180-T01-SOLO-SEPARATION-001",
+    "severity": "MEDIUM",
+    "status": "ACCEPTED",
+    "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE",
+    "riskOwnerActorId": "person:devin-wiggins"
+  },
+  "scope": {
+    "denyUnlistedPathsAndEffects": true,
+    "allowedPaths": [
+      "src/lib/operatingEnvironment/canonical.ts",
+      "src/lib/operatingEnvironment/canonical.test.ts",
+      "src/lib/operatingEnvironment/contracts.ts",
+      "src/lib/operatingEnvironment/contracts.test.ts",
+      "src/lib/operatingEnvironment/reasonCodes.ts",
+      "src/lib/operatingEnvironment/reasonCodes.test.ts"
+    ],
+    "allowedEffects": [
+      "add-pure-closed-contract-types-and-validators"
+    ],
+    "forbiddenEffects": [
+      "product-runtime-import-or-effect",
+      "provider-or-model-call",
+      "network",
+      "credential-or-environment-access",
+      "filesystem-or-shell-io",
+      "persistence-or-durable-state",
+      "queue-or-background-worker",
+      "browser",
+      "ui",
+      "collaboration",
+      "canvas-or-page-ir-read-write-or-mutation",
+      "deployment",
+      "release",
+      "dependency-or-lockfile-change",
+      "mutable-global-state",
+      "clock-or-randomness",
+      "authority-outside-exact-solo-record",
+      "t02-through-t08",
+      "parent-evaluation-completion-claim",
+      "independent-human-review-claim",
+      "production-readiness-claim"
+    ]
+  },
+  "requiredEvidencePaths": [
+    "docs/audits/evidence/security/2026-08-30-obx-p180-t01-solo-authorization-security-review.json",
+    "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json",
+    "docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json"
+  ],
+  "compensatingControls": [
+    "exact-t01-only-scope",
+    "exact-336-hour-non-renewable-expiry",
+    "deny-every-unlisted-path-and-effect",
+    "pure-deterministic-computation-with-no-io",
+    "exact-amendment-and-authorization-hash-binding",
+    "exact-security-grok-fable-receipt-parsing",
+    "independent-human-review-remains-not-available"
+  ],
+  "independentHumanReview": {
+    "status": "NOT_AVAILABLE",
+    "satisfied": false,
+    "actorId": null
+  },
+  "recordedAt": "2026-08-31T13:33:33Z",
+  "expiresAt": "2026-09-14T13:33:33Z",
+  "renewable": false
+}

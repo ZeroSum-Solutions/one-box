@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "receiptKind": "solo-t01-model-audit-v1",
+  "authorizationId": "OBX-AUTH-P180-T01-SOLO-001",
+  "authorizationHash": "7dc3ab642004bdb8980c0f9d63dc1631ce89252783aeee1883f1b2a55be8e7ce",
+  "amendmentId": "OBX-P180-T01-SOLO-AMENDMENT-001",
+  "amendmentHash": "eb932d7e0a6cd12fa2cfa6570afbcad452bbdf8481047c700aaf3eec4075d202",
+  "baseCommit": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+  "targetPaths": [
+    "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+    "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "docs/governance/risk-exceptions/2026-08-30-obx-p180-t01-solo.json",
+    "scripts/verify-plan-authority.mjs",
+    "scripts/verify-plan-authority.node.mjs",
+    "docs/audits/evidence/security/2026-08-30-obx-p180-t01-solo-authorization-security-review.json"
+  ],
+  "targetHashes": [
+    {
+      "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "algorithm": "sha256",
+      "digest": "85b9a5037955fc1132deeb73e638f08c227a40cba1c3812de6ad213f8b28d3d3"
+    },
+    {
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "algorithm": "sha256",
+      "digest": "bbe984298ecf83f36a49f4a3d2798b9cb36dbfedbde3edfef13f26f7449dbd20"
+    },
+    {
+      "path": "docs/governance/risk-exceptions/2026-08-30-obx-p180-t01-solo.json",
+      "algorithm": "sha256",
+      "digest": "eb932d7e0a6cd12fa2cfa6570afbcad452bbdf8481047c700aaf3eec4075d202"
+    },
+    {
+      "path": "scripts/verify-plan-authority.mjs",
+      "algorithm": "sha256",
+      "digest": "662481bd4428ab7866fa46007ea7fd83db38c35dd912e56cf69c2a05b2f77cab"
+    },
+    {
+      "path": "scripts/verify-plan-authority.node.mjs",
+      "algorithm": "sha256",
+      "digest": "5af9acf5cbdac47f5961732557112f29ebcd2d2d78eaca2ce702194f4e4410db"
+    },
+    {
+      "path": "docs/audits/evidence/security/2026-08-30-obx-p180-t01-solo-authorization-security-review.json",
+      "algorithm": "sha256",
+      "digest": "4b2ed13583cdb56daa0b0d2c9cf59c79c555ca4992061d0ee5122a3d4d949164"
+    }
+  ],
+  "verdict": "PASS-WITH-ACCEPTED-RISK",
+  "findings": [
+    {
+      "findingId": "OBX-P180-T01-SOLO-SEPARATION-001",
+      "severity": "MEDIUM",
+      "status": "ACCEPTED"
+    }
+  ],
+  "independentHumanReview": {
+    "status": "NOT_AVAILABLE",
+    "satisfied": false
+  },
+  "capturedAt": "2026-08-31T15:08:56Z",
+  "requestedModel": "x-ai/grok-4.6",
+  "providerReportedModel": "x-ai/grok-4.6",
+  "effort": "high"
+}
