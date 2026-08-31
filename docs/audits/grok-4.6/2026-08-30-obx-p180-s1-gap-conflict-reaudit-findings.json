@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T01:08:16.047Z",
+  "request": {
+    "task": "OBX-P180-S1-REAUDIT",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md"
+    ],
+    "proofs": [
+      ".claude/handoffs/one-box-operating-environment-next-phase.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/04-operating-environment/index.md",
+      "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+      "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+      "docs/eval/model-routing/policy.md",
+      "docs/eval/model-routing/benchmark-harness.md",
+      "docs/eval/one-box-program/evaluation-strategy.md",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/security/supply-chain-policy.md"
+    ],
+    "diffBytes": 22382,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 6000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 33626,
+      "completion_tokens": 27431,
+      "total_tokens": 61057,
+      "cost": 0.231838,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.231838,
+        "upstream_inference_prompt_cost": 0.067252,
+        "upstream_inference_completions_cost": 0.164586
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 26912,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "GC-02, GC-03, GC-04, GC-05, GC-06, GC-09, GC-10, GC-11, GC-12, GC-14, GC-15, GC-16, GC-17, GC-18, GC-19, GC-20, GC-21, GC-22, GC-23",
+        "scenario": "CLEAN requires SRC-linked conflict evidence. After the partial backfill, only GC-01/07/08/13/24/25 cite SRC-IDs. The other 19 rows keep prose-only current evidence (GC-06 ‘T1 through T11 passed’ with no SRC-06/SRC-07; GC-14 ‘Provisional policy’ with no SRC-08; GC-16 planned cost fixture with no SRC-13). Those cells can be edited or reopened without breaking a SRC identifier, so conflict evidence is not SRC-linked for every row.",
+        "remediation": "Put the governing SRC-IDs in every Current evidence and Gap or conflict cell, matching the six already-linked rows. Do not add sources, change classes, or add implementation language."
+      }
+    ],
+    "proof_assessment": "Supplied sources confirm the closed six-class ledger, handoff-named file rows SRC-01/02/18–29, SRC-06 as accepted contract, GC-24/25 interruption/checkpoint/telemetry/kill-switch gaps, P180-R002 provider-offline first slice, P180-R003/GC-03 unchanged runtime routes, GC-21/P180-R013 Canvas/Page IR freeze, and repeated non-authorization wording. Proof does not show SRC-IDs on 19 conflict rows; narrative overlap with the ledger is evidence of intent, not of the required link.",
+    "residual_risks": [
+      "SRC-04 is a self-described planning draft classified as accepted contract, so draft packet rules outrank evaluation evidence unless a later GC row limits which sections bind.",
+      "SRC-07 names no path for the ‘normalized result’.",
+      "Class=authority on SRC-01/19/29 is outside the numbered disagreement order, so a future clash with accepted contracts is procedure-ambiguous."
+    ]
+  }
+}

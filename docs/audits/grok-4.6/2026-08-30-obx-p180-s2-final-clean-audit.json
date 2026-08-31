@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T03:03:33.315Z",
+  "request": {
+    "task": "OBX-P180-S2-FINAL-CLEAN",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-definitive-closure-findings-v5.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "diffBytes": 31894,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15880,
+      "completion_tokens": 9461,
+      "total_tokens": 25341,
+      "cost": 0.088334,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.088334,
+        "upstream_inference_prompt_cost": 0.031568,
+        "upstream_inference_completions_cost": 0.056766
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 9088,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "HEAD equals BASE; only the S2 planning contract is in scope. The v5 Grok MEDIUM is not in these bytes: 373-375 already limit `interrupted -> cancelled` to rejection, expiry, revocation, or stale expected state, and 488-493 require duplicate/self interrupt and four-hash rewrite CASes to reject or replay-attach with zero mutation, with hash mismatch cancelling only on a failed live-gate/hash compare while processing the unique `accept-proposal` decision. Typed-proposal mutex (351-355) still forbids `active -> completed|failed|budget-exhausted` without unique acceptance. Treat the v5 FINDINGS JSON as stale evidence, not a live defect.",
+    "residual_risks": [
+      "Line 484 leftover `Resume or cancellation` can be misread as `interrupted -> active` even though that transition is unlisted and the four hashes are forbidden outside `interrupted`.",
+      "Failure-table `otherwise cancelled` and AC 8 do not restate duplicate-interrupt attach, so table/AC-only tests can miss replay-attach.",
+      "`RouteSegmentStateV1` has no `decisionHash`; unique `accept-proposal` uniqueness remains an S3 slot-CAS concern.",
+      "`active -> interrupted` is a multi-record CAS with no single closed transaction record; in-memory fixtures cannot prove durable atomicity.",
+      "Kill-switch on or reservation loss during `interrupted` fails the accept live-gate but is not an independent cancel trigger unless accept is processed or expiry/revocation/stale-state fires.",
+      "Claim-index-one preconditions still describe attempt 0 as `retryable-failure` without restating the 517-518 terminalizing CAS."
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:30:51.373Z",
+  "request": {
+    "task": "OBX-P180-S2-PROPOSAL-HITL",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-interrupt-reconcile-findings-v2.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+      "docs/security/2026-08-29-program-threat-model.md"
+    ],
+    "diffBytes": 30550,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 23267,
+      "completion_tokens": 25961,
+      "total_tokens": 49228,
+      "cost": 0.202108,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.202108,
+        "upstream_inference_prompt_cost": 0.046342,
+        "upstream_inference_completions_cost": 0.155766
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 25017,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "`active -> terminal` / `active -> completed`; `active -> interrupted`",
+        "scenario": "A completed attempt with a schema-valid unapplied proposal satisfies both the generic success rule (`active -> terminal`: output settles the segment) and the proposal-HITL gate. Input: attemptIndex 0 is `completed` with typed proposal P, segment still `active`, no live handle. A worker CASes `active -> completed` on `stateRevision` and emits a completed receipt with P, never writing interrupt/proposal/expected-state hashes. Wrong behavior: proposal-HITL is skipped entirely (or lost to a race with `active -> interrupted`); unique CAS binding, live gates, accept/cancel terminals, and the human decision never run; P can still enter the guarded apply flow as a completed-segment proposal. That silently invalidates every Proposal-HITL guarantee.",
+        "remediation": "Close a mutex: when the current attempt is `completed` with a schema-valid unapplied proposal, forbid `active -> completed|failed|budget-exhausted`. Allow only `active -> interrupted` (proposal-HITL) or operational `active -> cancelled`. Add an S2 oracle that a typed proposal cannot obtain a completed segment receipt without the interrupt CAS and a unique `accept-proposal` decision."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "RouteSegmentStateV1 hash fields; 'Every segment transition is a compare-and-swap on stateRevision'; '`interrupted` requires all four...'",
+        "scenario": "The four interrupt/proposal/expected-state hashes are required in `interrupted` and compared on the way out, but they are optional fields and are not declared write-once. The general rule is a `stateRevision` CAS; listed transitions are only enum changes; `interrupted -> interrupted` is unstated. Input: segment is `interrupted` bound to interrupt H1 and proposal P1; a later `stateRevision` CAS keeps `state=interrupted` and replaces `pendingProposalEnvelopeHash`/`interruptHash`/expected-state hashes with P2/H2. Wrong behavior: the human accepts H1/P1 while the bound CAS record now names P2, so unique interrupt/proposal/expected-state binding does not hold for the life of the gate.",
+        "remediation": "Make the four hashes write-once at `active -> interrupted` and immutable until a listed `interrupted -> completed|cancelled` CAS. Forbid any CAS that remains in `interrupted`. Accept/cancel must compare the original four hashes plus `stateRevision`; any mismatch cancels."
+      }
+    ],
+    "proof_assessment": "HEAD equals BASE; the only artifact is this planning contract. The attached Grok interrupt-reconcile FINDINGS describe bytes that are not in this file (`interrupted -> active`, RouteSegmentStateV1 without interrupt/proposal/expected-state hashes, terminal-only quarantine). Those findings are not authority for OBX-P180-S2-PROPOSAL-HITL. Current text does distinguish proposal-HITL from cancel/switch, requires a completed attempt and no live handle, stores the four hashes, terminals on accept/cancel, checks live gates on accept, quarantines late output while interrupted, and denies apply on accept. Remaining criterion holes are the still-open `active -> completed` path beside HITL and non-immutability of the interrupted hash bindings.",
+    "residual_risks": [
+      "Atomic CAS is specified across segment, settled attempt, interrupt, and reservation records with no single closed record; in-memory fixtures cannot prove durable atomicity.",
+      "S2 references a unique accept-proposal decision/slot but RouteSegmentStateV1 has no decisionHash; uniqueness depends on later S3 slot CAS.",
+      "`no attempt may be retryable-failure` fail-closes proposal-HITL after a successful index-1 retry while attempt 0 remains `retryable-failure`.",
+      "interrupted -> completed requires the reservation still held but never reconciles/releases it, so accept can leak budget.",
+      "Leftover 'Resume or cancellation' wording can be misread as interrupted -> active despite that transition being absent."
+    ]
+  }
+}

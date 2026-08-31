@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T00:57:50.845Z",
+  "request": {
+    "task": "OBX-P180-S1-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md"
+    ],
+    "proofs": [
+      ".claude/handoffs/one-box-operating-environment-next-phase.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"
+    ],
+    "diffBytes": 18147,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 6000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 7908,
+      "completion_tokens": 18911,
+      "total_tokens": 26819,
+      "cost": 0.12909,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.12909,
+        "upstream_inference_prompt_cost": 0.015624,
+        "upstream_inference_completions_cost": 0.113466
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 17872,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "25-29, 34-54, 81, 87-88, 93",
+        "scenario": "Authority order band 1 is the program authority manifest and band 4 is the proposed OBX-P180 ticket plus draft operating-environment material, but the source ledger never records authority-manifest.json, plan-register.md, OBX-P180.md, ai-teammate-operating-model.md, or canvas-operating-environment-design.md. GC-01/GC-07/GC-08/GC-13 still use unnamed 'Draft E1 language', 'Drafts', 'E2', and 'Draft operating model' as current evidence. Applying precedence to a conflict between those drafts and OBX-AUTH-ATF-001 cannot be executed; uncited draft text can be treated as a reconciled source.",
+        "remediation": "Add numbered SRC rows for the authority manifest, plan-register, OBX-P180 ticket, and each draft operating-environment file actually used, give each an explicit authority class, and replace unnamed 'Drafts'/'E1'/'E2' citations in GC rows with those SRC IDs."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "109-110 vs 36-54",
+        "scenario": "Step 1 acceptance criterion 1 requires every source to be classified as authority, accepted contract, proposed target, evaluation evidence, research evidence, or audit evidence. The ledger's 'Authority and use' column does not apply that enumeration (SRC-08 'provisional hypotheses' is not mapped to band 3 vs 5; SRC-01 is 'binding continuation record', which is not a listed class). Closing S1 against its own oracle passes a packet that its own gate would reject, and later steps cannot tell which band wins.",
+        "remediation": "Add a Class column restricted to the six allowed values and classify every SRC-01..SRC-17 row before treating S1 as acceptable."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "43",
+        "scenario": "SRC-06 is ADR 0003 but is labeled 'Accepted research disposition'. Authority order places accepted ADRs in band 2 and research dispositions in band 5, below the proposed OBX-P180 ticket. If packet text later disagrees with adapt-patterns-only, band 4 can be read as outranking the Deep Agents freeze even though GC-06 marks it frozen-decision.",
+        "remediation": "Reclassify SRC-06 as an accepted ADR (band 2). Keep 'research evidence' only for T1-T11/SRC-07, and state that band-4 packet text cannot reopen ADR 0003 without a new ADR plus authorization."
+      }
+    ],
+    "proof_assessment": "Supplied proof covers only SRC-01 and SRC-02. Those two claims match: Canvas freeze d844f9fead4e42d46d44b793203fad7489cc3597, closure base b6486fdfa4601b315944ad099bf2beba1c053e91, OBX-AUTH-ATF-001 read/propose-only with provider/network/credentials/persistent-storage/mutate/deployment/release prohibited, Deep Agents adapt-patterns-only, implementation blocked. In-document provider-offline first slice, unchanged pinned routes, Page IR/proposal-only freeze, and no implementation grant are consistent with that proof. SRC-03..SRC-17 line citations and the unnamed draft/E1/E2 evidence are unproven by the supplied proof and cannot be treated as verified.",
+    "residual_risks": [
+      "Line cites on SRC-03..SRC-17 (including threat-model TM IDs and eval policy retry/escalation text) are unchecked; a wrong cite would silently mis-state higher-band policy.",
+      "Interrupt, checkpoint-deletion, telemetry, and kill-switch behavior appear in SRC-14 fixture scope but have no dedicated GC row outside compare cancellation.",
+      "resolved-by-contract rows plus P180-R002 'may define schemas, registries, fixtures, and deterministic adapters' can be over-read as slice authorization despite the planning-only status.",
+      "Handoff is called a binding summary while remaining an in-progress note outside the five-band order.",
+      "technology-adoption-roadmap.md is accepted sequencing in the handoff and is absent from the ledger."
+    ]
+  }
+}

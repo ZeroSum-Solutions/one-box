@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "obx-p180-contract-fixtures-v1",
+  "fixtureId": "obx-p180-apply-eligibility-fixture-v1",
+  "laneId": "apply-eligibility-conformance",
+  "mode": "provider-offline",
+  "dataClass": "synthetic-internal",
+  "providerCallsPermitted": false,
+  "cases": [
+    {
+      "id": "proposal-failed-segment-not-considerable",
+      "evaluator": "proposal-apply",
+      "input": { "terminalState": "failed", "effectClass": "propose", "requestedAction": "consider-for-guarded-apply", "proposalHashMatches": true, "manifestHashesMatch": true, "foundationReceiptMatches": true, "targetStateFresh": true, "compareEvidenceOnly": false, "authorityOutcome": "non-authorizing-proposal" },
+      "expect": { "accepted": false, "reasonCode": "PROPOSAL_SEGMENT_NOT_COMPLETED" }
+    },
+    {
+      "id": "proposal-completed-may-enter-guarded-consideration",
+      "evaluator": "proposal-apply",
+      "input": { "terminalState": "completed", "effectClass": "propose", "requestedAction": "consider-for-guarded-apply", "proposalHashMatches": true, "manifestHashesMatch": true, "foundationReceiptMatches": true, "targetStateFresh": true, "compareEvidenceOnly": false, "authorityOutcome": "non-authorizing-proposal" },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED_NON_AUTHORIZING_PROPOSAL" }
+    },
+    {
+      "id": "proposal-direct-page-ir-apply-rejected",
+      "evaluator": "proposal-apply",
+      "input": { "terminalState": "completed", "effectClass": "propose", "requestedAction": "apply-page-ir", "proposalHashMatches": true, "manifestHashesMatch": true, "foundationReceiptMatches": true, "targetStateFresh": true, "compareEvidenceOnly": false, "authorityOutcome": "non-authorizing-proposal" },
+      "expect": { "accepted": false, "reasonCode": "PAGE_IR_APPLY_FORBIDDEN" }
+    },
+    {
+      "id": "compare-arm-proposal-rejected",
+      "evaluator": "proposal-apply",
+      "input": { "terminalState": "completed", "effectClass": "propose", "requestedAction": "consider-for-guarded-apply", "proposalHashMatches": true, "manifestHashesMatch": true, "foundationReceiptMatches": true, "targetStateFresh": true, "compareEvidenceOnly": true, "authorityOutcome": "non-authorizing-proposal" },
+      "expect": { "accepted": false, "reasonCode": "COMPARE_ARM_APPLY_FORBIDDEN" }
+    }
+  ]
+}

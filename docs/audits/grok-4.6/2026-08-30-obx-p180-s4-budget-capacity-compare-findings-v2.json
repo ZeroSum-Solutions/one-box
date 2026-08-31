@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:31:42.048Z",
+  "request": {
+    "task": "OBX-P180-S4-REAUDIT",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-budget-capacity-compare-findings.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+      "docs/security/2026-08-29-program-threat-model.md"
+    ],
+    "diffBytes": 19970,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 26581,
+      "completion_tokens": 29362,
+      "total_tokens": 55943,
+      "cost": 0.229142,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.229142,
+        "upstream_inference_prompt_cost": 0.05297,
+        "upstream_inference_completions_cost": 0.176172
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 28288,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "215-217, 332",
+        "scenario": "Proposal-HITL is legal only after the sole attempt is already completed, and same-route retry begins from a terminal retryable-failure attempt. Line 215 releases a claimed lease on 'provable terminal attempt settlement', which is true at that moment, while 216-217 and row 332 require that same lease to remain claimed through HITL and the already-reserved retry. Releasing on attempt completion returns the slot; a concurrent segment can claim it; accept-proposal or attempt index 1 then either dispatches without a claimed lease (violating 211-212) or consumes a second slot.",
+        "remediation": "Release capacity only on terminal segment state, never on attempt completion. Keep the lease claimed or in reconciliation-hold across in-flight, ambiguous, retryable-failure, and interrupted/HITL; replay/attach that same lease. Do not authorize claimed->expired or a second slot."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "96, 119, 132-133, 211-212, 269-271, 335",
+        "scenario": "A compare parent has one BudgetReservationV1 with a single state covering both arms. Ambiguous billing on arm A moves the full unresolved amount to reconciliation-hold. Arm B may still be queued; dispatch requires reservation state held, so the sibling cannot dispatch. Following row 335 ('settle each arm, then parent aggregate') instead mutates reservedAmounts while the reservation is immutable except state transitions, releasing parent funds the sibling still needs.",
+        "remediation": "Keep the parent reservation held until both arms are terminal. Allow per-arm ledger events without parent state change, then one CAS to settled, released, or reconciliation-hold. Never settle/release the aggregate while a sibling can still claim/dispatch."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "206-208, 329-330, 334, 336",
+        "scenario": "Claimed leases may only go to released or reconciliation-hold, but auth failure 'revoke/kill affected lease' and kill-switch 'cancel queue' / 'preserve ledger' are not those states. Output-violation 'reconcile claim' and over-reserve 'hold evidence' also are not held|settled|released|reconciliation-hold. Queued holds can stick with no cleanup (338-341) or be dropped without no-dispatch proof; over-reserve leaves the reserved maximum's terminal state unspecified.",
+        "remediation": "Map every row to explicit reservation and lease CAS states and owners. Kill-switch: queued releases only with no-dispatch proof; in-flight stays claimed/held or reconciliation-hold. Auth/output: reconciliation-hold if dispatch/billing is unproven, released only with no-dispatch proof; include Budget/Operations on money movement. Over-reserve: keep the reserved maximum in reconciliation-hold; never enlarge caps."
+      }
+    ],
+    "proof_assessment": "The supplied Grok findings describe older line semantics (provider settle-known, claimed->expired, missing balance CAS, thin failure table) that do not match these bytes. Those five issues are largely remediated in prose: attach-only provider/driver usage, BudgetBalanceStateV1/CapacityBalanceStateV1 CAS, no claimed->expired, compare-evidence-only, expanded owner table. They are not authority that this revision is CLEAN. Remaining contradictions still break claimed-capacity-through-HITL/retry, compare aggregate hold, and closed failure dispositions. No executable crash-safe CAS, rate-window, or apply-oracle proof exists; acceptance item 8 is unmet while MEDIUM+ findings remain.",
+    "residual_risks": [
+      "compare-evidence-only is not a field on closed Step 3 RouteSegmentReceiptV1/ProposalEnvelopeV1; apply oracles that only implement Step 3 will still accept a completed arm unless they also consult CompareManifest/CompareReceipt hashes",
+      "CapacityReceiptV1 is hashed from CompareReceiptV1 but has no closed schema",
+      "BudgetBalanceStateV1 remaining-amount invariant (whether release restores remaining) is unspecified",
+      "expiresAt has no CAS transition; only ambiguous holds are barred from silent expiry release",
+      "rate-window epoch/uniqueness at interval boundaries is not explicit",
+      "OwnerAssignmentV1 rows remain unassigned; named owners are labels until Step 6",
+      "in-memory fixtures cannot prove durable CAS, replay/attach, or post-crash reconciliation",
+      "mixed synthetic/metered compare arms are not forbidden",
+      "priority-before-fair-share has no anti-starvation bound if weights are zero"
+    ]
+  }
+}

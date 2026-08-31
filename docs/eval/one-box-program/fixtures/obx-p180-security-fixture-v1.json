@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "obx-p180-contract-fixtures-v1",
+  "fixtureId": "obx-p180-security-fixture-v1",
+  "laneId": "security-conformance",
+  "mode": "provider-offline",
+  "dataClass": "synthetic-internal",
+  "providerCallsPermitted": false,
+  "cases": [
+    {
+      "id": "context-untrusted-cannot-be-policy",
+      "evaluator": "context-authority",
+      "input": { "sourceKind": "prior-output", "authorityClass": "policy" },
+      "expect": { "accepted": false, "reasonCode": "CONTEXT_AUTHORITY_MISMATCH" }
+    },
+    {
+      "id": "context-unknown-source-rejected",
+      "evaluator": "context-authority",
+      "input": { "sourceKind": "unknown", "authorityClass": "untrusted-data" },
+      "expect": { "accepted": false, "reasonCode": "CONTEXT_AUTHORITY_MISMATCH" }
+    },
+    {
+      "id": "slash-explicit-control-admitted",
+      "evaluator": "slash-invocation",
+      "input": { "explicitCommandControl": true, "fullPayloadSingleLine": true, "commandEnabled": true, "skillEnabled": true, "schemaValid": true },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED" }
+    },
+    {
+      "id": "slash-pasted-command-text-rejected",
+      "evaluator": "slash-invocation",
+      "input": { "explicitCommandControl": false, "fullPayloadSingleLine": true, "commandEnabled": true, "skillEnabled": true, "schemaValid": true },
+      "expect": { "accepted": false, "reasonCode": "SLASH_EXPLICIT_CONTROL_REQUIRED" }
+    },
+    {
+      "id": "skill-cannot-inflate-permission-intersection",
+      "evaluator": "permission-intersection",
+      "input": { "authorizedCapabilities": ["read"], "requestedCapabilities": ["read", "mutate"], "effectiveCapabilities": ["read", "mutate"] },
+      "expect": { "accepted": false, "reasonCode": "PERMISSION_INTERSECTION_MISMATCH" }
+    },
+    {
+      "id": "skill-explicit-empty-intersection-admitted",
+      "evaluator": "permission-intersection",
+      "input": { "authorizedCapabilities": [], "requestedCapabilities": [], "effectiveCapabilities": [] },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED" }
+    },
+    {
+      "id": "output-canary-detected-rejected",
+      "evaluator": "output-conformance",
+      "input": { "schemaValid": true, "sizeWithinCap": true, "dataClassAllowed": true, "canaryDetected": true },
+      "expect": { "accepted": false, "reasonCode": "OUTPUT_CANARY_DETECTED" }
+    },
+    {
+      "id": "provider-identity-mismatch-rejected",
+      "evaluator": "provider-identity",
+      "input": { "requestedProvider": "fixture-provider-a", "reportedProvider": "fixture-provider-b", "requestedModel": "fixture/model-v1", "reportedModel": "fixture/model-v1", "requestedEffort": "high", "reportedEffort": "high" },
+      "expect": { "accepted": false, "reasonCode": "PROVIDER_IDENTITY_MISMATCH" }
+    },
+    {
+      "id": "provider-empty-identity-rejected",
+      "evaluator": "provider-identity",
+      "input": { "requestedProvider": "", "reportedProvider": "", "requestedModel": "", "reportedModel": "", "requestedEffort": "", "reportedEffort": "" },
+      "expect": { "accepted": false, "reasonCode": "PROVIDER_IDENTITY_REQUIRED" }
+    }
+  ]
+}

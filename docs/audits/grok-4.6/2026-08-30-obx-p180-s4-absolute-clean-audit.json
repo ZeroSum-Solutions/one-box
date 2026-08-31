@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T03:48:10.829Z",
+  "request": {
+    "task": "OBX-P180-S4-ABSOLUTE-CLEAN",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-exclusive-closure-findings-v9.json"
+    ],
+    "diffBytes": 27920,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 4000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 8633,
+      "completion_tokens": 20922,
+      "total_tokens": 29555,
+      "cost": 0.142606,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.142606,
+        "upstream_inference_prompt_cost": 0.017074,
+        "upstream_inference_completions_cost": 0.125532
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20630,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "v9 HIGH is not faithful to these bytes. D7 already treats associated leases in released|cancelled|expired as no-ops when bound to a terminal receipt or UnusedCompareComponentProofV1 hash, allows only reconciliation-hold -> released in the same CAS, forbids reopening terminal leases, and is the sole reservation-hold and lease-hold exit after D3/D4/D6. D6 still parks any lease already in reconciliation-hold; D6U remains the unused offered|queued CAS; D2/D4 cannot exit lease-hold. Criterion holds on the supplied slice.",
+    "residual_risks": [
+      "Compare arm lease-only moves (offered|queued cancel, claimed -> reconciliation-hold) while the parent stays held are implied by the non-compare-reservation exception rather than named D-rows; only D6U states that pairing explicitly.",
+      "D7 no-op must not bump a terminal lease revision, or later bound proofs can desync.",
+      "claimed -> released still needs the terminal receipt to bind the lease's segment/manifest/job; D-rows say this-segment, the lease state machine does not.",
+      "Reservation expiresAt still has no positive D-code; expiry is fail-closed only.",
+      "In-memory fixtures still cannot prove crash-safe CAS or durable D7 recovery."
+    ]
+  }
+}

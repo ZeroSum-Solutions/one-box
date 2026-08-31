@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:06:25.729Z",
+  "request": {
+    "task": "OBX-P180-S3",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "proofs": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/security/supply-chain-policy.md",
+      "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json"
+    ],
+    "diffBytes": 20750,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24153,
+      "completion_tokens": 21814,
+      "total_tokens": 45967,
+      "cost": 0.178998,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.178998,
+        "upstream_inference_prompt_cost": 0.048114,
+        "upstream_inference_completions_cost": 0.130884
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 19261,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "Human interrupt resume rules; HumanInterruptV1 (~321-385) vs Step 2 RouteSegmentStateV1",
+        "scenario": "A propose-class skill hits an interrupt while the segment is active. Step 2 allows only active -> completed|failed|cancelled|budget-exhausted and treats terminals as final. Step 3 says the control plane 'suspends the segment without advancing authority' and an approval 'resumes the same segment'. There is no interrupted/suspended CAS state, no stop-work rule, and no legal resume transition. Implementers must either leave the segment active (driver/worker can continue) or terminalize it (resume of the same frozen segment is impossible).",
+        "remediation": "Add a closed `interrupted` segment state with CAS: active -> interrupted (cancel in-flight work, no proposal/apply, reservation held); interrupted -> active only when HumanDecisionV1 accepts and interrupt/intent/route/context/skill/tool/budget/deadline/expected-state hashes still equal; interrupted -> cancelled|rejected on reject/expiry/mismatch. Forbid resume from any terminal state."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "HumanInterruptV1.requestedDecisionSchemaHash (~327-345)",
+        "scenario": "A skill/worker emits HumanInterruptV1 whose requestedDecisionSchemaHash is a skill-owned schema such as {run_shell: yes|no} or {grant_tool: X}. A named human selects yes. Resume checks that route/context/skill/tool/budget *fields* still match, so no new segment is created, but decisionValue is then interpreted as extra capability. Interrupt has no issuer/actor field, so the model/skill/worker can choose the schema and safeSummary.",
+        "remediation": "Only the control plane may create HumanInterruptV1. Bind requestedDecisionSchemaHash to a ONE BOX-owned closed vocabulary (e.g. accept-proposal|reject|cancel) that cannot add tools, paths, data classes, budget, or authority. Require control-plane issuer identity; reject skill/worker/provider-authored interrupts. Derive safeSummary only from typed proposal fields."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "SkillInvocationIntentV1 (~183-209)",
+        "scenario": "After reservation, an invocation is created with the reserved segmentId/budgetReservationId but a different skillAdmissionHash, routePolicyHash, contextBundleHash, or effectiveToolGrantHash than the frozen RouteSegmentIntentV1/ManifestV1. Only budgetReservationId 'must match'. That is an in-place skill/route/context/tool change on a reserved segment and lets a slash draft or child call escape the admitted SkillSetV1.",
+        "remediation": "Require invocation.segmentManifestHash to equal the reserved manifest for (jobId, segmentId); skillAdmissionHash ∈ that segment's SkillSetV1; routePolicyHash, contextBundleHash, and effectiveToolGrantHash equal the frozen segment hashes (effective tools may only be a recorded intersection subset). Mismatch fails closed and emits no invocation receipt."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "ContextFragmentV1.sourceKind vs authorityClass (~232-248)",
+        "scenario": "A prior-output, evidence, or project-artifact fragment is stored with authorityClass `policy` or `skill-instruction`. Prose says layers stay separate, but the schema does not bind sourceKind to authorityClass, so quoted instructions can be packed as system/skill authority and change route/tool/approval behavior.",
+        "remediation": "Close a sourceKind→authorityClass map: accepted-policy→policy; actor-task→human-task; human-decision→human-decision; skill-instruction→skill-instruction; project-artifact|evidence|prior-receipt|prior-output→untrusted-data. Reject any other pair before packing."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "ContextBundleV1.orderedMaterializationHashes[] and excludedFragmentReceipts[] (~292-316)",
+        "scenario": "Fragments listed in policy/task/decision arrays may appear 'at most once' in materialization and may be moved to excludedFragmentReceipts while the bundle still validates. Overflow can drop policy/human layers or omit included hashes without a rejected context receipt, so packing is not fail-closed or deterministic.",
+        "remediation": "Every hash in an authority-class list must appear exactly once in orderedMaterializationHashes. Policy, human-task, and human-decision fragments are mandatory; excluding them invalidates the bundle. Overflow of any remaining fragment returns only a rejected context receipt, never a valid under-cap bundle. Count materialization separators/labels inside actualBytes."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "SlashCommandEntryV1 (~123-141)",
+        "scenario": "Criterion requires owner kill switches for skills and slash commands. SlashCommandEntryV1 has owners and admission but no killSwitchRef. A killed skill still leaves an enabled command name parseable; disabling the command requires a healthy registry write, which the skill kill switch is defined to avoid.",
+        "remediation": "Add command-registry and per-entry ONE BOX killSwitchRef that reject parse and invocation without reading skill bytes. Disabled/killed skillAdmissionHash must make every bound command name/alias fail before grammar success."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "HumanDecisionV1.interruptHash (~347-368)",
+        "scenario": "Two currently authorized humans can each write a valid HumanDecisionV1 for the same interruptHash (accept vs reject) because the interrupt record has no state/CAS and no single-assignment rule. Resume can observe the accept and continue the proposed effect.",
+        "remediation": "Make interrupt single-assignment via CAS: at most one schema-valid decision binds; later decisions fail validation. Resume must use that unique decisionHash."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "ProposalEnvelopeV1 vs RouteSegmentReceiptV1 (~461-513)",
+        "scenario": "Acyclicity forbids the envelope from referencing the final segment receipt. Terminal prose says non-completed states are not apply-eligible, but apply is not required to find a completed RouteSegmentReceiptV1 whose proposalEnvelopeHash equals this envelope (and whose foundation job receipt is the frozen owner). A failed/cancelled/stray envelope can be submitted to the guarded apply path. Failed-bullet text also only bans proposals for ambiguous execution, not all non-completed states.",
+        "remediation": "Apply eligibility = completed RouteSegmentReceiptV1 with matching proposalEnvelopeHash, schema-valid propose-only envelope, and foundationJobReceiptHash from the frozen job contract. All non-completed terminal combinations must reject proposalEnvelopeHash/output that is apply-shaped. Keep the envelope from hashing the segment receipt."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "SkillAdmissionV1.ownerAssignmentRefs[] and SlashCommandEntryV1.ownerAssignmentRefs[]",
+        "scenario": "Owner arrays may be empty. Acceptance requires owner-bound supply-chain entries; an unowned fixture-only skill/command can still parse, enter a skill set, and produce invocation intents.",
+        "remediation": "Fail validation unless at least one current OwnerAssignmentV1 is bound and unexpired for each skill and command. Unowned, expired, or revoked refs cannot admit, parse, or invoke."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "Slash closed grammar (~142-166)",
+        "scenario": "Composer payload `/foo\\n/bar args` does not match 'one /, one name, then EOS or one ASCII space', but the contract never says the entire payload is a single parse. A line-splitting UI can dispatch two skill-selection drafts from one submit, including pasted/model text that the 'only explicit actor action' rule meant to block.",
+        "remediation": "Parse the full composer payload as exactly one invocation; any additional command-shaped line or extra leading / fails the whole action. Pasted/retrieved/model text cannot start a parse even if the actor hits send unless the actor also used the explicit command control, not free text."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "SlashCommandEntryV1.inputSchemaHash vs SkillAdmissionV1.inputSchemaHash",
+        "scenario": "Command and skill schemas are independent. User text is 'subject to the skill input schema' after a command parse that used a narrower schema. A future skill schema that accepts paths/URLs/flags can receive those bytes as one field and treat them as execution input while slash grammar claims it never splits to path/URL/shell.",
+        "remediation": "Require command inputSchemaHash to equal the bound skill inputSchemaHash or to be a closed restriction of it. Skill schemas in this packet cannot admit filesystem paths, URL fetch, shell tokens, or plugin IDs as executable fields."
+      }
+    ],
+    "proof_assessment": "Proof is prose planning plus Step 2/TM-05/supply-chain/authorization docs, not an executable oracle. Those sources support deny-by-default tools, no live provider, and no P180 implementation auth, but they do not close Step 3 invariants that are only narrated: interrupt state, decision vocabulary, invocation-to-segment equality, sourceKind↔authorityClass, and apply gating. Treat the markdown as evidence of intent; it does not yet satisfy the completeness predicate.",
+    "residual_risks": [
+      "Future child skill receipts can cycle if children hash parents; first slice has zero children but the receipt rule only forbids referencing the final segment receipt.",
+      "HumanInterruptV1.safeSummary remains an attacker-influenced social-engineering channel even with a closed decision enum.",
+      "Composer bidi/homoglyph display can spoof slash names while ASCII parse stays closed.",
+      "freshnessPolicyRef could encode never-expire and fail open on staleness.",
+      "Implementations may treat completed RouteSegmentReceiptV1 as a second job-terminal authority despite foundationJobReceiptHash.",
+      "ContextFragmentV1.normalizedBytes is named like content, not a count; storing bytes would put payload into hash-chained control-plane records.",
+      "No accessibility contract for pre-dispatch included/excluded source disclosure.",
+      "SkillInvocationReceiptV1 terminal states are not a closed enum with the same non-completed proposal ban."
+    ]
+  }
+}

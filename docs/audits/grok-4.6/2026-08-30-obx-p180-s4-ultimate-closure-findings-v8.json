@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T03:34:36.763Z",
+  "request": {
+    "task": "OBX-P180-S4-ULTIMATE-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-clean-closure-final-findings-v7.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "diffBytes": 26764,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15693,
+      "completion_tokens": 23597,
+      "total_tokens": 39290,
+      "cost": 0.172776,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.172776,
+        "upstream_inference_prompt_cost": 0.031194,
+        "upstream_inference_completions_cost": 0.141582
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 22388,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "D2/D6/D7 rows; claimed|reconciliation-hold -> released",
+        "scenario": "D7 asserts it is the only lease-hold exit, but D2 lists lease `claimed|reconciliation-hold -> released` with only fixture/owner usage proof plus a terminal receipt, the capacity rule allows every `claimed|reconciliation-hold -> released` with a terminal receipt, and D6 sends each arm/component lease `-> released` with a terminal receipt. A compare arm with uncertain dispatch can enter lease `reconciliation-hold` while the parent reservation stays `held` (per-arm conditions must not run D3 on the parent). When that arm later has a terminal receipt, D6 releases the held lease without `owner-reconcile`. Implementers therefore have three normative lease-hold exits; D7 exclusivity is not a closed machine.",
+        "remediation": "Make D2 lease-only `claimed -> released`. Restrict D6 to `claimed -> released` with that component's terminal receipt; if any associated lease is still `reconciliation-hold`, D6 must CAS the parent reservation to `reconciliation-hold` and leave those leases in `reconciliation-hold`. State that `reconciliation-hold -> released` on a lease is legal only in D7, with bound terminal hashes plus `owner-reconcile`."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "D6 row; Parent deadline/cancellation may only drive each arm toward terminal through that arm's segment/lease CAS",
+        "scenario": "Arm A reaches a terminal segment receipt and its lease does `claimed -> released` (required once the segment is terminal). Parent reservation remains `held` until the full component set exists. Arm B then becomes terminal and D6 runs. D6 requires each arm/component lease `-> released` and does not allow an already-`released`/`cancelled`/`expired` lease no-op. `released -> released` is not a transition, so D6 either fails forever or reopens Arm A's slot. The live pairing (parent `held`, sibling lease already `released`) is also not a D-code, despite `No other reservation/lease pairing is valid.`",
+        "remediation": "Give D6 the same already-terminal lease rule as D7: each associated lease is already `released|cancelled|expired` with its bound terminal or unused-proof hash (no-op, do not reopen) or `claimed -> released` in this CAS."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "UnusedCompareComponentProofV1; D1 vs D6",
+        "scenario": "Parent reserve includes evaluator/reviewer/retry. Both arms become terminal without those components being claimed. The control plane can emit `UnusedCompareComponentProofV1`, but issuance is not a CAS against lease/attempt state, so a worker can still `offered|queued -> claimed` after the proof. D6 then binds the proof and `release-unused` while the component dispatches. Separately, cancelling that unused offered/queued lease while the parent stays `held` is not a valid pairing: D1 would do reservation `held -> released` on the compare parent. Implementers either release parent budget early or leave unused component leases uncleared.",
+        "remediation": "Issuing `UnusedCompareComponentProofV1` must be one control-plane CAS that moves that component to a terminal no-dispatch state and, if a lease exists, `offered|queued -> cancelled|expired` without any parent/hierarchy amount movement (compare-safe D1-variant). D6 must bind `proofHash` plus that state revision; a later claim of a proven-unused component rejects."
+      }
+    ],
+    "proof_assessment": "v7 correctly named the three holes that this slice had to close, but it is not authority that those holes remain as written or that the current bytes are clean. Current text does add D7 no-op for already-released leases, the stock identity on every BudgetBalance CAS with recon-hold remaining in `held`, and `UnusedCompareComponentProofV1`. Those additions do not yield the required closed machine: D7 is not the only lease-hold exit, D6 cannot join already-released sibling leases, and unused proofs are records without a no-dispatch CAS or a legal compare-parent-held lease pairing. Stock identity on BudgetBalance CAS is stated and was not re-opened.",
+    "residual_risks": [
+      "D1 prior-offered forbids reading QueueStateV1 while queue-full offered->cancelled must atomically observe depth, so two offered claims can exceed maximumQueueDepth.",
+      "claimed|reconciliation-hold->released requires a terminal receipt hash but does not bind that receipt's segmentId/manifestHash/jobId to CapacityLeaseV1.",
+      "Reservation expiresAt has no D-code; noDispatchEvidenceHash has no closed schema.",
+      "Attempt index one has no CAS distinct from offered|queued->claimed, so a reused claim could re-decrement a slot despite D5.",
+      "Step 2 reserved|queued->cancelled can still move budgetReservationId without a compare sibling join.",
+      "In-memory fixtures cannot prove crash-safe CAS, replay/attach, or durable reconciliation."
+    ]
+  }
+}

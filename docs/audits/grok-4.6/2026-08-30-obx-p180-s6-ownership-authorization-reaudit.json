@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:49:16.636Z",
+  "request": {
+    "task": "OBX-P180-S6-REAUDIT",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s6-ownership-authorization-findings.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/05-security-and-executable-evaluations.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"
+    ],
+    "diffBytes": 22846,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 6000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 13029,
+      "completion_tokens": 21387,
+      "total_tokens": 34416,
+      "cost": 0.154188,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.154188,
+        "upstream_inference_prompt_cost": 0.025866,
+        "upstream_inference_completions_cost": 0.128322
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20864,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The supplied Grok receipt is not an oracle for these bytes. Its HIGH/MEDIUM items cite unioned globs (src/lib/operatingEnvironment/**, docs/audits/obx-p180/**, docs/plans/**/obx-p180/**, fixtures/obx-p180-*.json), allowedPaths containing docs/eval/one-box-program/manifest.json, informal gate labels (registry/route owners, Budget/Operations Owner), verifier SoD limited to policy/evaluator authors, and escalation omission that still counts as current. None of those strings exist in the added proposal. Current ticketScopes enumerate exact files, predecessorTicketIds, and kebab-case role IDs; effectPolicy is deny-every-unlisted-path-and-effect; forbiddenEffects include expose-ui-or-product-surface, edit-program-eval-manifest-or-unrelated-eval-lane, and quality-pass-or-provider-connected-evaluation-claim; verifier overlap with any reviewed-diff author is an invalidator; missing/non-human/same-human/expired escalation makes OwnerAssignmentV1 unavailable; status proposed-not-accepted with null acceptance fields and OWNER-MUST-SET/TO-BE-FILLED placeholders. Treat the receipt as a prior-gap checklist, not as unresolved findings.",
+    "residual_risks": [
+      "Accepting by reshaping this record into the existing scoped-implementation-authorizations.json schema (allowedPathPrefixes / unioned allowedExactPaths / flat ticketIds) would drop per-ticket path, predecessor, and role binding.",
+      "T07 predecessorTicketIds lists only T06; T01–T05 are transitive, not explicit, and ‘code frozen’ is not a field on the ticket record.",
+      "T03 and T04 both predecessor T02 (DAG) while the ledger Order column implies a total order.",
+      "T05 allowedPaths can rewrite Step 5 evaluator/fixture bytes, not only obx-p180-offline-manifest-entry-v1.json.",
+      "Sentinel planPacketHash/expiresAt stay non-null; a sloppy accept that sets only acceptedBy would not be schema-invalid without extra checks.",
+      "No specified mapping from git authors to humanActorId, and no actor registry for escalation expiry outside OwnerAssignmentV1.",
+      "Proposed eval gate --allow-fs-read=. is wider than credential-read-or-issuance."
+    ]
+  }
+}

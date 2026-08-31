@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T01:55:39.613Z",
+  "request": {
+    "task": "OBX-P180-S2-DEFINITIVE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-provider-route-final-findings-v2.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/2026-08-29-program-threat-model.md"
+    ],
+    "diffBytes": 27662,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 4000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 16451,
+      "completion_tokens": 13158,
+      "total_tokens": 29609,
+      "cost": 0.111658,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.111658,
+        "upstream_inference_prompt_cost": 0.03271,
+        "upstream_inference_completions_cost": 0.078948
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 12731,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "HEAD equals BASE; the only artifact is the Step 2 planning contract. The attached Grok v2 proof is not authority: it describes a closed attempt graph of only `claimed -> in-flight | failed` and residual gaps (self-hash omission, missing RouteSegmentStateV1, missing idempotency replay/attach) that are not present in these bytes. Current text lists `claimed -> in-flight | failed | cancelled | ambiguous`, restricts `claimed -> cancelled` to proven no-dispatch plus interrupt evidence with no provider observation, restricts `claimed -> failed` to proven no-dispatch non-interrupt failure, forces uncertain dispatch to CAS `ambiguous` with reservation hold and no index-1 claim, and requires driver/provider cancel evidence only after a handle exists (`in-flight`). RouteSegmentStateV1 is a closed CAS record; self-hash is defined as SHA-256 over canonical bytes with the record's own `*Hash` omitted; duplicate `idempotencyKey` replay/attach cannot issue another call; intent/manifest split plus reservation binding and maxAttempts 1/2 pairing are explicit; catalog/pricing/admission/region/identity and provider-offline/no-authorization/frozen-route boundaries remain fail-closed. No remaining BLOCK/HIGH/MEDIUM contract defect.",
+    "residual_risks": [
+      "*PolicyRef target schemas remain Step 5; fail-closed depends on unresolved/expired hashes staying fatal.",
+      "Canonicalization still leaves encoding/optional-field/Unicode edges implementer-defined; mismatch fails closed rather than colliding.",
+      "In-memory first-slice tests are still not evidence for durable or provider-side idempotency.",
+      "`in-flight -> retryable-failure` is not explicitly forbidden when `maxAttempts: 1`; pairing and retry prose imply `failed`, but a mis-implementer could leave `active` stuck.",
+      "Cross-record atomic CAS of segment state plus attempt claim is required in prose and left to a later implementation ticket."
+    ]
+  }
+}

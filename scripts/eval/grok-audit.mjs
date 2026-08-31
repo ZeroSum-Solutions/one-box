@@ -21,7 +21,14 @@ function fail(message) {
 }
 
 function parseArgs(argv) {
-  const options = { files: [], proofs: [], model: "x-ai/grok-4.6", effort: "medium" };
+  const options = {
+    files: [],
+    proofs: [],
+    model: "x-ai/grok-4.6",
+    effort: "medium",
+    timeoutMs: 300_000,
+    maxOutputTokens: 12_000,
+  };
   for (let index = 0; index < argv.length; index += 1) {
     const key = argv[index];
     if (key === "--dry-run") {
@@ -39,6 +46,8 @@ function parseArgs(argv) {
     else if (key === "--out") options.out = value;
     else if (key === "--model") options.model = value;
     else if (key === "--effort") options.effort = value;
+    else if (key === "--timeout-ms") options.timeoutMs = Number.parseInt(value, 10);
+    else if (key === "--max-output-tokens") options.maxOutputTokens = Number.parseInt(value, 10);
     else fail(`unknown argument: ${key}`);
   }
   for (const required of ["task", "base", "criterion", "out"]) {
@@ -47,6 +56,16 @@ function parseArgs(argv) {
   if (options.files.length === 0) fail("at least one --file is required");
   if (!["low", "medium", "high", "xhigh"].includes(options.effort)) {
     fail("--effort must be low, medium, high, or xhigh");
+  }
+  if (!Number.isInteger(options.timeoutMs) || options.timeoutMs < 30_000 || options.timeoutMs > 900_000) {
+    fail("--timeout-ms must be an integer from 30000 through 900000");
+  }
+  if (
+    !Number.isInteger(options.maxOutputTokens) ||
+    options.maxOutputTokens < 1_000 ||
+    options.maxOutputTokens > 20_000
+  ) {
+    fail("--max-output-tokens must be an integer from 1000 through 20000");
   }
   return options;
 }
@@ -160,6 +179,8 @@ const requestSummary = {
   files,
   proofs: options.proofs,
   diffBytes: Buffer.byteLength(diff),
+  timeoutMs: options.timeoutMs,
+  maxOutputTokens: options.maxOutputTokens,
 };
 
 if (options.dryRun) {
@@ -172,7 +193,7 @@ if (!apiKey) fail("OPENROUTER_API_KEY is not set; load it through ZS Vault first
 
 const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
   method: "POST",
-  signal: AbortSignal.timeout(300_000),
+  signal: AbortSignal.timeout(options.timeoutMs),
   headers: {
     Authorization: `Bearer ${apiKey}`,
     "Content-Type": "application/json",
@@ -183,7 +204,7 @@ const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     model: options.model,
     reasoning: { effort: options.effort },
     temperature: 0,
-    max_tokens: 12_000,
+    max_tokens: options.maxOutputTokens,
     response_format: { type: "json_object" },
     messages: [
       { role: "system", content: auditPrompt },
