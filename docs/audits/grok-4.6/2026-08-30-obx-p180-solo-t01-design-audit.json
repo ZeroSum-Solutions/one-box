@@ -1,0 +1,134 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T05:41:27.581Z",
+  "request": {
+    "task": "OBX-P180-SOLO-T01-DESIGN",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "8587256",
+    "head": "91b18e0152df21e444b8b150f35071ac70340a11",
+    "files": [
+      "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md"
+    ],
+    "proofs": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/07-closure-and-disposition.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/governance/reviewer-roles.md",
+      "docs/governance/risk-exceptions/README.md"
+    ],
+    "diffBytes": 14621,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 8000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 19015,
+      "completion_tokens": 22514,
+      "total_tokens": 41529,
+      "cost": 0.173114,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.173114,
+        "upstream_inference_prompt_cost": 0.03803,
+        "upstream_inference_completions_cost": 0.135084
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20140,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "15-16 / 33-37 / solo record 85-107",
+        "scenario": "Frozen T01 entry still requires current OwnerAssignmentV1 humans for implementation-lead, model-skill-security-owner, and job-sandbox-owner, each with a disjoint escalation human. The design lets Devin occupy 'the required operating roles' but records only three losses (self-authorization, missing escalation, independent review). Input: solo record with owner/risk/implementationActorId=person:devin-wiggins, no role assignments, no NOT_AVAILABLE rows for model-skill-security-owner or job-sandbox-owner. Wrong behavior: those separations can be treated as intact or later filled by the same human while the exception still verifies.",
+        "remediation": "Enumerate every lost T01 separation as an explicit NOT_AVAILABLE field (including both required operating roles, per-role escalation, and OwnerAssignmentV1 absence). Reject any same-human or implied assignment for those roles in the solo validator and negative tests."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "independentHumanReview.status / escalationStatus / Goal vs success #10",
+        "scenario": "Criterion requires independent human review recorded as NOT_AVAILABLE. The schema stores independentHumanReview.status='not-available', escalationStatus='not-available-solo-owner', prose 'NOT_AVAILABLE', and terminal banner 'INDEPENDENT HUMAN REVIEW NOT AVAILABLE'. Input: record with status not-available and satisfied=true, or a test oracle looking for NOT_AVAILABLE. Wrong behavior: positive verification can pass on a different token than the one later treated as PASS/fail, so unavailable review is not mechanically pinned.",
+        "remediation": "Use one stored enum (NOT_AVAILABLE) for independentHumanReview.status, independentHumanReview.satisfied=false, and escalation. Hard-fail any other token, including not-available, PASS, and satisfied=true."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "Frozen packet binding (planPacketHash=closure SHA-256)",
+        "scenario": "The solo record binds only 07-closure-and-disposition.md and 06-...proposal.md. The closure table lists fourteen nested artifacts, but the verifier is not required to rehash those bytes. Input: change 05-security-and-executable-evaluations.md or a fixture while leaving 07's table and file hash untouched. Wrong behavior: planPacketHash still matches, authorization stays live, and the audited packet has drifted.",
+        "remediation": "Store and verify SHA-256 for every nested packet/evaluator artifact in the Step-7 table (plus baseCommit). Treat any nested mismatch as an immediate invalidator and add that negative test."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "Exact traceability / P180-R014..R016",
+        "scenario": "Step 6's governing requirements are the ownership/separation/authorization rules the solo exception violates. The record 'binds' P180-R014, P180-R015, and P180-R016 with no excepted-clause map. Input: authorized solo record listing those IDs. Wrong behavior: tools/readers treat the requirements as satisfied/in-scope while independent verification and distinct escalation remain unavailable.",
+        "remediation": "Record each bound requirement as EXCEPT_T01_SOLO / NOT_SATISFIED with the waived clauses. Forbid presenting them as T01 pass evidence; negative-test any satisfied/complete claim."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "Success criteria 8-9",
+        "scenario": "The design claims all ten criteria are mechanically proven, but #8 uses undefined 'material finding' and #9 requires Grok audits to be 'clean' while also allowing the accepted MEDIUM solo-separation finding (CLEAN vs PASS-WITH-ACCEPTED-RISK). Receipt paths/schemas are only the unbound prefix docs/audits/, and the solo validator does not parse those receipts. Input: advisory CLEAN receipt with extra MEDIUM, or no receipt, or PASS-WITH-ACCEPTED-RISK without the exact finding id. Wrong behavior: activation can be declared complete from non-comparable oracles.",
+        "remediation": "Pin exact receipt paths, JSON schema, allowed verdict PASS-WITH-ACCEPTED-RISK, and the single accepted finding id/severity. Delete 'clean'/'material'. Make missing/mismatched receipts fail the verifier."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "Solo record block 85-107 vs later prose",
+        "scenario": "Exact paths, single effect, planPacketHash, source hash, amendment hash, invalidators, forbidden effects, and baseCommit b6486fdfa4601b315944ad099bf2beba1c053e91 are defined in prose but omitted from the fixed record fields (branch name only; no authorizationHash). Input: registry record matching the ```text``` block without allowedPaths/allowedEffects/hashes, with those values hardcoded or only in markdown. Wrong behavior: path/effect/hash drift is not a record-level fail-closed check.",
+        "remediation": "Put allowedPaths, allowedEffects, forbiddenEffects, packet/source/amendment hashes+algos, invalidators, and baseCommit in the stored schema. Unknown/missing keys fail closed."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "Verifier design negative tests 214-218",
+        "scenario": "Documented negatives omit cases the criterion requires to be mechanically closed. Input: ATF bytes/fields mutated; globalImplementationAuthorized=true; schemaVersion=2 accepting unknown recordKind; renewable omitted vs true; date-only recordedAt like ATF's 2026-08-29; escalationActorId=person:devin-wiggins; independentHumanReview.satisfied=true; standardWaiverEligible=true or README dropping non-waivable authorization; lockfile/dependency change; authority-manifest fields other than packetDigest changed; parent eval refs marked complete. Wrong behavior: verify-plan-authority.node.mjs can pass while foundation/global/default-deny state is weakened.",
+        "remediation": "Add those exact negative fixtures against the committed registry bytes (not a parallel fixture graph) and require ATF deep-equality plus globalImplementationAuthorized===false."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "File map 280-291 / packetDigest 220",
+        "scenario": "Activation may rewrite all of scoped-implementation-authorizations.json, all of authority-manifest.json, risk-exceptions/README.md, both verifier scripts, and any 'proof artifacts under docs/audits/'. Constraint text only promises a packetDigest refresh and an unchanged non-waivable default. Input: flip implementationAuthorized or a domain flag in the manifest, broaden README non-waivable classes, or drop an authorization-shaped JSON under docs/audits/. Wrong behavior: defaults weaken while T01 path/effect checks still pass.",
+        "remediation": "Allowlist exact keys/files (registry two records + schemaVersion, manifest packetDigest only, one amendment JSON, named audit receipts). Deny docs/audits/ prefixes and README rule edits; snapshot-test the non-waivable sentences and ATF record."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "209 'reuses existing traversal, glob, and broad-path rejection' / schemaVersion 2",
+        "scenario": "ATF already allows path prefixes. Reusing that traversal/glob machinery for the solo ID, or introducing an underspecified registry schema v2, can fail open. Input: solo record plus a write to src/lib/operatingEnvironment/registry.ts or an unknown v2 field/kind. Wrong behavior: extra paths or record kinds are accepted, or ATF validation is rewritten so defaults loosen.",
+        "remediation": "Hard-code exact-path equality for the six T01 files; reject globs/prefixes/unknown keys/kinds. Keep a byte-stable ATF validator path with tests that schema v2 cannot change ATF semantics."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md",
+        "line": "Governance amendment 180-197 vs docs/governance/reviewer-roles.md and risk-exceptions/README.md",
+        "scenario": "Current proof still says authorization verification is non-waivable and the risk-exception registry cannot waive a solo-maintainer block. The design leaves reviewer-roles.md untouched and invents a parallel owner-amendment the new verifier would honor. Input: README still 'non-waivable', amendment standardWaiverEligible=false, verifier accepts OBX-AUTH-P180-T01-SOLO-001. Wrong behavior: enforcement passes while published defaults still forbid it, with no consistency check.",
+        "remediation": "Keep the non-waivable default text frozen and add a verifier check that only this exact amendment id/hash can authorize this exact T01 exception; reject any other waiver path. Do not generalize README or schema to owner amendments."
+      }
+    ],
+    "proof_assessment": "Proof shows the live packet is CLOSED/NOT AUTHORIZED, the registry is schema v1 with only OBX-AUTH-ATF-001, globalImplementationAuthorized is false, T01 still requires separated OwnerAssignmentV1 roles, and governance currently marks authorization review non-waivable. That evidence supports a blocked current state; it does not validate the design's closure SHA, nested artifact binding, status tokens, or claimed mechanical oracles. The committed artifact is prose only.",
+    "residual_risks": [
+      "Fourteen-day expiry is not specified as 336h vs calendar days/timezones, so duration checks can disagree.",
+      "Model Grok/Fable receipts remain advisory and can be mistaken for the missing human verifier if later gates only check that files exist under docs/audits/.",
+      "Self-asserted acceptedRisk.severity=MEDIUM can pass a record-only verifier without the security report.",
+      "Positive tests against synthetic fixtures can green-pass while the committed registry/manifest differ."
+    ]
+  }
+}
