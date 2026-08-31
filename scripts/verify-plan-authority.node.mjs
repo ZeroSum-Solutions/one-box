@@ -8,7 +8,6 @@ import {
 } from "node:test";
 import {
   cpSync,
-  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -35,7 +34,7 @@ before(() => {
     resolve(fixtureRoot, ".claude/handoffs/one-box-operating-environment-next-phase.md"),
   );
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
-  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs"]) {
+  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/e2e"), { recursive: true });
@@ -74,6 +73,14 @@ function runSoloAmendment() {
 
 function runSoloStructure() {
   return run(["--verify-solo-structure-only"]);
+}
+
+function runSoloT02Structure() {
+  return run(["--verify-solo-t02-structure-only"]);
+}
+
+function runSoloT02Receipt() {
+  return run(["--verify-solo-t02-receipt-only"]);
 }
 
 function withFileMutation(path, mutate, assertion, args = []) {
@@ -121,6 +128,21 @@ function withSoloRecordMutation(mutate, assertion, { rehash = true, args = ["--v
   }, assertion, args);
 }
 
+function rehashSoloT02Record(registry) {
+  const record = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T02-SOLO-001");
+  const unhashed = structuredClone(record);
+  delete unhashed.authorizationHash.digest;
+  record.authorizationHash.digest = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
+}
+
+function withSoloT02RecordMutation(mutate, assertion, { rehash = true } = {}) {
+  withJsonMutation("docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", (registry) => {
+    const record = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T02-SOLO-001");
+    mutate(record, registry);
+    if (rehash) rehashSoloT02Record(registry);
+  }, assertion, ["--verify-solo-t02-structure-only"]);
+}
+
 function withMultipleFileMutations(mutations, assertion) {
   const originals = new Map();
   try {
@@ -141,6 +163,7 @@ function withMultipleFileMutations(mutations, assertion) {
 const securityReceiptPath = "docs/audits/evidence/security/2026-08-30-obx-p180-t01-solo-authorization-security-review.json";
 const grokReceiptPath = "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json";
 const fableReceiptPath = "docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json";
+const t02SecurityReceiptPath = "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json";
 const securityReceiptTargets = [
   "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
   "docs/plans/one-box-master/00-authority/authority-manifest.json",
@@ -149,103 +172,8 @@ const securityReceiptTargets = [
   "scripts/verify-plan-authority.node.mjs",
 ];
 
-function sha256Fixture(path) {
-  return createHash("sha256").update(readFileSync(resolve(fixtureRoot, path))).digest("hex");
-}
-
-function writeFixtureJson(path, value) {
-  const absolute = resolve(fixtureRoot, path);
-  mkdirSync(dirname(absolute), { recursive: true });
-  writeFileSync(absolute, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function targetHashes(paths) {
-  return paths.map((path) => ({ path, algorithm: "sha256", digest: sha256Fixture(path) }));
-}
-
-function receiptCommon(targetPaths) {
-  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, securityReceiptTargets[0]), "utf8"));
-  const record = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T01-SOLO-001");
-  return {
-    schemaVersion: 1,
-    authorizationId: "OBX-AUTH-P180-T01-SOLO-001",
-    authorizationHash: record.authorizationHash.digest,
-    amendmentId: "OBX-P180-T01-SOLO-AMENDMENT-001",
-    amendmentHash: "eb932d7e0a6cd12fa2cfa6570afbcad452bbdf8481047c700aaf3eec4075d202",
-    baseCommit: "b6486fdfa4601b315944ad099bf2beba1c053e91",
-    targetPaths,
-    targetHashes: targetHashes(targetPaths),
-    verdict: "PASS-WITH-ACCEPTED-RISK",
-    independentHumanReview: { status: "NOT_AVAILABLE", satisfied: false },
-    capturedAt: "2026-08-31T13:33:33Z",
-  };
-}
-
-function acceptedFinding() {
-  return {
-    findingId: "OBX-P180-T01-SOLO-SEPARATION-001",
-    severity: "MEDIUM",
-    status: "ACCEPTED",
-  };
-}
-
-function writeExactReceiptChain() {
-  writeFixtureJson(securityReceiptPath, {
-    ...receiptCommon(securityReceiptTargets),
-    receiptKind: "solo-t01-security-review-v1",
-    findings: [{
-      ...acceptedFinding(),
-      surfaceDisposition: [
-        ["prompt-injection", "NOT_APPLICABLE"],
-        ["secrets", "REVIEWED"],
-        ["authentication", "NOT_APPLICABLE"],
-        ["authorization", "REVIEWED"],
-        ["untrusted-input", "NOT_APPLICABLE"],
-        ["export", "NOT_APPLICABLE"],
-      ].map(([surface, disposition]) => ({
-        surface,
-        disposition,
-        changedPathEvidence: [securityReceiptTargets[0]],
-      })),
-    }],
-  });
-  const grokTargets = [...securityReceiptTargets, securityReceiptPath];
-  writeFixtureJson(grokReceiptPath, {
-    ...receiptCommon(grokTargets),
-    receiptKind: "solo-t01-model-audit-v1",
-    requestedModel: "x-ai/grok-4.6",
-    providerReportedModel: "x-ai/grok-4.6",
-    effort: "high",
-    findings: [acceptedFinding()],
-  });
-  const fableTargets = [...grokTargets, grokReceiptPath];
-  writeFixtureJson(fableReceiptPath, {
-    ...receiptCommon(fableTargets),
-    receiptKind: "solo-t01-model-audit-v1",
-    requestedModel: "claude-fable-5",
-    providerReportedModel: "claude-fable-5",
-    effort: "max",
-    findings: [acceptedFinding()],
-  });
-}
-
 function withExactReceiptChain(callback) {
-  const paths = [securityReceiptPath, grokReceiptPath, fableReceiptPath];
-  const originals = new Map();
-  for (const path of paths) {
-    const absolute = resolve(fixtureRoot, path);
-    originals.set(path, existsSync(absolute) ? readFileSync(absolute) : null);
-  }
-  try {
-    writeExactReceiptChain();
-    callback();
-  } finally {
-    for (const [path, original] of originals) {
-      const absolute = resolve(fixtureRoot, path);
-      if (original === null) rmSync(absolute, { force: true });
-      else writeFileSync(absolute, original);
-    }
-  }
+  callback();
 }
 
 test("the current non-empty packet passes discriminated structure verification", () => {
@@ -253,6 +181,85 @@ test("the current non-empty packet passes discriminated structure verification",
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Solo T01 authorization self-hash: [a-f0-9]{64}/);
   assert.match(result.stdout, /structure and frozen bindings/);
+});
+
+test("the exact solo T02 authorization passes focused structure verification", () => {
+  const result = runSoloT02Structure();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /PASS Solo T02 structure and frozen bindings/);
+});
+
+test("the frozen solo T01 receipt chain survives later verifier evolution", () => {
+  const result = run(["--verify-solo-receipts-only"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /PASS Solo T01 exact receipt chain/);
+});
+
+test("the solo T02 authorization rejects path, order, and effect expansion", () => {
+  withSoloT02RecordMutation((record) => {
+    record.allowedPaths.push("src/lib/operatingEnvironment/provider.ts");
+    record.allowedEffects.push("connect-provider");
+  }, (result) => {
+    assert.match(result.stderr, /allowedPaths: exact value drift/);
+    assert.match(result.stderr, /allowedEffects: exact value drift/);
+  });
+  withSoloT02RecordMutation((record) => record.allowedPaths.reverse(), (result) => {
+    assert.match(result.stderr, /allowedPaths: exact value drift/);
+  });
+});
+
+test("the solo T02 authorization rejects fake roles and wider ticket authority", () => {
+  withSoloT02RecordMutation((record) => {
+    record.roleAvailability[0].assignmentRecordPresent = true;
+    record.roleAvailability[0].humanActorId = "person:devin-wiggins";
+    record.childTicketIds.push("OBX-P180-T03");
+  }, (result) => {
+    assert.match(result.stderr, /roleAvailability: exact value drift/);
+    assert.match(result.stderr, /childTicketIds: exact value drift/);
+  });
+});
+
+test("the solo T02 authorization rejects predecessor, model-route, and renewal drift", () => {
+  withSoloT02RecordMutation((record) => {
+    record.predecessorBinding.checkpointCommit = "0".repeat(40);
+    record.reviewProtocol.quickAuditModel = "z-ai/glm-latest";
+    record.renewable = true;
+  }, (result) => {
+    assert.match(result.stderr, /predecessorBinding: exact value drift/);
+    assert.match(result.stderr, /reviewProtocol: exact value drift/);
+    assert.match(result.stderr, /renewable drift/);
+  });
+});
+
+test("the solo T02 authorization rejects a forged self-hash", () => {
+  withSoloT02RecordMutation((record) => {
+    record.authorizationHash.digest = "0".repeat(64);
+  }, (result) => assert.match(result.stderr, /authorization self-hash mismatch/), { rehash: false });
+});
+
+test("the exact solo T02 security receipt passes focused verification", () => {
+  const result = runSoloT02Receipt();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /PASS Solo T02 exact security receipt/);
+});
+
+test("the solo T02 security receipt rejects target-hash and review drift", () => {
+  withJsonMutation(t02SecurityReceiptPath, (receipt) => {
+    receipt.targetHashes[0].digest = "0".repeat(64);
+    receipt.independentHumanReview.satisfied = true;
+  }, (result) => {
+    assert.match(result.stderr, /current hash drift/);
+    assert.match(result.stderr, /independentHumanReview: exact value drift/);
+  }, ["--verify-solo-t02-receipt-only"]);
+});
+
+test("the solo T02 security receipt rejects extra findings and surface loss", () => {
+  withJsonMutation(t02SecurityReceiptPath, (receipt) => {
+    receipt.findings.push({ findingId: "EXTRA", severity: "LOW", status: "OPEN" });
+    receipt.findings[0].surfaceDisposition.pop();
+  }, (result) => {
+    assert.match(result.stderr, /sole accepted separation finding required/);
+  }, ["--verify-solo-t02-receipt-only"]);
 });
 
 test("the solo T01 amendment matches its exact pinned digest and unavailable-review state", () => {

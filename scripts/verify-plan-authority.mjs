@@ -8,6 +8,10 @@ import {
 } from "node:fs";
 import { dirname, join, normalize, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  T02_AUTHORIZATION_ID,
+  verifyP180T02Authorization,
+} from "./verify-p180-t02-authorization.mjs";
 
 const root = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 const failures = [];
@@ -242,6 +246,11 @@ const expectedSoloEvidencePaths = [
   "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json",
   "docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json",
 ];
+const expectedSoloEvidenceSha256 = new Map([
+  [expectedSoloEvidencePaths[0], "4b2ed13583cdb56daa0b0d2c9cf59c79c555ca4992061d0ee5122a3d4d949164"],
+  [expectedSoloEvidencePaths[1], "79af34735958e0c1472d921cae377cc022339d215175417814ab03f88098d10b"],
+  [expectedSoloEvidencePaths[2], "7e33ef3f3d5d7dcd9bb7f0148dc5f965b82e2234723a896abdc83be896dc81d5"],
+]);
 const expectedSoloCompensatingControls = [
   "exact-t01-only-scope",
   "exact-336-hour-non-renewable-expiry",
@@ -726,6 +735,10 @@ function verifySoloActivationSourceScope(record, committedChangedPaths, untracke
 
 function validateSoloReceipt(path, record, expectedTargets, modelContract = null) {
   const label = `${soloAuthorizationId}.receipt.${path}`;
+  const expectedReceiptSha256 = expectedSoloEvidenceSha256.get(path);
+  if (sha256File(path, label) !== expectedReceiptSha256) {
+    fail(`${label}: immutable receipt SHA-256 drift`);
+  }
   const receipt = readJson(path);
   if (!receipt) {
     fail(`${label}: required receipt is unavailable`);
@@ -758,8 +771,8 @@ function validateSoloReceipt(path, record, expectedTargets, modelContract = null
   for (const [index, targetPath] of expectedTargets.entries()) {
     const binding = receipt.targetHashes?.[index];
     rejectUnknownKeys(binding, ["path", "algorithm", "digest"], `${label}.targetHashes[${index}]`);
-    if (binding?.path !== targetPath || binding?.algorithm !== "sha256" || binding?.digest !== sha256File(targetPath, `${label}.targetHashes[${index}]`)) {
-      fail(`${label}: target hash drift ${targetPath}`);
+    if (binding?.path !== targetPath || binding?.algorithm !== "sha256" || !/^[a-f0-9]{64}$/.test(binding?.digest ?? "")) {
+      fail(`${label}: frozen target binding drift ${targetPath}`);
     }
   }
   if (!Array.isArray(receipt.findings) || receipt.findings.length !== 1) {
@@ -940,6 +953,24 @@ const requirementVocabulary = readJson(requirementVocabularyPath);
 const adoptionLedger = readJson(ledgerPath);
 const soloAmendment = readJson(soloAmendmentPath);
 
+if (process.argv.includes("--verify-solo-t02-structure-only") || process.argv.includes("--verify-solo-t02-receipt-only")) {
+  const result = verifyP180T02Authorization({
+    repoRoot: root,
+    registry: scopedImplementationAuthority,
+    verifyReceipt: process.argv.includes("--verify-solo-t02-receipt-only"),
+  });
+  if (result.failures.length > 0) {
+    for (const failure of result.failures) console.error(`FAIL ${failure}`);
+    console.error(`Solo T02 focused verification failed with ${result.failures.length} issue(s).`);
+    process.exit(1);
+  }
+  console.log(`PASS Solo T02 authorization self-hash: ${result.authorizationHash}`);
+  console.log(process.argv.includes("--verify-solo-t02-receipt-only")
+    ? "PASS Solo T02 exact security receipt"
+    : "PASS Solo T02 structure and frozen bindings");
+  process.exit(0);
+}
+
 validateSoloAmendment(soloAmendment);
 if (process.argv.includes("--verify-solo-amendment-only")) {
   if (failures.length > 0) {
@@ -1056,8 +1087,8 @@ if (scopedImplementationAuthority) {
   if (!Array.isArray(scopedImplementationAuthority.authorizations) || scopedImplementationAuthority.authorizations.length === 0) {
     fail("scoped implementation authority: authorizations must be a non-empty array");
   }
-  if (JSON.stringify(scopedImplementationAuthority.authorizations?.map((record) => record?.id)) !== JSON.stringify(["OBX-AUTH-ATF-001", soloAuthorizationId])) {
-    fail(`scoped implementation authority: records must be exactly OBX-AUTH-ATF-001 and ${soloAuthorizationId}`);
+  if (JSON.stringify(scopedImplementationAuthority.authorizations?.map((record) => record?.id)) !== JSON.stringify(["OBX-AUTH-ATF-001", soloAuthorizationId, T02_AUTHORIZATION_ID])) {
+    fail(`scoped implementation authority: records must be exactly OBX-AUTH-ATF-001, ${soloAuthorizationId}, and ${T02_AUTHORIZATION_ID}`);
   }
   for (const record of scopedImplementationAuthority.authorizations ?? []) {
     if (!isPlainObject(record) || typeof record.id !== "string" || record.id.length === 0) {
@@ -1066,7 +1097,7 @@ if (scopedImplementationAuthority) {
     }
     if (scopedAuthorizations.has(record.id)) fail(`scoped implementation authority: duplicate ${record.id}`);
     scopedAuthorizations.set(record.id, record);
-    if (record.id === soloAuthorizationId) continue;
+    if (record.id === soloAuthorizationId || record.id === T02_AUTHORIZATION_ID) continue;
     if (record.id !== "OBX-AUTH-ATF-001") {
       fail(`scoped implementation authority: unknown authorization ${record.id}`);
       continue;
@@ -1161,6 +1192,12 @@ if (scopedImplementationAuthority) {
   if (canonicalSha256(atfRecord, true) !== expectedAtfCanonicalSha256) fail("OBX-AUTH-ATF-001: canonical record drift");
   const soloRecord = scopedAuthorizations.get(soloAuthorizationId);
   validateSoloAuthorization(soloRecord, authority, ticketManifest, evalManifest);
+  const t02Result = verifyP180T02Authorization({
+    repoRoot: root,
+    registry: scopedImplementationAuthority,
+    verifyReceipt: true,
+  });
+  for (const failure of t02Result.failures) fail(failure);
 
   if (process.argv.includes("--verify-solo-source-scope-only")) {
     let committedChangedPaths = [];
