@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "registry-bundle-v1",
+  "product": {
+    "schemaVersion": "product-registry-v1",
+    "providers": [
+      {
+        "schemaVersion": "provider-registry-entry-v1",
+        "providerId": "offline-deterministic-v1",
+        "admission": "fixture-only",
+        "accessLane": "offline",
+        "credentialBoundary": "none",
+        "expiresAt": "2026-09-14T21:47:59Z",
+        "selfHash": "ad089bfdaf37d22d35cb9e6b144c080581b6c12261f6b7d0e8daf406523731ce"
+      }
+    ],
+    "models": [
+      {
+        "schemaVersion": "model-registry-entry-v1",
+        "modelId": "synthetic/offline-deterministic-v1",
+        "providerId": "offline-deterministic-v1",
+        "admission": "fixture-only",
+        "supportedEfforts": ["deterministic"],
+        "expiresAt": "2026-09-14T21:47:59Z",
+        "selfHash": "7605a7f52048817c26b84126c8ec75b4130eb4e3350d3c90dd41eb62c42052d3"
+      }
+    ],
+    "routes": [
+      {
+        "schemaVersion": "route-policy-v1",
+        "routeId": "fixture-product-route-v1",
+        "providerId": "offline-deterministic-v1",
+        "providerHash": "ad089bfdaf37d22d35cb9e6b144c080581b6c12261f6b7d0e8daf406523731ce",
+        "modelId": "synthetic/offline-deterministic-v1",
+        "modelHash": "7605a7f52048817c26b84126c8ec75b4130eb4e3350d3c90dd41eb62c42052d3",
+        "effort": "deterministic",
+        "admission": "fixture-only",
+        "fallbackPolicy": "none",
+        "expiresAt": "2026-09-14T21:47:59Z",
+        "selfHash": "924327abeab1112fc0468597663ecc3723b6ade5817cf8f19cfb08ff2378d562"
+      }
+    ],
+    "selfHash": "2df5691753a07d3150e56472a5f96be1b02f9875872e2771153b1bcb5d6091fd"
+  },
+  "evaluation": {
+    "schemaVersion": "evaluation-registry-v1",
+    "candidates": [
+      {
+        "schemaVersion": "model-registry-entry-v1",
+        "modelId": "z-ai/glm-5.3-flash",
+        "providerId": "nous-portal",
+        "admission": "evaluation-only",
+        "supportedEfforts": ["low"],
+        "expiresAt": "2026-09-14T21:47:59Z",
+        "selfHash": "7090f8185c22038afa356e3fa99292fc35c73785ec7ac127b01c2ce4cdfc4296"
+      }
+    ],
+    "selfHash": "e8884d49249e79a9956ce0530ecffc33ea35ce0c77276ae5ce10d836f3e2a103"
+  },
+  "externalReview": {
+    "schemaVersion": "external-review-registry-v1",
+    "auditors": [
+      {
+        "schemaVersion": "model-registry-entry-v1",
+        "modelId": "anthropic/claude-opus-5",
+        "providerId": "claude-max",
+        "admission": "audit-only",
+        "supportedEfforts": ["high"],
+        "expiresAt": "2026-09-14T21:47:59Z",
+        "selfHash": "a803fdbee96d3be9be8c9a5b535de982d5deb11edd84389536c3a16aca61d016"
+      }
+    ],
+    "selfHash": "d8225bfe07cc55c3d5775d04e0e0ef7bd51bb854c614f29b8505e580ea6531c2"
+  },
+  "selfHash": "d63eb72dab33bea0676728d5a34e96cdf7161de4d62679ece0368c0db6d46e62"
+}
