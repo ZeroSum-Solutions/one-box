@@ -43,7 +43,7 @@ const proposalValidator = withSelfHash(closedRecord({
   jobId: nonEmptyString(),
   segmentIntentHash: hashValue,
   segmentManifestHash: hashValue,
-  skillInvocationReceiptHash: nullable(hashValue),
+  skillInvocationReceiptHash: literalValue(null),
   proposalSchemaHash: hashValue,
   targetProjectId: nonEmptyString(),
   expectedSourceIdentity: nonEmptyString(),

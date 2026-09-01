@@ -264,6 +264,26 @@ describe("direct terminal receipt projection", () => {
       { ...completed.evidence, decision: rejected },
     ).ok).toBe(false);
   });
+  it("rejects non-null skill receipt hashes until their linkage schema exists", () => {
+    const completed = completedReceiptCase();
+    const proposal = seal({
+      ...completed.evidence.proposal, skillInvocationReceiptHash: "f".repeat(64),
+    }, "proposalHash");
+    const interrupt = seal({
+      ...completed.evidence.interrupt, proposalEnvelopeHash: proposal.proposalHash,
+    }, "interruptHash");
+    const decision = seal({
+      ...completed.evidence.decision, interruptHash: interrupt.interruptHash,
+    }, "decisionHash");
+    const input = terminalInput("succeeded", {
+      proposalEnvelopeHash: proposal.proposalHash,
+      interruptHash: interrupt.interruptHash,
+      decisionHash: decision.decisionHash,
+    });
+    expect(createTerminalRouteReceipt(input, securityFixture.attempts, {
+      ...completed.evidence, proposal, interrupt, decision,
+    }).ok).toBe(false);
+  });
 });
 describe("proposal review eligibility without mutation", () => {
   it("reviews only the exact completed, accepted, current proposal evidence", () => {
