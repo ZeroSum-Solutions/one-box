@@ -28,7 +28,7 @@
       "targetChangeInvalidatesReceipt": true
     }
   },
-  "packetDigest": "a09ed88d14c6070213e1c52164a2e606bd8c29e7fbe0ff833e546743907b3a38",
+  "packetDigest": "97eaf74bc30df461e11923ec773267c5ec106af7bfa5720615d7052210998ad4",
   "forbiddenPrimaryPathPrefixes": ["docs/audits/"],
   "authorityClassDefinitions": {
     "owner-approved": "Accepted normative product contract for its exact boundary; execution still follows its named ticket and authorization state.",

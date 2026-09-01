@@ -11,7 +11,13 @@ import { fileURLToPath } from "node:url";
 import {
   T02_AUTHORIZATION_ID,
   verifyP180T02Authorization,
+  verifyP180T02Completion,
 } from "./verify-p180-t02-authorization.mjs";
+import {
+  T03_AUTHORIZATION_ID,
+  T04_AUTHORIZATION_ID,
+  verifyP180SiblingAuthorization,
+} from "./verify-p180-t03-authorization.mjs";
 
 const root = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 const failures = [];
@@ -606,7 +612,7 @@ function validateSoloAuthorization(record, authority, ticketManifest, evalManife
   }
 
   exactJson(record.activationWriteSet, expectedSoloActivationWriteSet, `${label}.activationWriteSet`);
-  validateHashBindings(record.preExistingUntrackedBaseline, expectedSoloUntrackedBaseline, `${label}.preExistingUntrackedBaseline`);
+  validateHashBindings(record.preExistingUntrackedBaseline, expectedSoloUntrackedBaseline, `${label}.preExistingUntrackedBaseline`, false);
   exactJson(record.childTicketIds, ["OBX-P180-T01"], `${label}.childTicketIds`);
 
   if (!Array.isArray(record.roleAvailability) || record.roleAvailability.length !== expectedSoloRoleIds.length) {
@@ -953,6 +959,18 @@ const requirementVocabulary = readJson(requirementVocabularyPath);
 const adoptionLedger = readJson(ledgerPath);
 const soloAmendment = readJson(soloAmendmentPath);
 
+if (process.argv.includes("--verify-solo-t02-completion-only")) {
+  const result = verifyP180T02Completion({ repoRoot: root });
+  if (result.failures.length > 0) {
+    for (const failure of result.failures) console.error(`FAIL ${failure}`);
+    console.error(`Solo T02 completion verification failed with ${result.failures.length} issue(s).`);
+    process.exit(1);
+  }
+  console.log(`PASS Solo T02 completion checkpoint self-hash: ${result.checkpointHash}`);
+  console.log(`PASS Solo T02 owner completion receipt self-hash: ${result.ownerReceiptHash}`);
+  process.exit(0);
+}
+
 if (process.argv.includes("--verify-solo-t02-structure-only") || process.argv.includes("--verify-solo-t02-receipt-only")) {
   const result = verifyP180T02Authorization({
     repoRoot: root,
@@ -966,8 +984,29 @@ if (process.argv.includes("--verify-solo-t02-structure-only") || process.argv.in
   }
   console.log(`PASS Solo T02 authorization self-hash: ${result.authorizationHash}`);
   console.log(process.argv.includes("--verify-solo-t02-receipt-only")
-    ? "PASS Solo T02 exact security receipt"
+    ? "PASS Solo T02 exact historical security receipt"
     : "PASS Solo T02 structure and frozen bindings");
+  process.exit(0);
+}
+
+for (const ticket of ["T03", "T04"]) {
+  const recordFlag = `--verify-solo-${ticket.toLowerCase()}-record-only`;
+  const activationFlag = `--verify-solo-${ticket.toLowerCase()}-activation-only`;
+  if (!process.argv.includes(recordFlag) && !process.argv.includes(activationFlag)) continue;
+  const mode = process.argv.includes(activationFlag) ? "activation" : "record";
+  const result = verifyP180SiblingAuthorization({
+    repoRoot: root,
+    registry: scopedImplementationAuthority,
+    ticket,
+    mode,
+  });
+  if (result.failures.length > 0) {
+    for (const failure of result.failures) console.error(`FAIL ${failure}`);
+    console.error(`Solo ${ticket} ${mode} verification failed with ${result.failures.length} issue(s).`);
+    process.exit(1);
+  }
+  console.log(`PASS Solo ${ticket} authorization self-hash: ${result.authorizationHash}`);
+  console.log(`PASS Solo ${ticket} derived state: ${result.state}`);
   process.exit(0);
 }
 
@@ -1087,8 +1126,9 @@ if (scopedImplementationAuthority) {
   if (!Array.isArray(scopedImplementationAuthority.authorizations) || scopedImplementationAuthority.authorizations.length === 0) {
     fail("scoped implementation authority: authorizations must be a non-empty array");
   }
-  if (JSON.stringify(scopedImplementationAuthority.authorizations?.map((record) => record?.id)) !== JSON.stringify(["OBX-AUTH-ATF-001", soloAuthorizationId, T02_AUTHORIZATION_ID])) {
-    fail(`scoped implementation authority: records must be exactly OBX-AUTH-ATF-001, ${soloAuthorizationId}, and ${T02_AUTHORIZATION_ID}`);
+  const expectedAuthorizationIds = ["OBX-AUTH-ATF-001", soloAuthorizationId, T02_AUTHORIZATION_ID, T03_AUTHORIZATION_ID, T04_AUTHORIZATION_ID];
+  if (JSON.stringify(scopedImplementationAuthority.authorizations?.map((record) => record?.id)) !== JSON.stringify(expectedAuthorizationIds)) {
+    fail(`scoped implementation authority: records must be exactly ${expectedAuthorizationIds.join(", ")}`);
   }
   for (const record of scopedImplementationAuthority.authorizations ?? []) {
     if (!isPlainObject(record) || typeof record.id !== "string" || record.id.length === 0) {
@@ -1097,7 +1137,7 @@ if (scopedImplementationAuthority) {
     }
     if (scopedAuthorizations.has(record.id)) fail(`scoped implementation authority: duplicate ${record.id}`);
     scopedAuthorizations.set(record.id, record);
-    if (record.id === soloAuthorizationId || record.id === T02_AUTHORIZATION_ID) continue;
+    if ([soloAuthorizationId, T02_AUTHORIZATION_ID, T03_AUTHORIZATION_ID, T04_AUTHORIZATION_ID].includes(record.id)) continue;
     if (record.id !== "OBX-AUTH-ATF-001") {
       fail(`scoped implementation authority: unknown authorization ${record.id}`);
       continue;
@@ -1198,6 +1238,15 @@ if (scopedImplementationAuthority) {
     verifyReceipt: true,
   });
   for (const failure of t02Result.failures) fail(failure);
+  for (const ticket of ["T03", "T04"]) {
+    const result = verifyP180SiblingAuthorization({
+      repoRoot: root,
+      registry: scopedImplementationAuthority,
+      ticket,
+      mode: "record",
+    });
+    for (const failure of result.failures) fail(failure);
+  }
 
   if (process.argv.includes("--verify-solo-source-scope-only")) {
     let committedChangedPaths = [];

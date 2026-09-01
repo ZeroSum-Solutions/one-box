@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "amendmentId": "OBX-P180-T03-SOLO-AMENDMENT-001",
+  "recordKind": "owner-solo-child-ticket-governance-amendment-v3",
+  "status": "ACTIVE",
+  "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+  "projectId": "one-box",
+  "branch": "feat/obx-p180-t03-t05-offline-wave",
+  "baseCommit": "62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1",
+  "baseTree": "6c79e9c0eb6b42fd5f4835362a7d31821d91654b",
+  "parentTicketId": "OBX-P180",
+  "childTicketIds": ["OBX-P180-T03"],
+  "predecessor": {
+    "ticketId": "OBX-P180-T02",
+    "checkpointId": "OBX-P180-T02-COMPLETION-001",
+    "checkpointHash": "1378a9a7f158658d197362c99ffc7890d8abe7c6371ecee74a6914afca83aabe",
+    "ownerReceiptId": "OBX-P180-T02-OWNER-COMPLETION-001",
+    "ownerReceiptHash": "eb00341ec8c9798dffcbe172bd6d5e5377b22d585b8068607a1d67d89bb5eed8",
+    "status": "COMPLETED_VERIFIED",
+    "grantsInheritedAuthority": false
+  },
+  "ownerDirection": {
+    "actorId": "person:devin-wiggins",
+    "name": "Devin Wiggins",
+    "decision": "ACCEPT_EXACT_SOLO_T03_RISK_AND_RESERVE",
+    "source": "approved Codex delegation captured by obx-p180-t03-t05-offline-wave contract",
+    "recordedAt": "2026-09-01T02:05:00.000Z"
+  },
+  "controller": {
+    "actorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-controller",
+    "goalRunId": "obx-p180-t03-t05-offline-wave",
+    "laneId": "T03"
+  },
+  "reservation": {
+    "state": "RESERVED",
+    "claimantActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-t03-implementer",
+    "claimSequence": 1,
+    "transferable": false,
+    "replacementAllowed": false,
+    "rebaselineAllowed": false
+  },
+  "standardWaiverEligible": false,
+  "nonWaivableDefaultPreserved": true,
+  "unavailableControls": [
+    {"controlId": "implementation-lead", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+    {"controlId": "model-skill-security-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+    {"controlId": "job-sandbox-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+    {"controlId": "data-protection-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+    {"controlId": "implementation-actor-authorizer-separation", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+    {"controlId": "independent-human-security-review", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false}
+  ],
+  "requirementExceptions": [
+    {"requirementId": "P180-R014", "exceptionStatus": "EXCEPT_T03_SOLO", "satisfactionStatus": "NOT_SATISFIED"},
+    {"requirementId": "P180-R015", "exceptionStatus": "EXCEPT_T03_SOLO", "satisfactionStatus": "NOT_SATISFIED"},
+    {"requirementId": "P180-R016", "exceptionStatus": "EXCEPT_T03_SOLO", "satisfactionStatus": "NOT_SATISFIED"}
+  ],
+  "acceptedRisk": {
+    "findingId": "OBX-P180-T03-SOLO-SEPARATION-001",
+    "severity": "MEDIUM",
+    "status": "ACCEPTED",
+    "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE",
+    "riskOwnerActorId": "person:devin-wiggins"
+  },
+  "scope": {
+    "denyUnlistedPathsAndEffects": true,
+    "allowedPaths": [
+      "src/lib/operatingEnvironment/skills.ts",
+      "src/lib/operatingEnvironment/skills.test.ts",
+      "src/lib/operatingEnvironment/context.ts",
+      "src/lib/operatingEnvironment/context.test.ts",
+      "src/lib/operatingEnvironment/interrupts.ts",
+      "src/lib/operatingEnvironment/interrupts.test.ts",
+      "src/lib/operatingEnvironment/receipts.ts",
+      "src/lib/operatingEnvironment/receipts.test.ts",
+      "src/lib/operatingEnvironment/fixtures/security-v1.json"
+    ],
+    "allowedEffects": ["add-provider-offline-skill-context-interrupt-receipt-reducers"],
+    "forbiddenEffects": [
+      "product-runtime-import-or-effect", "provider-or-model-call", "network",
+      "credential-or-environment-access", "filesystem-or-shell-io", "persistence-or-durable-state",
+      "queue-or-background-worker", "browser", "ui", "collaboration",
+      "canvas-or-page-ir-read-write-or-mutation", "deployment", "release",
+      "dependency-or-lockfile-change", "mutable-global-state", "implicit-clock-or-randomness",
+      "authority-outside-exact-solo-record", "t04-through-t08", "product-inference-or-data-transfer",
+      "independent-human-review-claim", "production-readiness-claim"
+    ]
+  },
+  "siblingConcurrency": {
+    "groupId": "OBX-P180-T03-T04-DISJOINT-SIBLINGS-001",
+    "siblingAuthorizationId": "OBX-AUTH-P180-T04-SOLO-001",
+    "siblingTicketId": "OBX-P180-T04",
+    "pairwiseDisjointRequired": true,
+    "sharedFrozenStartRequired": true,
+    "controllerStagesOnlyAfterBothLeasesReleased": true
+  },
+  "activationReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+  "completionReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json",
+  "reviewProtocol": {
+    "quickAuditModel": "z-ai/glm-5.3-flash",
+    "quickAuditLane": "openrouter-z-ai-fp8-approved-route",
+    "finalAuditModel": "anthropic/claude-opus-5",
+    "finalAuditLane": "claude-max-oauth",
+    "modelAuthority": "advisory-only",
+    "testAuthority": "deterministic-provider-offline-tests",
+    "targetChangeInvalidatesReview": true
+  },
+  "compensatingControls": [
+    "exact-t03-only-path-and-effect-scope", "exact-336-hour-nonrenewable-reservation",
+    "immutable-t02-checkpoint-and-owner-receipt-binding", "separate-h1-t1-activation-receipt",
+    "shared-h2-t2-disjoint-sibling-start", "controller-only-proof-registry-and-completion",
+    "provider-offline-pure-reducers", "deterministic-tests-authoritative"
+  ],
+  "independentHumanReview": {"status": "NOT_AVAILABLE", "satisfied": false, "actorId": null},
+  "notBefore": "2026-09-01T02:05:00.000Z",
+  "expiresAt": "2026-09-15T02:05:00.000Z",
+  "exactDurationMilliseconds": 1209600000,
+  "renewable": false,
+  "selfHash": {"algorithm": "sha256", "canonicalization": "canonical-json-v1", "excludedJsonPointers": ["/selfHash/digest"], "digest": "0fb00997d1a725ed65065ea4119385f6091462824999275fd51e5c030dbacbc2"}
+}

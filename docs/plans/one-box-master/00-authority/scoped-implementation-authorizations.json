@@ -637,6 +637,348 @@
         ],
         "digest": "9eb1ae436bb897de1abe572991ede4a38734b1b97a4ccfda7c079a072dfcaa36"
       }
+    },
+    {
+      "id": "OBX-AUTH-P180-T03-SOLO-001",
+      "recordKind": "owner-solo-reserved-child-ticket-exception-v3",
+      "status": "reserved-pending-activation",
+      "implementationAuthorized": true,
+      "activationRequired": true,
+      "projectId": "one-box",
+      "branch": "feat/obx-p180-t03-t05-offline-wave",
+      "baseCommit": "62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1",
+      "baseTree": "6c79e9c0eb6b42fd5f4835362a7d31821d91654b",
+      "parentTicketId": "OBX-P180",
+      "parentTicketStatus": "proposed",
+      "childTicketIds": ["OBX-P180-T03"],
+      "authorizationProposalId": "OBX-AUTH-P180-OFFLINE-V1",
+      "ownerActorId": "person:devin-wiggins",
+      "riskOwnerActorId": "person:devin-wiggins",
+      "controllerActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-controller",
+      "goalRunId": "obx-p180-t03-t05-offline-wave",
+      "laneId": "T03",
+      "reservation": {
+        "state": "RESERVED",
+        "claimantActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-t03-implementer",
+        "claimSequence": 1,
+        "transferable": false,
+        "replacementAllowed": false,
+        "rebaselineAllowed": false
+      },
+      "roleAvailability": [
+        {"roleId": "implementation-lead", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+        {"roleId": "model-skill-security-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+        {"roleId": "job-sandbox-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+        {"roleId": "data-protection-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false}
+      ],
+      "implementationAuthorizationSeparation": {"status": "NOT_AVAILABLE", "satisfied": false},
+      "independentHumanReview": {"status": "NOT_AVAILABLE", "satisfied": false, "actorId": null},
+      "acceptedRisk": {"findingId": "OBX-P180-T03-SOLO-SEPARATION-001", "severity": "MEDIUM", "status": "ACCEPTED", "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE"},
+      "requirementExceptions": [
+        {"requirementId": "P180-R014", "exceptionStatus": "EXCEPT_T03_SOLO", "satisfactionStatus": "NOT_SATISFIED"},
+        {"requirementId": "P180-R015", "exceptionStatus": "EXCEPT_T03_SOLO", "satisfactionStatus": "NOT_SATISFIED"},
+        {"requirementId": "P180-R016", "exceptionStatus": "EXCEPT_T03_SOLO", "satisfactionStatus": "NOT_SATISFIED"}
+      ],
+      "traceabilityRefs": ["EOS-006", "EOS-012", "PROG-EVAL-COST-001", "PROG-EVAL-SEC-AGENT-001"],
+      "allowedPaths": [
+        "src/lib/operatingEnvironment/skills.ts",
+        "src/lib/operatingEnvironment/skills.test.ts",
+        "src/lib/operatingEnvironment/context.ts",
+        "src/lib/operatingEnvironment/context.test.ts",
+        "src/lib/operatingEnvironment/interrupts.ts",
+        "src/lib/operatingEnvironment/interrupts.test.ts",
+        "src/lib/operatingEnvironment/receipts.ts",
+        "src/lib/operatingEnvironment/receipts.test.ts",
+        "src/lib/operatingEnvironment/fixtures/security-v1.json"
+      ],
+      "allowedEffects": ["add-provider-offline-skill-context-interrupt-receipt-reducers"],
+      "forbiddenEffects": [
+        "product-runtime-import-or-effect", "provider-or-model-call", "network",
+        "credential-or-environment-access", "filesystem-or-shell-io", "persistence-or-durable-state",
+        "queue-or-background-worker", "browser", "ui", "collaboration",
+        "canvas-or-page-ir-read-write-or-mutation", "deployment", "release",
+        "dependency-or-lockfile-change", "mutable-global-state", "implicit-clock-or-randomness",
+        "authority-outside-exact-solo-record", "t04-through-t08", "product-inference-or-data-transfer",
+        "independent-human-review-claim", "production-readiness-claim"
+      ],
+      "predecessorBinding": {
+        "ticketId": "OBX-P180-T02",
+        "implementationCommit": "514d10d1b61e3332acb27e302adc20f353b64315",
+        "checkpointPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json",
+        "checkpointId": "OBX-P180-T02-COMPLETION-001",
+        "checkpointHash": "1378a9a7f158658d197362c99ffc7890d8abe7c6371ecee74a6914afca83aabe",
+        "ownerReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-owner-completion-receipt.json",
+        "ownerReceiptId": "OBX-P180-T02-OWNER-COMPLETION-001",
+        "ownerReceiptHash": "eb00341ec8c9798dffcbe172bd6d5e5377b22d585b8068607a1d67d89bb5eed8",
+        "status": "COMPLETED_VERIFIED",
+        "grantsInheritedAuthority": false
+      },
+      "planBindings": [
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md", "algorithm": "sha256", "digest": "7755dee982a321a318843d6ce41d24b087032f533d4796283d8096c68227d31d"},
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md", "algorithm": "sha256", "digest": "385e3c046528abe7f9a7307421741386fa0abf032f06e094745833feaa3370af"},
+        {"path": "docs/plans/2026-08-31-obx-p180-t03-solo-authorization-design.md", "algorithm": "sha256", "digest": "8abe2e7dfd22460f0c53e296020ca8965682d82984e4a9d0fe9de82f2c978c4f"}
+      ],
+      "dependencyBindings": [
+        {"path": "package.json", "algorithm": "sha256", "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"},
+        {"path": "package-lock.json", "algorithm": "sha256", "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"}
+      ],
+      "sourceAdoptionBindings": [
+        {"path": "docs/eval/one-box-program/fixtures/obx-p180-source-adoption-fixture-v1.json", "algorithm": "sha256", "digest": "3afe9adfd78251dd2904415995338335d027daa84eb082f2ce785d6ca708b3f2"},
+        {"path": "scripts/eval/obx-p180-source-adoption-fixtures.mjs", "algorithm": "sha256", "digest": "81c52fe3033b9ad343c964880e2adfc9f9fbe9bd819f8df2fb3ca685f46b1d3a"},
+        {"path": "scripts/eval/obx-p180-source-adoption-fixtures.node.mjs", "algorithm": "sha256", "digest": "5ea949f04718a432a1f14b79ae521bcc87b7577d41ab342f5b9a9459565f1f88"},
+        {"path": "scripts/verify-obx-p180-source-adoption.mjs", "algorithm": "sha256", "digest": "f6825ae15e8401205d92a4c78c96870660d8e0c1f66141eafe5ba3e5242dd5d9"}
+      ],
+      "amendmentBinding": {
+        "path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t03-solo.json",
+        "amendmentId": "OBX-P180-T03-SOLO-AMENDMENT-001",
+        "algorithm": "sha256",
+        "digest": "3e497bb4ccb6fee8ca674f279122d1a24356b9b976b995c47312f24d06057919",
+        "selfHash": "0fb00997d1a725ed65065ea4119385f6091462824999275fd51e5c030dbacbc2"
+      },
+      "siblingConcurrency": {
+        "groupId": "OBX-P180-T03-T04-DISJOINT-SIBLINGS-001",
+        "siblingAuthorizationId": "OBX-AUTH-P180-T04-SOLO-001",
+        "siblingTicketId": "OBX-P180-T04",
+        "siblingAllowedPaths": [
+          "src/lib/operatingEnvironment/budget.ts", "src/lib/operatingEnvironment/budget.test.ts",
+          "src/lib/operatingEnvironment/capacity.ts", "src/lib/operatingEnvironment/capacity.test.ts",
+          "src/lib/operatingEnvironment/compare.ts", "src/lib/operatingEnvironment/compare.test.ts",
+          "src/lib/operatingEnvironment/fixtures/budget-capacity-v1.json"
+        ],
+        "pairwiseDisjoint": true,
+        "sharedFrozenStartRequired": true,
+        "controllerStagesOnlyAfterBothLeasesReleased": true
+      },
+      "activationProtocol": {
+        "phase0AState": "PRE_ACTIVATION",
+        "ownReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+        "siblingReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
+        "phase0BWriteSet": [
+          "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+          "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json"
+        ],
+        "receiptsMustBeAbsentInPhase0A": true,
+        "receiptsBindRealPhase0ACommitAndTree": true,
+        "sharedObservedAtRequired": true,
+        "observedAtClockSkewMilliseconds": 0,
+        "phase0BCommitDerivesFrozenWorkerStart": true,
+        "headOrTreeMismatchState": "ABORTED_DERIVED",
+        "repositoryInvalidationWriteAllowed": false,
+        "workerStageCommitOrHeadAdvanceAllowed": false
+      },
+      "proofProtocol": {
+        "goalStateRoot": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave",
+        "proofNamespace": "proof/",
+        "diagnosticNamespace": "reports/abort/",
+        "controllerOnlyWriter": true,
+        "directoryMode": "0700",
+        "fileMode": "0600",
+        "realNonsymlinkedOwnerMatchedPathsRequired": true,
+        "registryPath": "proof/controller-proof-registry.jsonl",
+        "lockPath": "proof/controller-proof-registry.lock",
+        "exclusiveLock": "O_EXCL",
+        "newlineTerminatedAppendOnlyChain": true,
+        "genesisPreviousDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "fsyncEnvelopeAndRegistry": true,
+        "automaticRepairTruncateOrRetryAllowed": false,
+        "envelopeGrantBindingsRequired": true,
+        "completionBindsOrderedGrantTuplesAndRegistryHead": true,
+        "entireCommandMustFinishBeforeExpiry": true
+      },
+      "completionEvidence": {
+        "receiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json",
+        "pathPresenceAloneChangesState": false,
+        "validStatus": "COMPLETED_VERIFIED",
+        "validDerivedState": "CONSUMED",
+        "reuseFailure": "AUTHORIZATION_ALREADY_CONSUMED",
+        "controllerOnlyAfterBothLeasesReleased": true,
+        "leaseReleaseRequiresTerminalReportAndCompletedTask": true,
+        "duplicateValidReleaseIdempotent": true,
+        "requiredCommandIds": ["t03-focused", "operating-environment", "source-adoption", "typecheck", "targeted-lint", "verify-plans", "test-plans", "path-census", "dependency-diff", "forbidden-effects", "secrets-scan"]
+      },
+      "reviewProtocol": {
+        "quickAuditModel": "z-ai/glm-5.3-flash",
+        "quickAuditLane": "openrouter-z-ai-fp8-approved-route",
+        "finalAuditModel": "anthropic/claude-opus-5",
+        "finalAuditLane": "claude-max-oauth",
+        "modelAuthority": "advisory-only",
+        "testAuthority": "deterministic-provider-offline-tests",
+        "targetChangeInvalidatesReview": true
+      },
+      "requiredEvidencePaths": [
+        "docs/audits/evidence/security/2026-08-31-obx-p180-t03-solo-authorization-security-review.json",
+        "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json",
+        "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+        "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json"
+      ],
+      "invalidators": [
+        "authorization-or-amendment-self-hash-mismatch", "t02-checkpoint-or-owner-receipt-mismatch",
+        "owner-identity-compromise-or-supersession", "successor-pair-or-sibling-overlap",
+        "base-branch-controller-run-lane-claimant-or-sequence-drift", "allowed-path-or-effect-drift",
+        "role-risk-or-requirement-exception-drift", "dependency-or-source-adoption-drift",
+        "timestamp-malformed-boundary-duration-expired-or-renewal", "activation-receipt-missing-malformed-or-replayed",
+        "phase0a-commit-tree-or-phase0b-write-set-mismatch", "frozen-worker-head-or-tree-movement",
+        "premature-lease-release-or-worker-index-mutation", "completion-receipt-malformed-unbound-or-alternate-path",
+        "proof-path-mode-owner-type-symlink-containment-lock-tail-or-chain-failure",
+        "unregistered-reordered-inserted-removed-or-cross-grant-envelope", "acceptance-command-crosses-expiry",
+        "forbidden-effect-or-import", "gate-failure", "additional-unaccepted-finding",
+        "t04-through-t08-authority-or-production-readiness-claim"
+      ],
+      "recordedAt": "2026-09-01T02:05:00.000Z",
+      "notBefore": "2026-09-01T02:05:00.000Z",
+      "expiresAt": "2026-09-15T02:05:00.000Z",
+      "exactDurationMilliseconds": 1209600000,
+      "renewable": false,
+      "authorizationHash": {"algorithm": "sha256", "canonicalization": "canonical-json-v1", "excludedJsonPointers": ["/authorizationHash/digest"], "digest": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e"}
+    },
+    {
+      "id": "OBX-AUTH-P180-T04-SOLO-001",
+      "recordKind": "owner-solo-reserved-child-ticket-exception-v3",
+      "status": "reserved-pending-activation",
+      "implementationAuthorized": true,
+      "activationRequired": true,
+      "projectId": "one-box",
+      "branch": "feat/obx-p180-t03-t05-offline-wave",
+      "baseCommit": "62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1",
+      "baseTree": "6c79e9c0eb6b42fd5f4835362a7d31821d91654b",
+      "parentTicketId": "OBX-P180",
+      "parentTicketStatus": "proposed",
+      "childTicketIds": ["OBX-P180-T04"],
+      "authorizationProposalId": "OBX-AUTH-P180-OFFLINE-V1",
+      "ownerActorId": "person:devin-wiggins",
+      "riskOwnerActorId": "person:devin-wiggins",
+      "controllerActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-controller",
+      "goalRunId": "obx-p180-t03-t05-offline-wave",
+      "laneId": "T04",
+      "reservation": {
+        "state": "RESERVED",
+        "claimantActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-t04-implementer",
+        "claimSequence": 1,
+        "transferable": false,
+        "replacementAllowed": false,
+        "rebaselineAllowed": false
+      },
+      "roleAvailability": [
+        {"roleId": "implementation-lead", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+        {"roleId": "budget-operations-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+        {"roleId": "job-sandbox-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false},
+        {"roleId": "evaluation-owner", "assignmentStatus": "NOT_AVAILABLE", "assignmentRecordPresent": false, "humanActorId": null, "separationSatisfied": false}
+      ],
+      "implementationAuthorizationSeparation": {"status": "NOT_AVAILABLE", "satisfied": false},
+      "independentHumanReview": {"status": "NOT_AVAILABLE", "satisfied": false, "actorId": null},
+      "acceptedRisk": {"findingId": "OBX-P180-T04-SOLO-SEPARATION-001", "severity": "MEDIUM", "status": "ACCEPTED", "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE"},
+      "requirementExceptions": [
+        {"requirementId": "P180-R014", "exceptionStatus": "EXCEPT_T04_SOLO", "satisfactionStatus": "NOT_SATISFIED"},
+        {"requirementId": "P180-R015", "exceptionStatus": "EXCEPT_T04_SOLO", "satisfactionStatus": "NOT_SATISFIED"},
+        {"requirementId": "P180-R016", "exceptionStatus": "EXCEPT_T04_SOLO", "satisfactionStatus": "NOT_SATISFIED"}
+      ],
+      "traceabilityRefs": ["EOS-006", "EOS-012", "PROG-EVAL-COST-001", "PROG-EVAL-SEC-AGENT-001"],
+      "allowedPaths": [
+        "src/lib/operatingEnvironment/budget.ts", "src/lib/operatingEnvironment/budget.test.ts",
+        "src/lib/operatingEnvironment/capacity.ts", "src/lib/operatingEnvironment/capacity.test.ts",
+        "src/lib/operatingEnvironment/compare.ts", "src/lib/operatingEnvironment/compare.test.ts",
+        "src/lib/operatingEnvironment/fixtures/budget-capacity-v1.json"
+      ],
+      "allowedEffects": ["add-provider-offline-in-memory-budget-capacity-compare-reducers"],
+      "forbiddenEffects": [
+        "product-runtime-import-or-effect", "provider-or-model-call", "network", "spend-or-provider-usage-trust",
+        "credential-or-environment-access", "filesystem-or-shell-io", "persistence-or-durable-state",
+        "queue-or-background-worker", "browser", "ui", "collaboration",
+        "canvas-or-page-ir-read-write-or-mutation", "deployment", "release",
+        "dependency-or-lockfile-change", "mutable-global-state", "implicit-clock-or-randomness",
+        "automatic-winner-default-or-apply", "authority-outside-exact-solo-record", "t03-or-t05-through-t08",
+        "product-inference-or-data-transfer", "independent-human-review-claim", "production-readiness-claim"
+      ],
+      "predecessorBinding": {
+        "ticketId": "OBX-P180-T02", "implementationCommit": "514d10d1b61e3332acb27e302adc20f353b64315",
+        "checkpointPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json",
+        "checkpointId": "OBX-P180-T02-COMPLETION-001", "checkpointHash": "1378a9a7f158658d197362c99ffc7890d8abe7c6371ecee74a6914afca83aabe",
+        "ownerReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-owner-completion-receipt.json",
+        "ownerReceiptId": "OBX-P180-T02-OWNER-COMPLETION-001", "ownerReceiptHash": "eb00341ec8c9798dffcbe172bd6d5e5377b22d585b8068607a1d67d89bb5eed8",
+        "status": "COMPLETED_VERIFIED", "grantsInheritedAuthority": false
+      },
+      "planBindings": [
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md", "algorithm": "sha256", "digest": "e67002acfeea154a8376513fdf16add713af6ad436d68813e7c7158fd614d31b"},
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md", "algorithm": "sha256", "digest": "385e3c046528abe7f9a7307421741386fa0abf032f06e094745833feaa3370af"},
+        {"path": "docs/plans/2026-08-31-obx-p180-t04-solo-authorization-design.md", "algorithm": "sha256", "digest": "18acdb38982c11f778d58f013f82a6dab7005e5a4c522503a698ba90f3ccb0d3"}
+      ],
+      "dependencyBindings": [
+        {"path": "package.json", "algorithm": "sha256", "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"},
+        {"path": "package-lock.json", "algorithm": "sha256", "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"}
+      ],
+      "sourceAdoptionBindings": [
+        {"path": "docs/eval/one-box-program/fixtures/obx-p180-source-adoption-fixture-v1.json", "algorithm": "sha256", "digest": "3afe9adfd78251dd2904415995338335d027daa84eb082f2ce785d6ca708b3f2"},
+        {"path": "scripts/eval/obx-p180-source-adoption-fixtures.mjs", "algorithm": "sha256", "digest": "81c52fe3033b9ad343c964880e2adfc9f9fbe9bd819f8df2fb3ca685f46b1d3a"},
+        {"path": "scripts/eval/obx-p180-source-adoption-fixtures.node.mjs", "algorithm": "sha256", "digest": "5ea949f04718a432a1f14b79ae521bcc87b7577d41ab342f5b9a9459565f1f88"},
+        {"path": "scripts/verify-obx-p180-source-adoption.mjs", "algorithm": "sha256", "digest": "f6825ae15e8401205d92a4c78c96870660d8e0c1f66141eafe5ba3e5242dd5d9"}
+      ],
+      "amendmentBinding": {
+        "path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t04-solo.json", "amendmentId": "OBX-P180-T04-SOLO-AMENDMENT-001",
+        "algorithm": "sha256", "digest": "9361c32941d787f38c46ac56cda21c333d283aaf3ab82d644046bea597184846",
+        "selfHash": "87f160bcc7fb06cabf12116acf36c3bdd258f5063b69fd8a5c61d5b543fc5675"
+      },
+      "siblingConcurrency": {
+        "groupId": "OBX-P180-T03-T04-DISJOINT-SIBLINGS-001", "siblingAuthorizationId": "OBX-AUTH-P180-T03-SOLO-001", "siblingTicketId": "OBX-P180-T03",
+        "siblingAllowedPaths": [
+          "src/lib/operatingEnvironment/skills.ts", "src/lib/operatingEnvironment/skills.test.ts",
+          "src/lib/operatingEnvironment/context.ts", "src/lib/operatingEnvironment/context.test.ts",
+          "src/lib/operatingEnvironment/interrupts.ts", "src/lib/operatingEnvironment/interrupts.test.ts",
+          "src/lib/operatingEnvironment/receipts.ts", "src/lib/operatingEnvironment/receipts.test.ts",
+          "src/lib/operatingEnvironment/fixtures/security-v1.json"
+        ],
+        "pairwiseDisjoint": true, "sharedFrozenStartRequired": true, "controllerStagesOnlyAfterBothLeasesReleased": true
+      },
+      "activationProtocol": {
+        "phase0AState": "PRE_ACTIVATION",
+        "ownReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
+        "siblingReceiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+        "phase0BWriteSet": ["docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json", "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json"],
+        "receiptsMustBeAbsentInPhase0A": true, "receiptsBindRealPhase0ACommitAndTree": true,
+        "sharedObservedAtRequired": true, "observedAtClockSkewMilliseconds": 0,
+        "phase0BCommitDerivesFrozenWorkerStart": true, "headOrTreeMismatchState": "ABORTED_DERIVED",
+        "repositoryInvalidationWriteAllowed": false, "workerStageCommitOrHeadAdvanceAllowed": false
+      },
+      "proofProtocol": {
+        "goalStateRoot": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave", "proofNamespace": "proof/", "diagnosticNamespace": "reports/abort/",
+        "controllerOnlyWriter": true, "directoryMode": "0700", "fileMode": "0600", "realNonsymlinkedOwnerMatchedPathsRequired": true,
+        "registryPath": "proof/controller-proof-registry.jsonl", "lockPath": "proof/controller-proof-registry.lock", "exclusiveLock": "O_EXCL",
+        "newlineTerminatedAppendOnlyChain": true, "genesisPreviousDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "fsyncEnvelopeAndRegistry": true, "automaticRepairTruncateOrRetryAllowed": false,
+        "envelopeGrantBindingsRequired": true, "completionBindsOrderedGrantTuplesAndRegistryHead": true, "entireCommandMustFinishBeforeExpiry": true
+      },
+      "completionEvidence": {
+        "receiptPath": "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json", "pathPresenceAloneChangesState": false,
+        "validStatus": "COMPLETED_VERIFIED", "validDerivedState": "CONSUMED", "reuseFailure": "AUTHORIZATION_ALREADY_CONSUMED",
+        "controllerOnlyAfterBothLeasesReleased": true, "leaseReleaseRequiresTerminalReportAndCompletedTask": true, "duplicateValidReleaseIdempotent": true,
+        "requiredCommandIds": ["t04-focused", "operating-environment", "source-adoption", "typecheck", "targeted-lint", "verify-plans", "test-plans", "path-census", "dependency-diff", "forbidden-effects", "secrets-scan"]
+      },
+      "reviewProtocol": {
+        "quickAuditModel": "z-ai/glm-5.3-flash", "quickAuditLane": "openrouter-z-ai-fp8-approved-route",
+        "finalAuditModel": "anthropic/claude-opus-5", "finalAuditLane": "claude-max-oauth",
+        "modelAuthority": "advisory-only", "testAuthority": "deterministic-provider-offline-tests", "targetChangeInvalidatesReview": true
+      },
+      "requiredEvidencePaths": [
+        "docs/audits/evidence/security/2026-08-31-obx-p180-t04-solo-authorization-security-review.json",
+        "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json",
+        "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
+        "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json"
+      ],
+      "invalidators": [
+        "authorization-or-amendment-self-hash-mismatch", "t02-checkpoint-or-owner-receipt-mismatch",
+        "owner-identity-compromise-or-supersession", "successor-pair-or-sibling-overlap",
+        "base-branch-controller-run-lane-claimant-or-sequence-drift", "allowed-path-or-effect-drift",
+        "role-risk-or-requirement-exception-drift", "dependency-or-source-adoption-drift",
+        "timestamp-malformed-boundary-duration-expired-or-renewal", "activation-receipt-missing-malformed-or-replayed",
+        "phase0a-commit-tree-or-phase0b-write-set-mismatch", "frozen-worker-head-or-tree-movement",
+        "premature-lease-release-or-worker-index-mutation", "completion-receipt-malformed-unbound-or-alternate-path",
+        "proof-path-mode-owner-type-symlink-containment-lock-tail-or-chain-failure",
+        "unregistered-reordered-inserted-removed-or-cross-grant-envelope", "acceptance-command-crosses-expiry",
+        "forbidden-effect-or-import", "gate-failure", "additional-unaccepted-finding",
+        "t03-or-t05-through-t08-authority-or-production-readiness-claim"
+      ],
+      "recordedAt": "2026-09-01T02:05:00.000Z", "notBefore": "2026-09-01T02:05:00.000Z", "expiresAt": "2026-09-15T02:05:00.000Z",
+      "exactDurationMilliseconds": 1209600000, "renewable": false,
+      "authorizationHash": {"algorithm": "sha256", "canonicalization": "canonical-json-v1", "excludedJsonPointers": ["/authorizationHash/digest"], "digest": "4c3a89055f239905e0939bcb5be3f60fce971bf19c477075f31cbc5fc75a3557"}
     }
   ]
 }

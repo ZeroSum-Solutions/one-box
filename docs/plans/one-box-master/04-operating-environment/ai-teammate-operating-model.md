@@ -5,11 +5,14 @@
 - Implementation authorized: no
 - Parent: `OBX-P180` and `OBX-P310`
 
-The wider operating model remains planning-only. The separately accepted
-[`AI teammate foundation v1`](../../../specs/2026-08-29-ai-teammate-foundation-v1.md)
-and `OBX-AUTH-ATF-001` authorize only the static roster, read/propose contracts,
-deterministic local executor/receipts, and minimal local Canvas/API surface named
-there. No other section of this draft gains implementation authority.
+The wider operating model remains planning-only. The [scoped implementation
+registry](../00-authority/scoped-implementation-authorizations.json), not this
+draft, is the sole authority source. It preserves the separately accepted
+[`AI teammate foundation v1`](../../../specs/2026-08-29-ai-teammate-foundation-v1.md),
+the exact T01/T02 child-ticket exception records, and separate reserved,
+pre-activation T03/T04 sibling grants. Those sibling grants remain inactive until
+their exact activation receipts validate and grant no T05+, provider/runtime,
+deployment, release, or wider parent-ticket authority.
 
 ## Decision
 

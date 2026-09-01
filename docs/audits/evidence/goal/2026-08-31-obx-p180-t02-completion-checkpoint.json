@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "checkpointId": "OBX-P180-T02-COMPLETION-001",
+  "recordKind": "child-ticket-completion-checkpoint-v1",
+  "status": "COMPLETED_VERIFIED",
+  "ticketId": "OBX-P180-T02",
+  "authorizationId": "OBX-AUTH-P180-T02-SOLO-001",
+  "authorizationHash": "9eb1ae436bb897de1abe572991ede4a38734b1b97a4ccfda7c079a072dfcaa36",
+  "implementation": {
+    "commit": "514d10d1b61e3332acb27e302adc20f353b64315",
+    "tree": "90f3422b19237a6c5499500b272e95238559c1ab",
+    "parentCommit": "c9e3af6687c7454f61a8ce46a99f9fee7adf8db9",
+    "branch": "research/la-appointment-field-study",
+    "verifiedAtBaseCommit": "62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1",
+    "files": [
+      {"path": "src/lib/operatingEnvironment/registry.ts", "algorithm": "sha256", "digest": "b3560c67371528f8b26d5166d759ce91f7bda24af843048829c323790d4c3678", "gitBlob": "046769fe5b168e93355497453d3dc001bd5be458"},
+      {"path": "src/lib/operatingEnvironment/registry.test.ts", "algorithm": "sha256", "digest": "50c1d555307f75232b0ae740b4c67f3cf2d1eb804fc546450fffc6ea7123cb7f", "gitBlob": "a6a38b085fe0e64873275e1f6fcfe00661692a4d"},
+      {"path": "src/lib/operatingEnvironment/routeState.ts", "algorithm": "sha256", "digest": "b58d4bdd8420ad23cf9e2f7a925334e57aaf9f680285250fe3c7138ce273dd7c", "gitBlob": "67da5c5dd5107bee4eedb824f9393a6847f2fcad"},
+      {"path": "src/lib/operatingEnvironment/routeState.test.ts", "algorithm": "sha256", "digest": "42ac612a033b99625a5aba0eb728b5fbf60ab627fc72c52654b7a5c3017bd583", "gitBlob": "38dd75a20b5c097d43aa4ffb45938b26d09aef9f"},
+      {"path": "src/lib/operatingEnvironment/fixtures/registry-v1.json", "algorithm": "sha256", "digest": "e023b7e4f8bf69b876c669f370a2003c71c0a26b812e3e42eaac446e43844c25", "gitBlob": "91b7e988460bd6e108ffc4a8ea8f4f8789127623"},
+      {"path": "src/lib/operatingEnvironment/fixtures/route-state-v1.json", "algorithm": "sha256", "digest": "90c8ac7a0705ca7d7bdb43c542935d90fea6e8b5648a4c4982cf00ccb8380699", "gitBlob": "16479ce40e480cfadfa72707a50b2664d5693bd9"}
+    ]
+  },
+  "historicalSecurityReceipt": {
+    "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+    "algorithm": "sha256",
+    "digest": "f2c0dfffe5dbe6ae65a111a59c9ec444da6165902351322c41b44141c10e3c83",
+    "receiptKind": "solo-t02-security-review-v1",
+    "verdict": "PASS-WITH-ACCEPTED-RISK",
+    "storedBindingsAreHistorical": true,
+    "rehashLiveTargets": false
+  },
+  "evidenceArtifacts": [
+    {"path": "goal-state:obx-p180-t02-registry-route/proof/GLM-CORRECTION-audit.json", "algorithm": "sha256", "digest": "14ce96b59bdbd928a2f2c31d30cdcdf82253b247bab0efc1d6f7848fa66ff526"},
+    {"path": "goal-state:obx-p180-t02-registry-route/proof/OPUS5-FINAL-audit.json", "algorithm": "sha256", "digest": "6d17166653c107cd159f47df772baa020a0a049b24a4f013df4fd9c504afdcfb"},
+    {"path": "goal-state:obx-p180-t02-registry-route/proof/T02-AUTH-security-review.json", "algorithm": "sha256", "digest": "4cf7762bb8ebc0bee10eed4c3d7ce805593b4ddcf0c5f7eb15f29e071a39e75a"},
+    {"path": "goal-state:obx-p180-t02-registry-route/proof/T02-IMPLEMENTATION-security-review.json", "algorithm": "sha256", "digest": "16c0a8550c3c812a5e21616404e1a1cd5642742b982b7cbba6b7a420c453fd20"},
+    {"path": "goal-state:obx-p180-t02-registry-route/proof/T02-mutation-sensitivity.json", "algorithm": "sha256", "digest": "8d7872a581ef1f543f08c08eed69e00080c71a3f001fa2e5cb947c04cf793da3"}
+  ],
+  "commandEvidence": [
+    {"id": "T02-CMD-001", "command": "npm test -- src/lib/operatingEnvironment/canonical.test.ts src/lib/operatingEnvironment/contracts.test.ts src/lib/operatingEnvironment/reasonCodes.test.ts src/lib/operatingEnvironment/registry.test.ts src/lib/operatingEnvironment/routeState.test.ts", "exitCode": 0, "testFiles": 5, "tests": 71, "outputSha256": "1d137d4ac2efbefcb718f5cc0f8ef00210a9d84f458fa1acc3d2cbdda099bc19"},
+    {"id": "T02-CMD-002", "command": "node scripts/verify-plan-authority.mjs --verify-solo-t02-structure-only", "exitCode": 0, "testFiles": null, "tests": null, "outputSha256": "2678c8739e28aaa11e3d1a5353fb00dc3695e00f60b3ff37902bdd0d665b3861"},
+    {"id": "T02-CMD-003", "command": "node scripts/verify-plan-authority.mjs --verify-solo-t02-receipt-only", "exitCode": 0, "testFiles": null, "tests": null, "outputSha256": "51d55d4958fb4e46036a5be69cafea9bcf8de9f3f3e12e536dfe635228ffeb43"},
+    {"id": "T02-CMD-004", "command": "node scripts/verify-obx-p180-source-adoption.mjs", "exitCode": 0, "testFiles": null, "tests": 28, "outputSha256": "57345f8f1aa711d18225b29c31f7daa67eb1bdd79c5cccb3bc9af61530550748"},
+    {"id": "T02-CMD-005", "command": "node --test scripts/eval/obx-p180-source-adoption-fixtures.node.mjs", "exitCode": 0, "testFiles": 1, "tests": 8, "outputSha256": "13ed96dcdfbe31bb95f495b6da254604e420608a1ffa7ae602bcbdaf27262d5c"},
+    {"id": "T02-CMD-006", "command": "gitleaks detect --source . --no-banner --redact --log-opts c9e3af6687c7454f61a8ce46a99f9fee7adf8db9..514d10d1b61e3332acb27e302adc20f353b64315", "exitCode": 0, "testFiles": null, "tests": null, "outputSha256": "4bb00a56a70014d22884d7b2bb1d551bccd2dfb37a1ac4227ae3fa7ac68f26a2"}
+  ],
+  "modelEvidence": {
+    "finalQuickAudit": {"model": "z-ai/glm-5.3-flash", "providerReportedModel": "z-ai/glm-5.3-flash", "verdict": "PASS", "findings": 0, "artifactDigest": "14ce96b59bdbd928a2f2c31d30cdcdf82253b247bab0efc1d6f7848fa66ff526"},
+    "finalSectionAudit": {"requestedAlias": "opus", "canonicalModel": "claude-opus-5", "provider": "firstParty", "originalVerdict": "FAIL", "mediumFindings": 3, "lowFindings": 1, "allDispositionsClosed": true, "secondAuditRequired": false, "artifactDigest": "6d17166653c107cd159f47df772baa020a0a049b24a4f013df4fd9c504afdcfb"},
+    "authority": "advisory-only"
+  },
+  "securityEvidence": {
+    "implementationVerdict": "PASS-WITH-ACCEPTED-RISK",
+    "acceptedFinding": "OBX-P180-T02-SOLO-SEPARATION-001",
+    "acceptedSeverity": "MEDIUM",
+    "exactRangeSecretsScan": "PASS",
+    "canonicalSurfaceCount": 6,
+    "exports": "NONE",
+    "mutationSensitivity": "10/10 PASS"
+  },
+  "dependencyBindings": [
+    {"path": "package.json", "algorithm": "sha256", "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"},
+    {"path": "package-lock.json", "algorithm": "sha256", "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"}
+  ],
+  "sourceAdoptionBindings": [
+    {"path": "docs/eval/one-box-program/fixtures/obx-p180-source-adoption-fixture-v1.json", "algorithm": "sha256", "digest": "3afe9adfd78251dd2904415995338335d027daa84eb082f2ce785d6ca708b3f2"},
+    {"path": "scripts/eval/obx-p180-source-adoption-fixtures.mjs", "algorithm": "sha256", "digest": "81c52fe3033b9ad343c964880e2adfc9f9fbe9bd819f8df2fb3ca685f46b1d3a"},
+    {"path": "scripts/eval/obx-p180-source-adoption-fixtures.node.mjs", "algorithm": "sha256", "digest": "5ea949f04718a432a1f14b79ae521bcc87b7577d41ab342f5b9a9459565f1f88"},
+    {"path": "scripts/verify-obx-p180-source-adoption.mjs", "algorithm": "sha256", "digest": "f6825ae15e8401205d92a4c78c96870660d8e0c1f66141eafe5ba3e5242dd5d9"}
+  ],
+  "forbiddenEffectEvidence": {
+    "providerOrModelCalls": 0,
+    "network": false,
+    "credentialOrEnvironmentAccess": false,
+    "persistenceOrDurableState": false,
+    "filesystemOrShellEffects": false,
+    "productRuntimeImports": false,
+    "canvasOrPageIrMutation": false,
+    "dependencyOrLockfileChange": false
+  },
+  "noInheritedAuthority": {
+    "predecessorCompletionIsEvidenceOnly": true,
+    "implementationAuthorizedTicketIds": [],
+    "deniedTicketIds": ["OBX-P180-T03", "OBX-P180-T04", "OBX-P180-T05", "OBX-P180-T06", "OBX-P180-T07", "OBX-P180-T08"]
+  },
+  "residuals": [
+    "Independent human role separation remained unavailable and was explicitly accepted for T02 only.",
+    "Model reviews were advisory; deterministic tests, exact hashes, and security evidence controlled closure.",
+    "This checkpoint grants no successor implementation authority."
+  ],
+  "recordedAt": "2026-09-01T02:05:00.000Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": ["/selfHash/digest"],
+    "digest": "1378a9a7f158658d197362c99ffc7890d8abe7c6371ecee74a6914afca83aabe"
+  }
+}

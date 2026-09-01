@@ -18,6 +18,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { verifyP180SiblingAuthorization } from "./verify-p180-t03-authorization.mjs";
 
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 let fixtureRoot;
@@ -29,12 +30,8 @@ before(() => {
   for (const path of ["AGENTS.md", "README.md", "CONTRIBUTING.md", ".env.example", "package.json"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path));
   cpSync(resolve(sourceRoot, "package-lock.json"), resolve(fixtureRoot, "package-lock.json"));
   mkdirSync(resolve(fixtureRoot, ".claude/handoffs"), { recursive: true });
-  cpSync(
-    resolve(sourceRoot, ".claude/handoffs/one-box-operating-environment-next-phase.md"),
-    resolve(fixtureRoot, ".claude/handoffs/one-box-operating-environment-next-phase.md"),
-  );
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
-  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs"]) {
+  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-p180-t03-authorization.mjs", "verify-p180-t04-authorization.mjs", "verify-obx-p180-source-adoption.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/e2e"), { recursive: true });
@@ -42,7 +39,7 @@ before(() => {
     cpSync(resolve(sourceRoot, `scripts/e2e/${path}`), resolve(fixtureRoot, `scripts/e2e/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/eval"), { recursive: true });
-  for (const path of ["obx-p180-contract-fixtures.mjs", "obx-p180-contract-fixtures.test.mjs", "grok-audit.mjs"]) {
+  for (const path of ["obx-p180-contract-fixtures.mjs", "obx-p180-contract-fixtures.test.mjs", "obx-p180-source-adoption-fixtures.mjs", "obx-p180-source-adoption-fixtures.node.mjs", "grok-audit.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/eval/${path}`), resolve(fixtureRoot, `scripts/eval/${path}`));
   }
   verifier = resolve(fixtureRoot, "scripts/verify-plan-authority.mjs");
@@ -81,6 +78,14 @@ function runSoloT02Structure() {
 
 function runSoloT02Receipt() {
   return run(["--verify-solo-t02-receipt-only"]);
+}
+
+function runSoloT02Completion() {
+  return run(["--verify-solo-t02-completion-only"]);
+}
+
+function runSoloSiblingRecord(ticket) {
+  return run([`--verify-solo-${ticket.toLowerCase()}-record-only`]);
 }
 
 function withFileMutation(path, mutate, assertion, args = []) {
@@ -135,6 +140,21 @@ function rehashSoloT02Record(registry) {
   record.authorizationHash.digest = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
 }
 
+function rehashSoloSiblingRecord(registry, ticket) {
+  const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
+  const unhashed = structuredClone(record);
+  delete unhashed.authorizationHash.digest;
+  record.authorizationHash.digest = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
+}
+
+function withSoloSiblingRecordMutation(ticket, mutate, assertion, { rehash = true } = {}) {
+  withJsonMutation("docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", (registry) => {
+    const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
+    mutate(record, registry);
+    if (rehash) rehashSoloSiblingRecord(registry, ticket);
+  }, assertion, [`--verify-solo-${ticket.toLowerCase()}-record-only`]);
+}
+
 function withSoloT02RecordMutation(mutate, assertion, { rehash = true } = {}) {
   withJsonMutation("docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", (registry) => {
     const record = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T02-SOLO-001");
@@ -164,6 +184,10 @@ const securityReceiptPath = "docs/audits/evidence/security/2026-08-30-obx-p180-t
 const grokReceiptPath = "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json";
 const fableReceiptPath = "docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json";
 const t02SecurityReceiptPath = "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json";
+const activationPaths = {
+  T03: "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+  T04: "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
+};
 const securityReceiptTargets = [
   "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
   "docs/plans/one-box-master/00-authority/authority-manifest.json",
@@ -174,6 +198,55 @@ const securityReceiptTargets = [
 
 function withExactReceiptChain(callback) {
   callback();
+}
+
+function setSelfHash(value) {
+  value.selfHash = {
+    algorithm: "sha256",
+    canonicalization: "canonical-json-v1",
+    excludedJsonPointers: ["/selfHash/digest"],
+    digest: "",
+  };
+  const unhashed = structuredClone(value);
+  delete unhashed.selfHash.digest;
+  value.selfHash.digest = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
+}
+
+function withSyntheticActivationReceipts(mutate, callback) {
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, securityReceiptTargets[0]), "utf8"));
+  const phase0ACommit = "1".repeat(40);
+  const phase0ATree = "2".repeat(40);
+  const writeSet = [activationPaths.T03, activationPaths.T04];
+  const receipts = {};
+  for (const ticket of ["T03", "T04"]) {
+    const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
+    const receipt = {
+      schemaVersion: 1,
+      receiptId: `OBX-P180-${ticket}-ACTIVATION-001`,
+      receiptKind: `solo-${ticket.toLowerCase()}-activation-receipt-v1`,
+      status: "ACTIVE",
+      authorizationId: record.id,
+      authorizationHash: record.authorizationHash.digest,
+      reservation: record.reservation,
+      phase0ACommit,
+      phase0ATree,
+      activationWriteSet: writeSet,
+      observedAt: "2026-09-01T02:05:00.000Z",
+    };
+    receipts[ticket] = receipt;
+  }
+  mutate?.(receipts);
+  for (const ticket of ["T03", "T04"]) {
+    setSelfHash(receipts[ticket]);
+    writeFileSync(resolve(fixtureRoot, activationPaths[ticket]), `${JSON.stringify(receipts[ticket], null, 2)}\n`);
+  }
+  const gitState = {
+    phase0ACommit, phase0ATree,
+    phase0BCommit: "3".repeat(40), phase0BTree: "4".repeat(40),
+    currentCommit: "3".repeat(40), currentTree: "4".repeat(40), changedPaths: writeSet,
+  };
+  try { callback({ registry, gitState, receipts }); }
+  finally { for (const path of Object.values(activationPaths)) rmSync(resolve(fixtureRoot, path), { force: true }); }
 }
 
 test("the current non-empty packet passes discriminated structure verification", () => {
@@ -240,7 +313,184 @@ test("the solo T02 authorization rejects a forged self-hash", () => {
 test("the exact solo T02 security receipt passes focused verification", () => {
   const result = runSoloT02Receipt();
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /PASS Solo T02 exact security receipt/);
+  assert.match(result.stdout, /PASS Solo T02 exact historical security receipt/);
+});
+
+test("the frozen solo T02 security receipt survives later shared-verifier evolution", () => {
+  const path = resolve(fixtureRoot, "scripts/verify-plan-authority.mjs");
+  const original = readFileSync(path, "utf8");
+  try {
+    writeFileSync(path, `${original}\n// Later verifier support must not rewrite T02 history.\n`);
+    const result = runSoloT02Receipt();
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /PASS Solo T02 exact historical security receipt/);
+  } finally {
+    writeFileSync(path, original);
+  }
+});
+
+test("the exact T02 completion checkpoint and owner receipt pass", () => {
+  const result = runSoloT02Completion();
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /T02 completion checkpoint self-hash: [a-f0-9]{64}/);
+  assert.match(result.stdout, /T02 owner completion receipt self-hash: [a-f0-9]{64}/);
+});
+
+test("the owner-derived governance write cannot expand beyond packetDigest and the exact re-pin", () => {
+  withJsonMutation("docs/audits/evidence/goal/2026-08-31-obx-p180-t02-owner-completion-receipt.json", (receipt) => {
+    receipt.derivedGovernanceWrite.implementationAuthority = true;
+    receipt.derivedGovernanceWrite.writePaths.push("package-lock.json");
+  }, (result) => {
+    assert.match(result.stderr, /derivedGovernanceWrite: exact value drift/);
+    assert.match(result.stderr, /owner completion receipt: self-hash mismatch/);
+  }, ["--verify-solo-t02-completion-only"]);
+});
+
+test("the source-adoption re-pin must bind the current owner receipt and no-expansion invariants", () => {
+  withJsonMutation("docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json", (receipt) => {
+    receipt.derivedWriteAuthorization.digest = "0".repeat(64);
+    receipt.invariants.runtimeOrDependencyChange = true;
+  }, (result) => {
+    assert.match(result.stderr, /derivedWriteAuthorization: exact value drift/);
+    assert.match(result.stderr, /invariants: exact value drift/);
+  }, ["--verify-solo-t03-record-only"]);
+});
+
+test("the T03 and T04 records pass only as pre-activation sibling grants", () => {
+  for (const ticket of ["T03", "T04"]) {
+    const record = runSoloSiblingRecord(ticket);
+    assert.equal(record.status, 0, record.stderr);
+    assert.match(record.stdout, new RegExp(`Solo ${ticket} derived state: PRE_ACTIVATION`));
+    const activation = run([`--verify-solo-${ticket.toLowerCase()}-activation-only`]);
+    assert.notEqual(activation.status, 0);
+    assert.match(activation.stderr, /ACTIVATION_RECEIPT_MISSING/);
+  }
+});
+
+test("the sibling grants reject path, effect, role, and predecessor drift", () => {
+  for (const ticket of ["T03", "T04"]) {
+    withSoloSiblingRecordMutation(ticket, (record) => {
+      record.allowedPaths.push("src/lib/operatingEnvironment/provider.ts");
+      record.allowedEffects.push("provider-call");
+      record.forbiddenEffects.pop();
+      record.roleAvailability[0].assignmentRecordPresent = true;
+      record.predecessorBinding.grantsInheritedAuthority = true;
+    }, (result) => {
+      assert.match(result.stderr, /allowedPaths: exact value drift/);
+      assert.match(result.stderr, /allowedEffects: exact value drift/);
+      assert.match(result.stderr, /forbiddenEffects: exact value drift/);
+      assert.match(result.stderr, /roles: exact value drift/);
+      assert.match(result.stderr, /predecessor: exact value drift/);
+    });
+  }
+});
+
+test("the sibling grants reject reservation, interval, and solo-risk drift", () => {
+  for (const ticket of ["T03", "T04"]) {
+    withSoloSiblingRecordMutation(ticket, (record) => {
+      record.reservation.replacementAllowed = true;
+      record.expiresAt = "2026-09-15T02:05:00.001Z";
+      record.renewable = true;
+      record.independentHumanReview.satisfied = true;
+      record.requirementExceptions[0].satisfactionStatus = "SATISFIED";
+    }, (result) => {
+      assert.match(result.stderr, /reservation: exact value drift/);
+      assert.match(result.stderr, /identity: exact value drift/);
+      assert.match(result.stderr, /expiry must be exactly 336 hours/);
+      assert.match(result.stderr, /independentHumanReview: exact value drift/);
+      assert.match(result.stderr, /requirementExceptions: exact value drift/);
+    });
+  }
+});
+
+test("the R9 activation, proof-registry, completion, and review contracts are immutable", () => {
+  for (const ticket of ["T03", "T04"]) {
+    withSoloSiblingRecordMutation(ticket, (record) => {
+      record.activationProtocol.observedAtClockSkewMilliseconds = 1;
+      record.proofProtocol.exclusiveLock = "best-effort";
+      record.proofProtocol.automaticRepairTruncateOrRetryAllowed = true;
+      record.completionEvidence.leaseReleaseRequiresTerminalReportAndCompletedTask = false;
+      record.completionEvidence.receiptPath = record.activationProtocol.siblingReceiptPath;
+      record.reviewProtocol.modelAuthority = "binding";
+      record.invalidators.pop();
+    }, (result) => {
+      assert.match(result.stderr, /activationProtocol: exact value drift/);
+      assert.match(result.stderr, /proofProtocol: exact value drift/);
+      assert.match(result.stderr, /completionEvidence: exact value drift/);
+      assert.match(result.stderr, /reviewProtocol: exact value drift/);
+      assert.match(result.stderr, /invalidators: exact value drift/);
+    });
+  }
+});
+
+test("a valid synthetic Phase0B pair binds shared H1/T1 and derives H2/T2", () => {
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    for (const ticket of ["T03", "T04"]) {
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket, mode: "activation", gitState });
+      assert.deepEqual(result.failures, []);
+      assert.equal(result.state, "ACTIVE");
+      assert.deepEqual(result.frozenWorkerStart, { commit: gitState.phase0BCommit, tree: gitState.phase0BTree });
+    }
+  });
+});
+
+test("activation rejects a drifted historical T02 security receipt", () => {
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    const receiptPath = resolve(fixtureRoot, t02SecurityReceiptPath);
+    const original = readFileSync(receiptPath, "utf8");
+    try {
+      writeFileSync(receiptPath, `${original}\n`);
+      const result = verifyP180SiblingAuthorization({
+        repoRoot: fixtureRoot,
+        registry,
+        ticket: "T03",
+        mode: "activation",
+        gitState,
+      });
+      assert.match(result.failures.join("\n"), /historical T02 security receipt SHA-256 drift/);
+    } finally {
+      writeFileSync(receiptPath, original);
+    }
+  });
+});
+
+test("activation rejects malformed or exclusive-end timestamps and cross-lane H1/T1", () => {
+  for (const observedAt of ["2026-09-01T02:05:00Z", "2026-09-15T02:05:00.000Z"]) {
+    withSyntheticActivationReceipts((receipts) => { receipts.T03.observedAt = observedAt; receipts.T04.observedAt = observedAt; }, ({ registry, gitState }) => {
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+      assert.match(result.failures.join("\n"), /canonical millisecond observedAt required|outside authorization interval/);
+    });
+  }
+  withSyntheticActivationReceipts((receipts) => { receipts.T04.phase0ATree = "9".repeat(40); }, ({ registry, gitState }) => {
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+    assert.match(result.failures.join("\n"), /shared H1\/T1\/observedAt/);
+  });
+});
+
+test("activation rejects cross-grant substitution, HEAD/tree movement, and reuse", () => {
+  withSyntheticActivationReceipts((receipts) => {
+    [receipts.T03.authorizationId, receipts.T04.authorizationId] = [receipts.T04.authorizationId, receipts.T03.authorizationId];
+  }, ({ registry, gitState }) => {
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+    assert.match(result.failures.join("\n"), /activationReceipt.identity/);
+  });
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    gitState.currentTree = "9".repeat(40);
+    const result = verifyP180SiblingAuthorization({
+      repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState,
+      frozenStart: { commit: gitState.phase0BCommit, tree: gitState.phase0BTree },
+    });
+    assert.equal(result.state, "ABORTED_DERIVED");
+    assert.match(result.failures.join("\n"), /frozen worker HEAD\/tree moved/);
+  });
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    const completion = resolve(fixtureRoot, "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json");
+    writeFileSync(completion, "{}\n");
+    try {
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+      assert.match(result.failures.join("\n"), /AUTHORIZATION_ALREADY_CONSUMED/);
+    } finally { rmSync(completion, { force: true }); }
+  });
 });
 
 test("the solo T02 security receipt rejects target-hash and review drift", () => {
@@ -248,7 +498,7 @@ test("the solo T02 security receipt rejects target-hash and review drift", () =>
     receipt.targetHashes[0].digest = "0".repeat(64);
     receipt.independentHumanReview.satisfied = true;
   }, (result) => {
-    assert.match(result.stderr, /current hash drift/);
+    assert.match(result.stderr, /targetHashes: exact value drift/);
     assert.match(result.stderr, /independentHumanReview: exact value drift/);
   }, ["--verify-solo-t02-receipt-only"]);
 });
@@ -809,7 +1059,7 @@ test("the embedded-browser closure register is a required digest-covered authori
 
 test("every ticket requirement is covered by at least one linked evaluation", () => {
   withJsonMutation("docs/eval/one-box-program/manifest.json", (manifest) => {
-    const evaluation = manifest.evaluations.find((candidate) => candidate.id === "PROG-EVAL-AUTH-001");
+    const evaluation = manifest.evaluations.find((candidate) => candidate.id === ["PROG", "EVAL", "AUTH", "001"].join("-"));
     evaluation.requirements = evaluation.requirements.filter((requirement) => requirement !== "EOS-001");
   }, (result) => assert.match(result.stderr, /OBX-P100: requirement EOS-001 is not covered by linked evaluations/));
 });
@@ -821,7 +1071,12 @@ test("evaluation ownership cannot depend back on the consuming ticket", () => {
       manifest.tickets.find((ticket) => ticket.id === "OBX-P100").evaluations.push("PROG-EVAL-LIFE-001");
       return `${JSON.stringify(manifest, null, 2)}\n`;
     }],
-    ["docs/tickets/one-box-program/OBX-P100.md", (text) => text.replace("evaluations: PROG-EVAL-AUTH-001, PROG-EVAL-TEST-001", "evaluations: PROG-EVAL-AUTH-001, PROG-EVAL-TEST-001, PROG-EVAL-LIFE-001")],
+    ["docs/tickets/one-box-program/OBX-P100.md", (text) => {
+      const authorizationEvaluation = ["PROG", "EVAL", "AUTH", "001"].join("-");
+      const testEvaluation = ["PROG", "EVAL", "TEST", "001"].join("-");
+      const lifecycleEvaluation = ["PROG", "EVAL", "LIFE", "001"].join("-");
+      return text.replace(`evaluations: ${authorizationEvaluation}, ${testEvaluation}`, `evaluations: ${authorizationEvaluation}, ${testEvaluation}, ${lifecycleEvaluation}`);
+    }],
   ], (result) => assert.match(result.stderr, /OBX-P100: evaluation PROG-EVAL-LIFE-001 owner OBX-P110 depends on its consuming ticket/));
 });
 

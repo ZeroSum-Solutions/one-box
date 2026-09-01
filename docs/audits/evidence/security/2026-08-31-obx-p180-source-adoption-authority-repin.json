@@ -1,22 +1,31 @@
 {
   "schemaVersion": "obx-p180-authority-repin-review-v1",
   "reviewId": "obx-p180-source-adoption-authority-repin-2026-08-31",
-  "reviewedAt": "2026-08-31T23:59:00-07:00",
+  "reviewedAt": "2026-09-01T02:48:12.000Z",
   "namedOwner": "Devin Wiggins",
-  "scope": "Integrity re-pin after packet-digest-covered source-adoption planning changes",
+  "scope": "Phase 0A derived integrity re-pin for the verifier-derived authority-manifest /packetDigest only",
   "derivedWriteAuthorization": {
-    "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-packet-digest-derived-write-authorization.json",
-    "algorithm": "sha256",
-    "digest": "5aa48df3c780dc530a48bf6c699c185dc257510c9e76bb2638dbcad46b8a5fa2"
+    "path": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-owner-completion-receipt.json",
+    "receiptId": "OBX-P180-T02-OWNER-COMPLETION-001",
+    "algorithm": "sha256-canonical-self-hash",
+    "digest": "eb00341ec8c9798dffcbe172bd6d5e5377b22d585b8068607a1d67d89bb5eed8",
+    "authorizationKind": "DERIVED_INTEGRITY_REPIN_ONLY",
+    "writePaths": [
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json"
+    ],
+    "allowedManifestJsonPointers": [
+      "/packetDigest"
+    ]
   },
   "priorAuthorityManifest": {
-    "packetDigest": "8b6c41853992785ffb1b856143cd67866a81d9ce79fe44374aa2a7c5917bc363",
-    "sha256": "efe98160b6788a7fd02ce180cb6c0bae45218bbd762845d3624c4a44a1b37d49"
+    "packetDigest": "a09ed88d14c6070213e1c52164a2e606bd8c29e7fbe0ff833e546743907b3a38",
+    "sha256": "7a09999ccb21d81cd2dc5d9b98c5a055d8e52ec4073f70e45c1ae0f3f4aee5af"
   },
   "currentAuthorityManifest": {
     "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
-    "packetDigest": "a09ed88d14c6070213e1c52164a2e606bd8c29e7fbe0ff833e546743907b3a38",
-    "sha256": "7a09999ccb21d81cd2dc5d9b98c5a055d8e52ec4073f70e45c1ae0f3f4aee5af"
+    "packetDigest": "97eaf74bc30df461e11923ec773267c5ec106af7bfa5720615d7052210998ad4",
+    "sha256": "4f422d3a99e4559c1f4d54b0ddfc4d1b4b9a8588c06250b8cfae349a24ef9462"
   },
   "refreshedT02SecurityReceipt": {
     "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
@@ -24,13 +33,14 @@
   },
   "manifestChangedFields": ["packetDigest"],
   "reReviewMethod": [
-    "structural comparison against HEAD authority-manifest JSON",
-    "derived-write authorization validation",
+    "structural comparison against the pre-Phase0A authority-manifest JSON",
+    "current T02 owner-completion receipt self-hash and exact derived-write clause validation",
+    "confirmation that only authority-manifest /packetDigest and this exact re-pin receipt were derived writes",
     "npm run verify:plans",
     "npm run test:plans",
     "source-adoption verifier and provider-offline fixture lane"
   ],
-  "reEndorsement": "The T02 receipt target-hash refresh is an integrity re-pin to the derived packet digest after approved planning inputs changed. It does not re-approve, broaden, or add implementation authority.",
+  "reEndorsement": "This receipt re-pins the source-adoption gate to the verifier-derived Phase 0A packet digest. The historical T02 security receipt remains unchanged; this does not re-approve, broaden, or add implementation, runtime, provider, dependency, activation, completion, or source-adoption-artifact authority.",
   "invariants": {
     "implementationAuthorized": false,
     "authorityExpansion": false,

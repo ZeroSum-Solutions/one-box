@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "OBX-P180-T02-OWNER-COMPLETION-001",
+  "recordKind": "owner-child-ticket-completion-acceptance-v1",
+  "status": "ACCEPTED",
+  "ticketId": "OBX-P180-T02",
+  "authorizationId": "OBX-AUTH-P180-T02-SOLO-001",
+  "checkpointBinding": {
+    "path": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json",
+    "checkpointId": "OBX-P180-T02-COMPLETION-001",
+    "algorithm": "sha256-canonical-self-hash",
+    "digest": "1378a9a7f158658d197362c99ffc7890d8abe7c6371ecee74a6914afca83aabe"
+  },
+  "owner": {
+    "actorId": "person:devin-wiggins",
+    "name": "Devin Wiggins",
+    "role": "repository-owner-authorizer"
+  },
+  "decision": "ACCEPT_T02_COMPLETED_VERIFIED_FOR_EXACT_T03_T04_PREDECESSOR_PAIR_ONLY",
+  "singleUseSuccessorPair": {
+    "consumedByAuthorizationIds": ["OBX-AUTH-P180-T03-SOLO-001", "OBX-AUTH-P180-T04-SOLO-001"],
+    "ticketIds": ["OBX-P180-T03", "OBX-P180-T04"],
+    "secondOrConflictingReceiptAllowed": false
+  },
+  "concurrencyRatification": {
+    "groupId": "OBX-P180-T03-T04-DISJOINT-SIBLINGS-001",
+    "mayExecuteConcurrentlyAfterSeparateActivation": true,
+    "sharedPredecessorTicketId": "OBX-P180-T02",
+    "pairwiseDisjoint": true,
+    "t03AllowedPaths": [
+      "src/lib/operatingEnvironment/skills.ts",
+      "src/lib/operatingEnvironment/skills.test.ts",
+      "src/lib/operatingEnvironment/context.ts",
+      "src/lib/operatingEnvironment/context.test.ts",
+      "src/lib/operatingEnvironment/interrupts.ts",
+      "src/lib/operatingEnvironment/interrupts.test.ts",
+      "src/lib/operatingEnvironment/receipts.ts",
+      "src/lib/operatingEnvironment/receipts.test.ts",
+      "src/lib/operatingEnvironment/fixtures/security-v1.json"
+    ],
+    "t04AllowedPaths": [
+      "src/lib/operatingEnvironment/budget.ts",
+      "src/lib/operatingEnvironment/budget.test.ts",
+      "src/lib/operatingEnvironment/capacity.ts",
+      "src/lib/operatingEnvironment/capacity.test.ts",
+      "src/lib/operatingEnvironment/compare.ts",
+      "src/lib/operatingEnvironment/compare.test.ts",
+      "src/lib/operatingEnvironment/fixtures/budget-capacity-v1.json"
+    ],
+    "controllerOwnsIndexAndCommits": true,
+    "workersMayStageOrCommit": false
+  },
+  "derivedGovernanceWrite": {
+    "status": "AUTHORIZED",
+    "authorizationKind": "DERIVED_INTEGRITY_REPIN_ONLY",
+    "writePaths": [
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json"
+    ],
+    "allowedManifestJsonPointers": [
+      "/packetDigest"
+    ],
+    "authorizedEffects": [
+      "refresh-verifier-derived-authority-manifest-packet-digest",
+      "refresh-exact-source-adoption-authority-repin-receipt"
+    ],
+    "derivationSource": "scripts/verify-plan-authority.mjs",
+    "singleUse": true,
+    "implementationAuthority": false,
+    "runtimeAuthority": false,
+    "providerAuthority": false,
+    "dependencyOrLockfileChangeAuthorized": false,
+    "sourceAdoptionArtifactChangeAuthorized": false,
+    "activationOrCompletionReceiptChangeAuthorized": false
+  },
+  "noInheritedAuthority": {
+    "t02CompletionGrantsEvidenceOnly": true,
+    "t03RequiresSeparateAuthorizationAndActivationReceipt": true,
+    "t04RequiresSeparateAuthorizationAndActivationReceipt": true,
+    "t05ThroughT08ImplementationAuthorized": false,
+    "providerOrRuntimeAuthorityGranted": false,
+    "deploymentOrReleaseAuthorityGranted": false
+  },
+  "invalidators": [
+    "owner-identity-compromise",
+    "owner-receipt-supersession",
+    "checkpoint-id-or-hash-mismatch",
+    "second-or-conflicting-owner-completion-receipt",
+    "successor-pair-id-or-scope-drift",
+    "path-overlap-or-concurrency-contract-drift",
+    "derived-governance-write-path-pointer-effect-or-no-authority-drift",
+    "inherited-authority-claim"
+  ],
+  "recordedAt": "2026-09-01T02:05:00.000Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": ["/selfHash/digest"],
+    "digest": "eb00341ec8c9798dffcbe172bd6d5e5377b22d585b8068607a1d67d89bb5eed8"
+  }
+}
