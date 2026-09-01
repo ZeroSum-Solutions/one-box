@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "OBX-P180-T03-ACTIVATION-001",
+  "receiptKind": "solo-t03-activation-receipt-v1",
+  "status": "ACTIVE",
+  "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+  "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+  "reservation": {
+    "state": "RESERVED",
+    "claimantActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-t03-implementer",
+    "claimSequence": 1,
+    "transferable": false,
+    "replacementAllowed": false,
+    "rebaselineAllowed": false
+  },
+  "phase0ACommit": "bac87bbdf11bc0a0512cbd2bd5fe20b842ac63ea",
+  "phase0ATree": "aa8d2857c4bcfe9c0c8d6c3581fda13494d9039c",
+  "activationWriteSet": [
+    "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+    "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json"
+  ],
+  "observedAt": "2026-09-01T03:44:31.000Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "58d77d87e6bb51d1355d6dcbfa240172f33378252100de0cdd990884dc20481e"
+  }
+}
