@@ -13,19 +13,19 @@
     "replacementAllowed": false,
     "rebaselineAllowed": false
   },
-  "phase0ACommit": "251dd75217fa9dd81072d7b5f1b908209a6271bb",
-  "phase0ATree": "bdfb5a2570cea132049806c560c08314376e57ae",
+  "phase0ACommit": "0ef2dbe8f09cb771e847389071deb89f328caeb8",
+  "phase0ATree": "1bea520c0aa31fe87bcaf986346709115b88673a",
   "activationWriteSet": [
     "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
     "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json"
   ],
-  "observedAt": "2026-09-01T04:01:00.000Z",
+  "observedAt": "2026-09-01T04:25:00.000Z",
   "selfHash": {
     "algorithm": "sha256",
     "canonicalization": "canonical-json-v1",
     "excludedJsonPointers": [
       "/selfHash/digest"
     ],
-    "digest": "14d81383c16c381f6b46c7e270606ff05ddf0467c8956d11ee410e482db09dbc"
+    "digest": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f"
   }
 }
