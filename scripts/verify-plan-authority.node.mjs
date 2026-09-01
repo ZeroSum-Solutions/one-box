@@ -31,6 +31,8 @@ before(() => {
   for (const path of [
     "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
     "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
+    "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json",
+    "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json",
   ]) rmSync(resolve(fixtureRoot, path), { force: true });
   for (const path of ["AGENTS.md", "README.md", "CONTRIBUTING.md", ".env.example", "package.json"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path));
   cpSync(resolve(sourceRoot, "package-lock.json"), resolve(fixtureRoot, "package-lock.json"));

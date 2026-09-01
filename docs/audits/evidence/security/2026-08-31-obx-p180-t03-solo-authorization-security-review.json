@@ -42,7 +42,7 @@
     {
       "path": "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json",
       "algorithm": "sha256",
-      "digest": "05c28b116f21f63c278388a90a9f490107a1d77b1d18f4554d657d048a115612"
+      "digest": "79f9a17aabd90cc023a7a7db8be19388b84ad22212ee9e569236c7bf98fd939d"
     },
     {
       "path": "docs/plans/2026-08-31-obx-p180-t03-solo-authorization-design.md",
@@ -87,7 +87,7 @@
     {
       "path": "scripts/verify-plan-authority.node.mjs",
       "algorithm": "sha256",
-      "digest": "8f509b1328072b69def46154ea011afbacece6356b99c073927cc9a7dec82e7c"
+      "digest": "2a646e21dc39c131b7d1407c6bcb0c78d0f005f16573c3c4f3193e5608f3ffc4"
     },
     {
       "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
@@ -97,7 +97,7 @@
     {
       "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
       "algorithm": "sha256",
-      "digest": "00d5a9423ca19938de42d95164ca540967233713b22bc871c631af7a23d043c3"
+      "digest": "3d044f23db0fc0a39ebe036a23f9e24779accfe716ef57c6a4ce3999b8912ac6"
     },
     {
       "path": "docs/plans/one-box-master/00-authority/plan-register.md",
@@ -167,20 +167,20 @@
     "version": "8.30.1",
     "scope": "exact-16-phase0a-security-target-paths",
     "mode": "pipe-redacted-no-color",
-    "scannedBytes": 389441,
+    "scannedBytes": 389603,
     "findings": 0,
     "exitCode": 0,
     "status": "PASS"
   },
   "activationState": "NOT_ACTIVE",
   "verdict": "PASS-WITH-ACCEPTED-RISK",
-  "capturedAt": "2026-09-01T04:23:28.000Z",
+  "capturedAt": "2026-09-01T09:01:02.711Z",
   "selfHash": {
     "algorithm": "sha256",
     "canonicalization": "canonical-json-v1",
     "excludedJsonPointers": [
       "/selfHash/digest"
     ],
-    "digest": "c42fd992a49a644049797a07a5a69c535d1907f5d2292e71af6e33cb83b1a668"
+    "digest": "3134bc868e76f155919dff6bf40c2d2a40a5a3f6e98835e51fbd3686ad33c517"
   }
 }
