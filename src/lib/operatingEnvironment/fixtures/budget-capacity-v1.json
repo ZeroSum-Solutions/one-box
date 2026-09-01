@@ -1,0 +1,750 @@
+{
+  "schemaVersion": "budget-capacity-fixture-v1",
+  "budget": {
+    "forecastRequest": {
+      "schemaVersion": "worst-case-forecast-input-v1",
+      "components": [
+        {
+          "componentId": "arm-a",
+          "unitAmount": 100,
+          "maximumOccurrences": 2
+        },
+        {
+          "componentId": "arm-b",
+          "unitAmount": 120,
+          "maximumOccurrences": 2
+        },
+        {
+          "componentId": "evaluator",
+          "unitAmount": 25,
+          "maximumOccurrences": 1
+        },
+        {
+          "componentId": "reviewer",
+          "unitAmount": 15,
+          "maximumOccurrences": 1
+        }
+      ]
+    },
+    "portfolio": {
+      "schemaVersion": "budget-portfolio-v1",
+      "observedAtMs": 1100,
+      "currentOwnerAssignmentRefs": [
+        "owner:budget"
+      ],
+      "killedRefs": [],
+      "policy": {
+        "schemaVersion": "budget-policy-v1",
+        "budgetPolicyId": "budget-policy-1",
+        "reservationId": "reservation-compare-1",
+        "fundingClass": "synthetic",
+        "compareId": "compare-1",
+        "routeIntentHashes": [
+          "8888888888888888888888888888888888888888888888888888888888888888",
+          "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        ],
+        "forecastHash": "275a18e1e9a6204abdf9c45318ed84b3a30b54aa797465c1c9c3812272d4ebb3",
+        "forecastUnits": 480,
+        "scopeCeilings": [
+          {
+            "scopeType": "agency",
+            "scopeId": "agency-1",
+            "limit": 1000
+          },
+          {
+            "scopeType": "project",
+            "scopeId": "project-1",
+            "limit": 900
+          },
+          {
+            "scopeType": "assignment",
+            "scopeId": "assignment-1",
+            "limit": 800
+          },
+          {
+            "scopeType": "compare",
+            "scopeId": "compare-1",
+            "limit": 700
+          },
+          {
+            "scopeType": "segment",
+            "scopeId": "segment-1",
+            "limit": 650
+          },
+          {
+            "scopeType": "retry",
+            "scopeId": "retry-1",
+            "limit": 600
+          },
+          {
+            "scopeType": "evaluator",
+            "scopeId": "evaluator-1",
+            "limit": 550
+          },
+          {
+            "scopeType": "reviewer",
+            "scopeId": "reviewer-1",
+            "limit": 500
+          }
+        ],
+        "ownerAssignmentRefs": [
+          "owner:budget"
+        ],
+        "acceptedOwnerAssignmentRefs": [
+          "owner:budget"
+        ],
+        "capacityPolicyHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "effectiveAtMs": 1000,
+        "expiresAtMs": 5000,
+        "killSwitchRef": "kill:budget",
+        "finalizationEvidenceHashes": [
+          "fa927490e340b3f4a581c56af5f69a7981fab9dfb0bbd8e847479d296053b7bd",
+          "22fe04d2fc1d89f454d23175bde3f5f114fd2460befb786d4130c99cba7f5f70",
+          "2a922b70dd837e89e8fd9d149302723676e271234642525512b1da329e4b4f76"
+        ],
+        "revision": 0,
+        "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9"
+      },
+      "forecast": {
+        "schemaVersion": "worst-case-forecast-input-v1",
+        "components": [
+          {
+            "componentId": "arm-a",
+            "unitAmount": 100,
+            "maximumOccurrences": 2
+          },
+          {
+            "componentId": "arm-b",
+            "unitAmount": 120,
+            "maximumOccurrences": 2
+          },
+          {
+            "componentId": "evaluator",
+            "unitAmount": 25,
+            "maximumOccurrences": 1
+          },
+          {
+            "componentId": "reviewer",
+            "unitAmount": 15,
+            "maximumOccurrences": 1
+          }
+        ]
+      },
+      "finalizationEvidence": [
+        {
+          "schemaVersion": "budget-finalization-evidence-v1",
+          "evidenceId": "terminal-1",
+          "reservationId": "reservation-compare-1",
+          "evidenceKind": "terminal-usage",
+          "terminalReceiptHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "noDispatchEvidenceHash": null,
+          "ownerAssignmentRef": null,
+          "ownerEvidenceHash": null,
+          "knownUsageUnits": 230,
+          "issuedBy": "one-box-control-plane",
+          "evidenceHash": "fa927490e340b3f4a581c56af5f69a7981fab9dfb0bbd8e847479d296053b7bd"
+        },
+        {
+          "schemaVersion": "budget-finalization-evidence-v1",
+          "evidenceId": "unused-1",
+          "reservationId": "reservation-compare-1",
+          "evidenceKind": "no-dispatch",
+          "terminalReceiptHash": null,
+          "noDispatchEvidenceHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "ownerAssignmentRef": null,
+          "ownerEvidenceHash": null,
+          "knownUsageUnits": 0,
+          "issuedBy": "one-box-control-plane",
+          "evidenceHash": "22fe04d2fc1d89f454d23175bde3f5f114fd2460befb786d4130c99cba7f5f70"
+        },
+        {
+          "schemaVersion": "budget-finalization-evidence-v1",
+          "evidenceId": "owner-1",
+          "reservationId": "reservation-compare-1",
+          "evidenceKind": "owner-reconciliation",
+          "terminalReceiptHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "noDispatchEvidenceHash": null,
+          "ownerAssignmentRef": "owner:budget",
+          "ownerEvidenceHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "knownUsageUnits": 300,
+          "issuedBy": "budget-owner",
+          "evidenceHash": "2a922b70dd837e89e8fd9d149302723676e271234642525512b1da329e4b4f76"
+        }
+      ],
+      "balances": [
+        {
+          "scopeType": "agency",
+          "scopeId": "agency-1",
+          "limit": 1000,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 1000,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        },
+        {
+          "scopeType": "project",
+          "scopeId": "project-1",
+          "limit": 900,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 900,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        },
+        {
+          "scopeType": "assignment",
+          "scopeId": "assignment-1",
+          "limit": 800,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 800,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        },
+        {
+          "scopeType": "compare",
+          "scopeId": "compare-1",
+          "limit": 700,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 700,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        },
+        {
+          "scopeType": "segment",
+          "scopeId": "segment-1",
+          "limit": 650,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 650,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        },
+        {
+          "scopeType": "retry",
+          "scopeId": "retry-1",
+          "limit": 600,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 600,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        },
+        {
+          "scopeType": "evaluator",
+          "scopeId": "evaluator-1",
+          "limit": 550,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 550,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        },
+        {
+          "scopeType": "reviewer",
+          "scopeId": "reviewer-1",
+          "limit": 500,
+          "policyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "remaining": 500,
+          "held": 0,
+          "settled": 0,
+          "released": 0,
+          "revision": 0
+        }
+      ]
+    },
+    "reserveCommand": {
+      "schemaVersion": "budget-reserve-command-v1",
+      "kind": "reserve",
+      "commandId": "reserve-1",
+      "reservationId": "reservation-compare-1",
+      "expectedPolicyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+      "expectedPolicyRevision": 0,
+      "expectedScopeRevisions": [
+        {
+          "scopeId": "agency-1",
+          "revision": 0
+        },
+        {
+          "scopeId": "project-1",
+          "revision": 0
+        },
+        {
+          "scopeId": "assignment-1",
+          "revision": 0
+        },
+        {
+          "scopeId": "compare-1",
+          "revision": 0
+        },
+        {
+          "scopeId": "segment-1",
+          "revision": 0
+        },
+        {
+          "scopeId": "retry-1",
+          "revision": 0
+        },
+        {
+          "scopeId": "evaluator-1",
+          "revision": 0
+        },
+        {
+          "scopeId": "reviewer-1",
+          "revision": 0
+        }
+      ]
+    }
+  },
+  "capacity": {
+    "state": {
+      "schemaVersion": "capacity-state-v1",
+      "observedAtMs": 1100,
+      "currentOwnerAssignmentRefs": [
+        "owner:capacity"
+      ],
+      "killedRefs": [],
+      "policy": {
+        "schemaVersion": "capacity-policy-v1",
+        "policyId": "capacity-policy-1",
+        "routePolicyHash": "9999999999999999999999999999999999999999999999999999999999999999",
+        "providerEntryHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "exactModelIdentity": "synthetic-offline-v1",
+        "region": "offline",
+        "fundingClasses": [
+          "synthetic"
+        ],
+        "maximumConcurrentSegments": 1,
+        "maximumQueueDepth": 4,
+        "maximumQueueWaitMs": 100,
+        "priorityClasses": [
+          "urgent",
+          "standard",
+          "background"
+        ],
+        "fairShareWeights": [
+          {
+            "projectId": "project-a",
+            "weight": 2
+          },
+          {
+            "projectId": "project-b",
+            "weight": 1
+          }
+        ],
+        "ownerAssignmentRefs": [
+          "owner:capacity"
+        ],
+        "acceptedOwnerAssignmentRefs": [
+          "owner:capacity"
+        ],
+        "killSwitchRef": "kill:capacity",
+        "effectiveAtMs": 1000,
+        "expiresAtMs": 5000,
+        "revision": 0,
+        "policyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add"
+      },
+      "observation": {
+        "schemaVersion": "capacity-observation-v1",
+        "policyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add",
+        "routePolicyHash": "9999999999999999999999999999999999999999999999999999999999999999",
+        "region": "offline",
+        "availableConcurrentSegments": 1,
+        "rateWindowRemaining": [
+          {
+            "windowId": "requests-1m",
+            "remaining": 3
+          }
+        ],
+        "queueDepth": 0,
+        "source": "fixture",
+        "observedAtMs": 1100,
+        "expiresAtMs": 1500,
+        "observationHash": "d8137e88e63082e901c58cf9cca038433b42397154a5b126574606670562a207"
+      },
+      "balance": {
+        "schemaVersion": "capacity-balance-v1",
+        "policyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add",
+        "routePolicyHash": "9999999999999999999999999999999999999999999999999999999999999999",
+        "region": "offline",
+        "slotLimit": 1,
+        "claimedSlots": 0,
+        "remainingSlots": 1,
+        "revision": 0,
+        "rateWindows": [
+          {
+            "windowId": "requests-1m",
+            "limit": 3,
+            "claimed": 0,
+            "remaining": 3,
+            "startsAtMs": 1000,
+            "endsAtMs": 2000,
+            "revision": 0
+          }
+        ],
+        "balanceHash": "c50f1234304cc17efc024ef577f94cbefdd475153e15bf2e7aedcf3009ac4ecd"
+      },
+      "queue": {
+        "schemaVersion": "queue-state-v1",
+        "policyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add",
+        "routePolicyHash": "9999999999999999999999999999999999999999999999999999999999999999",
+        "maximumDepth": 4,
+        "currentDepth": 0,
+        "tickets": [],
+        "projectCounters": [
+          {
+            "projectId": "project-a",
+            "sequence": 0
+          },
+          {
+            "projectId": "project-b",
+            "sequence": 0
+          }
+        ],
+        "revision": 0,
+        "previousQueueHash": null,
+        "queueHash": "962eb986509a67047aa09e78e11972953b4f70166e8a852c828632113d22aeea"
+      },
+      "budgetGuards": [
+        {
+          "schemaVersion": "held-budget-guard-v1",
+          "guardId": "guard-fixture",
+          "segmentId": "segment-fixture",
+          "manifestHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "state": "held",
+          "reservationId": "reservation-compare-1",
+          "reservationHash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "reservationRevision": 0,
+          "hierarchyHash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "scopeRevisions": [
+            {
+              "scopeId": "agency-1",
+              "revision": 1
+            },
+            {
+              "scopeId": "project-1",
+              "revision": 1
+            },
+            {
+              "scopeId": "assignment-1",
+              "revision": 1
+            },
+            {
+              "scopeId": "compare-1",
+              "revision": 1
+            },
+            {
+              "scopeId": "segment-1",
+              "revision": 1
+            },
+            {
+              "scopeId": "retry-1",
+              "revision": 1
+            },
+            {
+              "scopeId": "evaluator-1",
+              "revision": 1
+            },
+            {
+              "scopeId": "reviewer-1",
+              "revision": 1
+            }
+          ],
+          "budgetPolicyHash": "0d18dbb198dc1e53b935a72732401efd938a8a087e986f7aace6368eeac8a3a9",
+          "ownerAssignmentRefs": [
+            "owner:capacity"
+          ],
+          "killSwitchRef": "kill:budget",
+          "effectiveAtMs": 1000,
+          "expiresAtMs": 5000,
+          "guardHash": "0a1429f4f926913f8a9de4c2e884f3d49af754fc321c751d0c384bccfcef6dea"
+        }
+      ],
+      "priorityAssignments": [
+        {
+          "schemaVersion": "capacity-priority-assignment-v1",
+          "assignmentId": "priority-fixture",
+          "policyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add",
+          "projectId": "project-a",
+          "segmentId": "segment-fixture",
+          "priorityClass": "standard",
+          "issuedBy": "one-box-control-plane",
+          "effectiveAtMs": 1000,
+          "expiresAtMs": 5000,
+          "assignmentHash": "3c06381d29670ba1190ef2fa6937ff530abe839fd1e55a19708de67fbdf7bea4"
+        }
+      ],
+      "terminalEvidence": [],
+      "noDispatchEvidence": [],
+      "commandRevision": 0,
+      "receiptHeadHash": null,
+      "commandReceipts": [],
+      "leases": []
+    },
+    "offerCommand": {
+      "schemaVersion": "capacity-offer-command-v1",
+      "kind": "offer",
+      "commandId": "offer-fixture",
+      "nowMs": 1100,
+      "expectedPolicyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add",
+      "expectedPolicyRevision": 0,
+      "expectedBalanceHash": "c50f1234304cc17efc024ef577f94cbefdd475153e15bf2e7aedcf3009ac4ecd",
+      "expectedBalanceRevision": 0,
+      "expectedQueueHash": "962eb986509a67047aa09e78e11972953b4f70166e8a852c828632113d22aeea",
+      "expectedQueueRevision": 0,
+      "observationHash": "d8137e88e63082e901c58cf9cca038433b42397154a5b126574606670562a207",
+      "ticketId": "ticket-fixture",
+      "lease": {
+        "schemaVersion": "capacity-lease-request-v1",
+        "leaseId": "lease-fixture",
+        "segmentId": "segment-fixture",
+        "manifestHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "budgetGuardHash": "0a1429f4f926913f8a9de4c2e884f3d49af754fc321c751d0c384bccfcef6dea",
+        "priorityAssignmentHash": "3c06381d29670ba1190ef2fa6937ff530abe839fd1e55a19708de67fbdf7bea4",
+        "routePolicyHash": "9999999999999999999999999999999999999999999999999999999999999999",
+        "policyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add",
+        "region": "offline",
+        "projectId": "project-a",
+        "reservationAtMs": 1100,
+        "deadlineAtMs": 4000,
+        "rateUnits": [
+          {
+            "windowId": "requests-1m",
+            "units": 1
+          }
+        ]
+      }
+    }
+  },
+  "compare": {
+    "intent": {
+      "schemaVersion": "compare-intent-v1",
+      "compareId": "compare-1",
+      "actorId": "person:fixture-actor",
+      "projectId": "project-1",
+      "jobId": "job-1",
+      "taskHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "contextBundleHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "skillSetHash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "toolGrantHash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "outputContractHash": "5555555555555555555555555555555555555555555555555555555555555555",
+      "evaluationFixtureHash": "6666666666666666666666666666666666666666666666666666666666666666",
+      "expectedTargetStateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+      "deadlineAtMs": 4000,
+      "createdAtMs": 1000,
+      "arms": [
+        {
+          "armId": "arm-a",
+          "label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "routeIntentHash": "8888888888888888888888888888888888888888888888888888888888888888",
+          "routePolicyHash": "9999999999999999999999999999999999999999999999999999999999999999",
+          "capacityPolicyHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "region": "offline-a",
+          "maxAttempts": 2,
+          "perAttemptUnits": 100,
+          "actorId": "person:fixture-actor",
+          "projectId": "project-1",
+          "jobId": "job-1",
+          "taskHash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "contextBundleHash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "skillSetHash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "toolGrantHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "outputContractHash": "5555555555555555555555555555555555555555555555555555555555555555",
+          "evaluationFixtureHash": "6666666666666666666666666666666666666666666666666666666666666666",
+          "expectedTargetStateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+          "deadlineAtMs": 4000
+        },
+        {
+          "armId": "arm-b",
+          "label": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "routeIntentHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+          "routePolicyHash": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          "capacityPolicyHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+          "region": "offline-b",
+          "maxAttempts": 2,
+          "perAttemptUnits": 120,
+          "actorId": "person:fixture-actor",
+          "projectId": "project-1",
+          "jobId": "job-1",
+          "taskHash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "contextBundleHash": "2222222222222222222222222222222222222222222222222222222222222222",
+          "skillSetHash": "3333333333333333333333333333333333333333333333333333333333333333",
+          "toolGrantHash": "4444444444444444444444444444444444444444444444444444444444444444",
+          "outputContractHash": "5555555555555555555555555555555555555555555555555555555555555555",
+          "evaluationFixtureHash": "6666666666666666666666666666666666666666666666666666666666666666",
+          "expectedTargetStateHash": "7777777777777777777777777777777777777777777777777777777777777777",
+          "deadlineAtMs": 4000
+        }
+      ],
+      "evaluatorRuns": [
+        {
+          "componentId": "evaluator-1",
+          "reservedUnits": 25
+        }
+      ],
+      "reviewerRuns": [
+        {
+          "componentId": "reviewer-1",
+          "reservedUnits": 15
+        }
+      ]
+    },
+    "reservation": {
+      "schemaVersion": "compare-reservation-v1",
+      "reservationId": "reservation-compare-1",
+      "compareId": "compare-1",
+      "state": "held",
+      "revision": 0,
+      "totalUnits": 480,
+      "components": [
+        {
+          "componentType": "arm",
+          "componentId": "arm:arm-a",
+          "reservedUnits": 100
+        },
+        {
+          "componentType": "retry",
+          "componentId": "retry:arm-a",
+          "reservedUnits": 100
+        },
+        {
+          "componentType": "arm",
+          "componentId": "arm:arm-b",
+          "reservedUnits": 120
+        },
+        {
+          "componentType": "retry",
+          "componentId": "retry:arm-b",
+          "reservedUnits": 120
+        },
+        {
+          "componentType": "evaluator",
+          "componentId": "evaluator-1",
+          "reservedUnits": 25
+        },
+        {
+          "componentType": "reviewer",
+          "componentId": "reviewer-1",
+          "reservedUnits": 15
+        }
+      ],
+      "balances": [
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "agency",
+          "scopeId": "agency-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "d2467b4a56ccd38294ee136bebd4455da59864cb385e6ce7eb01dfc727a79ace"
+        },
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "project",
+          "scopeId": "project-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "abb0878c9221957f67ef77bce8539c2b0ec162ad0f952a2c40f4174dc1f184c7"
+        },
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "assignment",
+          "scopeId": "assignment-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "b7c6a569b35682a5d16e0690b0d32218370725c85c2308e4efe4770cbc094543"
+        },
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "compare",
+          "scopeId": "compare-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "781199c902b6df36c3f0439bf2ae24bba290408428dc7c4ac8cc5fdaef6a5dee"
+        },
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "segment",
+          "scopeId": "segment-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "bd9c87ed011d40c5e2e3f1435062814cf247254fb5c13623eae3749c0b030803"
+        },
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "retry",
+          "scopeId": "retry-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "b1d7a28715cb620aa73015c53d861d0fc95403b93462111116ce06fce27cd6dd"
+        },
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "evaluator",
+          "scopeId": "evaluator-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "a57178076a8fc060a0eb8e08ce7f6dfd35619f4bca0565a463db04b62bcb42be"
+        },
+        {
+          "schemaVersion": "compare-budget-balance-v1",
+          "scopeType": "reviewer",
+          "scopeId": "reviewer-1",
+          "limit": 1000,
+          "remaining": 520,
+          "held": 480,
+          "settled": 0,
+          "released": 0,
+          "revision": 0,
+          "previousBalanceHash": null,
+          "balanceHash": "0aece22e0439dd8d71370beffcb5d09505d4d8f59c70608bd2702e64870f4340"
+        }
+      ],
+      "previousReservationHash": null,
+      "reservationHash": "4385b180cd58c0c82b3d25bc48add753e14818326b7bf8584b30a3f2a03fa403"
+    }
+  }
+}
