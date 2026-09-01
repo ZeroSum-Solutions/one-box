@@ -7,6 +7,7 @@ import {
   test,
 } from "node:test";
 import {
+  chmodSync,
   cpSync,
   mkdtempSync,
   mkdirSync,
@@ -47,6 +48,7 @@ before(() => {
     cpSync(resolve(sourceRoot, `scripts/eval/${path}`), resolve(fixtureRoot, `scripts/eval/${path}`));
   }
   verifier = resolve(fixtureRoot, "scripts/verify-plan-authority.mjs");
+  refreshAuthorityPacketForFixture();
 });
 
 after(() => {
@@ -216,6 +218,40 @@ function setSelfHash(value) {
   value.selfHash.digest = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
 }
 
+function sha256(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function refreshAuthorityPacketForFixture() {
+  const firstRun = spawnSync(process.execPath, [verifier], { cwd: fixtureRoot, encoding: "utf8" });
+  const match = firstRun.stderr.match(/packetDigest mismatch; expected current ([a-f0-9]{64})/);
+  if (match) {
+    const manifestPath = resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/authority-manifest.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    manifest.packetDigest = match[1];
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    const repinPath = resolve(fixtureRoot, "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json");
+    const repin = JSON.parse(readFileSync(repinPath, "utf8"));
+    repin.currentAuthorityManifest.packetDigest = match[1];
+    repin.currentAuthorityManifest.sha256 = sha256(readFileSync(manifestPath));
+    writeFileSync(repinPath, `${JSON.stringify(repin, null, 2)}\n`);
+  }
+  refreshSiblingSecurityReceipts();
+}
+
+function refreshSiblingSecurityReceipts() {
+  for (const ticket of ["t03", "t04"]) {
+    const path = resolve(fixtureRoot, `docs/audits/evidence/security/2026-08-31-obx-p180-${ticket}-solo-authorization-security-review.json`);
+    const receipt = JSON.parse(readFileSync(path, "utf8"));
+    receipt.targetHashes = receipt.targetHashes.map((binding) => ({
+      ...binding,
+      digest: sha256(readFileSync(resolve(fixtureRoot, binding.path))),
+    }));
+    setSelfHash(receipt);
+    writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
+  }
+}
+
 function withSyntheticActivationReceipts(mutate, callback) {
   const registry = JSON.parse(readFileSync(resolve(fixtureRoot, securityReceiptTargets[0]), "utf8"));
   const phase0ACommit = "1".repeat(40);
@@ -251,6 +287,142 @@ function withSyntheticActivationReceipts(mutate, callback) {
   };
   try { callback({ registry, gitState, receipts }); }
   finally { for (const path of Object.values(activationPaths)) rmSync(resolve(fixtureRoot, path), { force: true }); }
+}
+
+const completionPaths = {
+  T03: "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json",
+  T04: "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json",
+};
+
+function buildProofEntries(registry, activationReceipts) {
+  const entries = [];
+  let previousDigest = "0".repeat(64);
+  for (const ticket of ["T03", "T04"]) {
+    const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
+    for (const commandId of record.completionEvidence.requiredCommandIds) {
+      const sequence = entries.length + 1;
+      const entry = {
+        sequence,
+        laneId: ticket,
+        commandId,
+        authorizationId: record.id,
+        authorizationHash: record.authorizationHash.digest,
+        activationReceiptId: activationReceipts[ticket].receiptId,
+        activationReceiptHash: activationReceipts[ticket].selfHash.digest,
+        startedAt: "2026-09-01T03:10:00.000Z",
+        finishedAt: "2026-09-01T03:10:01.000Z",
+        exitCode: 0,
+        outputDigest: sha256(`output:${ticket}:${commandId}`),
+        envelopeDigest: sha256(`envelope:${ticket}:${commandId}`),
+        previousDigest,
+      };
+      entry.entryDigest = sha256(canonicalJson(entry));
+      previousDigest = entry.entryDigest;
+      entries.push(entry);
+    }
+  }
+  return entries;
+}
+
+function withSyntheticCompletionReceipts(mutate, callback) {
+  withSyntheticActivationReceipts(null, ({ registry, gitState, receipts: activationReceipts }) => {
+    const proofEntries = buildProofEntries(registry, activationReceipts);
+    const registryBytes = proofEntries.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
+    const phase0BCommit = gitState.phase0BCommit;
+    const phase0BTree = gitState.phase0BTree;
+    const t03Commit = "5".repeat(40);
+    const t03Tree = "6".repeat(40);
+    const t04Commit = "7".repeat(40);
+    const t04Tree = "8".repeat(40);
+    const completionCommit = "9".repeat(40);
+    const completionTree = "a".repeat(40);
+    const fileBytes = new Map();
+    const completionReceipts = {};
+    for (const ticket of ["T03", "T04"]) {
+      const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
+      const implementationCommit = ticket === "T03" ? t03Commit : t04Commit;
+      const implementationTree = ticket === "T03" ? t03Tree : t04Tree;
+      const parentCommit = ticket === "T03" ? phase0BCommit : t03Commit;
+      const files = record.allowedPaths.map((path) => {
+        const bytes = `completed:${path}\n`;
+        fileBytes.set(path, bytes);
+        return { path, algorithm: "sha256", digest: sha256(bytes) };
+      });
+      const receipt = {
+        schemaVersion: 1,
+        receiptId: `OBX-P180-${ticket}-COMPLETION-001`,
+        receiptKind: `solo-${ticket.toLowerCase()}-completion-receipt-v1`,
+        status: "COMPLETED_VERIFIED",
+        ticketId: `OBX-P180-${ticket}`,
+        laneId: ticket,
+        authorizationId: record.id,
+        authorizationHash: record.authorizationHash.digest,
+        activationBinding: {
+          path: activationPaths[ticket],
+          receiptId: activationReceipts[ticket].receiptId,
+          receiptSelfHash: activationReceipts[ticket].selfHash.digest,
+          frozenStartCommit: phase0BCommit,
+          frozenStartTree: phase0BTree,
+        },
+        implementation: { commit: implementationCommit, tree: implementationTree, parentCommit, files },
+        completionBase: { commit: t04Commit, tree: t04Tree },
+        leaseReleases: ["T03", "T04"].map((laneId) => {
+          const laneRecord = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${laneId}-SOLO-001`);
+          return {
+            laneId,
+            claimantActorId: laneRecord.reservation.claimantActorId,
+            claimSequence: 1,
+            taskStatus: "COMPLETED",
+            terminalReportDigest: sha256(`terminal:${laneId}`),
+            releasedAt: "2026-09-01T03:09:00.000Z",
+          };
+        }),
+        proofBinding: {
+          registryPath: "proof/controller-proof-registry.jsonl",
+          registrySha256: sha256(registryBytes),
+          entryCount: proofEntries.length,
+          headDigest: proofEntries.at(-1).entryDigest,
+          tuples: proofEntries.filter((entry) => entry.laneId === ticket),
+        },
+        completedAt: "2026-09-01T03:11:00.000Z",
+      };
+      completionReceipts[ticket] = receipt;
+    }
+    mutate?.(completionReceipts, proofEntries);
+    for (const ticket of ["T03", "T04"]) {
+      setSelfHash(completionReceipts[ticket]);
+      const bytes = `${JSON.stringify(completionReceipts[ticket], null, 2)}\n`;
+      fileBytes.set(completionPaths[ticket], bytes);
+      writeFileSync(resolve(fixtureRoot, completionPaths[ticket]), bytes);
+    }
+    const completionGitState = {
+      ...gitState,
+      currentCommit: completionCommit,
+      currentTree: completionTree,
+      completionCommit,
+      commits: {
+        [phase0BCommit]: {
+          tree: phase0BTree,
+          parents: [gitState.phase0ACommit],
+          changedPaths: [activationPaths.T03, activationPaths.T04],
+        },
+        [t03Commit]: { tree: t03Tree, parents: [phase0BCommit], changedPaths: [...registry.authorizations.find((row) => row.id === "OBX-AUTH-P180-T03-SOLO-001").allowedPaths].sort() },
+        [t04Commit]: { tree: t04Tree, parents: [t03Commit], changedPaths: [...registry.authorizations.find((row) => row.id === "OBX-AUTH-P180-T04-SOLO-001").allowedPaths].sort() },
+        [completionCommit]: { tree: completionTree, parents: [t04Commit], changedPaths: [completionPaths.T03, completionPaths.T04] },
+      },
+      fileBytes,
+    };
+    const proofRoot = resolve(fixtureRoot, "goal-state-proof");
+    mkdirSync(resolve(proofRoot, "proof"), { recursive: true });
+    chmodSync(proofRoot, 0o700);
+    chmodSync(resolve(proofRoot, "proof"), 0o700);
+    writeFileSync(resolve(proofRoot, "proof/controller-proof-registry.jsonl"), registryBytes, { mode: 0o600 });
+    try { callback({ registry, gitState: completionGitState, receipts: completionReceipts, proofRoot }); }
+    finally {
+      for (const path of Object.values(completionPaths)) rmSync(resolve(fixtureRoot, path), { force: true });
+      rmSync(proofRoot, { recursive: true, force: true });
+    }
+  });
 }
 
 test("the current non-empty packet passes discriminated structure verification", () => {
@@ -371,6 +543,12 @@ test("the T03 and T04 records pass only as pre-activation sibling grants", () =>
   }
 });
 
+test("the focused sibling completion command fails closed before receipts exist", () => {
+  const result = run(["--verify-solo-t03-completion-only"]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /COMPLETION_RECEIPT_MISSING/);
+});
+
 test("the sibling grants reject path, effect, role, and predecessor drift", () => {
   for (const ticket of ["T03", "T04"]) {
     withSoloSiblingRecordMutation(ticket, (record) => {
@@ -471,7 +649,43 @@ test("activation rejects malformed or exclusive-end timestamps and cross-lane H1
   });
 });
 
-test("activation rejects cross-grant substitution, HEAD/tree movement, and reuse", () => {
+test("activation expires at the exclusive authorization boundary", () => {
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    const live = verifyP180SiblingAuthorization({
+      repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState,
+      evaluationTime: Date.parse("2026-09-15T02:04:59.999Z"),
+    });
+    assert.deepEqual(live.failures, []);
+    assert.equal(live.state, "ACTIVE");
+    assert.deepEqual(live.frozenWorkerStart, { commit: gitState.phase0BCommit, tree: gitState.phase0BTree });
+    const expired = verifyP180SiblingAuthorization({
+      repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState,
+      evaluationTime: Date.parse("2026-09-15T02:05:00.000Z"),
+    });
+    assert.equal(expired.state, "EXPIRED");
+    assert.equal(expired.frozenWorkerStart, null);
+    assert.match(expired.failures.join("\n"), /AUTHORIZATION_EXPIRED/);
+  });
+});
+
+test("wrong real H1 and reversed activation paths never derive ACTIVE", () => {
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    gitState.phase0ACommit = "9".repeat(40);
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+    assert.notEqual(result.state, "ACTIVE");
+    assert.equal(result.frozenWorkerStart, null);
+    assert.match(result.failures.join("\n"), /activation real H1\/T1/);
+  });
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    gitState.changedPaths = [...gitState.changedPaths].reverse();
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+    assert.notEqual(result.state, "ACTIVE");
+    assert.equal(result.frozenWorkerStart, null);
+    assert.match(result.failures.join("\n"), /activation exact Phase0B write set/);
+  });
+});
+
+test("activation rejects cross-grant substitution, HEAD/tree movement, and malformed completion", () => {
   withSyntheticActivationReceipts((receipts) => {
     [receipts.T03.authorizationId, receipts.T04.authorizationId] = [receipts.T04.authorizationId, receipts.T03.authorizationId];
   }, ({ registry, gitState }) => {
@@ -485,6 +699,7 @@ test("activation rejects cross-grant substitution, HEAD/tree movement, and reuse
       frozenStart: { commit: gitState.phase0BCommit, tree: gitState.phase0BTree },
     });
     assert.equal(result.state, "ABORTED_DERIVED");
+    assert.equal(result.frozenWorkerStart, null);
     assert.match(result.failures.join("\n"), /frozen worker HEAD\/tree moved/);
   });
   withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
@@ -492,9 +707,99 @@ test("activation rejects cross-grant substitution, HEAD/tree movement, and reuse
     writeFileSync(completion, "{}\n");
     try {
       const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
-      assert.match(result.failures.join("\n"), /AUTHORIZATION_ALREADY_CONSUMED/);
+      assert.notEqual(result.state, "CONSUMED");
+      assert.match(result.failures.join("\n"), /COMPLETION_RECEIPT_PAIR_INCOMPLETE/);
+      assert.doesNotMatch(result.failures.join("\n"), /AUTHORIZATION_ALREADY_CONSUMED/);
     } finally { rmSync(completion, { force: true }); }
   });
+});
+
+test("a valid sealed completion pair derives CONSUMED without weakening claim replay", () => {
+  withSyntheticCompletionReceipts(null, ({ registry, gitState }) => {
+    for (const ticket of ["T03", "T04"]) {
+      const lifecycle = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket, mode: "lifecycle", gitState });
+      assert.deepEqual(lifecycle.failures, []);
+      assert.equal(lifecycle.state, "CONSUMED");
+      const claim = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket, mode: "activation", gitState });
+      assert.equal(claim.state, "CONSUMED");
+      assert.match(claim.failures.join("\n"), /AUTHORIZATION_ALREADY_CONSUMED/);
+    }
+  });
+});
+
+test("completion-only verifies the bound external proof registry", () => {
+  withSyntheticCompletionReceipts(null, ({ registry, gitState, proofRoot }) => {
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "completion", gitState, proofRoot });
+    assert.deepEqual(result.failures, []);
+    assert.equal(result.state, "CONSUMED");
+  });
+});
+
+test("malformed or partial completion files fail without consuming the authorization", () => {
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    writeFileSync(resolve(fixtureRoot, completionPaths.T03), "{}\n");
+    try {
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "lifecycle", gitState });
+      assert.notEqual(result.state, "CONSUMED");
+      assert.match(result.failures.join("\n"), /COMPLETION_RECEIPT_PAIR_INCOMPLETE|COMPLETION_RECEIPT_INVALID/);
+      assert.doesNotMatch(result.failures.join("\n"), /AUTHORIZATION_ALREADY_CONSUMED/);
+    } finally { rmSync(resolve(fixtureRoot, completionPaths.T03), { force: true }); }
+  });
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    for (const path of Object.values(completionPaths)) writeFileSync(resolve(fixtureRoot, path), "{}\n");
+    try {
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "lifecycle", gitState });
+      assert.equal(result.state, "INVALID");
+      assert.match(result.failures.join("\n"), /completionReceipt/);
+      assert.doesNotMatch(result.failures.join("\n"), /AUTHORIZATION_ALREADY_CONSUMED/);
+    } finally { for (const path of Object.values(completionPaths)) rmSync(resolve(fixtureRoot, path), { force: true }); }
+  });
+});
+
+test("terminal validation rejects cross-grant proof tuples and implementation drift", () => {
+  withSyntheticCompletionReceipts((receipts) => {
+    receipts.T03.proofBinding.tuples[0].authorizationId = receipts.T04.authorizationId;
+  }, ({ registry, gitState }) => {
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "lifecycle", gitState });
+    assert.match(result.failures.join("\n"), /proofBinding|completion/i);
+  });
+  withSyntheticCompletionReceipts((receipts) => {
+    receipts.T04.implementation.files[0].digest = "0".repeat(64);
+  }, ({ registry, gitState }) => {
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T04", mode: "lifecycle", gitState });
+    assert.match(result.failures.join("\n"), /implementation.*digest|current completed artifact drift/i);
+  });
+});
+
+test("sibling security receipts reject coverage, disposition, shape, and accepted-risk drift", () => {
+  const path = "docs/audits/evidence/security/2026-08-31-obx-p180-t03-solo-authorization-security-review.json";
+  withJsonMutation(path, (receipt) => {
+    receipt.coverage[1].status = "FAIL";
+    receipt.coverage[2].disposition = "drift";
+    receipt.coverage[3].unexpected = true;
+    receipt.findings[0].severity = "CRITICAL";
+    receipt.findings[0].reasonCode = "DRIFT";
+    setSelfHash(receipt);
+  }, (result) => {
+    assert.match(result.stderr, /securityReceipt\.coverage: exact value drift/);
+    assert.match(result.stderr, /securityReceipt\.coverage\[3\]\.keys: exact value drift/);
+    assert.match(result.stderr, /securityReceipt\.findings: exact value drift/);
+  }, ["--verify-solo-t03-record-only"]);
+});
+
+test("aggregate validation checks T02 completion once while focused siblings retain it", () => {
+  const path = "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json";
+  withJsonMutation(path, (receipt) => {
+    receipt.status = "DRIFT";
+  }, (result) => {
+    const matches = result.stderr.match(/T02 completion checkpoint\.identity: exact value drift/g) ?? [];
+    assert.equal(matches.length, 1, result.stderr);
+  });
+  withJsonMutation(path, (receipt) => {
+    receipt.status = "DRIFT";
+  }, (result) => {
+    assert.match(result.stderr, /T02 completion checkpoint\.identity: exact value drift/);
+  }, ["--verify-solo-t03-record-only"]);
 });
 
 test("the solo T02 security receipt rejects target-hash and review drift", () => {

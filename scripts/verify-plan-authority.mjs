@@ -948,11 +948,6 @@ const ledgerPath = "docs/research/source-catalog/adoption-ledger.json";
 const traceabilityPath = "docs/eval/one-box-program/traceability.md";
 const embeddedBrowserClosurePath = "docs/security/2026-08-29-embedded-browser-closure-requirements.md";
 const ciWorkflowPath = ".github/workflows/ci.yml";
-const p180SiblingActivationPaths = [
-  "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
-  "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
-];
-
 const authority = readJson(authorityPath);
 const scopedImplementationAuthority = readJson(scopedImplementationAuthorityPath);
 const teammateFoundationTicketManifest = readJson(teammateFoundationTicketPath);
@@ -980,6 +975,7 @@ if (process.argv.includes("--verify-solo-t02-structure-only") || process.argv.in
     repoRoot: root,
     registry: scopedImplementationAuthority,
     verifyReceipt: process.argv.includes("--verify-solo-t02-receipt-only"),
+    verifyCompletion: false,
   });
   if (result.failures.length > 0) {
     for (const failure of result.failures) console.error(`FAIL ${failure}`);
@@ -996,8 +992,9 @@ if (process.argv.includes("--verify-solo-t02-structure-only") || process.argv.in
 for (const ticket of ["T03", "T04"]) {
   const recordFlag = `--verify-solo-${ticket.toLowerCase()}-record-only`;
   const activationFlag = `--verify-solo-${ticket.toLowerCase()}-activation-only`;
-  if (!process.argv.includes(recordFlag) && !process.argv.includes(activationFlag)) continue;
-  const mode = process.argv.includes(activationFlag) ? "activation" : "record";
+  const completionFlag = `--verify-solo-${ticket.toLowerCase()}-completion-only`;
+  if (!process.argv.includes(recordFlag) && !process.argv.includes(activationFlag) && !process.argv.includes(completionFlag)) continue;
+  const mode = process.argv.includes(completionFlag) ? "completion" : process.argv.includes(activationFlag) ? "activation" : "record";
   const result = verifyP180SiblingAuthorization({
     repoRoot: root,
     registry: scopedImplementationAuthority,
@@ -1243,12 +1240,12 @@ if (scopedImplementationAuthority) {
   });
   for (const failure of t02Result.failures) fail(failure);
   for (const ticket of ["T03", "T04"]) {
-    const activationMode = p180SiblingActivationPaths.some((path) => existsSync(resolve(root, path)));
     const result = verifyP180SiblingAuthorization({
       repoRoot: root,
       registry: scopedImplementationAuthority,
       ticket,
-      mode: activationMode ? "activation" : "record",
+      mode: "lifecycle",
+      verifyPredecessorCompletion: false,
     });
     for (const failure of result.failures) fail(failure);
   }

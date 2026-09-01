@@ -132,6 +132,44 @@ const RECORD_KEYS = [
   "requiredEvidencePaths", "invalidators", "recordedAt", "notBefore", "expiresAt",
   "exactDurationMilliseconds", "renewable", "authorizationHash",
 ];
+const COMPLETION_KEYS = [
+  "schemaVersion", "receiptId", "receiptKind", "status", "ticketId", "laneId",
+  "authorizationId", "authorizationHash", "activationBinding", "implementation",
+  "completionBase", "leaseReleases", "proofBinding", "completedAt", "selfHash",
+];
+const PROOF_TUPLE_KEYS = [
+  "sequence", "laneId", "commandId", "authorizationId", "authorizationHash",
+  "activationReceiptId", "activationReceiptHash", "startedAt", "finishedAt", "exitCode",
+  "outputDigest", "envelopeDigest", "previousDigest", "entryDigest",
+];
+const CANONICAL_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const SHA256 = /^[a-f0-9]{64}$/;
+const SECURITY_COVERAGE = [
+  {
+    surface: "prompt-injection", status: "NOT_APPLICABLE",
+    disposition: "No prompt, retrieval, browser, or model execution surface is introduced by the Phase 0A records.",
+  },
+  {
+    surface: "secrets", status: "PASS",
+    disposition: "The exact 16-path target stream passed gitleaks 8.30.1 with zero findings after a deterministic test-ID false positive was removed.",
+  },
+  {
+    surface: "authentication", status: "NOT_APPLICABLE",
+    disposition: "No identity provider, session, credential, endpoint, or authentication behavior changes.",
+  },
+  {
+    surface: "authorization", status: "PASS",
+    disposition: "The grant is exact, self-hashed, nonrenewable, predecessor-bound, sibling-disjoint, and activation-gated on both future H1/T1 receipts.",
+  },
+  {
+    surface: "untrusted-input", status: "PASS",
+    disposition: "Closed JSON keys, canonical hashes, nonsymlinked repository paths, exact timestamps, and fail-closed receipt validation cover parsed governance inputs.",
+  },
+  {
+    surface: "export", status: "NONE",
+    disposition: "No data export, network, provider call, telemetry, or product-data transfer is authorized.",
+  },
+];
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -267,8 +305,25 @@ function validateSecurityReceipt(repoRoot, config, record, failures) {
   exact(receipt.targetPaths, PHASE0A_SECURITY_TARGET_PATHS, `${config.id}.securityReceipt.targetPaths`, failures);
   validateLiveBindings(repoRoot, receipt.targetHashes, `${config.id}.securityReceipt.targetHashes`, failures);
   exact(receipt.targetHashes?.map((row) => row.path), PHASE0A_SECURITY_TARGET_PATHS, `${config.id}.securityReceipt.targetHash order`, failures);
-  exact(receipt.coverage?.map((row) => row.surface), ["prompt-injection", "secrets", "authentication", "authorization", "untrusted-input", "export"], `${config.id}.securityReceipt.coverage`, failures);
-  if (receipt.findings?.length !== 1 || receipt.findings[0]?.findingId !== record.acceptedRisk?.findingId || receipt.findings[0]?.status !== "ACCEPTED") failures.push(`${config.id}.securityReceipt: exact accepted solo finding required`);
+  const coverage = receipt.coverage ?? [];
+  exact(coverage, SECURITY_COVERAGE, `${config.id}.securityReceipt.coverage`, failures);
+  for (const [index, row] of coverage.entries()) {
+    checkKeys(row, ["surface", "status", "disposition"], `${config.id}.securityReceipt.coverage[${index}]`, failures);
+  }
+  exact(receipt.findings, [{
+    findingId: record.acceptedRisk?.findingId,
+    severity: record.acceptedRisk?.severity,
+    status: record.acceptedRisk?.status,
+    reasonCode: record.acceptedRisk?.reasonCode,
+    disposition: "The owner accepted the exact solo-role separation risk only for this bounded, provider-offline, pre-activation grant.",
+    compensatingControls: [
+      "exact-self-hashed-path-and-effect-grant",
+      "336-hour-nonrenewable-interval",
+      "shared-H1-T1-activation-receipts",
+      "controller-only-proof-and-completion-protocol",
+      "T05-plus-and-product-runtime-denial",
+    ],
+  }], `${config.id}.securityReceipt.findings`, failures);
   exact(receipt.exports, { status: "NONE", paths: [] }, `${config.id}.securityReceipt.exports`, failures);
   if (receipt.secretsScan?.status !== "PASS" || receipt.secretsScan?.exitCode !== 0) failures.push(`${config.id}.securityReceipt.secretsScan: exact PASS required`);
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(receipt.capturedAt ?? "")) failures.push(`${config.id}.securityReceipt: canonical capturedAt required`);
@@ -425,13 +480,242 @@ function validateActivation(repoRoot, config, sibling, registry, failures, gitSt
   return start;
 }
 
-export function verifyP180SiblingAuthorization({ repoRoot = ROOT, registry, ticket = "T03", mode = "record", gitState, frozenStart } = {}) {
+function gitOutput(repoRoot, args, label, failures) {
+  const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8" });
+  if (result.status !== 0) {
+    failures.push(`${label}: git ${args.join(" ")} failed`);
+    return null;
+  }
+  return result.stdout.trim();
+}
+
+function commitInfo(repoRoot, commit, gitState, label, failures) {
+  if (!/^[a-f0-9]{40}$/.test(commit ?? "")) {
+    failures.push(`${label}: 40-character commit required`);
+    return null;
+  }
+  if (gitState?.commits?.[commit]) return gitState.commits[commit];
+  const tree = gitOutput(repoRoot, ["rev-parse", `${commit}^{tree}`], label, failures);
+  const parentLine = gitOutput(repoRoot, ["rev-list", "--parents", "-n", "1", commit], label, failures);
+  if (!tree || !parentLine) return null;
+  const parents = parentLine.split(/\s+/).slice(1);
+  const changedPaths = parents.length === 1
+    ? gitOutput(repoRoot, ["diff", "--name-only", `${parents[0]}..${commit}`], label, failures)?.split("\n").filter(Boolean) ?? []
+    : [];
+  return { tree, parents, changedPaths };
+}
+
+function commitFileBytes(repoRoot, commit, path, gitState, label, failures) {
+  if (gitState?.fileBytes?.has(path)) return Buffer.from(gitState.fileBytes.get(path));
+  const result = spawnSync("git", ["show", `${commit}:${path}`], { cwd: repoRoot, encoding: null });
+  if (result.status !== 0) {
+    failures.push(`${label}: cannot read ${path} at ${commit}`);
+    return null;
+  }
+  return result.stdout;
+}
+
+function completionCommitFor(repoRoot, baseCommit, currentCommit, gitState, failures) {
+  if (gitState?.completionCommit) return gitState.completionCommit;
+  const rows = gitOutput(repoRoot, ["rev-list", "--parents", `${baseCommit}..${currentCommit}`], "completion commit", failures);
+  if (rows === null) return null;
+  const candidates = rows.split("\n").filter(Boolean).map((row) => row.split(/\s+/))
+    .filter((parts) => parts.slice(1).includes(baseCommit));
+  if (candidates.length !== 1 || candidates[0].length !== 2) {
+    failures.push("completion git topology: unique single-parent receipt commit required");
+    return null;
+  }
+  return candidates[0][0];
+}
+
+function validateProofRegistry(repoRoot, proofRoot, proofBinding, expectedEntries, failures) {
+  const rootPath = resolve(proofRoot);
+  let rootReal;
+  try { rootReal = realpathSync(rootPath); }
+  catch (error) { failures.push(`completion proof registry: unsafe ${rootPath} (${error.message})`); return; }
+  const proofPath = resolve(rootPath, "proof");
+  const registryPath = resolve(rootPath, proofBinding.registryPath);
+  const lockPath = resolve(rootPath, "proof/controller-proof-registry.lock");
+  const expectedUid = typeof process.getuid === "function" ? process.getuid() : null;
+  for (const [path, mode, kind] of [[rootPath, 0o700, "directory"], [proofPath, 0o700, "directory"], [registryPath, 0o600, "file"]]) {
+    try {
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink() || (kind === "directory" ? !stat.isDirectory() : !stat.isFile())) throw new Error(`real ${kind} required`);
+      if ((stat.mode & 0o777) !== mode) throw new Error(`mode ${mode.toString(8).padStart(4, "0")} required`);
+      if (expectedUid !== null && stat.uid !== expectedUid) throw new Error("owner mismatch");
+      const real = realpathSync(path);
+      if (path !== rootPath && relative(rootReal, real).startsWith("..")) throw new Error("path escapes proof root");
+    } catch (error) {
+      failures.push(`completion proof registry: unsafe ${path} (${error.message})`);
+      return;
+    }
+  }
+  if (existsSync(lockPath)) failures.push("completion proof registry: lock present");
+  const bytes = readFileSync(registryPath);
+  if (bytes.length === 0 || bytes.at(-1) !== 0x0a) failures.push("completion proof registry: newline-terminated content required");
+  if (createHash("sha256").update(bytes).digest("hex") !== proofBinding.registrySha256) failures.push("completion proof registry: byte digest mismatch");
+  try {
+    const entries = bytes.toString("utf8").trimEnd().split("\n").map((line) => JSON.parse(line));
+    exact(entries, expectedEntries, "completion proof registry entries", failures);
+  } catch (error) {
+    failures.push(`completion proof registry: invalid JSONL (${error.message})`);
+  }
+}
+
+function validateCompletionReceipt(config, record, receipt, activation, siblingRecords, failures) {
+  const label = `${config.id}.completionReceipt`;
+  checkKeys(receipt, COMPLETION_KEYS, label, failures);
+  exact([
+    receipt.schemaVersion, receipt.receiptId, receipt.receiptKind, receipt.status,
+    receipt.ticketId, receipt.laneId, receipt.authorizationId, receipt.authorizationHash,
+  ], [
+    1, `${config.ticketId}-COMPLETION-001`, `solo-${config.laneId.toLowerCase()}-completion-receipt-v1`,
+    "COMPLETED_VERIFIED", config.ticketId, config.laneId, config.id, config.hash,
+  ], `${label}.identity`, failures);
+  checkKeys(receipt.activationBinding, ["path", "receiptId", "receiptSelfHash", "frozenStartCommit", "frozenStartTree"], `${label}.activationBinding`, failures);
+  exact(receipt.activationBinding, {
+    path: config.activationPath,
+    receiptId: activation?.receiptId,
+    receiptSelfHash: activation?.selfHash?.digest,
+    frozenStartCommit: receipt.activationBinding?.frozenStartCommit,
+    frozenStartTree: receipt.activationBinding?.frozenStartTree,
+  }, `${label}.activationBinding`, failures);
+  if (!/^[a-f0-9]{40}$/.test(receipt.activationBinding?.frozenStartCommit ?? "")
+    || !/^[a-f0-9]{40}$/.test(receipt.activationBinding?.frozenStartTree ?? "")) failures.push(`${label}.activationBinding: commit/tree required`);
+  checkKeys(receipt.implementation, ["commit", "tree", "parentCommit", "files"], `${label}.implementation`, failures);
+  if (!/^[a-f0-9]{40}$/.test(receipt.implementation?.commit ?? "")
+    || !/^[a-f0-9]{40}$/.test(receipt.implementation?.tree ?? "")
+    || !/^[a-f0-9]{40}$/.test(receipt.implementation?.parentCommit ?? "")) failures.push(`${label}.implementation: commit/tree/parent required`);
+  exact(receipt.implementation?.files?.map((row) => row.path), config.paths, `${label}.implementation file paths`, failures);
+  for (const [index, row] of (receipt.implementation?.files ?? []).entries()) {
+    checkKeys(row, ["path", "algorithm", "digest"], `${label}.implementation.files[${index}]`, failures);
+    if (row.algorithm !== "sha256" || !SHA256.test(row.digest ?? "")) failures.push(`${label}.implementation.files[${index}]: SHA-256 digest required`);
+  }
+  checkKeys(receipt.completionBase, ["commit", "tree"], `${label}.completionBase`, failures);
+  const releases = receipt.leaseReleases ?? [];
+  exact(releases.map((row) => row.laneId), ["T03", "T04"], `${label}.leaseReleases lane order`, failures);
+  for (const [index, release] of releases.entries()) {
+    const laneRecord = siblingRecords[release.laneId];
+    checkKeys(release, ["laneId", "claimantActorId", "claimSequence", "taskStatus", "terminalReportDigest", "releasedAt"], `${label}.leaseReleases[${index}]`, failures);
+    exact([release.claimantActorId, release.claimSequence, release.taskStatus], [laneRecord?.reservation?.claimantActorId, 1, "COMPLETED"], `${label}.leaseReleases[${index}]`, failures);
+    if (!SHA256.test(release.terminalReportDigest ?? "")) failures.push(`${label}.leaseReleases[${index}]: terminal report digest required`);
+    const released = Date.parse(release.releasedAt);
+    if (!CANONICAL_TIMESTAMP.test(release.releasedAt ?? "") || !(Date.parse(record.notBefore) <= released && released < Date.parse(record.expiresAt))) failures.push(`${label}.leaseReleases[${index}]: canonical in-window release required`);
+  }
+  const proof = receipt.proofBinding;
+  checkKeys(proof, ["registryPath", "registrySha256", "entryCount", "headDigest", "tuples"], `${label}.proofBinding`, failures);
+  exact(proof?.registryPath, record.proofProtocol.registryPath, `${label}.proofBinding.registryPath`, failures);
+  if (!SHA256.test(proof?.registrySha256 ?? "") || !SHA256.test(proof?.headDigest ?? "")) failures.push(`${label}.proofBinding: SHA-256 registry bindings required`);
+  exact(proof?.tuples?.map((row) => row.commandId), record.completionEvidence.requiredCommandIds, `${label}.proofBinding command IDs`, failures);
+  for (const [index, tuple] of (proof?.tuples ?? []).entries()) {
+    checkKeys(tuple, PROOF_TUPLE_KEYS, `${label}.proofBinding.tuples[${index}]`, failures);
+    exact([tuple.laneId, tuple.authorizationId, tuple.authorizationHash, tuple.activationReceiptId, tuple.activationReceiptHash, tuple.exitCode],
+      [config.laneId, config.id, config.hash, activation?.receiptId, activation?.selfHash?.digest, 0], `${label}.proofBinding.tuples[${index}]`, failures);
+    const started = Date.parse(tuple.startedAt); const finished = Date.parse(tuple.finishedAt);
+    if (!CANONICAL_TIMESTAMP.test(tuple.startedAt ?? "") || !CANONICAL_TIMESTAMP.test(tuple.finishedAt ?? "")
+      || !(Date.parse(record.notBefore) <= started && started <= finished && finished < Date.parse(record.expiresAt))) failures.push(`${label}.proofBinding.tuples[${index}]: canonical in-window command interval required`);
+    for (const field of ["outputDigest", "envelopeDigest", "previousDigest", "entryDigest"]) if (!SHA256.test(tuple[field] ?? "")) failures.push(`${label}.proofBinding.tuples[${index}].${field}: SHA-256 required`);
+    const unhashed = structuredClone(tuple); delete unhashed.entryDigest;
+    if (createHash("sha256").update(canonicalJson(unhashed)).digest("hex") !== tuple.entryDigest) failures.push(`${label}.proofBinding.tuples[${index}]: entry digest mismatch`);
+  }
+  const completed = Date.parse(receipt.completedAt);
+  if (!CANONICAL_TIMESTAMP.test(receipt.completedAt ?? "") || !(Date.parse(record.notBefore) <= completed && completed < Date.parse(record.expiresAt))) failures.push(`${label}: canonical in-window completedAt required`);
+  validateSelfHash(receipt, "selfHash", receipt.selfHash?.digest, label, failures);
+}
+
+function validateCompletionPair(repoRoot, registry, failures, gitState, proofRoot, requireExternalProof) {
+  const start = failures.length;
+  const records = Object.fromEntries(["T03", "T04"].map((ticket) => [ticket, registry.authorizations.find((row) => row.id === CONFIGS[ticket].id)]));
+  const receipts = {};
+  const activations = {};
+  for (const ticket of ["T03", "T04"]) {
+    receipts[ticket] = readJson(repoRoot, CONFIGS[ticket].completionPath, `${CONFIGS[ticket].id}.completionReceipt`, failures);
+    activations[ticket] = validateActivationReceipt(repoRoot, CONFIGS[ticket], records[ticket], failures);
+  }
+  if (!receipts.T03 || !receipts.T04 || !activations.T03 || !activations.T04) return false;
+  exact([activations.T03.phase0ACommit, activations.T03.phase0ATree, activations.T03.observedAt],
+    [activations.T04.phase0ACommit, activations.T04.phase0ATree, activations.T04.observedAt], "completion shared activation", failures);
+  for (const ticket of ["T03", "T04"]) validateCompletionReceipt(CONFIGS[ticket], records[ticket], receipts[ticket], activations[ticket], records, failures);
+  if (failures.length !== start) return false;
+  const h2 = receipts.T03.activationBinding.frozenStartCommit;
+  const h2Tree = receipts.T03.activationBinding.frozenStartTree;
+  exact(receipts.T04.activationBinding, { ...receipts.T04.activationBinding, frozenStartCommit: h2, frozenStartTree: h2Tree }, "completion shared frozen start", failures);
+  const h2Info = commitInfo(repoRoot, h2, gitState, "completion H2", failures);
+  exact([h2Info?.tree, h2Info?.parents, h2Info?.changedPaths], [h2Tree, [activations.T03.phase0ACommit], ACTIVATION_PATHS], "completion H2 topology", failures);
+  const t03 = receipts.T03.implementation; const t04 = receipts.T04.implementation;
+  exact(t03.parentCommit, h2, "T03 completion implementation parent", failures);
+  exact(t04.parentCommit, t03.commit, "T04 completion implementation parent", failures);
+  for (const [ticket, implementation] of [["T03", t03], ["T04", t04]]) {
+    const info = commitInfo(repoRoot, implementation.commit, gitState, `${ticket} completion implementation`, failures);
+    exact(
+      [info?.tree, info?.parents, info?.changedPaths],
+      [implementation.tree, [implementation.parentCommit], [...CONFIGS[ticket].paths].sort()],
+      `${ticket} completion implementation topology`,
+      failures,
+    );
+    for (const file of implementation.files) {
+      const committed = commitFileBytes(repoRoot, implementation.commit, file.path, gitState, `${ticket} completion implementation`, failures);
+      const currentCommit = gitState?.currentCommit ?? gitOutput(repoRoot, ["rev-parse", "HEAD"], "completion current HEAD", failures);
+      const current = currentCommit ? commitFileBytes(repoRoot, currentCommit, file.path, gitState, `${ticket} current completed artifact`, failures) : null;
+      if (!committed || createHash("sha256").update(committed).digest("hex") !== file.digest) failures.push(`${ticket} completion implementation digest drift ${file.path}`);
+      if (!current || createHash("sha256").update(current).digest("hex") !== file.digest) failures.push(`${ticket} current completed artifact drift ${file.path}`);
+    }
+  }
+  exact(receipts.T03.completionBase, receipts.T04.completionBase, "completion shared base", failures);
+  exact(receipts.T03.completionBase, { commit: t04.commit, tree: t04.tree }, "completion base is T04 implementation", failures);
+  exact(receipts.T03.leaseReleases, receipts.T04.leaseReleases, "completion shared lease releases", failures);
+  const tuples = [...receipts.T03.proofBinding.tuples, ...receipts.T04.proofBinding.tuples].sort((left, right) => left.sequence - right.sequence);
+  exact(tuples.map((row) => row.sequence), Array.from({ length: tuples.length }, (_, index) => index + 1), "completion proof sequence", failures);
+  let previousDigest = "0".repeat(64);
+  for (const [index, tuple] of tuples.entries()) {
+    exact(tuple.previousDigest, previousDigest, `completion proof chain[${index}]`, failures);
+    previousDigest = tuple.entryDigest;
+  }
+  for (const ticket of ["T03", "T04"]) {
+    const proof = receipts[ticket].proofBinding;
+    exact([proof.entryCount, proof.headDigest], [tuples.length, previousDigest], `${ticket} completion proof head`, failures);
+  }
+  exact([receipts.T03.proofBinding.registrySha256, receipts.T03.proofBinding.headDigest],
+    [receipts.T04.proofBinding.registrySha256, receipts.T04.proofBinding.headDigest], "completion shared proof registry", failures);
+  const releaseFloor = Math.max(...receipts.T03.leaseReleases.map((row) => Date.parse(row.releasedAt)));
+  const firstProof = Math.min(...tuples.map((row) => Date.parse(row.startedAt)));
+  const lastProof = Math.max(...tuples.map((row) => Date.parse(row.finishedAt)));
+  if (!(releaseFloor <= firstProof)) failures.push("completion proof began before both leases released");
+  for (const ticket of ["T03", "T04"]) if (!(lastProof <= Date.parse(receipts[ticket].completedAt))) failures.push(`${ticket} completion recorded before proof finished`);
+  const currentCommit = gitState?.currentCommit ?? gitOutput(repoRoot, ["rev-parse", "HEAD"], "completion current HEAD", failures);
+  const completionCommit = currentCommit ? completionCommitFor(repoRoot, t04.commit, currentCommit, gitState, failures) : null;
+  const completionInfo = completionCommit ? commitInfo(repoRoot, completionCommit, gitState, "completion receipt commit", failures) : null;
+  exact([completionInfo?.parents, completionInfo?.changedPaths], [[t04.commit], COMPLETION_PATHS], "completion receipt commit topology", failures);
+  if (completionCommit) {
+    for (const ticket of ["T03", "T04"]) {
+      const path = CONFIGS[ticket].completionPath;
+      const atCommit = commitFileBytes(repoRoot, completionCommit, path, gitState, `${ticket} completion receipt commit`, failures);
+      const current = readFileSync(resolve(repoRoot, path));
+      if (!atCommit || !current.equals(atCommit)) failures.push(`${ticket} completion receipt changed after terminal commit`);
+    }
+  }
+  if (requireExternalProof) validateProofRegistry(repoRoot, proofRoot ?? records.T03.proofProtocol.goalStateRoot, receipts.T03.proofBinding, tuples, failures);
+  return failures.length === start;
+}
+
+export function verifyP180SiblingAuthorization({
+  repoRoot = ROOT,
+  registry,
+  ticket = "T03",
+  mode = "record",
+  gitState,
+  frozenStart,
+  proofRoot,
+  evaluationTime = Date.now(),
+  verifyPredecessorCompletion = true,
+} = {}) {
   repoRoot = realpathSync(repoRoot);
   const failures = [];
   const config = CONFIGS[ticket]; const sibling = CONFIGS[ticket === "T03" ? "T04" : "T03"];
   const source = registry ?? readJson(repoRoot, REGISTRY_PATH, "scoped authorization registry", failures);
   const record = source?.authorizations?.find((row) => row.id === config.id);
   if (!record) return { failures: [...failures, `${config.id}: missing exact record`] };
+  if (!["record", "activation", "lifecycle", "completion"].includes(mode)) failures.push(`${config.id}: unsupported verification mode ${mode}`);
   checkKeys(record, RECORD_KEYS, config.id, failures);
   exact([record.recordKind, record.status, record.implementationAuthorized, record.activationRequired,
     record.projectId, record.branch, record.baseCommit, record.baseTree, record.controllerActorId,
@@ -467,7 +751,7 @@ export function verifyP180SiblingAuthorization({ repoRoot = ROOT, registry, tick
   exact(record.invalidators, expectedInvalidators(config), `${config.id}.invalidators`, failures);
   if (Date.parse(record.expiresAt) - Date.parse(record.notBefore) !== COMMON.duration) failures.push(`${config.id}: expiry must be exactly 336 hours`);
   validateSelfHash(record, "authorizationHash", config.hash, config.id, failures);
-  failures.push(...verifyP180T02Completion({ repoRoot }).failures);
+  if (verifyPredecessorCompletion) failures.push(...verifyP180T02Completion({ repoRoot }).failures);
   validateLiveBindings(repoRoot, record.planBindings, `${config.id}.planBindings`, failures);
   validateLiveBindings(repoRoot, record.dependencyBindings, `${config.id}.dependencyBindings`, failures);
   validateLiveBindings(repoRoot, record.sourceAdoptionBindings, `${config.id}.sourceAdoptionBindings`, failures);
@@ -476,14 +760,45 @@ export function verifyP180SiblingAuthorization({ repoRoot = ROOT, registry, tick
   validateOutputTuple(config, sibling, record, failures);
   validateSecurityReceipt(repoRoot, config, record, failures);
   let frozenWorkerStart = null;
-  if (mode === "record") {
+  const completionPresence = COMPLETION_PATHS.map((path) => existsSync(resolve(repoRoot, path)));
+  const anyCompletion = completionPresence.some(Boolean);
+  if (anyCompletion && !completionPresence.every(Boolean)) {
+    failures.push("COMPLETION_RECEIPT_PAIR_INCOMPLETE");
+    return { failures, authorizationHash: config.hash, state: "INVALID", frozenWorkerStart: null };
+  }
+  if (completionPresence.every(Boolean)) {
+    const completionValid = validateCompletionPair(repoRoot, source, failures, gitState, proofRoot, mode === "completion");
+    if (!completionValid) return { failures, authorizationHash: config.hash, state: "INVALID", frozenWorkerStart: null };
+    if (mode === "activation") failures.push("AUTHORIZATION_ALREADY_CONSUMED");
+    return { failures, authorizationHash: config.hash, state: "CONSUMED", frozenWorkerStart: null };
+  }
+  if (mode === "completion") {
+    failures.push("COMPLETION_RECEIPT_MISSING");
+    return { failures, authorizationHash: config.hash, state: "RESERVED", frozenWorkerStart: null };
+  }
+  const effectiveMode = mode === "lifecycle"
+    ? ACTIVATION_PATHS.some((path) => existsSync(resolve(repoRoot, path))) ? "activation" : "record"
+    : mode;
+  const expired = evaluationTime >= Date.parse(record.expiresAt);
+  if (expired) failures.push("AUTHORIZATION_EXPIRED");
+  if (effectiveMode === "record") {
     for (const path of [...ACTIVATION_PATHS, ...COMPLETION_PATHS]) {
       if (existsSync(resolve(repoRoot, path))) failures.push(`${config.id}: Phase0A output must be absent ${path}`);
     }
   } else {
     frozenWorkerStart = validateActivation(repoRoot, config, sibling, source, failures, gitState, frozenStart);
   }
-  return { failures, authorizationHash: config.hash, state: mode === "record" ? "PRE_ACTIVATION" : failures.some((failure) => failure.startsWith("ABORTED_DERIVED")) ? "ABORTED_DERIVED" : frozenWorkerStart ? "ACTIVE" : "RESERVED", frozenWorkerStart };
+  const state = failures.some((failure) => failure.startsWith("ABORTED_DERIVED")) ? "ABORTED_DERIVED"
+    : expired ? "EXPIRED"
+      : failures.length > 0 ? "RESERVED"
+        : effectiveMode === "record" ? "PRE_ACTIVATION"
+          : frozenWorkerStart ? "ACTIVE" : "RESERVED";
+  return {
+    failures,
+    authorizationHash: config.hash,
+    state,
+    frozenWorkerStart: state === "ACTIVE" ? frozenWorkerStart : null,
+  };
 }
 
 export function runP180AuthorizationCli(ticket, repoRoot = ROOT) {

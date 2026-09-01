@@ -24,8 +24,8 @@
   },
   "currentAuthorityManifest": {
     "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
-    "packetDigest": "b9affcc4f97034903546ef37bbbe961c85fd485b2e7f7da55028b1c95fb71940",
-    "sha256": "d001cdc90e3e4f941c94446462b88b8a7edb85e524eca61ff6963ca80bbfa50b"
+    "packetDigest": "0b6591b49f019bff2ca2243a00b11754d1dfa51f3f2a81492e072252761d17ad",
+    "sha256": "730de5d6fc48f927ce720a73e81d58db0f4f9ffaa27f80fcc9e9b6b0caa5e126"
   },
   "refreshedT02SecurityReceipt": {
     "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",

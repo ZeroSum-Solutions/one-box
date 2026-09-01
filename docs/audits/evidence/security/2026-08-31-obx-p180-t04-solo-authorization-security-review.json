@@ -31,18 +31,18 @@
   "targetHashes": [
     { "path": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json", "algorithm": "sha256", "digest": "2cc001417a873cbad73abefdd110571845cef8bbc334f7aa5face0419f779f5c" },
     { "path": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-owner-completion-receipt.json", "algorithm": "sha256", "digest": "e5a3050dde0c9a0f64d26c0e972d76fc27530efb65654433e26206620d4dd359" },
-    { "path": "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json", "algorithm": "sha256", "digest": "85c62fadc11916cec17806344edb207a13fc79f1c897ac96e27877ba90fd250f" },
+    { "path": "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json", "algorithm": "sha256", "digest": "a0ad0ec938f73c3e7766958ffa338ec9fb76259a7107ded0a70108a6042be2c1" },
     { "path": "docs/plans/2026-08-31-obx-p180-t03-solo-authorization-design.md", "algorithm": "sha256", "digest": "8abe2e7dfd22460f0c53e296020ca8965682d82984e4a9d0fe9de82f2c978c4f" },
     { "path": "docs/plans/2026-08-31-obx-p180-t04-solo-authorization-design.md", "algorithm": "sha256", "digest": "18acdb38982c11f778d58f013f82a6dab7005e5a4c522503a698ba90f3ccb0d3" },
     { "path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t03-solo.json", "algorithm": "sha256", "digest": "3e497bb4ccb6fee8ca674f279122d1a24356b9b976b995c47312f24d06057919" },
     { "path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t04-solo.json", "algorithm": "sha256", "digest": "9361c32941d787f38c46ac56cda21c333d283aaf3ab82d644046bea597184846" },
-    { "path": "scripts/verify-p180-t03-authorization.mjs", "algorithm": "sha256", "digest": "04ab9a05296711d85b69eea5939a7d24ad0c86a0726052296a94076a08529a3b" },
+    { "path": "scripts/verify-p180-t03-authorization.mjs", "algorithm": "sha256", "digest": "bc3cd9fbafb0d92645fe0505bca44c8bbfdfeddeb78a3adb0d3b46d976750c99" },
     { "path": "scripts/verify-p180-t04-authorization.mjs", "algorithm": "sha256", "digest": "8df54bbf1b06a129085e05ccb91e52f8efee42bea152c414165673e106f1b04f" },
     { "path": "scripts/verify-p180-t02-authorization.mjs", "algorithm": "sha256", "digest": "c500649710c16dd16695dbfeadd7674f15c9244e19e359196f87e14b8794911a" },
-    { "path": "scripts/verify-plan-authority.mjs", "algorithm": "sha256", "digest": "bbe0092f6eb5f82295154a0622c6d959336ee7de6a2bdf50ae94e4bcbc1e7728" },
-    { "path": "scripts/verify-plan-authority.node.mjs", "algorithm": "sha256", "digest": "b6920f0e97f6556a49db403164cf723537a220b004e05f5d7832a9836d0025f4" },
+    { "path": "scripts/verify-plan-authority.mjs", "algorithm": "sha256", "digest": "8da451d6d270587e4fd94044347bebcc26722fdf699ee052db4749c3dcdd22bf" },
+    { "path": "scripts/verify-plan-authority.node.mjs", "algorithm": "sha256", "digest": "8cd52c4284b01bf3fd917ff28e614a8b2a4acd707bd8c3198eafbd936f166268" },
     { "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", "algorithm": "sha256", "digest": "71932ef150c5140257bcc29c3b30faeabfe4c95136a56d58f9c7f5bf2d88d6b8" },
-    { "path": "docs/plans/one-box-master/00-authority/authority-manifest.json", "algorithm": "sha256", "digest": "d001cdc90e3e4f941c94446462b88b8a7edb85e524eca61ff6963ca80bbfa50b" },
+    { "path": "docs/plans/one-box-master/00-authority/authority-manifest.json", "algorithm": "sha256", "digest": "730de5d6fc48f927ce720a73e81d58db0f4f9ffaa27f80fcc9e9b6b0caa5e126" },
     { "path": "docs/plans/one-box-master/00-authority/plan-register.md", "algorithm": "sha256", "digest": "e761c6a3b9befff945b3a6b0486b9c93d14abd69efd3e52061189e0e9c4cd26c" },
     { "path": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md", "algorithm": "sha256", "digest": "3fcd4aff8e5b1148932712e0959c7c239779fd482dcdc9192401887391cb4d95" }
   ],
@@ -76,18 +76,18 @@
     "version": "8.30.1",
     "scope": "exact-16-phase0a-security-target-paths",
     "mode": "pipe-redacted-no-color",
-    "scannedBytes": 334354,
+    "scannedBytes": 369831,
     "findings": 0,
     "exitCode": 0,
     "status": "PASS"
   },
   "activationState": "NOT_ACTIVE",
   "verdict": "PASS-WITH-ACCEPTED-RISK",
-  "capturedAt": "2026-09-01T02:58:39.083Z",
+  "capturedAt": "2026-09-01T03:41:56.000Z",
   "selfHash": {
     "algorithm": "sha256",
     "canonicalization": "canonical-json-v1",
     "excludedJsonPointers": ["/selfHash/digest"],
-    "digest": "58bc34294d38ec14ecdd7df603c82330fe71fd43a4a5dc8a728e67903b3833d5"
+    "digest": "06f5c4ff255be3053761d6f9d135f694c9fa7ecca1957818b2e066beea302df2"
   }
 }
