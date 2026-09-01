@@ -24,14 +24,16 @@
   },
   "currentAuthorityManifest": {
     "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
-    "packetDigest": "5361f689181de7121b413445684fb043863c04cc2afd41244551967f98430bcd",
-    "sha256": "5b0ee2985283b1674df462823e2c533584aecbc383e70bf221528f959652e151"
+    "packetDigest": "f4ffa3c757f598ae1364f26d30771745d29b51def32cda1dd1b019b457152242",
+    "sha256": "00d5a9423ca19938de42d95164ca540967233713b22bc871c631af7a23d043c3"
   },
   "refreshedT02SecurityReceipt": {
     "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
     "sha256": "f2c0dfffe5dbe6ae65a111a59c9ec444da6165902351322c41b44141c10e3c83"
   },
-  "manifestChangedFields": ["packetDigest"],
+  "manifestChangedFields": [
+    "packetDigest"
+  ],
   "reReviewMethod": [
     "structural comparison against the pre-Phase0A authority-manifest JSON",
     "current T02 owner-completion receipt self-hash and exact derived-write clause validation",

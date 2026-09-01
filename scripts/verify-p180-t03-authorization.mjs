@@ -483,6 +483,10 @@ function discoverGitState(repoRoot, failures) {
   };
 }
 function validateActivationReceipt(repoRoot, config, record, failures) {
+  if (!record) {
+    failures.push(`${config.id}: missing exact record`);
+    return null;
+  }
   const receipt = readJson(repoRoot, config.activationPath, `${config.id}.activationReceipt`, failures);
   if (!receipt) return null;
   checkKeys(receipt, ["schemaVersion", "receiptId", "receiptKind", "status", "authorizationId", "authorizationHash", "reservation", "phase0ACommit", "phase0ATree", "activationWriteSet", "observedAt", "selfHash"], `${config.id}.activationReceipt`, failures);
@@ -523,6 +527,60 @@ function validateActivation(repoRoot, config, sibling, registry, failures, gitSt
   if (frozenStart && (state.currentCommit !== frozenStart.commit || state.currentTree !== frozenStart.tree)) failures.push("ABORTED_DERIVED: frozen worker HEAD/tree moved");
   if (existsSync(resolve(repoRoot, config.completionPath))) failures.push("AUTHORIZATION_ALREADY_CONSUMED");
   return start;
+}
+
+function validateActivationHistory(repoRoot, config, sibling, registry, failures, gitState) {
+  const record = registry.authorizations.find((row) => row.id === config.id);
+  const siblingRecord = registry.authorizations.find((row) => row.id === sibling.id);
+  const own = validateActivationReceipt(repoRoot, config, record, failures);
+  const peer = validateActivationReceipt(repoRoot, sibling, siblingRecord, failures);
+  if (!own || !peer) {
+    failures.push("ACTIVATION_RECEIPT_MISSING");
+    return null;
+  }
+  exact(
+    [own.phase0ACommit, own.phase0ATree, own.observedAt],
+    [peer.phase0ACommit, peer.phase0ATree, peer.observedAt],
+    "T03/T04 shared H1/T1/observedAt",
+    failures,
+  );
+  const h1Info = commitInfo(repoRoot, own.phase0ACommit, gitState, "activation history H1", failures);
+  exact(h1Info?.tree, own.phase0ATree, "activation history H1 tree", failures);
+
+  let h2Commit = null;
+  if (gitState?.commits) {
+    let cursor = gitState.currentCommit;
+    const visited = new Set();
+    while (cursor && cursor !== own.phase0ACommit && !visited.has(cursor)) {
+      visited.add(cursor);
+      const info = gitState.commits[cursor];
+      if (!info || info.parents?.length !== 1) break;
+      if (info.parents[0] === own.phase0ACommit) {
+        h2Commit = cursor;
+        break;
+      }
+      cursor = info.parents[0];
+    }
+  } else {
+    const currentCommit = gitState?.currentCommit
+      ?? gitOutput(repoRoot, ["rev-parse", "HEAD"], "activation history current HEAD", failures);
+    const history = currentCommit
+      ? gitOutput(repoRoot, ["rev-list", "--ancestry-path", "--reverse", `${own.phase0ACommit}..${currentCommit}`], "activation history", failures)
+      : null;
+    h2Commit = history?.split("\n").filter(Boolean)[0] ?? null;
+  }
+  if (!h2Commit) {
+    failures.push("activation history H2: receipt-bound H1 has no current-history child");
+    return null;
+  }
+  const h2Info = commitInfo(repoRoot, h2Commit, gitState, "activation history H2", failures);
+  exact(
+    [h2Info?.parents, h2Info?.changedPaths],
+    [[own.phase0ACommit], ACTIVATION_PATHS],
+    "activation history H1->H2 topology",
+    failures,
+  );
+  return { commit: h2Commit, tree: h2Info?.tree };
 }
 
 function gitOutput(repoRoot, args, label, failures) {
@@ -869,7 +927,7 @@ export function verifyP180SiblingAuthorization({
     return { failures, authorizationHash: config.hash, state: "RESERVED", frozenWorkerStart: null };
   }
   const effectiveMode = mode === "lifecycle"
-    ? ACTIVATION_PATHS.some((path) => existsSync(resolve(repoRoot, path))) ? "activation" : "record"
+    ? ACTIVATION_PATHS.some((path) => existsSync(resolve(repoRoot, path))) ? "lifecycle-activation" : "record"
     : mode;
   const expired = evaluationTime >= Date.parse(record.expiresAt);
   if (expired) failures.push("AUTHORIZATION_EXPIRED");
@@ -877,14 +935,16 @@ export function verifyP180SiblingAuthorization({
     for (const path of [...ACTIVATION_PATHS, ...COMPLETION_PATHS]) {
       if (existsSync(resolve(repoRoot, path))) failures.push(`${config.id}: Phase0A output must be absent ${path}`);
     }
-  } else {
+  } else if (effectiveMode === "activation") {
     frozenWorkerStart = validateActivation(repoRoot, config, sibling, source, failures, gitState, frozenStart);
+  } else {
+    validateActivationHistory(repoRoot, config, sibling, source, failures, gitState);
   }
   const state = failures.some((failure) => failure.startsWith("ABORTED_DERIVED")) ? "ABORTED_DERIVED"
     : expired ? "EXPIRED"
       : failures.length > 0 ? "RESERVED"
         : effectiveMode === "record" ? "PRE_ACTIVATION"
-          : frozenWorkerStart ? "ACTIVE" : "RESERVED";
+          : effectiveMode === "activation" && frozenWorkerStart ? "ACTIVE" : "RESERVED";
   return {
     failures,
     authorizationHash: config.hash,

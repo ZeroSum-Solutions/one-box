@@ -426,7 +426,8 @@ function validateHashBindings(actual, expected, label, shouldRead = true) {
   exactJson(actual, expected, label);
   for (const binding of expected) {
     rejectUnknownKeys(actual?.find((candidate) => candidate?.path === binding.path), ["path", "algorithm", "digest"], `${label}.${binding.path}`);
-    if (shouldRead && sha256File(binding.path, `${label}.${binding.path}`) !== binding.digest) {
+    const readCurrentBytes = shouldRead === "when-present" ? existsSync(binding.path) : shouldRead;
+    if (readCurrentBytes && sha256File(binding.path, `${label}.${binding.path}`) !== binding.digest) {
       fail(`${label}: current hash drift ${binding.path}`);
     }
   }
@@ -612,7 +613,7 @@ function validateSoloAuthorization(record, authority, ticketManifest, evalManife
   }
 
   exactJson(record.activationWriteSet, expectedSoloActivationWriteSet, `${label}.activationWriteSet`);
-  validateHashBindings(record.preExistingUntrackedBaseline, expectedSoloUntrackedBaseline, `${label}.preExistingUntrackedBaseline`, false);
+  validateHashBindings(record.preExistingUntrackedBaseline, expectedSoloUntrackedBaseline, `${label}.preExistingUntrackedBaseline`, "when-present");
   exactJson(record.childTicketIds, ["OBX-P180-T01"], `${label}.childTicketIds`);
 
   if (!Array.isArray(record.roleAvailability) || record.roleAvailability.length !== expectedSoloRoleIds.length) {

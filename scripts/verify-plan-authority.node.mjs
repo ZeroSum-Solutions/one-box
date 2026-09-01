@@ -284,6 +284,18 @@ function withSyntheticActivationReceipts(mutate, callback) {
     phase0ACommit, phase0ATree,
     phase0BCommit: "3".repeat(40), phase0BTree: "4".repeat(40),
     currentCommit: "3".repeat(40), currentTree: "4".repeat(40), changedPaths: writeSet,
+    commits: {
+      [phase0ACommit]: {
+        tree: phase0ATree,
+        parents: [],
+        changedPaths: [],
+      },
+      ["3".repeat(40)]: {
+        tree: "4".repeat(40),
+        parents: [phase0ACommit],
+        changedPaths: writeSet,
+      },
+    },
   };
   try { callback({ registry, gitState, receipts }); }
   finally { for (const path of Object.values(activationPaths)) rmSync(resolve(fixtureRoot, path), { force: true }); }
@@ -460,6 +472,18 @@ test("the current non-empty packet passes discriminated structure verification",
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Solo T01 authorization self-hash: [a-f0-9]{64}/);
   assert.match(result.stdout, /structure and frozen bindings/);
+});
+
+test("aggregate verification hashes the protected baseline when it is present", () => {
+  const path = resolve(fixtureRoot, ".claude/handoffs/one-box-operating-environment-next-phase.md");
+  writeFileSync(path, "synthetic hash-drift sentinel\n");
+  try {
+    const result = run();
+    assert.notEqual(result.status, 0, `protected baseline drift unexpectedly passed\n${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /preExistingUntrackedBaseline: current hash drift/);
+  } finally {
+    rmSync(path, { force: true });
+  }
 });
 
 test("the exact solo T02 authorization passes focused structure verification", () => {
@@ -729,6 +753,69 @@ test("staged, unstaged, or unexpected untracked paths invalidate activation", ()
       assert.match(result.failures.join("\n"), /WORKER_INDEX_OR_WORKTREE_MUTATION/);
     });
   }
+});
+
+test("lifecycle verification stays reachable after worker output while activation-only stays strict", () => {
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    const workerCommit = "5".repeat(40);
+    const workerTree = "6".repeat(40);
+    const workerPath = "src/lib/operatingEnvironment/skills.ts";
+    const workerState = {
+      ...gitState,
+      phase0ACommit: gitState.phase0BCommit,
+      phase0ATree: gitState.phase0BTree,
+      phase0BCommit: workerCommit,
+      phase0BTree: workerTree,
+      currentCommit: workerCommit,
+      currentTree: workerTree,
+      changedPaths: [workerPath],
+      cachedPaths: [],
+      worktreePaths: [],
+      untrackedPaths: [workerPath],
+      commits: {
+        ...gitState.commits,
+        [workerCommit]: {
+          tree: workerTree,
+          parents: [gitState.phase0BCommit],
+          changedPaths: [workerPath],
+        },
+      },
+    };
+    const lifecycle = verifyP180SiblingAuthorization({
+      repoRoot: fixtureRoot,
+      registry,
+      ticket: "T03",
+      mode: "lifecycle",
+      gitState: workerState,
+    });
+    assert.deepEqual(lifecycle.failures, []);
+    assert.equal(lifecycle.frozenWorkerStart, null);
+
+    const activation = verifyP180SiblingAuthorization({
+      repoRoot: fixtureRoot,
+      registry,
+      ticket: "T03",
+      mode: "activation",
+      gitState: workerState,
+    });
+    assert.notEqual(activation.state, "ACTIVE");
+    assert.equal(activation.frozenWorkerStart, null);
+    assert.match(activation.failures.join("\n"), /activation real H1\/T1|activation exact Phase0B write set|WORKER_INDEX_OR_WORKTREE_MUTATION/);
+  });
+});
+
+test("activation and completion name a missing sibling record instead of throwing", () => {
+  withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+    registry.authorizations = registry.authorizations.filter((row) => row.id !== "OBX-AUTH-P180-T04-SOLO-001");
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+    assert.match(result.failures.join("\n"), /OBX-AUTH-P180-T04-SOLO-001: missing exact record/);
+  });
+  withSyntheticCompletionReceipts(null, ({ registry, gitState }) => {
+    registry.authorizations = registry.authorizations.filter((row) => row.id !== "OBX-AUTH-P180-T04-SOLO-001");
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "lifecycle", gitState });
+    assert.equal(result.state, "INVALID");
+    assert.match(result.failures.join("\n"), /OBX-AUTH-P180-T04-SOLO-001: missing exact record/);
+  });
 });
 
 test("activation rejects cross-grant substitution, HEAD/tree movement, and malformed completion", () => {

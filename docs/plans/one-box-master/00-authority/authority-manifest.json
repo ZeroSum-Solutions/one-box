@@ -9,7 +9,13 @@
     "productionRelease": {
       "minimumDistinctActiveHumans": 2,
       "initiatorMayApprove": false,
-      "approvalBoundTo": ["candidate", "releaseBundleHash", "qualificationReceipt", "clientReviewReceipt", "targetDescriptor"],
+      "approvalBoundTo": [
+        "candidate",
+        "releaseBundleHash",
+        "qualificationReceipt",
+        "clientReviewReceipt",
+        "targetDescriptor"
+      ],
       "emergencyRollback": {
         "maximumInitiators": 1,
         "newBytesAllowed": false,
@@ -28,8 +34,10 @@
       "targetChangeInvalidatesReceipt": true
     }
   },
-  "packetDigest": "5361f689181de7121b413445684fb043863c04cc2afd41244551967f98430bcd",
-  "forbiddenPrimaryPathPrefixes": ["docs/audits/"],
+  "packetDigest": "f4ffa3c757f598ae1364f26d30771745d29b51def32cda1dd1b019b457152242",
+  "forbiddenPrimaryPathPrefixes": [
+    "docs/audits/"
+  ],
   "authorityClassDefinitions": {
     "owner-approved": "Accepted normative product contract for its exact boundary; execution still follows its named ticket and authorization state.",
     "owner-approved-direction": "Accepted product or sequence direction; no implementation permission.",
@@ -53,7 +61,10 @@
         "recordedAt": "2026-08-29",
         "evidence": "Pre-existing owner-approved authority carried into this reconciliation; this record grants no implementation authorization."
       },
-      "relatedPaths": ["docs/tickets/page-ir-safe-pipeline/manifest.json", "docs/eval/page-ir-safe-pipeline/manifest.json"],
+      "relatedPaths": [
+        "docs/tickets/page-ir-safe-pipeline/manifest.json",
+        "docs/eval/page-ir-safe-pipeline/manifest.json"
+      ],
       "boundary": "This manifest grants no implementation permission. Existing Page IR tickets OBX-001, OBX-002, OBX-010 through OBX-015, OBX-020 through OBX-025, OBX-029 through OBX-031, OBX-040 through OBX-042, OBX-050, and OBX-051 retain only their separately recorded ticket state; one page-ir-v1 or template-v1 source is fixed per run."
     },
     "canvas": {
@@ -68,7 +79,9 @@
         "recordedAt": "2026-08-29",
         "evidence": "Pre-existing owner-approved authority carried into this reconciliation; this record grants no implementation authorization."
       },
-      "relatedPaths": ["docs/plans/one-box-master/02-canvas/index.md"],
+      "relatedPaths": [
+        "docs/plans/one-box-master/02-canvas/index.md"
+      ],
       "boundary": "Approved interaction direction; Page IR supersedes older mutation assumptions and each later slice needs its own authorization."
     },
     "website-lifecycle": {
@@ -141,7 +154,9 @@
       "primaryPath": "docs/plans/one-box-master/01-foundation/release-1-contract.md",
       "authorityClass": "proposed",
       "implementationAuthorized": false,
-      "relatedPaths": ["docs/security/local-api-threat-model.md"],
+      "relatedPaths": [
+        "docs/security/local-api-threat-model.md"
+      ],
       "boundary": "Planning contract pending owner acceptance and unresolved selection tickets."
     },
     "compatibility": {
@@ -191,7 +206,9 @@
       "primaryPath": "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md",
       "authorityClass": "proposed",
       "implementationAuthorized": false,
-      "relatedPaths": ["docs/audits/grok-4.6/2026-08-29-one-box-technology-master-plan-audit.md"],
+      "relatedPaths": [
+        "docs/audits/grok-4.6/2026-08-29-one-box-technology-master-plan-audit.md"
+      ],
       "boundary": "Finding disposition record only. It cannot overrule the domain documents it cites or authorize code use."
     },
     "operating-environment": {
@@ -199,7 +216,12 @@
       "primaryPath": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
       "authorityClass": "draft",
       "implementationAuthorized": false,
-      "relatedPaths": ["docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md", "docs/adr/0003-deep-agents-js-job-plane-evaluation.md", "docs/specs/2026-08-29-ai-teammate-foundation-v1.md", "docs/tickets/ai-teammate-foundation/manifest.json"],
+      "relatedPaths": [
+        "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+        "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+        "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+        "docs/tickets/ai-teammate-foundation/manifest.json"
+      ],
       "boundary": "E0 through E8 remain draft decomposition. Only the separate OBX-AUTH-ATF-001 foundation-v1 record grants narrow retained implementation; it does not authorize the broader domain."
     },
     "embedded-browser": {
@@ -207,7 +229,9 @@
       "primaryPath": "docs/plans/2026-08-29-embedded-browser-integration.md",
       "authorityClass": "proposed",
       "implementationAuthorized": false,
-      "relatedPaths": ["docs/security/2026-08-29-embedded-browser-closure-requirements.md"],
+      "relatedPaths": [
+        "docs/security/2026-08-29-embedded-browser-closure-requirements.md"
+      ],
       "boundary": "The rewritten plan preserves EB-001 through EB-021 as open implementation gates. No retained desktop, native view, browser, profile, capture, CDP, agent-action, packaging, signing, updater, or distribution work may begin until EB-001 closes first and the separately authorized slice's required rows have named-human and independent-verifier evidence."
     },
     "technology-adoption": {
@@ -215,7 +239,15 @@
       "primaryPath": "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md",
       "authorityClass": "research",
       "implementationAuthorized": false,
-      "relatedPaths": ["docs/research/source-catalog/README.md", "docs/research/source-catalog/github-starred-one-box-shortlist-2026-08-29.md", "docs/research/source-catalog/adoption-ledger.json", "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md", "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md", "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md", "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json"],
+      "relatedPaths": [
+        "docs/research/source-catalog/README.md",
+        "docs/research/source-catalog/github-starred-one-box-shortlist-2026-08-29.md",
+        "docs/research/source-catalog/adoption-ledger.json",
+        "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md",
+        "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md",
+        "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md",
+        "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json"
+      ],
       "boundary": "The shortlist owns planning dispositions; the adoption ledger and phase gates control any code use."
     }
   },
