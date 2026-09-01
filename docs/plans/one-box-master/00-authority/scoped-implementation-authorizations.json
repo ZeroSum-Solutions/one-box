@@ -979,6 +979,20 @@
       "recordedAt": "2026-09-01T02:05:00.000Z", "notBefore": "2026-09-01T02:05:00.000Z", "expiresAt": "2026-09-15T02:05:00.000Z",
       "exactDurationMilliseconds": 1209600000, "renewable": false,
       "authorizationHash": {"algorithm": "sha256", "canonicalization": "canonical-json-v1", "excludedJsonPointers": ["/authorizationHash/digest"], "digest": "4c3a89055f239905e0939bcb5be3f60fce971bf19c477075f31cbc5fc75a3557"}
+    },
+    {
+      "id": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-001",
+      "recordKind": "owner-solo-finding-bound-correction-reference-v1",
+      "path": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-solo.json",
+      "algorithm": "sha256",
+      "digest": "4cef2ba9b5e97b8a1da94243edf9b5ae9672536b7db5fd116e2aeacbec46d249"
+    },
+    {
+      "id": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-001",
+      "recordKind": "owner-solo-finding-bound-correction-reference-v1",
+      "path": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-solo.json",
+      "algorithm": "sha256",
+      "digest": "2f264c3bf3b3d1f02cbc66e63af7a72e27447a6b0c45fb9b2c07eb24e2cdea2e"
     }
   ]
 }

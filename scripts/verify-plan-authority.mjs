@@ -18,6 +18,12 @@ import {
   T04_AUTHORIZATION_ID,
   verifyP180SiblingAuthorization,
 } from "./verify-p180-t03-authorization.mjs";
+import {
+  T03_CORRECTION_AUTHORIZATION_ID,
+  T04_CORRECTION_AUTHORIZATION_ID,
+  originalVerificationCommitForCorrectionState,
+  verifyPhase1CorrectionAuthorizations,
+} from "./verify-p180-phase1-correction-authorization.mjs";
 
 const root = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 const failures = [];
@@ -1128,7 +1134,15 @@ if (scopedImplementationAuthority) {
   if (!Array.isArray(scopedImplementationAuthority.authorizations) || scopedImplementationAuthority.authorizations.length === 0) {
     fail("scoped implementation authority: authorizations must be a non-empty array");
   }
-  const expectedAuthorizationIds = ["OBX-AUTH-ATF-001", soloAuthorizationId, T02_AUTHORIZATION_ID, T03_AUTHORIZATION_ID, T04_AUTHORIZATION_ID];
+  const expectedAuthorizationIds = [
+    "OBX-AUTH-ATF-001",
+    soloAuthorizationId,
+    T02_AUTHORIZATION_ID,
+    T03_AUTHORIZATION_ID,
+    T04_AUTHORIZATION_ID,
+    T03_CORRECTION_AUTHORIZATION_ID,
+    T04_CORRECTION_AUTHORIZATION_ID,
+  ];
   if (JSON.stringify(scopedImplementationAuthority.authorizations?.map((record) => record?.id)) !== JSON.stringify(expectedAuthorizationIds)) {
     fail(`scoped implementation authority: records must be exactly ${expectedAuthorizationIds.join(", ")}`);
   }
@@ -1139,7 +1153,14 @@ if (scopedImplementationAuthority) {
     }
     if (scopedAuthorizations.has(record.id)) fail(`scoped implementation authority: duplicate ${record.id}`);
     scopedAuthorizations.set(record.id, record);
-    if ([soloAuthorizationId, T02_AUTHORIZATION_ID, T03_AUTHORIZATION_ID, T04_AUTHORIZATION_ID].includes(record.id)) continue;
+    if ([
+      soloAuthorizationId,
+      T02_AUTHORIZATION_ID,
+      T03_AUTHORIZATION_ID,
+      T04_AUTHORIZATION_ID,
+      T03_CORRECTION_AUTHORIZATION_ID,
+      T04_CORRECTION_AUTHORIZATION_ID,
+    ].includes(record.id)) continue;
     if (record.id !== "OBX-AUTH-ATF-001") {
       fail(`scoped implementation authority: unknown authorization ${record.id}`);
       continue;
@@ -1240,6 +1261,15 @@ if (scopedImplementationAuthority) {
     verifyReceipt: true,
   });
   for (const failure of t02Result.failures) fail(failure);
+  const correctionResult = verifyPhase1CorrectionAuthorizations({
+    repoRoot: root,
+    registry: scopedImplementationAuthority,
+    mode: "lifecycle",
+    verifyRepositoryState: false,
+    verifyOriginalConsumed: false,
+  });
+  for (const failure of correctionResult.failures) fail(failure);
+  const originalVerificationCommit = originalVerificationCommitForCorrectionState(correctionResult);
   for (const ticket of ["T03", "T04"]) {
     const result = verifyP180SiblingAuthorization({
       repoRoot: root,
@@ -1247,6 +1277,7 @@ if (scopedImplementationAuthority) {
       ticket,
       mode: "lifecycle",
       verifyPredecessorCompletion: false,
+      ...(originalVerificationCommit ? { gitState: { currentCommit: originalVerificationCommit } } : {}),
     });
     for (const failure of result.failures) fail(failure);
   }
@@ -1594,6 +1625,10 @@ for (const path of [
   "package.json",
   "scripts/verify-plan-authority.mjs",
   "scripts/verify-plan-authority.node.mjs",
+  "scripts/verify-p180-phase1-correction-authorization.mjs",
+  "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-solo.json",
+  "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-solo.json",
+  "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-security-review.json",
   "docs/plans/one-box-master/00-authority/plan-register.md",
   ciWorkflowPath,
   ".github/pull_request_template.md",

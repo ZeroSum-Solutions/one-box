@@ -1,0 +1,96 @@
+{
+  "schemaVersion": 1,
+  "reviewId": "OBX-P180-PHASE1-AUDIT-CORRECTION-AUTHORITY-REPIN-001",
+  "recordKind": "owner-directed-phase1-correction-authority-repin-v1",
+  "status": "VERIFIED_PENDING_SINGLE_USE_GOVERNANCE_COMMIT",
+  "owner": {
+    "actorId": "person:devin-wiggins",
+    "displayName": "Devin Wiggins",
+    "role": "repository-owner"
+  },
+  "ownerDirectionBinding": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/contract.md",
+    "algorithm": "sha256",
+    "digest": "493ab13797f3eb2e82d3a4fa29fd6b91459fe17292cacdcd22340b8bfc424493"
+  },
+  "activationAllowlist": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/censuses/phase1-audit-correction-governance-allowlist.txt",
+    "algorithm": "sha256",
+    "digest": "0af61f92ce66079020344186bb88d5fcb61d600c327e213665e0df5ac1b0d39d",
+    "predecessorCommit": "573b86ee9a06e45e09296dd832115dab128ecf2f",
+    "predecessorTree": "d0e065dfc0996358ca6959a32d16db13ffc54f23",
+    "authorizedPathCount": 12
+  },
+  "historicalRepinBinding": {
+    "path": "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json",
+    "algorithm": "sha256",
+    "digest": "79f9a17aabd90cc023a7a7db8be19388b84ad22212ee9e569236c7bf98fd939d",
+    "reviewId": "obx-p180-source-adoption-authority-repin-2026-08-31",
+    "reviewedAt": "2026-09-01T02:48:12.000Z",
+    "singleUse": true,
+    "consumed": true,
+    "reused": false
+  },
+  "governanceWriteScope": {
+    "exactPaths": [
+      "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-authority-repin.json",
+      "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-security-review.json",
+      "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-solo.json",
+      "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-solo.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "scripts/verify-obx-p180-source-adoption.mjs",
+      "scripts/verify-p180-phase1-correction-authorization.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "allowedManifestJsonPointers": [
+      "/packetDigest"
+    ],
+    "authorizedEffects": [
+      "refresh-verifier-derived-authority-manifest-packet-digest",
+      "record-fresh-owner-directed-phase1-correction-integrity-repin"
+    ],
+    "implementationAuthority": false,
+    "runtimeAuthority": false,
+    "providerAuthority": false,
+    "dependencyOrLockfileChangeAuthorized": false,
+    "activationOrCompletionReceiptChangeAuthorized": false,
+    "t05ThroughT08Authority": false
+  },
+  "currentAuthorityManifest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "packetDigest": "bbd569892f915b6f67e05e7ba8d1bf6b55d969b4d6324be7e7eb6186eeb67aa5",
+    "sha256": "c9464c63d9cb4b1f69d6b92c436b6b0b093e31f7d6a811420947b3b2299627e7"
+  },
+  "completionProtocol": {
+    "useLimit": 1,
+    "singleUse": true,
+    "renewable": false,
+    "replacementAllowed": false,
+    "rebaselineAllowed": false,
+    "deriveConsumedOnlyFromExactGovernanceCommitTopology": true,
+    "expectedParentCommit": "573b86ee9a06e45e09296dd832115dab128ecf2f"
+  },
+  "invariants": {
+    "historicalReceiptRewritten": false,
+    "historicalSingleUseGrantReused": false,
+    "implementationAuthorized": false,
+    "authorityExpansion": false,
+    "runtimeOrDependencyChange": false,
+    "providerBackedProductRoute": false,
+    "persistenceBrowserCollaborationDeploymentRelease": false,
+    "pageIrMutation": false
+  },
+  "recordedAt": "2026-09-01T11:24:30.000Z",
+  "expiresAt": "2026-09-02T09:20:00.000Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "a94fcceb0a08a6d19c443e52fc37f0352f1f2df1277e61f144c3d2ca91ec2259"
+  }
+}

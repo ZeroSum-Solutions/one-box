@@ -25,7 +25,10 @@ const ledger = readJson("docs/research/source-catalog/adoption-ledger.json");
 const fixture = readJson("docs/eval/one-box-program/fixtures/obx-p180-source-adoption-fixture-v1.json");
 const receipt = readText("docs/research/source-catalog/obx-p180-source-adoption-closure-2026-08-31.md");
 const prototype = readText("docs/plans/2026-08-12-one-box-prototype.md");
-const repin = readJson("docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json");
+const historicalRepinPath = "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json";
+const correctionRepinPath = "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-authority-repin.json";
+const historicalRepin = readJson(historicalRepinPath);
+const correctionRepin = readJson(correctionRepinPath);
 const entries = new Map((ledger.entries ?? []).map((entry) => [entry.id, entry]));
 
 for (const id of ["SC-SVC-001", "SC-SVC-003", "SC-GH-010", "SC-INT-001"]) {
@@ -128,15 +131,42 @@ const authorityManifestPath = "docs/plans/one-box-master/00-authority/authority-
 const t02SecurityReceiptPath = "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json";
 const authorityManifest = readJson(authorityManifestPath);
 if (
-  repin?.schemaVersion !== "obx-p180-authority-repin-review-v1" || repin?.namedOwner !== "Devin Wiggins" ||
-  repin?.verdict !== "PASS" || repin?.findingCount !== 0 || JSON.stringify(repin?.manifestChangedFields) !== '["packetDigest"]' ||
-  repin?.currentAuthorityManifest?.path !== authorityManifestPath || repin?.currentAuthorityManifest?.packetDigest !== authorityManifest?.packetDigest ||
-  repin?.currentAuthorityManifest?.sha256 !== sha256(readFileSync(resolve(root, authorityManifestPath))) ||
-  repin?.refreshedT02SecurityReceipt?.path !== t02SecurityReceiptPath || repin?.refreshedT02SecurityReceipt?.sha256 !== sha256(readFileSync(resolve(root, t02SecurityReceiptPath))) ||
-  repin?.invariants?.implementationAuthorized !== false || repin?.invariants?.authorityExpansion !== false ||
-  repin?.invariants?.runtimeOrDependencyChange !== false || repin?.invariants?.providerBackedProductRoute !== false ||
-  repin?.invariants?.pageIrMutation !== false
-) fail("authority-manifest derived re-pin receipt drift");
+  sha256(readFileSync(resolve(root, historicalRepinPath))) !== "79f9a17aabd90cc023a7a7db8be19388b84ad22212ee9e569236c7bf98fd939d" ||
+  historicalRepin?.schemaVersion !== "obx-p180-authority-repin-review-v1" || historicalRepin?.namedOwner !== "Devin Wiggins" ||
+  historicalRepin?.verdict !== "PASS" || historicalRepin?.findingCount !== 0 ||
+  historicalRepin?.currentAuthorityManifest?.packetDigest !== "0ed6de191fabb1193560365134b8aa898e9d02254f08a5d23a80b527e3fc43ec" ||
+  historicalRepin?.currentAuthorityManifest?.sha256 !== "3d044f23db0fc0a39ebe036a23f9e24779accfe716ef57c6a4ce3999b8912ac6" ||
+  historicalRepin?.refreshedT02SecurityReceipt?.path !== t02SecurityReceiptPath || historicalRepin?.refreshedT02SecurityReceipt?.sha256 !== sha256(readFileSync(resolve(root, t02SecurityReceiptPath)))
+) fail("historical authority-manifest re-pin drift or reuse");
+
+const canonical = (value) => {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value !== null && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+  return JSON.stringify(value);
+};
+const correctionRepinCopy = structuredClone(correctionRepin);
+const correctionRepinDigest = correctionRepinCopy?.selfHash?.digest;
+if (correctionRepinCopy?.selfHash) delete correctionRepinCopy.selfHash.digest;
+const correctionReviewedAt = Date.parse(correctionRepin?.recordedAt ?? "");
+const correctionSecurityReviewedAt = Date.parse(readJson("docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-security-review.json")?.reviewedAt ?? "");
+if (
+  correctionRepin?.schemaVersion !== 1 || correctionRepin?.reviewId !== "OBX-P180-PHASE1-AUDIT-CORRECTION-AUTHORITY-REPIN-001" ||
+  correctionRepin?.recordKind !== "owner-directed-phase1-correction-authority-repin-v1" ||
+  correctionRepin?.owner?.actorId !== "person:devin-wiggins" || correctionRepin?.owner?.role !== "repository-owner" ||
+  correctionRepin?.historicalRepinBinding?.digest !== "79f9a17aabd90cc023a7a7db8be19388b84ad22212ee9e569236c7bf98fd939d" ||
+  correctionRepin?.historicalRepinBinding?.singleUse !== true || correctionRepin?.historicalRepinBinding?.consumed !== true || correctionRepin?.historicalRepinBinding?.reused !== false ||
+  correctionRepin?.currentAuthorityManifest?.path !== authorityManifestPath || correctionRepin?.currentAuthorityManifest?.packetDigest !== authorityManifest?.packetDigest ||
+  correctionRepin?.currentAuthorityManifest?.sha256 !== sha256(readFileSync(resolve(root, authorityManifestPath))) ||
+  correctionRepin?.completionProtocol?.singleUse !== true || correctionRepin?.completionProtocol?.useLimit !== 1 || correctionRepin?.completionProtocol?.renewable !== false ||
+  correctionRepin?.invariants?.historicalReceiptRewritten !== false || correctionRepin?.invariants?.historicalSingleUseGrantReused !== false ||
+  correctionRepin?.invariants?.implementationAuthorized !== false || correctionRepin?.invariants?.authorityExpansion !== false ||
+  correctionRepin?.invariants?.runtimeOrDependencyChange !== false || correctionRepin?.invariants?.providerBackedProductRoute !== false ||
+  correctionRepin?.invariants?.pageIrMutation !== false ||
+  !Number.isFinite(correctionReviewedAt) || !Number.isFinite(correctionSecurityReviewedAt) || correctionSecurityReviewedAt <= correctionReviewedAt ||
+  correctionRepin?.selfHash?.algorithm !== "sha256" || correctionRepin?.selfHash?.canonicalization !== "canonical-json-v1" ||
+  JSON.stringify(correctionRepin?.selfHash?.excludedJsonPointers) !== '["/selfHash/digest"]' ||
+  correctionRepinDigest !== sha256(canonical(correctionRepinCopy))
+) fail("fresh owner-directed authority-manifest correction re-pin drift");
 
 for (const token of ["direct Moonshot lane is the fallback", "is also approved if cheaper"]) if (prototype.includes(token)) fail(`active implicit fallback remains: ${token}`);
 for (const token of ["41adccc83e819c286dcdf32cd8b5f55af8bb0b49", "334e4ba4e01071825686a6793c56c6bc482fa951", "audit-openrouter-glm-5.3-flash-zai-v2", "OBX-P180-T03", "OBX-P180-T04", "OBX-P180-T05"]) if (!receipt.includes(token)) fail(`source receipt missing ${token}`);

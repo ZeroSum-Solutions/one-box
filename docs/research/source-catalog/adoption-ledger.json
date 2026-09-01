@@ -214,7 +214,7 @@
           "fixture": {"path": "docs/eval/one-box-program/fixtures/obx-p180-source-adoption-fixture-v1.json", "digest": "3afe9adfd78251dd2904415995338335d027daa84eb082f2ce785d6ca708b3f2"},
           "evaluator": {"path": "scripts/eval/obx-p180-source-adoption-fixtures.mjs", "digest": "81c52fe3033b9ad343c964880e2adfc9f9fbe9bd819f8df2fb3ca685f46b1d3a"},
           "test": {"path": "scripts/eval/obx-p180-source-adoption-fixtures.node.mjs", "digest": "5ea949f04718a432a1f14b79ae521bcc87b7577d41ab342f5b9a9459565f1f88"},
-          "verifier": {"path": "scripts/verify-obx-p180-source-adoption.mjs", "digest": "f6825ae15e8401205d92a4c78c96870660d8e0c1f66141eafe5ba3e5242dd5d9"}
+          "verifier": {"path": "scripts/verify-obx-p180-source-adoption.mjs", "digest": "0bed1ad61641b2d998445e75408237f68986316a460309de16c29f3513a0953d"}
         }
       },
       "priceSnapshotUsdPerToken": {"prompt": "0.000000075", "completion": "0.00000025", "inputCacheRead": "0.000000015"},

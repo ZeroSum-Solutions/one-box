@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "reviewId": "OBX-P180-PHASE1-AUDIT-CORRECTION-SECURITY-001",
+  "reviewKind": "phase1-audit-correction-security-review-v1",
+  "status": "PASS",
+  "reviewerActorId": "agent:codex-gpt-5.6-sol-ultra:phase1-correction-security-review",
+  "reviewedAt": "2026-09-01T11:24:50.000Z",
+  "authorizationBindings": [
+    {
+      "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-001",
+      "authorizationHash": "ee2cd288385106690bf088e0a7c9e90192a7cb49ba8fa9db03ebb7f088198976"
+    },
+    {
+      "authorizationId": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-001",
+      "authorizationHash": "4340f8891a542ac9443a6a260a9a2095e8a4079d2383a6b52c2f9dd64e0b7ec8"
+    }
+  ],
+  "targetHashes": [
+    {
+      "path": "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json",
+      "algorithm": "sha256",
+      "digest": "79f9a17aabd90cc023a7a7db8be19388b84ad22212ee9e569236c7bf98fd939d"
+    },
+    {
+      "path": "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-authority-repin.json",
+      "algorithm": "sha256-canonical-json-without-currentAuthorityManifest-and-selfHashDigest-v1",
+      "digest": "443c1bc6477af2d08efea49731e2bfa4c614264f0ac996ae5ea0b105301c911d"
+    },
+    {
+      "path": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-solo.json",
+      "algorithm": "sha256",
+      "digest": "4cef2ba9b5e97b8a1da94243edf9b5ae9672536b7db5fd116e2aeacbec46d249"
+    },
+    {
+      "path": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-solo.json",
+      "algorithm": "sha256",
+      "digest": "2f264c3bf3b3d1f02cbc66e63af7a72e27447a6b0c45fb9b2c07eb24e2cdea2e"
+    },
+    {
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "algorithm": "sha256-canonical-json-without-packetDigest-v1",
+      "digest": "e3e465714c5426aa6cb900b9892ea07946a8fdc24b4f0c4cdcb6411331b95597"
+    },
+    {
+      "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "algorithm": "sha256",
+      "digest": "8c9e9836549c1c84936f76fa0ad36bacae1777e8ea5ddfcd5fe1fc9466016ca2"
+    },
+    {
+      "path": "docs/research/source-catalog/adoption-ledger.json",
+      "algorithm": "sha256",
+      "digest": "34734690945210e24dcc77472e2e93cf72d596553413d5236e2fc8c0c942d9de"
+    },
+    {
+      "path": "scripts/verify-obx-p180-source-adoption.mjs",
+      "algorithm": "sha256",
+      "digest": "0bed1ad61641b2d998445e75408237f68986316a460309de16c29f3513a0953d"
+    },
+    {
+      "path": "scripts/verify-p180-phase1-correction-authorization.mjs",
+      "algorithm": "sha256",
+      "digest": "e018e13fc5119064c2099ac27b2fbacb7550cd344c0f3de49fafea1e367ea733"
+    },
+    {
+      "path": "scripts/verify-plan-authority.mjs",
+      "algorithm": "sha256",
+      "digest": "be914c9843294325d8912ae3f97e8ffc1fa741e807bd48804c57e5ebaddc5bef"
+    },
+    {
+      "path": "scripts/verify-plan-authority.node.mjs",
+      "algorithm": "sha256",
+      "digest": "e7e6c56f860ee8674f4dc155c33b1af0ef552eeac1d9adb69194a31698fd0545"
+    }
+  ],
+  "coverage": [
+    {
+      "surface": "authorization",
+      "status": "PASS",
+      "disposition": "Two distinct post-consumption correction records preserve the original authorization and completion history byte-for-byte."
+    },
+    {
+      "surface": "original-consumed-history",
+      "status": "PASS",
+      "disposition": "Both records bind the exact original authorization, activation, completion, implementation, and derived CONSUMED state."
+    },
+    {
+      "surface": "historical-source-adoption-repin-preservation",
+      "status": "PASS",
+      "disposition": "The consumed Phase 0 re-pin remains byte-identical, binds its historical manifest, and is never renewed, reopened, or reused."
+    },
+    {
+      "surface": "fresh-owner-directed-authority-repin",
+      "status": "PASS",
+      "disposition": "A fresh owner-direction and pre-edit allowlist bind the correction governance paths, current manifest, chronology, and single-use commit topology."
+    },
+    {
+      "surface": "exact-path-and-effect-scope",
+      "status": "PASS",
+      "disposition": "The finding-bound path sets are exact, disjoint subsets of the original grants and retain only the original effects."
+    },
+    {
+      "surface": "one-use-nonrenewable-window",
+      "status": "PASS",
+      "disposition": "Each correction is single-use, nontransferable, nonrenewable, nonreplaceable, nonrebaselined, and bounded to twenty-four hours."
+    },
+    {
+      "surface": "audit-finding-binding",
+      "status": "PASS",
+      "disposition": "The records bind exact sanitized GLM receipt, packet, audit hashes, accepted findings, and explicit rejected-finding dispositions."
+    },
+    {
+      "surface": "sibling-disjointness",
+      "status": "PASS",
+      "disposition": "T03 receipt correction paths and T04 fixture and test correction paths are pairwise disjoint and exact."
+    },
+    {
+      "surface": "activation-topology",
+      "status": "PASS",
+      "disposition": "Activation requires a dedicated exact two-receipt child commit bound to the exact governance commit and tree."
+    },
+    {
+      "surface": "target-bound-proof-v2",
+      "status": "PASS",
+      "disposition": "Completion proof requires real output bytes and envelopes bound to execution and implementation commits, trees, paths, and commands."
+    },
+    {
+      "surface": "dependency-and-lockfile-boundary",
+      "status": "PASS",
+      "disposition": "Package and lockfile hashes remain frozen and neither correction record authorizes dependency or lockfile changes."
+    },
+    {
+      "surface": "secrets-and-credentials",
+      "status": "PASS",
+      "disposition": "The governance changes contain no credential value and grant no environment, credential, provider, or network access."
+    },
+    {
+      "surface": "provider-network-runtime-effects",
+      "status": "NONE",
+      "disposition": "No provider, model, network, product-runtime, persistence, filesystem, shell, queue, browser, UI, or collaboration effect is granted."
+    },
+    {
+      "surface": "t05-through-t08-authority",
+      "status": "NONE",
+      "disposition": "The correction records explicitly deny T05 through T08 authority and grant no authority by inheritance."
+    },
+    {
+      "surface": "protected-handoff-content",
+      "status": "NOT_APPLICABLE",
+      "disposition": "The protected untracked handoff is excluded from every target and may only be integrity-checked by its expected digest."
+    },
+    {
+      "surface": "model-review-authority",
+      "status": "NONE",
+      "disposition": "GLM and Opus reviews remain advisory; deterministic repository validation is the only activation and completion authority."
+    }
+  ],
+  "findings": [],
+  "deniedAuthority": [
+    "T05",
+    "T06",
+    "T07",
+    "T08",
+    "provider-or-network-runtime",
+    "deployment-release-or-product-data-transfer"
+  ],
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "a67a0372f52d4477a1085e928476ef633579dc8245b3244e19fedbe46bd7be13"
+  }
+}

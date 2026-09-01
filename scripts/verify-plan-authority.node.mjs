@@ -9,6 +9,7 @@ import {
 import {
   chmodSync,
   cpSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -20,25 +21,51 @@ import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { verifyP180SiblingAuthorization } from "./verify-p180-t03-authorization.mjs";
+import {
+  PHASE1_CORRECTION_BASE_COMMIT,
+  capabilityFingerprints,
+  combinedImplementationFilesDigest,
+  correctionCommitOrderingFailures,
+  correctionCompletionChronologyFailures,
+  correctionProofEpochFailures,
+  correctionReviewBindingShapeFailures,
+  correctionHashEnvelopeFailures,
+  correctionSecurityProjectionDigest,
+  correctionTimestampEpoch,
+  forbiddenEvidenceDiffFindings,
+  forbiddenRuntimeEffectFindings,
+  gitEnvironmentRedirectFailures,
+  gitRepositoryIntegrityFailures,
+  newEvidenceCapabilityFindings,
+  originalVerificationCommitForCorrectionState,
+  regularImplementationPathFailures,
+  verifyAuditFindingDispositions,
+  verifyCommittedCorrectionReceiptBytes,
+  verifyCorrectionProofMetadata,
+  verifyPhase1CorrectionAuthorizations,
+} from "./verify-p180-phase1-correction-authorization.mjs";
 
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 let fixtureRoot;
 let verifier;
+let fixtureBaselineBytes;
 
 before(() => {
   fixtureRoot = mkdtempSync(join(tmpdir(), "one-box-plan-verifier-"));
   for (const path of ["docs", ".github", "src"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path), { recursive: true });
   for (const path of [
-    "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
-    "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
-    "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json",
-    "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-activation-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-completion-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-completion-receipt.json",
   ]) rmSync(resolve(fixtureRoot, path), { force: true });
   for (const path of ["AGENTS.md", "README.md", "CONTRIBUTING.md", ".env.example", "package.json"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path));
   cpSync(resolve(sourceRoot, "package-lock.json"), resolve(fixtureRoot, "package-lock.json"));
+  cpSync(resolve(sourceRoot, ".git"), resolve(fixtureRoot, ".git"));
+  symlinkSync(resolve(sourceRoot, "node_modules"), resolve(fixtureRoot, "node_modules"), "dir");
   mkdirSync(resolve(fixtureRoot, ".claude/handoffs"), { recursive: true });
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
-  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-p180-t03-authorization.mjs", "verify-p180-t04-authorization.mjs", "verify-obx-p180-source-adoption.mjs"]) {
+  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-p180-t03-authorization.mjs", "verify-p180-t04-authorization.mjs", "verify-p180-phase1-correction-authorization.mjs", "verify-obx-p180-source-adoption.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/e2e"), { recursive: true });
@@ -51,6 +78,7 @@ before(() => {
   }
   verifier = resolve(fixtureRoot, "scripts/verify-plan-authority.mjs");
   refreshAuthorityPacketForFixture();
+  fixtureBaselineBytes = new Map(historicalSiblingBindingPaths().map((path) => [path, readFileSync(resolve(fixtureRoot, path))]));
 });
 
 after(() => {
@@ -58,11 +86,14 @@ after(() => {
 });
 
 function run(args = [], extraEnv = {}) {
-  return spawnSync(process.execPath, [verifier, ...args], {
+  const execute = () => spawnSync(process.execPath, [verifier, ...args], {
     cwd: fixtureRoot,
     encoding: "utf8",
     env: { ...process.env, ...extraEnv },
   });
+  return args.some((arg) => /^--verify-solo-t0[34]-(?:record|activation|completion)-only$/.test(arg))
+    ? withOriginalSiblingPreactivationFixture(execute)
+    : execute();
 }
 
 function fixedEvaluationTimeEnvironment(timestamp) {
@@ -171,6 +202,85 @@ function withSoloT02RecordMutation(mutate, assertion, { rehash = true } = {}) {
   }, assertion, ["--verify-solo-t02-structure-only"]);
 }
 
+const correctionRecordPaths = {
+  T03: "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-solo.json",
+  T04: "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-solo.json",
+};
+const correctionGovernancePaths = [
+  correctionRecordPaths.T03,
+  correctionRecordPaths.T04,
+  "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-authority-repin.json",
+  "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-security-review.json",
+  "docs/plans/one-box-master/00-authority/authority-manifest.json",
+  "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+  "scripts/verify-p180-phase1-correction-authorization.mjs",
+  "scripts/verify-plan-authority.mjs",
+  "scripts/verify-plan-authority.node.mjs",
+  "scripts/verify-obx-p180-source-adoption.mjs",
+  "docs/research/source-catalog/adoption-ledger.json",
+].sort();
+
+function gitCommand(repoRoot, args, extra = {}) {
+  const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8", ...extra });
+  assert.equal(result.status, 0, `git ${args.join(" ")} failed\n${result.stdout}\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function copyCandidateFile(repoRoot, path) {
+  const target = resolve(repoRoot, path);
+  mkdirSync(dirname(target), { recursive: true });
+  cpSync(resolve(sourceRoot, path), target);
+}
+
+function correctionActivationReceipt({ laneId, governanceCommit, governanceTree }) {
+  const isT03 = laneId === "T03";
+  const receipt = {
+    schemaVersion: 1,
+    receiptId: `OBX-P180-${laneId}-AUDIT-CORRECTION-ACTIVATION-001`,
+    receiptKind: "owner-solo-finding-bound-correction-activation-v1",
+    status: "ACTIVE",
+    authorizationId: `OBX-AUTH-P180-${laneId}-AUDIT-CORRECTION-001`,
+    authorizationHash: isT03 ? "ee2cd288385106690bf088e0a7c9e90192a7cb49ba8fa9db03ebb7f088198976" : "4340f8891a542ac9443a6a260a9a2095e8a4079d2383a6b52c2f9dd64e0b7ec8",
+    ticketId: `OBX-P180-${laneId}`,
+    laneId,
+    governanceCommit,
+    governanceTree,
+    predecessorCommit: PHASE1_CORRECTION_BASE_COMMIT,
+    predecessorTree: "d0e065dfc0996358ca6959a32d16db13ffc54f23",
+    pairedAuthorizationId: `OBX-AUTH-P180-${isT03 ? "T04" : "T03"}-AUDIT-CORRECTION-001`,
+    pairedAuthorizationHash: isT03 ? "4340f8891a542ac9443a6a260a9a2095e8a4079d2383a6b52c2f9dd64e0b7ec8" : "ee2cd288385106690bf088e0a7c9e90192a7cb49ba8fa9db03ebb7f088198976",
+    observedAt: "2026-09-01T09:30:00.000Z",
+    expiresAt: "2026-09-02T09:20:00.000Z",
+  };
+  setSelfHash(receipt);
+  return receipt;
+}
+
+function verifyCorrectionRecords() {
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+  return verifyPhase1CorrectionAuthorizations({
+    repoRoot: fixtureRoot,
+    registry,
+    mode: "record",
+    verifySecurity: false,
+    verifyRepositoryState: false,
+    verifyOriginalConsumed: false,
+  });
+}
+
+function withCorrectionRecordMutation(lane, mutate, assertion) {
+  const absolute = resolve(fixtureRoot, correctionRecordPaths[lane]);
+  const original = readFileSync(absolute, "utf8");
+  try {
+    const record = JSON.parse(original);
+    mutate(record);
+    writeFileSync(absolute, `${JSON.stringify(record, null, 2)}\n`);
+    assertion(verifyCorrectionRecords());
+  } finally {
+    writeFileSync(absolute, original);
+  }
+}
+
 function withMultipleFileMutations(mutations, assertion) {
   const originals = new Map();
   try {
@@ -208,6 +318,58 @@ function withExactReceiptChain(callback) {
   callback();
 }
 
+const originalSiblingReceiptPaths = [
+  "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+  "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
+  "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json",
+  "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json",
+];
+const originalPreCorrectionCommit = PHASE1_CORRECTION_BASE_COMMIT;
+
+function historicalSiblingBindingPaths() {
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+  const paths = new Set([
+    "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json",
+  ]);
+  for (const record of registry.authorizations.filter((row) => ["OBX-AUTH-P180-T03-SOLO-001", "OBX-AUTH-P180-T04-SOLO-001"].includes(row.id))) {
+    for (const binding of [...record.planBindings, ...record.dependencyBindings, ...record.sourceAdoptionBindings]) paths.add(binding.path);
+    paths.add(record.amendmentBinding.path);
+    const securityPath = record.requiredEvidencePaths[0];
+    paths.add(securityPath);
+    const securityReceipt = JSON.parse(readFileSync(resolve(fixtureRoot, securityPath), "utf8"));
+    for (const path of securityReceipt.targetPaths) paths.add(path);
+  }
+  return [...paths].sort();
+}
+
+function withOriginalSiblingPreactivationFixture(callback) {
+  const historicalPaths = historicalSiblingBindingPaths();
+  const paths = [...new Set([...originalSiblingReceiptPaths, ...historicalPaths])];
+  const saved = new Map(paths.map((path) => {
+    const absolute = resolve(fixtureRoot, path);
+    return [path, existsSync(absolute) ? readFileSync(absolute) : null];
+  }));
+  try {
+    for (const path of originalSiblingReceiptPaths) rmSync(resolve(fixtureRoot, path), { force: true });
+    for (const path of historicalPaths) {
+      const current = readFileSync(resolve(fixtureRoot, path));
+      const baseline = fixtureBaselineBytes?.get(path);
+      if (!baseline || !current.equals(baseline)) continue;
+      const result = spawnSync("git", ["show", `${originalPreCorrectionCommit}:${path}`], { cwd: sourceRoot, encoding: null });
+      assert.equal(result.status, 0, `git show failed for historical fixture ${path}\n${result.stderr}`);
+      writeFileSync(resolve(fixtureRoot, path), result.stdout);
+    }
+    return callback();
+  } finally {
+    for (const [path, bytes] of saved) {
+      const absolute = resolve(fixtureRoot, path);
+      if (bytes === null) rmSync(absolute, { force: true });
+      else writeFileSync(absolute, bytes);
+    }
+  }
+}
+
 function setSelfHash(value) {
   value.selfHash = {
     algorithm: "sha256",
@@ -227,42 +389,31 @@ function sha256(value) {
 function refreshAuthorityPacketForFixture() {
   const firstRun = spawnSync(process.execPath, [verifier], { cwd: fixtureRoot, encoding: "utf8" });
   const match = firstRun.stderr.match(/packetDigest mismatch; expected current ([a-f0-9]{64})/);
+  const manifestPath = resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/authority-manifest.json");
   if (match) {
-    const manifestPath = resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/authority-manifest.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     manifest.packetDigest = match[1];
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-    const repinPath = resolve(fixtureRoot, "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json");
-    const repin = JSON.parse(readFileSync(repinPath, "utf8"));
-    repin.currentAuthorityManifest.packetDigest = match[1];
-    repin.currentAuthorityManifest.sha256 = sha256(readFileSync(manifestPath));
-    writeFileSync(repinPath, `${JSON.stringify(repin, null, 2)}\n`);
   }
-  refreshSiblingSecurityReceipts();
-}
-
-function refreshSiblingSecurityReceipts() {
-  for (const ticket of ["t03", "t04"]) {
-    const path = resolve(fixtureRoot, `docs/audits/evidence/security/2026-08-31-obx-p180-${ticket}-solo-authorization-security-review.json`);
-    const receipt = JSON.parse(readFileSync(path, "utf8"));
-    receipt.targetHashes = receipt.targetHashes.map((binding) => ({
-      ...binding,
-      digest: sha256(readFileSync(resolve(fixtureRoot, binding.path))),
-    }));
-    setSelfHash(receipt);
-    writeFileSync(path, `${JSON.stringify(receipt, null, 2)}\n`);
-  }
+  const repinPath = resolve(fixtureRoot, "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-authority-repin.json");
+  const repin = JSON.parse(readFileSync(repinPath, "utf8"));
+  const currentManifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  repin.currentAuthorityManifest.packetDigest = currentManifest.packetDigest;
+  repin.currentAuthorityManifest.sha256 = sha256(readFileSync(manifestPath));
+  setSelfHash(repin);
+  writeFileSync(repinPath, `${JSON.stringify(repin, null, 2)}\n`);
 }
 
 function withSyntheticActivationReceipts(mutate, callback) {
-  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, securityReceiptTargets[0]), "utf8"));
-  const phase0ACommit = "1".repeat(40);
-  const phase0ATree = "2".repeat(40);
-  const writeSet = [activationPaths.T03, activationPaths.T04];
-  const receipts = {};
-  for (const ticket of ["T03", "T04"]) {
-    const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
-    const receipt = {
+  return withOriginalSiblingPreactivationFixture(() => {
+    const registry = JSON.parse(readFileSync(resolve(fixtureRoot, securityReceiptTargets[0]), "utf8"));
+    const phase0ACommit = "1".repeat(40);
+    const phase0ATree = "2".repeat(40);
+    const writeSet = [activationPaths.T03, activationPaths.T04];
+    const receipts = {};
+    for (const ticket of ["T03", "T04"]) {
+      const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
+      const receipt = {
       schemaVersion: 1,
       receiptId: `OBX-P180-${ticket}-ACTIVATION-001`,
       receiptKind: `solo-${ticket.toLowerCase()}-activation-receipt-v1`,
@@ -275,14 +426,14 @@ function withSyntheticActivationReceipts(mutate, callback) {
       activationWriteSet: writeSet,
       observedAt: "2026-09-01T02:05:00.000Z",
     };
-    receipts[ticket] = receipt;
-  }
-  mutate?.(receipts);
-  for (const ticket of ["T03", "T04"]) {
-    setSelfHash(receipts[ticket]);
-    writeFileSync(resolve(fixtureRoot, activationPaths[ticket]), `${JSON.stringify(receipts[ticket], null, 2)}\n`);
-  }
-  const gitState = {
+      receipts[ticket] = receipt;
+    }
+    mutate?.(receipts);
+    for (const ticket of ["T03", "T04"]) {
+      setSelfHash(receipts[ticket]);
+      writeFileSync(resolve(fixtureRoot, activationPaths[ticket]), `${JSON.stringify(receipts[ticket], null, 2)}\n`);
+    }
+    const gitState = {
     phase0ACommit, phase0ATree,
     phase0BCommit: "3".repeat(40), phase0BTree: "4".repeat(40),
     currentCommit: "3".repeat(40), currentTree: "4".repeat(40), changedPaths: writeSet,
@@ -298,9 +449,10 @@ function withSyntheticActivationReceipts(mutate, callback) {
         changedPaths: writeSet,
       },
     },
-  };
-  try { callback({ registry, gitState, receipts }); }
-  finally { for (const path of Object.values(activationPaths)) rmSync(resolve(fixtureRoot, path), { force: true }); }
+    };
+    try { return callback({ registry, gitState, receipts }); }
+    finally { for (const path of Object.values(activationPaths)) rmSync(resolve(fixtureRoot, path), { force: true }); }
+  });
 }
 
 const completionPaths = {
@@ -1017,6 +1169,545 @@ test("aggregate validation checks T02 completion once while focused siblings ret
   }, (result) => {
     assert.match(result.stderr, /T02 completion checkpoint\.identity: exact value drift/);
   }, ["--verify-solo-t03-record-only"]);
+});
+
+test("the exact finding-bound Phase 1 correction pair validates before activation", () => {
+  const result = verifyCorrectionRecords();
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.state, "PRE_ACTIVATION");
+});
+
+test("Phase 1 correction authority rejects implementation path or effect expansion", () => {
+  withCorrectionRecordMutation("T03", (record) => {
+    record.allowedPaths.push("scripts/eval/obx-p180-contract-fixtures.mjs");
+  }, (result) => assert.match(result.failures.join("\n"), /allowedPaths: exact value drift/));
+  withCorrectionRecordMutation("T04", (record) => {
+    record.allowedEffects.push("provider-call");
+  }, (result) => assert.match(result.failures.join("\n"), /allowedEffects: exact value drift/));
+});
+
+test("Phase 1 correction authority remains one-use and nonrenewable", () => {
+  withCorrectionRecordMutation("T03", (record) => {
+    record.useLimit = 2;
+    record.renewable = true;
+  }, (result) => assert.match(result.failures.join("\n"), /identity: exact value drift/));
+  withCorrectionRecordMutation("T04", (record) => {
+    record.expiresAt = "2026-09-16T09:20:00.000Z";
+    record.exactDurationMilliseconds = 1_296_000_000;
+  }, (result) => assert.match(result.failures.join("\n"), /bounded non-extending interval required/));
+});
+
+test("Phase 1 correction authority rejects original-consumption or audit-finding drift", () => {
+  withCorrectionRecordMutation("T03", (record) => {
+    record.originalAuthorizationBinding.derivedState = "ACTIVE";
+  }, (result) => assert.match(result.failures.join("\n"), /original authorization: exact value drift/));
+  withCorrectionRecordMutation("T04", (record) => {
+    record.auditTrigger.partiallyAcceptedFindingIds.push("F4");
+  }, (result) => assert.match(result.failures.join("\n"), /partially accepted findings: exact value drift/));
+});
+
+test("Phase 1 correction authority rejects sibling overlap and T05 inheritance", () => {
+  withCorrectionRecordMutation("T04", (record) => {
+    record.allowedPaths[0] = "src/lib/operatingEnvironment/receipts.ts";
+  }, (result) => assert.match(result.failures.join("\n"), /allowedPaths: exact value drift|lane paths must be disjoint/));
+  withCorrectionRecordMutation("T03", (record) => {
+    record.predecessorBinding.grantsInheritedAuthority = true;
+  }, (result) => assert.match(result.failures.join("\n"), /predecessor: exact value drift/));
+});
+
+test("the correction registry references cannot redirect or repin the records", () => {
+  const path = resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json");
+  const original = readFileSync(path, "utf8");
+  try {
+    const registry = JSON.parse(original);
+    const reference = registry.authorizations.find((row) => row.id === "OBX-AUTH-P180-T03-AUDIT-CORRECTION-001");
+    reference.path = correctionRecordPaths.T04;
+    writeFileSync(path, `${JSON.stringify(registry, null, 2)}\n`);
+    const result = verifyCorrectionRecords();
+    assert.match(result.failures.join("\n"), /registry reference: exact value drift/);
+  } finally {
+    writeFileSync(path, original);
+  }
+});
+
+test("correction lifecycle modes reject stale-phase receipt presence and unknown modes", () => {
+  const activation = [
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-activation-receipt.json",
+  ];
+  const completion = [
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-completion-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-completion-receipt.json",
+  ];
+  const options = { repoRoot: fixtureRoot, verifySecurity: false, verifyRepositoryState: false, verifyOriginalConsumed: false };
+  const unknown = verifyPhase1CorrectionAuthorizations({ ...options, mode: "unknown" });
+  assert.match(unknown.failures.join("\n"), /unsupported correction verification mode/);
+  const expiredUnconsumed = verifyPhase1CorrectionAuthorizations({ ...options, mode: "lifecycle", evaluationTime: Date.parse("2026-09-03T00:00:00.000Z") });
+  assert.match(expiredUnconsumed.failures.join("\n"), /authorization expired/);
+  try {
+    for (const path of completion) writeFileSync(resolve(fixtureRoot, path), "{}\n");
+    const orphanedCompletion = verifyPhase1CorrectionAuthorizations({ ...options, mode: "lifecycle", evaluationTime: Date.parse("2026-09-01T10:00:00.000Z") });
+    assert.deepEqual(orphanedCompletion.failures, ["correction completion receipts require exact activation pair"]);
+    assert.equal(orphanedCompletion.state, "INVALID");
+    for (const path of completion) rmSync(resolve(fixtureRoot, path), { force: true });
+    for (const path of activation) writeFileSync(resolve(fixtureRoot, path), "{}\n");
+    const record = verifyPhase1CorrectionAuthorizations({ ...options, mode: "record" });
+    assert.match(record.failures.join("\n"), /requires all correction lifecycle receipts absent/);
+    for (const path of completion) writeFileSync(resolve(fixtureRoot, path), "{}\n");
+    const consumed = verifyPhase1CorrectionAuthorizations({ ...options, mode: "activation" });
+    assert.match(consumed.failures.join("\n"), /AUTHORIZATION_ALREADY_CONSUMED/);
+    assert.equal(consumed.state, "INVALID");
+    const historical = verifyPhase1CorrectionAuthorizations({ ...options, mode: "lifecycle", evaluationTime: Date.parse("2026-09-03T00:00:00.000Z") });
+    assert.doesNotMatch(historical.failures.join("\n"), /authorization expired/);
+  } finally {
+    for (const path of [...activation, ...completion]) rmSync(resolve(fixtureRoot, path), { force: true });
+  }
+});
+
+test("aggregate original-authority routing uses frozen history only for a valid live correction lifecycle", () => {
+  assert.equal(originalVerificationCommitForCorrectionState({ failures: [], state: "PRE_ACTIVATION" }), null);
+  assert.equal(originalVerificationCommitForCorrectionState({ failures: [], state: "ACTIVE" }), PHASE1_CORRECTION_BASE_COMMIT);
+  assert.equal(originalVerificationCommitForCorrectionState({ failures: [], state: "CONSUMED" }), PHASE1_CORRECTION_BASE_COMMIT);
+  assert.equal(originalVerificationCommitForCorrectionState({ failures: ["drift"], state: "ACTIVE" }), null);
+  assert.equal(originalVerificationCommitForCorrectionState({ failures: [], state: "INVALID" }), null);
+});
+
+test("aggregate routing inputs pin original history after an exact T03 correction and reject repository drift", () => {
+  const temporaryRoot = mkdtempSync(join(tmpdir(), "one-box-correction-active-"));
+  const repo = resolve(temporaryRoot, "repo");
+  try {
+    const clone = spawnSync("git", ["clone", "-q", "--shared", sourceRoot, repo], { encoding: "utf8" });
+    assert.equal(clone.status, 0, clone.stderr);
+    gitCommand(repo, ["checkout", "-q", "-B", "feat/obx-p180-t03-t05-offline-wave-recovery", PHASE1_CORRECTION_BASE_COMMIT]);
+    symlinkSync(resolve(sourceRoot, "node_modules"), resolve(repo, "node_modules"), "dir");
+    for (const path of correctionGovernancePaths) copyCandidateFile(repo, path);
+    gitCommand(repo, ["add", "--", ...correctionGovernancePaths]);
+    const commitEnvironment = {
+      ...process.env,
+      GIT_AUTHOR_DATE: "2026-09-01T09:25:00Z",
+      GIT_COMMITTER_DATE: "2026-09-01T09:25:00Z",
+    };
+    gitCommand(repo, ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "test correction governance"], { env: commitEnvironment });
+    const governanceCommit = gitCommand(repo, ["rev-parse", "HEAD"]);
+    const governanceTree = gitCommand(repo, ["rev-parse", "HEAD^{tree}"]);
+
+    const correctionActivationPaths = [
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-activation-receipt.json",
+    ];
+    for (const [laneId, path] of [["T03", correctionActivationPaths[0]], ["T04", correctionActivationPaths[1]]]) {
+      const target = resolve(repo, path);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, `${JSON.stringify(correctionActivationReceipt({ laneId, governanceCommit, governanceTree }), null, 2)}\n`);
+    }
+    gitCommand(repo, ["add", "--", ...correctionActivationPaths]);
+    gitCommand(repo, ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "test correction activation"], { env: commitEnvironment });
+    const activeRegistry = JSON.parse(readFileSync(resolve(repo, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+    gitCommand(repo, ["checkout", "-q", "-b", "wrong-correction-branch"]);
+    const wrongBranch = verifyPhase1CorrectionAuthorizations({
+      repoRoot: repo,
+      registry: activeRegistry,
+      mode: "lifecycle",
+      evaluationTime: Date.parse("2026-09-01T10:00:00.000Z"),
+      requireProtectedBaseline: false,
+    });
+    assert.match(wrongBranch.failures.join("\n"), /correction repository branch binding/);
+    gitCommand(repo, ["checkout", "-q", "--detach"]);
+    const detached = verifyPhase1CorrectionAuthorizations({
+      repoRoot: repo,
+      registry: activeRegistry,
+      mode: "lifecycle",
+      evaluationTime: Date.parse("2026-09-01T10:00:00.000Z"),
+      requireProtectedBaseline: false,
+    });
+    assert.match(detached.failures.join("\n"), /correction bound branch.*failed|correction repository branch binding/);
+    gitCommand(repo, ["checkout", "-q", "feat/obx-p180-t03-t05-offline-wave-recovery"]);
+    for (const [name, paths] of [
+      ["partial-t03", ["src/lib/operatingEnvironment/receipts.ts"]],
+      ["t04-first", [
+        "src/lib/operatingEnvironment/budget.test.ts",
+        "src/lib/operatingEnvironment/capacity.test.ts",
+        "src/lib/operatingEnvironment/compare.test.ts",
+        "src/lib/operatingEnvironment/fixtures/budget-capacity-v1.json",
+      ]],
+    ]) {
+      const negativeRepo = resolve(temporaryRoot, name);
+      const negativeClone = spawnSync("git", ["clone", "-q", "--shared", repo, negativeRepo], { encoding: "utf8" });
+      assert.equal(negativeClone.status, 0, negativeClone.stderr);
+      symlinkSync(resolve(sourceRoot, "node_modules"), resolve(negativeRepo, "node_modules"), "dir");
+      for (const path of paths) writeFileSync(resolve(negativeRepo, path), `${readFileSync(resolve(negativeRepo, path), "utf8")}\n${path.endsWith(".json") ? "" : "// invalid topology fixture"}\n`);
+      gitCommand(negativeRepo, ["add", "--", ...paths]);
+      gitCommand(negativeRepo, ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", `test ${name}`], { env: commitEnvironment });
+      const negativeRegistry = JSON.parse(readFileSync(resolve(negativeRepo, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+      const negative = verifyPhase1CorrectionAuthorizations({
+        repoRoot: negativeRepo,
+        registry: negativeRegistry,
+        mode: "lifecycle",
+        evaluationTime: Date.parse("2026-09-01T10:00:00.000Z"),
+        requireProtectedBaseline: false,
+      });
+      assert.match(negative.failures.join("\n"), /active correction exact T03 commit: exact value drift/);
+    }
+
+    const allowedPaths = ["src/lib/operatingEnvironment/receipts.ts", "src/lib/operatingEnvironment/receipts.test.ts"];
+    for (const allowedPath of allowedPaths) writeFileSync(resolve(repo, allowedPath), `${readFileSync(resolve(repo, allowedPath), "utf8")}\n// authorized correction fixture\n`);
+    const dirtyActivation = verifyPhase1CorrectionAuthorizations({
+      repoRoot: repo,
+      registry: activeRegistry,
+      mode: "activation",
+      evaluationTime: Date.parse("2026-09-01T10:00:00.000Z"),
+      requireProtectedBaseline: false,
+    });
+    assert.match(dirtyActivation.failures.join("\n"), /correction clean tracked state/);
+    const dirtyLifecycle = verifyPhase1CorrectionAuthorizations({
+      repoRoot: repo,
+      registry: activeRegistry,
+      mode: "lifecycle",
+      evaluationTime: Date.parse("2026-09-01T10:00:00.000Z"),
+      requireProtectedBaseline: false,
+    });
+    assert.deepEqual(dirtyLifecycle.failures, []);
+    assert.equal(dirtyLifecycle.state, "ACTIVE");
+    gitCommand(repo, ["add", "--", ...allowedPaths]);
+    const stagedLifecycle = verifyPhase1CorrectionAuthorizations({
+      repoRoot: repo,
+      registry: activeRegistry,
+      mode: "lifecycle",
+      evaluationTime: Date.parse("2026-09-01T10:00:00.000Z"),
+      requireProtectedBaseline: false,
+    });
+    assert.match(stagedLifecycle.failures.join("\n"), /correction controller-only unstaged index/);
+    gitCommand(repo, ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "test allowed correction"], { env: commitEnvironment });
+    const unpinnedOriginal = verifyP180SiblingAuthorization({
+      repoRoot: repo,
+      registry: activeRegistry,
+      ticket: "T03",
+      mode: "lifecycle",
+      verifyPredecessorCompletion: false,
+    });
+    assert.match(unpinnedOriginal.failures.join("\n"), /T03 current completed artifact drift .*receipts\.ts/);
+    const verifyActive = () => verifyPhase1CorrectionAuthorizations({
+      repoRoot: repo,
+      registry: activeRegistry,
+      mode: "lifecycle",
+      evaluationTime: Date.parse("2026-09-01T10:00:00.000Z"),
+      requireProtectedBaseline: false,
+    });
+    const valid = verifyActive();
+    assert.deepEqual(valid.failures, []);
+    assert.equal(valid.state, "ACTIVE");
+    const historicalCommit = originalVerificationCommitForCorrectionState(valid);
+    assert.equal(historicalCommit, PHASE1_CORRECTION_BASE_COMMIT);
+    const pinnedOriginal = verifyP180SiblingAuthorization({
+      repoRoot: repo,
+      registry: activeRegistry,
+      ticket: "T03",
+      mode: "lifecycle",
+      verifyPredecessorCompletion: false,
+      gitState: { currentCommit: historicalCommit },
+    });
+    assert.deepEqual(pinnedOriginal.failures, []);
+
+    const untrackedPath = resolve(repo, "unexpected-active-untracked.txt");
+    writeFileSync(untrackedPath, "unexpected\n");
+    const untracked = verifyActive();
+    assert.match(untracked.failures.join("\n"), /correction protected untracked baseline/);
+    rmSync(untrackedPath);
+
+    const readmePath = resolve(repo, "README.md");
+    const readme = readFileSync(readmePath, "utf8");
+    writeFileSync(readmePath, `${readme}\nunauthorized dirty edit\n`);
+    const dirty = verifyActive();
+    assert.match(dirty.failures.join("\n"), /active correction dirty path outside current phase scope README\.md/);
+    writeFileSync(readmePath, readme);
+
+    gitCommand(repo, ["update-index", "--skip-worktree", "README.md"]);
+    writeFileSync(readmePath, `${readme}\nhidden unauthorized dirty edit\n`);
+    const hiddenDirty = verifyActive();
+    assert.match(hiddenDirty.failures.join("\n"), /masked or nonordinary index entries forbidden/);
+    gitCommand(repo, ["update-index", "--no-skip-worktree", "README.md"]);
+    writeFileSync(readmePath, readme);
+
+    const unauthorizedPath = "unrelated-phase1-drift.txt";
+    writeFileSync(resolve(repo, unauthorizedPath), "unauthorized\n");
+    gitCommand(repo, ["add", "--", unauthorizedPath]);
+    const staged = verifyActive();
+    assert.match(staged.failures.join("\n"), /active correction dirty path outside current phase scope unrelated-phase1-drift\.txt/);
+    gitCommand(repo, ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "test unauthorized drift"], { env: commitEnvironment });
+    const committedDrift = verifyActive();
+    assert.match(committedDrift.failures.join("\n"), /active correction topology requires only exact linear T03 then T04 commits|active correction path outside exact lane scope unrelated-phase1-drift\.txt/);
+
+    const evidencePath = "src/lib/operatingEnvironment/receipts.test.ts";
+    writeFileSync(resolve(repo, evidencePath), `${readFileSync(resolve(repo, evidencePath), "utf8")}\nvoid process['env'].OBX_TEST_SECRET;\n`);
+    gitCommand(repo, ["add", "--", evidencePath]);
+    gitCommand(repo, ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "test forbidden evidence drift"], { env: commitEnvironment });
+    const maliciousTarget = gitCommand(repo, ["rev-parse", "HEAD"]);
+    const forbiddenEvidence = spawnSync(process.execPath, [
+      "scripts/verify-p180-phase1-correction-authorization.mjs",
+      "--evidence-check", "forbidden-effects",
+      "--lane", "T03",
+      "--target", maliciousTarget,
+    ], { cwd: repo, encoding: "utf8" });
+    assert.notEqual(forbiddenEvidence.status, 0);
+    assert.match(forbiddenEvidence.stderr, /forbidden-effects changed evidence drift .*receipts\.test\.ts: environment access/);
+  } finally {
+    rmSync(temporaryRoot, { recursive: true, force: true });
+  }
+});
+
+test("forbidden runtime-effect scanner catches dynamic imports and bracketed environment access", () => {
+  assert.deepEqual(forbiddenRuntimeEffectFindings("const fs = await import('fs');"), ["dynamic forbidden runtime import"]);
+  assert.deepEqual(forbiddenRuntimeEffectFindings("const token = process['env'].TOKEN;"), ["environment access"]);
+  assert.deepEqual(forbiddenRuntimeEffectFindings("const socket = globalThis['WebSocket']('wss://invalid.example');"), ["indirect global network call"]);
+  assert.deepEqual(forbiddenRuntimeEffectFindings("export function reduce(input) { return { ...input, status: 'denied' }; }"), []);
+  assert.match(forbiddenEvidenceDiffFindings("@@ -0,0 +1 @@\n+const secret = process['env'].TOKEN;\n").join("\n"), /environment access/);
+  assert.match(forbiddenEvidenceDiffFindings("@@ -0,0 +1 @@\n+readFileSync('/tmp/secret');\n").join("\n"), /filesystem shell.*transport/);
+  assert.match(forbiddenEvidenceDiffFindings("@@ -1 +0,0 @@\n-expect(source).not.toMatch(/fetch/);\n").join("\n"), /removed baseline security evidence/);
+  assert.match(forbiddenEvidenceDiffFindings("@@ -1 +1,2 @@\n-const source = readFileSync(new URL('./capacity.ts', import.meta.url), 'utf8');\n+const source = '';\n+const r = readFileSync; r('/tmp/secret');\n").join("\n"), /filesystem shell.*transport|removed baseline security evidence/);
+  for (const source of [
+    `globalThis["process"]["env"]`,
+    `import("node:" + "fs")`,
+    `import { generateJson } from "../openrouter"; generateJson({})`,
+    `export { generateJson } from "../openrouter"`,
+    `const request = globalThis["fetch"]; request("https://invalid.example")`,
+    `const name = \`child_process\`; import(name)`,
+  ]) assert.notDeepEqual(capabilityFingerprints(source), [], source);
+  for (const source of [
+    `export function reduce(){ localStorage.setItem("k","v"); return Date.now()+Math.random(); }`,
+    `export function reduce(){ queueMicrotask(()=>{}); new Worker("/worker.js"); document.body.textContent="x"; }`,
+    `navigator.sendBeacon("https://x.test","data")`,
+    `new EventSource("https://x.test")`,
+    `const i=new Image(); i.src="https://x.test"`,
+    `new WebTransport("https://x.test")`,
+    `location.assign("https://x.test")`,
+    `location.href="https://x.test"`,
+    `history.pushState({},"","/mutated")`,
+    `Notification.requestPermission()`,
+    `postMessage({ status: "done" }, "*")`,
+    `parent.postMessage({ status: "done" }, "*")`,
+    `top["postMessage"]({ status: "done" }, "*")`,
+    `self.postMessage({ status: "done" }, "*")`,
+    `new OffscreenCanvas(1, 1)`,
+    `new Canvas(1, 1)`,
+    `showOpenFilePicker()`,
+    `showSaveFilePicker()`,
+    `showDirectoryPicker()`,
+    `const handle: FileSystemFileHandle = input`,
+    `scheduler.postTask(() => {})`,
+    `Temporal.Now.instant()`,
+  ]) {
+    assert.notDeepEqual(forbiddenRuntimeEffectFindings(source), [], source);
+    assert.notDeepEqual(capabilityFingerprints(source), [], source);
+    assert.match(newEvidenceCapabilityFindings("fixture.ts", "", source).join("\n"), /new capability syntax/, source);
+  }
+  assert.match(newEvidenceCapabilityFindings("fixture.test.ts", "", `globalThis["process"]["env"]`).join("\n"), /new capability syntax/);
+  const safeDateBaseline = "return Date.parse(input);";
+  for (const target of [
+    "return new Date(...[]).toISOString();",
+    "return Date.call(null);",
+    "return Date.bind(null)();",
+  ]) {
+    assert.notDeepEqual(forbiddenRuntimeEffectFindings(target), [], target);
+    assert.notDeepEqual(newEvidenceCapabilityFindings("fixture.ts", safeDateBaseline, target), [], target);
+    assert.notDeepEqual(forbiddenEvidenceDiffFindings(`@@ -1 +1 @@\n-${safeDateBaseline}\n+${target}\n`), [], target);
+  }
+  assert.deepEqual(capabilityFingerprints("return Date.parse(input);"), ["date-member:parse"]);
+  assert.deepEqual(capabilityFingerprints("return new Date(epoch).toISOString();"), ["date-new:explicit-single-value"]);
+});
+
+test("authorized correction implementation paths must remain regular 100644 committed blobs", () => {
+  const repo = mkdtempSync(join(tmpdir(), "one-box-correction-path-safety-"));
+  try {
+    assert.equal(spawnSync("git", ["init", "-q"], { cwd: repo }).status, 0);
+    const target = resolve(repo, "authorized.ts");
+    writeFileSync(target, "export const value = 1;\n");
+    assert.equal(spawnSync("git", ["add", "authorized.ts"], { cwd: repo }).status, 0);
+    assert.equal(spawnSync("git", ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "regular blob"], { cwd: repo }).status, 0);
+    const regularCommit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+    assert.deepEqual(regularImplementationPathFailures({ repoRoot: repo, commit: regularCommit, paths: ["authorized.ts"] }), []);
+    rmSync(target);
+    symlinkSync("outside.ts", target);
+    assert.match(regularImplementationPathFailures({ repoRoot: repo, commit: regularCommit, paths: ["authorized.ts"] }).join("\n"), /unsafe authorized\.ts/);
+    assert.equal(spawnSync("git", ["add", "authorized.ts"], { cwd: repo }).status, 0);
+    assert.equal(spawnSync("git", ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "symlink drift"], { cwd: repo }).status, 0);
+    const symlinkCommit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+    assert.match(regularImplementationPathFailures({ repoRoot: repo, commit: symlinkCommit, paths: ["authorized.ts"] }).join("\n"), /regular 100644 blob required/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("correction Git integrity rejects redirecting environments and replacement objects", () => {
+  const repo = mkdtempSync(join(tmpdir(), "one-box-correction-git-integrity-"));
+  try {
+    assert.equal(spawnSync("git", ["init", "-q"], { cwd: repo }).status, 0);
+    const target = resolve(repo, "bound.txt");
+    writeFileSync(target, "original\n");
+    assert.equal(spawnSync("git", ["add", "bound.txt"], { cwd: repo }).status, 0);
+    assert.equal(spawnSync("git", ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "original"], { cwd: repo }).status, 0);
+    const original = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+    writeFileSync(target, "replacement\n");
+    assert.equal(spawnSync("git", ["add", "bound.txt"], { cwd: repo }).status, 0);
+    assert.equal(spawnSync("git", ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "replacement"], { cwd: repo }).status, 0);
+    const replacement = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+    assert.deepEqual(gitRepositoryIntegrityFailures({ repoRoot: repo, env: {} }), []);
+    assert.equal(spawnSync("git", ["replace", original, replacement], { cwd: repo }).status, 0);
+    assert.equal(spawnSync("git", ["show", `${original}:bound.txt`], { cwd: repo, encoding: "utf8" }).stdout, "replacement\n");
+    assert.equal(spawnSync("git", ["--no-replace-objects", "show", `${original}:bound.txt`], { cwd: repo, encoding: "utf8" }).stdout, "original\n");
+    assert.match(gitRepositoryIntegrityFailures({ repoRoot: repo, env: {} }).join("\n"), /replace refs must be empty/);
+    assert.match(gitEnvironmentRedirectFailures({ GIT_WORK_TREE: "/tmp/redirected" }).join("\n"), /GIT_WORK_TREE/);
+    assert.match(gitEnvironmentRedirectFailures({ GIT_DIR: "/tmp/redirected", GIT_INDEX_FILE: "/tmp/index" }).join("\n"), /GIT_DIR,GIT_INDEX_FILE/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("correction chronology rejects invalid calendar timestamps", () => {
+  assert.equal(correctionTimestampEpoch("2026-09-01T10:00:00.000Z"), Date.parse("2026-09-01T10:00:00.000Z"));
+  assert.equal(correctionTimestampEpoch("2026-08-32T10:00:00.000Z"), null);
+  assert.equal(correctionTimestampEpoch("2026-09-01T10:00:00Z"), null);
+});
+
+test("completion chronology requires a durable pre-expiry commit and in-window first acceptance", () => {
+  const completedAt = "2026-09-02T09:19:00.000Z";
+  const expiresAt = "2026-09-02T09:20:00.000Z";
+  const commitEpoch = Date.parse("2026-09-02T09:19:30.000Z");
+  assert.deepEqual(correctionCompletionChronologyFailures({ mode: "completion", evaluationTime: commitEpoch, commitEpoch, completedAt, expiresAt }), []);
+  assert.match(correctionCompletionChronologyFailures({ mode: "completion", evaluationTime: Date.parse(expiresAt), commitEpoch, completedAt, expiresAt }).join("\n"), /expired before completion acceptance/);
+  assert.deepEqual(correctionCompletionChronologyFailures({ mode: "lifecycle", evaluationTime: Date.parse("2026-09-03T00:00:00.000Z"), commitEpoch, completedAt, expiresAt }), []);
+  assert.match(correctionCompletionChronologyFailures({ mode: "lifecycle", evaluationTime: commitEpoch, commitEpoch: Date.parse(expiresAt), completedAt, expiresAt }).join("\n"), /predate expiry/);
+});
+
+test("both lease releases must precede the ordered implementation commits", () => {
+  const releasedAt = ["2026-09-01T11:00:00.000Z", "2026-09-01T11:00:01.000Z"];
+  const t03CommitEpoch = Date.parse("2026-09-01T11:00:02.000Z");
+  const t04CommitEpoch = Date.parse("2026-09-01T11:00:03.000Z");
+  const completionCommitEpoch = Date.parse("2026-09-01T11:00:04.000Z");
+  assert.deepEqual(correctionCommitOrderingFailures({ releasedAt, t03CommitEpoch, t04CommitEpoch, completionCommitEpoch }), []);
+  assert.match(correctionCommitOrderingFailures({
+    releasedAt: [releasedAt[0], "2026-09-01T11:00:03.000Z"],
+    t03CommitEpoch,
+    t04CommitEpoch,
+    completionCommitEpoch,
+  }).join("\n"), /both leases must release before ordered T03\/T04 commits/);
+});
+
+test("proof commands cannot predate their execution commit", () => {
+  const base = Date.parse("2026-09-01T11:00:00.000Z");
+  const valid = {
+    laneNotBefore: base,
+    releaseFloor: base + 1_000,
+    executionCommitEpoch: base + 2_000,
+    startedAt: base + 3_000,
+    finishedAt: base + 4_000,
+    completedAt: base + 5_000,
+    laneExpiresAt: base + 6_000,
+  };
+  assert.deepEqual(correctionProofEpochFailures(valid), []);
+  assert.match(correctionProofEpochFailures({ ...valid, startedAt: base + 1_500 }).join("\n"), /after lease release and execution commit/);
+});
+
+test("correction completion requires all five exact post-implementation review bindings", () => {
+  const idsAndPaths = [
+    ["OBX-P180-T03-AUDIT-CORRECTION-GLM-R2", "review-receipts/phase1-correction-t03-glm-r2.json"],
+    ["OBX-P180-T04-AUDIT-CORRECTION-GLM-R2", "review-receipts/phase1-correction-t04-glm-r2.json"],
+    ["OBX-P180-PHASE1-AUDIT-CORRECTION-OPUS-R1", "review-receipts/phase1-correction-opus-r1.json"],
+    ["OBX-P180-PHASE1-AUDIT-CORRECTION-SECURITY-FINAL", "review-receipts/phase1-correction-security-final.json"],
+    ["OBX-P180-PHASE1-AUDIT-CORRECTION-FACT-FINAL", "review-receipts/phase1-correction-fact-final.json"],
+  ];
+  const binding = idsAndPaths.map(([reviewId, path]) => ({
+    reviewId,
+    path,
+    algorithm: "sha256",
+    digest: "a".repeat(64),
+    selfHash: "b".repeat(64),
+  }));
+  assert.deepEqual(correctionReviewBindingShapeFailures(binding), []);
+  assert.match(correctionReviewBindingShapeFailures(binding.slice(0, 4)).join("\n"), /review binding ids|review binding\[4\]/);
+  assert.match(correctionReviewBindingShapeFailures([...binding].reverse()).join("\n"), /review binding ids/);
+});
+
+test("correction hash envelopes require exact algorithm, canonicalization, exclusion, and keys", () => {
+  const exact = { value: 1 };
+  setSelfHash(exact);
+  assert.deepEqual(correctionHashEnvelopeFailures(exact, "selfHash", exact.selfHash.digest), []);
+  const forged = structuredClone(exact);
+  forged.selfHash.algorithm = "sha512";
+  const unhashed = structuredClone(forged);
+  delete unhashed.selfHash.digest;
+  forged.selfHash.digest = sha256(canonicalJson(unhashed));
+  assert.match(correctionHashEnvelopeFailures(forged, "selfHash", forged.selfHash.digest).join("\n"), /selfHash envelope: exact value drift/);
+  forged.selfHash.extra = true;
+  assert.match(correctionHashEnvelopeFailures(forged, "selfHash", forged.selfHash.digest).join("\n"), /envelope keys/);
+});
+
+test("bound audit dispositions cannot downgrade the advisory finding severity", () => {
+  const audit = { findings: [{ id: "F3", severity: "high" }] };
+  assert.deepEqual(verifyAuditFindingDispositions(audit, [{ id: "F3", severity: "high" }]), []);
+  assert.match(verifyAuditFindingDispositions(audit, [{ id: "F3", severity: "medium" }]).join("\n"), /severity F3: exact value drift/);
+});
+
+test("combined implementation digest binds both lanes, paths, and file digests", () => {
+  const receipts = {
+    T03: { implementation: { files: [{ path: "receipts.ts", digest: "a".repeat(64) }] } },
+    T04: { implementation: { files: [{ path: "capacity.test.ts", digest: "b".repeat(64) }] } },
+  };
+  const digest = combinedImplementationFilesDigest(receipts);
+  const mutated = structuredClone(receipts);
+  mutated.T04.implementation.files[0].digest = "c".repeat(64);
+  assert.notEqual(combinedImplementationFilesDigest(mutated), digest);
+  mutated.T04.implementation.files[0].digest = "b".repeat(64);
+  mutated.T04.implementation.files[0].path = "other.test.ts";
+  assert.notEqual(combinedImplementationFilesDigest(mutated), digest);
+});
+
+test("cycle-breaking security projections exclude only their declared binding field", () => {
+  const manifest = { packetDigest: "a".repeat(64), authority: { implementationAuthorized: false } };
+  const manifestDigest = correctionSecurityProjectionDigest("authority-manifest", manifest);
+  assert.equal(correctionSecurityProjectionDigest("authority-manifest", { ...manifest, packetDigest: "b".repeat(64) }), manifestDigest);
+  assert.notEqual(correctionSecurityProjectionDigest("authority-manifest", { ...manifest, authority: { implementationAuthorized: true } }), manifestDigest);
+
+  const repin = { currentAuthorityManifest: { sha256: "a".repeat(64) }, invariants: { authorityExpansion: false } };
+  const repinDigest = correctionSecurityProjectionDigest("source-adoption-repin", repin);
+  assert.equal(correctionSecurityProjectionDigest("source-adoption-repin", { ...repin, currentAuthorityManifest: { sha256: "b".repeat(64) } }), repinDigest);
+  assert.notEqual(correctionSecurityProjectionDigest("source-adoption-repin", { ...repin, invariants: { authorityExpansion: true } }), repinDigest);
+});
+
+test("correction proof metadata pins exact commands and unique evidence paths", () => {
+  const commandSpec = "npx vitest run src/lib/operatingEnvironment/receipts.test.ts";
+  const receipts = {
+    T03: { integratedTarget: { commit: "b".repeat(40) }, implementation: { parentCommit: "a".repeat(40) } },
+    T04: { integratedTarget: { commit: "b".repeat(40) }, implementation: { parentCommit: "c".repeat(40) } },
+  };
+  const row = {
+    sequence: 1,
+    laneId: "T03",
+    commandId: "t03-correction-focused",
+    commandSpec,
+    commandSpecSha256: sha256(commandSpec),
+    outputPath: "proof/phase1-correction-01-t03-t03-correction-focused.log",
+    envelopePath: "proof/phase1-correction-01-t03-t03-correction-focused.json",
+  };
+  assert.deepEqual(verifyCorrectionProofMetadata(row, receipts), []);
+  assert.match(verifyCorrectionProofMetadata({ ...row, commandSpec: "npm test" }, receipts).join("\n"), /exact command|command spec hash drift/);
+  assert.match(verifyCorrectionProofMetadata({ ...row, outputPath: "proof/unrelated.log" }, receipts).join("\n"), /exact evidence paths/);
+});
+
+test("correction receipt validation rejects working-tree bytes absent from the bound commit", () => {
+  const repo = mkdtempSync(join(tmpdir(), "one-box-correction-receipt-"));
+  try {
+    const receiptPath = resolve(repo, "receipt.json");
+    assert.equal(spawnSync("git", ["init", "-q"], { cwd: repo }).status, 0);
+    writeFileSync(receiptPath, "{\"status\":\"ACTIVE\"}\n");
+    assert.equal(spawnSync("git", ["add", "receipt.json"], { cwd: repo }).status, 0);
+    assert.equal(spawnSync("git", ["-c", "user.name=Verifier", "-c", "user.email=verifier@example.invalid", "commit", "-qm", "test receipt"], { cwd: repo }).status, 0);
+    const commit = spawnSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).stdout.trim();
+    assert.deepEqual(verifyCommittedCorrectionReceiptBytes({ repoRoot: repo, commit, paths: ["receipt.json"] }), []);
+    writeFileSync(receiptPath, "{\"status\":\"FORGED\"}\n");
+    assert.match(verifyCommittedCorrectionReceiptBytes({ repoRoot: repo, commit, paths: ["receipt.json"] }).join("\n"), /committed receipt byte drift|clean tracked receipt state/);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
 
 test("the solo T02 security receipt rejects target-hash and review drift", () => {
