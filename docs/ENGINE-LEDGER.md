@@ -296,6 +296,25 @@ not free text — it is an assertion someone has to stand behind.
 
 ---
 
+## REPO — repository and integration state
+
+Opened 2026-09-01 by the repository-state sweep (`main` at `cb26ae9`). Findings
+about branches, PRs, CI, and worktrees rather than the engine. Same status and
+severity vocabulary as above. `main` itself was green on that date: 1275 Vitest
+tests, typecheck, lint with 0 errors, `test:smoke`.
+
+| ID | Sev | Status | Issue | Evidence |
+|---|---|---|---|---|
+| REPO-001 | S2 | OPEN | PR #17 (`codex/onebox-review-evidence-ui`, head `0e806a0`) fails the CI `verify` job: the rendered Page IR step's `test:e2e:intake` times out after 30 s waiting for `getByRole('button', { name: 'Edit prompt and settings' })`. The PR body reports every local gate as passed. | `scripts/e2e/intake-upload.mjs:663`; Actions run 32935846188 |
+| REPO-002 | S3 | OPEN | Six ESLint warnings on `main`: unused `tokens` (`spikes/layout-ir/compile.mjs:467`); unused `useEffect` (`src/components/EvidenceWorkspace.tsx:4`); `<img>` in `src/components/preview/AssistantPanel.tsx:273`; two unused `eslint-disable` directives and unused `asOptionalString` in `src/lib/tools/refero.ts:75,77,250`. | `npm run lint` on `cb26ae9` |
+| REPO-003 | S3 | OPEN | `npm run test:smoke` emits `MODULE_TYPELESS_PACKAGE_JSON`: Node reparses `src/lib/tools/maps.ts` as ESM because the smoke harness loads a TypeScript source through a typeless package. Harmless today; it buries real module warnings. | `scripts/smoke/gates-smoke.mjs` output on `cb26ae9` |
+| REPO-004 | S2 | OPEN | Lineage B (PR #17) and lineage C (`research/la-appointment-field-study`) conflict: a read-only `git merge-tree` reports a content conflict in `package.json`; both also edit `src/lib/contracts.ts`, `src/lib/contracts.test.ts`, `README.md`, and `docs/architecture/README.md`. Neither branch references the other. | `git merge-tree --write-tree origin/codex/onebox-review-evidence-ui research/la-appointment-field-study` exit 1 |
+| REPO-005 | S2 | OPEN | Unpushed work: `research/la-appointment-field-study` is 9 commits ahead of `origin` (OBX-P180 planning closure, T01, T02). `docs/studio-consolidation-plan` (this board and the consolidation plan) existed only on one machine until this sweep. | `git branch -vv`, 2026-09-01 |
+| REPO-006 | S3 | DOCUMENTED | Four local branches are fully landed by the PR #15 squash and hold no unlanded work: `feat/ui-overhaul-linear` (tip `3f5ecda` equals the PR #15 head), `spike/refero-baseline`, `spike/layout-ir`, `fix/pause-status-pulse-when-hidden` (all ancestors of `3f5ecda`). Squash merges hide this from `git branch --merged`; deletion needs `-D`. | `git merge-base --is-ancestor <tip> 3f5ecda` |
+| REPO-007 | S2 | OPEN | `~/projects/one-box-worktrees/obx-p180-t03-t05-offline-wave-recovery` carries uncommitted drafts of the two OBX-P180 verifier scripts whose bytes differ from the pushed checkpoint `1c39259` (file mtimes 13:36 and 13:41 on 2026-09-01; the checkpoint was cut at 15:47). The four JSON records match. An agent that resumes from that worktree starts from superseded code. | SHA-256 of `scripts/verify-plan-authority.node.mjs` and `scripts/verify-p180-phase1-terminal-correction-authorization.mjs` in the worktree vs `git show 1c39259:<path>` |
+| REPO-008 | S3 | DOCUMENTED | The 2026-08-20 board's first item (DEF-1, publish before gates) was already fixed on `main` by OBX-012 (`status: verified`, PR #16) before the board reached `main`. The board was written on a branch two commits behind `main`, so its line references had also moved. | `docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md`; PR #16 |
+| REPO-009 | S1 | TRACKED | The OBX-P180 terminal verifier has five open independent-review findings (AST scanner bypass, resealable immutable history, fail-open expiry, reads after a rejected file type, malformed proof rows that throw) plus `SEC-001` and `SEC-002` from the `-002` security gate. Tracked in the goal state; not duplicated here. | `task-6-final-review.md` in the Codex terminal worktree; `~/.claude/goal-state/obx-p180-t03-t05-offline-wave/summary.md` |
+
 ## PROC — process failures
 
 Recorded because they recur.
@@ -306,6 +325,7 @@ Recorded because they recur.
 | PROC-002 | Announced completion before external review, twice, on work that then failed review on checkable facts. | Treat "it renders and looks right" as the start of verification, not the end. |
 | PROC-003 | Missed an explicit, written requirement in the brief (site structure recommendation) while building elaborate machinery around it. | Re-read the brief against the deliverable before declaring done, not just the parts that felt like the task. |
 | PROC-004 | Deleted a client project that was not in git. Backup was taken first and verified — but the **first archive was silently corrupt** (a macOS `Icon\r` file broke the tar header) and would have been useless. | Verify a backup by listing and counting its contents before destroying the source. |
+| PROC-005 | PR #17's body lists every gate as passed, including an e2e script, while the PR's own CI failed `test:e2e:intake` on the same head. The local claim covered a different e2e script than CI runs, and the CI result was not read before the claim. | The verification block names the exact commands CI runs; the CI status on the PR head is the claim, not a local run. |
 
 ---
 
