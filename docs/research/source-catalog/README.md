@@ -13,6 +13,7 @@ This folder is the durable research index for outside projects, models, datasets
 7. [Complete GitHub starred snapshot](github-starred-2026-08-29.json)
 8. [Embedded-browser source audit](../2026-08-29-embedded-browser-source-audit.md)
 9. [NotebookLM research receipt](notebooklm-receipt-2026-08-29.md)
+10. [OBX-P180 T3 Code, MishMash, and OpenRouter closure receipt](obx-p180-source-adoption-closure-2026-08-31.md)
 
 ## Coverage
 

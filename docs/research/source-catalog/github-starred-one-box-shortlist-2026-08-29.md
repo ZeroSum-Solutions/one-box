@@ -12,7 +12,7 @@ The first pass found 107 relevant repositories. A repository entered this 18-ite
 
 | Source | What to retain | What not to import | Decision |
 |---|---|---|---|
-| [`pingdotgg/t3code@c0e09f3`](https://github.com/pingdotgg/t3code/tree/c0e09f323ac9) | Typed provider SPI, command-to-event projection, idempotent receipts, instance lifecycles | Workspace, file, VCS, or session authority | Adapt contracts; MIT |
+| [`pingdotgg/t3code@41adccc`](https://github.com/pingdotgg/t3code/tree/41adccc83e819c286dcdf32cd8b5f55af8bb0b49) | Typed provider SPI, serialized command/event/projection flow, idempotent duplicate receipts, runtime-event normalization, drainable workers, isolated instance lifecycles | Workspace, file, VCS, terminal, session, credential, route, budget, Page IR, candidate, approval, apply, or release authority; no runtime/dependency import | Adapt contracts only; MIT; [exact closure receipt](obx-p180-source-adoption-closure-2026-08-31.md) |
 | [`ollama/ollama@f96e7aa`](https://github.com/ollama/ollama/tree/f96e7aa0513b) | Existing local service boundary and normalized adapter concepts | Model create, push, delete, or a replacement for the approved oMLX and embedding lanes | Adapt adapter; MIT |
 | [`langchain-ai/deepagents@1c14626`](https://github.com/langchain-ai/deepagents/tree/1c14626d068e) | Ordered capability middleware, path permissions, interruption points, typed state | Python/LangGraph runtime or broad filesystem authority | Learn and adapt contract; MIT |
 | [`loop-js/loop.js@00ea833`](https://github.com/loop-js/loop.js/tree/00ea8335d54f) | Execute, handoff, verify state machine; durable journal; bounded cancellation and verdicts | Auto-edit, bypass permissions, or model verification as a release gate | Adapt pattern; Apache-2.0 |

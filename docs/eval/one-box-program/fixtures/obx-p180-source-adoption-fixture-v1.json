@@ -1,0 +1,234 @@
+{
+  "schemaVersion": "obx-p180-contract-fixtures-v1",
+  "fixtureId": "obx-p180-source-adoption-fixture-v1",
+  "laneId": "source-adoption-conformance",
+  "mode": "provider-offline",
+  "dataClass": "synthetic-internal",
+  "providerCallsPermitted": false,
+  "cases": [
+    {
+      "id": "t3-duplicate-command-replay-noop",
+      "evaluator": "command-replay",
+      "sourceRefs": ["SC-GH-010"],
+      "ticketIds": ["OBX-P180-T03", "OBX-P180-T05"],
+      "input": {"commandReceiptFound": true, "commandHashMatches": true, "eventAlreadyProjected": true, "effectsReexecuted": false, "receiptAuthority": "one-box-control-plane"},
+      "expect": {"accepted": true, "reasonCode": "ACCEPTED_REPLAY_NOOP"}
+    },
+    {
+      "id": "t3-duplicate-command-effect-reexecution-rejected",
+      "evaluator": "command-replay",
+      "sourceRefs": ["SC-GH-010"],
+      "ticketIds": ["OBX-P180-T03"],
+      "input": {"commandReceiptFound": true, "commandHashMatches": true, "eventAlreadyProjected": true, "effectsReexecuted": true, "receiptAuthority": "one-box-control-plane"},
+      "expect": {"accepted": false, "reasonCode": "REPLAY_EFFECT_REEXECUTION"}
+    },
+    {
+      "id": "t3-stale-event-rejected",
+      "evaluator": "event-projection",
+      "sourceRefs": ["SC-GH-010"],
+      "ticketIds": ["OBX-P180-T03"],
+      "input": {"eventSequence": 7, "expectedNextSequence": 8, "sourceRole": "untrusted-provider-event", "projectionAuthority": "one-box-projector", "attemptsPageIrMutation": false, "runtimeReceiptRole": "test-only", "workerDrained": true},
+      "expect": {"accepted": false, "reasonCode": "STALE_EVENT_REJECTED"}
+    },
+    {
+      "id": "mishmash-runtime-event-normalization-admitted",
+      "evaluator": "event-projection",
+      "sourceRefs": ["SC-INT-001"],
+      "ticketIds": ["OBX-P180-T03"],
+      "input": {"eventSequence": 8, "expectedNextSequence": 8, "sourceRole": "untrusted-provider-event", "projectionAuthority": "one-box-projector", "attemptsPageIrMutation": false, "runtimeReceiptRole": "test-only", "workerDrained": true},
+      "expect": {"accepted": true, "reasonCode": "ACCEPTED"}
+    },
+    {
+      "id": "t3-provider-event-page-ir-authority-rejected",
+      "evaluator": "event-projection",
+      "sourceRefs": ["SC-GH-010"],
+      "ticketIds": ["OBX-P180-T03"],
+      "input": {"eventSequence": 8, "expectedNextSequence": 8, "sourceRole": "untrusted-provider-event", "projectionAuthority": "one-box-projector", "attemptsPageIrMutation": true, "runtimeReceiptRole": "test-only", "workerDrained": true},
+      "expect": {"accepted": false, "reasonCode": "EVENT_PAGE_IR_AUTHORITY_FORBIDDEN"}
+    },
+    {
+      "id": "t3-test-receipt-production-use-rejected",
+      "evaluator": "event-projection",
+      "sourceRefs": ["SC-GH-010"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"eventSequence": 8, "expectedNextSequence": 8, "sourceRole": "untrusted-provider-event", "projectionAuthority": "one-box-projector", "attemptsPageIrMutation": false, "runtimeReceiptRole": "production-control", "workerDrained": true},
+      "expect": {"accepted": false, "reasonCode": "TEST_RECEIPT_PRODUCTION_USE_FORBIDDEN"}
+    },
+    {
+      "id": "t3-source-authority-rejected",
+      "evaluator": "source-authority",
+      "sourceRefs": ["SC-GH-010"],
+      "ticketIds": ["OBX-P180-T03"],
+      "input": {"sourceId": "SC-GH-010", "requestedUse": "pattern-adaptation", "grantedAuthority": "workspace", "namedOwnerCurrent": true},
+      "expect": {"accepted": false, "reasonCode": "SOURCE_AUTHORITY_FORBIDDEN"}
+    },
+    {
+      "id": "mishmash-pattern-only-admitted",
+      "evaluator": "source-authority",
+      "sourceRefs": ["SC-INT-001"],
+      "ticketIds": ["OBX-P180-T03"],
+      "input": {"sourceId": "SC-INT-001", "requestedUse": "pattern-adaptation", "grantedAuthority": "none", "namedOwnerCurrent": true},
+      "expect": {"accepted": true, "reasonCode": "ACCEPTED"}
+    },
+    {
+      "id": "t3-mishmash-isolated-lifecycle-admitted",
+      "evaluator": "provider-lifecycle",
+      "sourceRefs": ["SC-GH-010", "SC-INT-001"],
+      "ticketIds": ["OBX-P180-T04"],
+      "input": {"configDecodedOnce": true, "instanceStateIsolated": true, "scopeOwnsResources": true, "commandProcessingSerialized": true, "workerDrained": true, "activeTurn": false, "reaperAttempted": true, "sessionKilled": true},
+      "expect": {"accepted": true, "reasonCode": "ACCEPTED"}
+    },
+    {
+      "id": "mishmash-active-turn-reaper-rejected",
+      "evaluator": "provider-lifecycle",
+      "sourceRefs": ["SC-INT-001"],
+      "ticketIds": ["OBX-P180-T04"],
+      "input": {"configDecodedOnce": true, "instanceStateIsolated": true, "scopeOwnsResources": true, "commandProcessingSerialized": true, "workerDrained": true, "activeTurn": true, "reaperAttempted": true, "sessionKilled": true},
+      "expect": {"accepted": false, "reasonCode": "LIFECYCLE_ACTIVE_TURN_PROTECTED"}
+    },
+    {
+      "id": "mishmash-retry-without-side-effects-admitted",
+      "evaluator": "retry-side-effect",
+      "sourceRefs": ["SC-INT-001"],
+      "ticketIds": ["OBX-P180-T04"],
+      "input": {"failureTransient": true, "sameRoute": true, "attemptIndex": 1, "billingKnown": true, "userVisibleOutputSeen": false, "toolCallSeen": false, "artifactWriteSeen": false, "liveArtifactSeen": false},
+      "expect": {"accepted": true, "reasonCode": "ACCEPTED"}
+    },
+    {
+      "id": "mishmash-retry-after-output-rejected",
+      "evaluator": "retry-side-effect",
+      "sourceRefs": ["SC-INT-001"],
+      "ticketIds": ["OBX-P180-T04"],
+      "input": {"failureTransient": true, "sameRoute": true, "attemptIndex": 1, "billingKnown": true, "userVisibleOutputSeen": true, "toolCallSeen": false, "artifactWriteSeen": false, "liveArtifactSeen": false},
+      "expect": {"accepted": false, "reasonCode": "RETRY_USER_VISIBLE_OUTPUT_SEEN"}
+    },
+    {
+      "id": "mishmash-retry-after-tool-rejected",
+      "evaluator": "retry-side-effect",
+      "sourceRefs": ["SC-INT-001"],
+      "ticketIds": ["OBX-P180-T04"],
+      "input": {"failureTransient": true, "sameRoute": true, "attemptIndex": 1, "billingKnown": true, "userVisibleOutputSeen": false, "toolCallSeen": true, "artifactWriteSeen": false, "liveArtifactSeen": false},
+      "expect": {"accepted": false, "reasonCode": "RETRY_TOOL_CALL_SEEN"}
+    },
+    {
+      "id": "openrouter-glm-exact-audit-route-admitted",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": true, "reasonCode": "ACCEPTED"}
+    },
+    {
+      "id": "openrouter-glm-hidden-fallback-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": true, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_FALLBACK_FORBIDDEN"}
+    },
+    {
+      "id": "openrouter-glm-privacy-drift-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "allow", "zdr": false, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_PRIVACY_REQUIRED"}
+    },
+    {
+      "id": "openrouter-glm-product-data-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "client-private", "productDataTransferAllowed": true, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_DATA_CLASS_FORBIDDEN"}
+    },
+    {
+      "id": "openrouter-glm-product-transfer-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": true, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_PRODUCT_TRANSFER_FORBIDDEN"}
+    },
+    {
+      "id": "openrouter-glm-budget-excess-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.051, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_BUDGET_EXCEEDED"}
+    },
+    {
+      "id": "openrouter-glm-alternate-provider-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["openai"], "providerOnly": ["openai"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_IDENTITY_MISMATCH"}
+    },
+    {
+      "id": "openrouter-glm-tool-use-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [{"type": "function"}], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_TOOLS_FORBIDDEN"}
+    },
+    {
+      "id": "openrouter-glm-plugin-use-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [{"id": "web"}], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_TOOLS_FORBIDDEN"}
+    },
+    {
+      "id": "openrouter-glm-retry-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 2, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_RETRY_FORBIDDEN"}
+    },
+    {
+      "id": "openrouter-glm-expired-route-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": true},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_EXPIRED"}
+    },
+    {
+      "id": "openrouter-glm-input-token-limit-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 200001, "requestedOutputTokens": 8000, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_TOKEN_LIMIT_EXCEEDED"}
+    },
+    {
+      "id": "openrouter-glm-output-token-limit-rejected",
+      "evaluator": "audit-route-policy",
+      "sourceRefs": ["SC-SVC-001", "SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"routeId": "audit-openrouter-glm-5.3-flash-zai-v2", "registry": "external-review-only", "model": "z-ai/glm-5.3-flash", "upstreamProvider": "Z.AI", "providerOrder": ["z-ai/fp8"], "providerOnly": ["z-ai/fp8"], "allowFallbacks": false, "requireParameters": true, "dataCollection": "deny", "zdr": true, "tools": [], "plugins": [], "openRouterLoggingAssumption": "potentially-enabled-and-accepted-for-sanitized-packet", "reasoningEffort": "low", "dataClass": "synthetic-internal", "productDataTransferAllowed": false, "maxAttempts": 1, "maxInputTokens": 200000, "maxOutputTokens": 8000, "packetInputTokens": 120000, "requestedOutputTokens": 8001, "estimatedCostUsd": 0.011, "maxCostUsd": 0.05, "routeExpired": false},
+      "expect": {"accepted": false, "reasonCode": "AUDIT_ROUTE_TOKEN_LIMIT_EXCEEDED"}
+    },
+    {
+      "id": "t3-mishmash-clean-removal-admitted",
+      "evaluator": "source-removal",
+      "sourceRefs": ["SC-GH-010", "SC-INT-001"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"sourceId": "SC-GH-010", "killSwitchAvailable": true, "externalServiceDisabled": true, "upstreamDependencyCount": 0, "runtimeImportCount": 0, "baselinePassesWithoutSource": true, "providerCallsAfterDisable": 0, "productDataRetained": false},
+      "expect": {"accepted": true, "reasonCode": "ACCEPTED"}
+    },
+    {
+      "id": "openrouter-disable-provider-call-rejected",
+      "evaluator": "source-removal",
+      "sourceRefs": ["SC-SVC-003"],
+      "ticketIds": ["OBX-P180-T05"],
+      "input": {"sourceId": "SC-SVC-003", "killSwitchAvailable": true, "externalServiceDisabled": true, "upstreamDependencyCount": 0, "runtimeImportCount": 0, "baselinePassesWithoutSource": true, "providerCallsAfterDisable": 1, "productDataRetained": false},
+      "expect": {"accepted": false, "reasonCode": "SOURCE_REMOVAL_PROVIDER_CALL"}
+    }
+  ]
+}

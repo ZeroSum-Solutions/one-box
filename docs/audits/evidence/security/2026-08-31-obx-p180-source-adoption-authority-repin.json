@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "obx-p180-authority-repin-review-v1",
+  "reviewId": "obx-p180-source-adoption-authority-repin-2026-08-31",
+  "reviewedAt": "2026-08-31T23:59:00-07:00",
+  "namedOwner": "Devin Wiggins",
+  "scope": "Integrity re-pin after packet-digest-covered source-adoption planning changes",
+  "derivedWriteAuthorization": {
+    "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-packet-digest-derived-write-authorization.json",
+    "algorithm": "sha256",
+    "digest": "5aa48df3c780dc530a48bf6c699c185dc257510c9e76bb2638dbcad46b8a5fa2"
+  },
+  "priorAuthorityManifest": {
+    "packetDigest": "8b6c41853992785ffb1b856143cd67866a81d9ce79fe44374aa2a7c5917bc363",
+    "sha256": "efe98160b6788a7fd02ce180cb6c0bae45218bbd762845d3624c4a44a1b37d49"
+  },
+  "currentAuthorityManifest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "packetDigest": "a09ed88d14c6070213e1c52164a2e606bd8c29e7fbe0ff833e546743907b3a38",
+    "sha256": "7a09999ccb21d81cd2dc5d9b98c5a055d8e52ec4073f70e45c1ae0f3f4aee5af"
+  },
+  "refreshedT02SecurityReceipt": {
+    "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+    "sha256": "f2c0dfffe5dbe6ae65a111a59c9ec444da6165902351322c41b44141c10e3c83"
+  },
+  "manifestChangedFields": ["packetDigest"],
+  "reReviewMethod": [
+    "structural comparison against HEAD authority-manifest JSON",
+    "derived-write authorization validation",
+    "npm run verify:plans",
+    "npm run test:plans",
+    "source-adoption verifier and provider-offline fixture lane"
+  ],
+  "reEndorsement": "The T02 receipt target-hash refresh is an integrity re-pin to the derived packet digest after approved planning inputs changed. It does not re-approve, broaden, or add implementation authority.",
+  "invariants": {
+    "implementationAuthorized": false,
+    "authorityExpansion": false,
+    "runtimeOrDependencyChange": false,
+    "providerBackedProductRoute": false,
+    "persistenceBrowserCollaborationDeploymentRelease": false,
+    "pageIrMutation": false
+  },
+  "verdict": "PASS",
+  "findingCount": 0
+}
