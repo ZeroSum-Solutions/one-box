@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "OBX-P180-T03-AUDIT-CORRECTION-SUPERSESSION-ACTIVATION-002",
+  "receiptKind": "owner-solo-superseding-correction-activation-v1",
+  "status": "ACTIVE",
+  "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-002",
+  "authorizationHash": "9f0df3084adca885a15558cf7196411364e647dabdcf6c9c7b2ac91138424246",
+  "ticketId": "OBX-P180-T03",
+  "laneId": "T03",
+  "governanceCommit": "300214131ac8baae76849ef3ab2b4bbc77e7eb95",
+  "governanceTree": "ce587710782d0e34028612bc0fbc5ce24205ef37",
+  "predecessorCommit": "a448fc993e6e89b2d5aeebb54e2261456c43f281",
+  "predecessorTree": "e8a5c2b42881c0e806e8df63108b4f559c6e8491",
+  "acceptedCorrectionCommit": "76cbe6c19d553a41bc34c0ac8a88fb595bfbd354",
+  "acceptedCorrectionTree": "8426b191a7c2e6802ed77ba1379a13b361313148",
+  "pairedAuthorizationId": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-002",
+  "pairedAuthorizationHash": "6788271928057097ae4a3ff0ac2b32f6366108b8b7f52c19d708204c0b5743a2",
+  "observedAt": "2026-09-01T12:35:00.000Z",
+  "expiresAt": "2026-09-15T12:30:00.000Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "5c016d0514733a0c7ec82a6d0f83096df5098b946739da5f2affe58f6f819340"
+  }
+}
