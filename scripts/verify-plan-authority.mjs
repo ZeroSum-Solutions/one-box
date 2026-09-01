@@ -948,6 +948,10 @@ const ledgerPath = "docs/research/source-catalog/adoption-ledger.json";
 const traceabilityPath = "docs/eval/one-box-program/traceability.md";
 const embeddedBrowserClosurePath = "docs/security/2026-08-29-embedded-browser-closure-requirements.md";
 const ciWorkflowPath = ".github/workflows/ci.yml";
+const p180SiblingActivationPaths = [
+  "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+  "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-activation-receipt.json",
+];
 
 const authority = readJson(authorityPath);
 const scopedImplementationAuthority = readJson(scopedImplementationAuthorityPath);
@@ -1239,11 +1243,12 @@ if (scopedImplementationAuthority) {
   });
   for (const failure of t02Result.failures) fail(failure);
   for (const ticket of ["T03", "T04"]) {
+    const activationMode = p180SiblingActivationPaths.some((path) => existsSync(resolve(root, path)));
     const result = verifyP180SiblingAuthorization({
       repoRoot: root,
       registry: scopedImplementationAuthority,
       ticket,
-      mode: "record",
+      mode: activationMode ? "activation" : "record",
     });
     for (const failure of result.failures) fail(failure);
   }

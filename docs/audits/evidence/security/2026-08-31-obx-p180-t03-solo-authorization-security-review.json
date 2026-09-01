@@ -31,7 +31,7 @@
   "targetHashes": [
     { "path": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json", "algorithm": "sha256", "digest": "2cc001417a873cbad73abefdd110571845cef8bbc334f7aa5face0419f779f5c" },
     { "path": "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-owner-completion-receipt.json", "algorithm": "sha256", "digest": "e5a3050dde0c9a0f64d26c0e972d76fc27530efb65654433e26206620d4dd359" },
-    { "path": "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json", "algorithm": "sha256", "digest": "88bef987183e6792040b52427dc5023809d334bfdd07924f213ec603932207e9" },
+    { "path": "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json", "algorithm": "sha256", "digest": "85c62fadc11916cec17806344edb207a13fc79f1c897ac96e27877ba90fd250f" },
     { "path": "docs/plans/2026-08-31-obx-p180-t03-solo-authorization-design.md", "algorithm": "sha256", "digest": "8abe2e7dfd22460f0c53e296020ca8965682d82984e4a9d0fe9de82f2c978c4f" },
     { "path": "docs/plans/2026-08-31-obx-p180-t04-solo-authorization-design.md", "algorithm": "sha256", "digest": "18acdb38982c11f778d58f013f82a6dab7005e5a4c522503a698ba90f3ccb0d3" },
     { "path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t03-solo.json", "algorithm": "sha256", "digest": "3e497bb4ccb6fee8ca674f279122d1a24356b9b976b995c47312f24d06057919" },
@@ -39,10 +39,10 @@
     { "path": "scripts/verify-p180-t03-authorization.mjs", "algorithm": "sha256", "digest": "04ab9a05296711d85b69eea5939a7d24ad0c86a0726052296a94076a08529a3b" },
     { "path": "scripts/verify-p180-t04-authorization.mjs", "algorithm": "sha256", "digest": "8df54bbf1b06a129085e05ccb91e52f8efee42bea152c414165673e106f1b04f" },
     { "path": "scripts/verify-p180-t02-authorization.mjs", "algorithm": "sha256", "digest": "c500649710c16dd16695dbfeadd7674f15c9244e19e359196f87e14b8794911a" },
-    { "path": "scripts/verify-plan-authority.mjs", "algorithm": "sha256", "digest": "ce2c059f88d00e9c01919d70dc3224ee884a51d234b30f19c8e3688f2de5b375" },
-    { "path": "scripts/verify-plan-authority.node.mjs", "algorithm": "sha256", "digest": "3cb9ee9b29986b0c9fb8fb6a6b5bcdb6ea5779ab04f14eb0da95705097fa2149" },
+    { "path": "scripts/verify-plan-authority.mjs", "algorithm": "sha256", "digest": "bbe0092f6eb5f82295154a0622c6d959336ee7de6a2bdf50ae94e4bcbc1e7728" },
+    { "path": "scripts/verify-plan-authority.node.mjs", "algorithm": "sha256", "digest": "b6920f0e97f6556a49db403164cf723537a220b004e05f5d7832a9836d0025f4" },
     { "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", "algorithm": "sha256", "digest": "71932ef150c5140257bcc29c3b30faeabfe4c95136a56d58f9c7f5bf2d88d6b8" },
-    { "path": "docs/plans/one-box-master/00-authority/authority-manifest.json", "algorithm": "sha256", "digest": "4f422d3a99e4559c1f4d54b0ddfc4d1b4b9a8588c06250b8cfae349a24ef9462" },
+    { "path": "docs/plans/one-box-master/00-authority/authority-manifest.json", "algorithm": "sha256", "digest": "d001cdc90e3e4f941c94446462b88b8a7edb85e524eca61ff6963ca80bbfa50b" },
     { "path": "docs/plans/one-box-master/00-authority/plan-register.md", "algorithm": "sha256", "digest": "e761c6a3b9befff945b3a6b0486b9c93d14abd69efd3e52061189e0e9c4cd26c" },
     { "path": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md", "algorithm": "sha256", "digest": "3fcd4aff8e5b1148932712e0959c7c239779fd482dcdc9192401887391cb4d95" }
   ],
@@ -76,18 +76,18 @@
     "version": "8.30.1",
     "scope": "exact-16-phase0a-security-target-paths",
     "mode": "pipe-redacted-no-color",
-    "scannedBytes": 333778,
+    "scannedBytes": 334354,
     "findings": 0,
     "exitCode": 0,
     "status": "PASS"
   },
   "activationState": "NOT_ACTIVE",
   "verdict": "PASS-WITH-ACCEPTED-RISK",
-  "capturedAt": "2026-09-01T02:49:59.059Z",
+  "capturedAt": "2026-09-01T02:58:39.083Z",
   "selfHash": {
     "algorithm": "sha256",
     "canonicalization": "canonical-json-v1",
     "excludedJsonPointers": ["/selfHash/digest"],
-    "digest": "37a22ab17e61323e2c34e7024274e266168800d5a875eb3b3a86a9810889008b"
+    "digest": "0a81a3a33bc3d927c8ddbe91ec9c75fe8fa4ea2ed5726637f6c2b6d8ac94f1e6"
   }
 }
