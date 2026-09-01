@@ -13,11 +13,12 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { verifyP180SiblingAuthorization } from "./verify-p180-t03-authorization.mjs";
@@ -49,22 +50,39 @@ import {
   historicalVerificationCommitForSupersessionState,
   verifyPhase1SupersedingCorrectionAuthorizations,
 } from "./verify-p180-phase1-superseding-correction-authorization.mjs";
+import {
+  terminalForbiddenEffectFindings,
+  terminalProofRegistryBinding,
+  verifyPhase1TerminalCorrectionAuthorizations,
+} from "./verify-p180-phase1-terminal-correction-authorization.mjs";
 
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 let fixtureRoot;
 let verifier;
 let fixtureBaselineBytes;
+let terminalFixtureContainer;
+let terminalFixtureRoot;
+let terminalGoalRoot;
+let terminalSourceHeadBefore;
+let terminalExpectedAnchors;
 
 before(() => {
-  fixtureRoot = mkdtempSync(join(tmpdir(), "one-box-plan-verifier-"));
+  fixtureRoot = realpathSync(mkdtempSync(join(tmpdir(), "one-box-plan-verifier-")));
+  const fixtureGitClone = resolve(fixtureRoot, ".isolated-git-clone");
+  const clone = spawnSync("git", ["--no-replace-objects", "clone", "-q", "--no-hardlinks", "--no-checkout", sourceRoot, fixtureGitClone], {
+    encoding: "utf8",
+    env: terminalGitEnvironment(),
+  });
+  assert.equal(clone.status, 0, `plan-verifier isolated clone failed\n${clone.stderr}`);
+  cpSync(resolve(fixtureGitClone, ".git"), resolve(fixtureRoot, ".git"), { recursive: true });
+  rmSync(fixtureGitClone, { recursive: true, force: true });
   for (const path of ["docs", ".github", "src"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path), { recursive: true });
   for (const path of ["AGENTS.md", "README.md", "CONTRIBUTING.md", ".env.example", "package.json"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path));
   cpSync(resolve(sourceRoot, "package-lock.json"), resolve(fixtureRoot, "package-lock.json"));
-  cpSync(resolve(sourceRoot, ".git"), resolve(fixtureRoot, ".git"));
   symlinkSync(resolve(sourceRoot, "node_modules"), resolve(fixtureRoot, "node_modules"), "dir");
   mkdirSync(resolve(fixtureRoot, ".claude/handoffs"), { recursive: true });
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
-  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-p180-t03-authorization.mjs", "verify-p180-t04-authorization.mjs", "verify-p180-phase1-correction-authorization.mjs", "verify-p180-phase1-superseding-correction-authorization.mjs", "verify-obx-p180-source-adoption.mjs"]) {
+  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-p180-t03-authorization.mjs", "verify-p180-t04-authorization.mjs", "verify-p180-phase1-correction-authorization.mjs", "verify-p180-phase1-superseding-correction-authorization.mjs", "verify-p180-phase1-terminal-correction-authorization.mjs", "verify-obx-p180-source-adoption.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/e2e"), { recursive: true });
@@ -81,6 +99,10 @@ before(() => {
 });
 
 after(() => {
+  if (terminalFixtureRoot) {
+    assert.equal(sourceGit(["rev-parse", "HEAD"]), terminalSourceHeadBefore, "terminal fixture must not mutate source HEAD");
+  }
+  if (terminalFixtureContainer) rmSync(terminalFixtureContainer, { recursive: true, force: true });
   if (fixtureRoot) rmSync(fixtureRoot, { recursive: true, force: true });
 });
 
@@ -2502,4 +2524,1338 @@ test("owner-approved acceptance records use a durable human identity reference",
   withJsonMutation("docs/plans/one-box-master/00-authority/authority-manifest.json", (authority) => {
     delete authority.domains.canvas.acceptanceRecord.identityRef;
   }, (result) => assert.match(result.stderr, /canvas: owner-approved class requires durable human identityRef and role/));
+});
+
+const terminalVerifierPath = resolve(sourceRoot, "scripts/verify-p180-phase1-terminal-correction-authorization.mjs");
+const terminalProgramPath = "docs/governance/risk-exceptions/2026-09-01-obx-p180-phase1-terminal-correction-program.json";
+const terminalChildPaths = {
+  T03: "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-terminal-correction-solo.json",
+  T04: "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-terminal-correction-solo.json",
+};
+const terminalAuthorizationIds = {
+  T03: "OBX-AUTH-P180-T03-TERMINAL-CORRECTION-003",
+  T04: "OBX-AUTH-P180-T04-TERMINAL-CORRECTION-003",
+};
+const terminalProgramAuthorizationId = "OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003";
+const terminalRegistryName = "phase1-terminal-correction-proof-registry.jsonl";
+const terminalZeroHash = "0".repeat(64);
+const terminalCommandTemplates = {
+  T03: [
+    ["t03-terminal-focused", "npx vitest run src/lib/operatingEnvironment/skills.test.ts src/lib/operatingEnvironment/context.test.ts src/lib/operatingEnvironment/interrupts.test.ts src/lib/operatingEnvironment/receipts.test.ts"],
+    ["operating-environment", "npm test -- src/lib/operatingEnvironment"],
+    ["source-adoption", "node scripts/verify-obx-p180-source-adoption.mjs"],
+    ["typecheck", "npm run typecheck"],
+    ["targeted-lint", "npx eslint src/lib/operatingEnvironment/skills.ts src/lib/operatingEnvironment/skills.test.ts src/lib/operatingEnvironment/context.ts src/lib/operatingEnvironment/context.test.ts src/lib/operatingEnvironment/interrupts.ts src/lib/operatingEnvironment/interrupts.test.ts src/lib/operatingEnvironment/receipts.ts src/lib/operatingEnvironment/receipts.test.ts"],
+    ["verify-plans", "node scripts/verify-plan-authority.mjs"],
+    ["test-plans", "node --test scripts/verify-plan-authority.node.mjs"],
+    ["path-census", "git diff --name-only 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT}"],
+    ["dependency-diff", "git diff --exit-code 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT} -- package.json package-lock.json"],
+    ["forbidden-effects", "node scripts/verify-p180-phase1-terminal-correction-authorization.mjs --forbidden-effects-only --lane T03"],
+    ["secrets-scan", "gitleaks git --log-opts 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT} --no-banner --no-color --redact=100"],
+  ],
+  T04: [
+    ["t04-terminal-focused", "npx vitest run src/lib/operatingEnvironment/budget.test.ts src/lib/operatingEnvironment/capacity.test.ts src/lib/operatingEnvironment/compare.test.ts"],
+    ["operating-environment", "npm test -- src/lib/operatingEnvironment"],
+    ["source-adoption", "node scripts/verify-obx-p180-source-adoption.mjs"],
+    ["typecheck", "npm run typecheck"],
+    ["targeted-lint", "npx eslint src/lib/operatingEnvironment/budget.ts src/lib/operatingEnvironment/budget.test.ts src/lib/operatingEnvironment/capacity.ts src/lib/operatingEnvironment/capacity.test.ts src/lib/operatingEnvironment/compare.ts src/lib/operatingEnvironment/compare.test.ts"],
+    ["verify-plans", "node scripts/verify-plan-authority.mjs"],
+    ["test-plans", "node --test scripts/verify-plan-authority.node.mjs"],
+    ["path-census", "git diff --name-only 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT}"],
+    ["dependency-diff", "git diff --exit-code 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT} -- package.json package-lock.json"],
+    ["forbidden-effects", "node scripts/verify-p180-phase1-terminal-correction-authorization.mjs --forbidden-effects-only --lane T04"],
+    ["secrets-scan", "gitleaks git --log-opts 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT} --no-banner --no-color --redact=100"],
+  ],
+};
+
+const terminalSyntheticReportPaths = [
+  "reports/phase1-supersession-opus-r1-dispositions.md",
+  "reports/phase1-supersession-security-independent.md",
+  "reports/phase1-supersession-fact-independent.md",
+];
+
+function terminalGitEnvironment(extra = {}) {
+  const env = { ...process.env, ...extra };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("GIT_") && !Object.hasOwn(extra, key)) delete env[key];
+  }
+  return env;
+}
+
+function sourceGit(args) {
+  const result = spawnSync("git", ["--no-replace-objects", ...args], {
+    cwd: sourceRoot,
+    encoding: "utf8",
+    env: terminalGitEnvironment(),
+  });
+  assert.equal(result.status, 0, `source git ${args.join(" ")} failed\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function terminalFixtureGitResult(args, { encoding = "utf8", env: extraEnv = {}, input } = {}) {
+  return spawnSync("git", ["--no-replace-objects", ...args], {
+    cwd: terminalFixtureRoot,
+    encoding,
+    env: terminalGitEnvironment(extraEnv),
+    input,
+  });
+}
+
+function terminalAggregate(root, files) {
+  const digest = createHash("sha256");
+  for (const path of [...files].sort()) {
+    digest.update(relative(root, path));
+    digest.update("\0");
+    digest.update(readFileSync(path));
+    digest.update("\0");
+  }
+  return { count: files.length, digest: digest.digest("hex") };
+}
+
+function setTerminalHashEnvelope(value, field) {
+  const unhashed = structuredClone(value);
+  delete unhashed[field].digest;
+  value[field].digest = sha256(canonicalJson(unhashed));
+}
+
+function writeTerminalSyntheticGoal(program) {
+  const ownerPath = resolve(terminalGoalRoot, "owner-authorizations/2026-09-01-phase1-terminal-correction-wave.md");
+  const allowlistPath = resolve(terminalGoalRoot, "censuses/phase1-terminal-correction-activation-allowlist.txt");
+  const oldRegistryPath = resolve(terminalGoalRoot, "proof/phase1-superseding-correction-proof-registry.jsonl");
+  const syntheticProofPath = resolve(terminalGoalRoot, "proof/phase1-supersession-synthetic.json");
+  const syntheticModelPath = resolve(terminalGoalRoot, "model-receipts/phase1-supersession-synthetic/receipt.json");
+  for (const path of [ownerPath, allowlistPath, oldRegistryPath, syntheticProofPath, syntheticModelPath, ...terminalSyntheticReportPaths.map((path) => resolve(terminalGoalRoot, path))]) {
+    mkdirSync(dirname(path), { recursive: true });
+  }
+
+  const ownerBytes = Buffer.from("Synthetic owner authorization fixture. No live goal-state bytes are used.\n");
+  writeFileSync(ownerPath, ownerBytes, { mode: 0o644 });
+
+  const allPaths = [
+    ...program.exactGovernanceUniverse,
+    ...program.exactImplementationUniverse.T03,
+    ...program.exactImplementationUniverse.T04,
+  ];
+  const allowlistRows = allPaths.map((path, index) => {
+    const blob = terminalFixtureGitResult(["show", `${program.baseCommit}:${path}`], { encoding: null });
+    const [presence, digest] = blob.status === 0 ? ["PRESENT", sha256(blob.stdout)] : ["ABSENT", "ABSENT"];
+    const effect = index < program.exactGovernanceUniverse.length
+      ? "governance-authorize-verify-activate-complete"
+      : index < program.exactGovernanceUniverse.length + program.exactImplementationUniverse.T03.length
+        ? "t03-provider-offline-correction-universe"
+        : "t04-provider-offline-correction-universe";
+    return [path, presence, digest, effect].join("\t");
+  });
+  const allowlistBytes = Buffer.from(`${allowlistRows.join("\n")}\n`);
+  writeFileSync(allowlistPath, allowlistBytes, { mode: 0o644 });
+
+  const oldRows = [
+    { laneId: "T03", envelopeHash: "a".repeat(64) },
+    { laneId: "T04", envelopeHash: "b".repeat(64) },
+  ];
+  const oldRegistryBytes = Buffer.from(`${oldRows.map(canonicalJson).join("\n")}\n`);
+  writeFileSync(oldRegistryPath, oldRegistryBytes, { mode: 0o600 });
+  writeFileSync(syntheticProofPath, '{"fixture":"proof"}\n', { mode: 0o600 });
+  writeFileSync(syntheticModelPath, '{"fixture":"model"}\n', { mode: 0o600 });
+  for (const path of terminalSyntheticReportPaths) {
+    writeFileSync(resolve(terminalGoalRoot, path), `Synthetic immutable report fixture: ${path}\n`, { mode: 0o600 });
+  }
+
+  const proofFiles = [oldRegistryPath, syntheticProofPath];
+  const modelFiles = [syntheticModelPath];
+  const reportFiles = terminalSyntheticReportPaths.map((path) => resolve(terminalGoalRoot, path));
+  return {
+    ownerPath,
+    ownerDigest: sha256(ownerBytes),
+    allowlistPath,
+    allowlistDigest: sha256(allowlistBytes),
+    oldRegistryPath,
+    oldRegistryBytes,
+    oldRows,
+    aggregates: [terminalAggregate(terminalGoalRoot, proofFiles), terminalAggregate(terminalGoalRoot, modelFiles), terminalAggregate(terminalGoalRoot, reportFiles)],
+  };
+}
+
+function rewriteTerminalRecordsForFixture(branch) {
+  const programPath = resolve(terminalFixtureRoot, terminalProgramPath);
+  const program = JSON.parse(readFileSync(programPath, "utf8"));
+  const synthetic = writeTerminalSyntheticGoal(program);
+  terminalExpectedAnchors = {
+    expectedOwnerDirectionSha: synthetic.ownerDigest,
+    expectedActivationAllowlistSha: synthetic.allowlistDigest,
+    expectedExecutionBranch: branch,
+  };
+  program.branch = branch;
+  program.ownerDirectionBinding.path = synthetic.ownerPath;
+  program.ownerDirectionBinding.digest = synthetic.ownerDigest;
+  program.activationAllowlistBinding.path = synthetic.allowlistPath;
+  program.activationAllowlistBinding.digest = synthetic.allowlistDigest;
+  program.immutableHistory.externalAggregates.forEach((row, index) => {
+    row.root = terminalGoalRoot;
+    row.fileCount = synthetic.aggregates[index].count;
+    row.digest = synthetic.aggregates[index].digest;
+  });
+  const old = program.immutableHistory.supersedingRegistryBinding;
+  old.path = synthetic.oldRegistryPath;
+  old.sha256 = sha256(synthetic.oldRegistryBytes);
+  old.bytes = synthetic.oldRegistryBytes.length;
+  old.rows = synthetic.oldRows.length;
+  old.headEnvelopeHash = synthetic.oldRows.at(-1).envelopeHash;
+  old.t03LatestEnvelopeHash = synthetic.oldRows.filter((row) => row.laneId === "T03").at(-1).envelopeHash;
+  old.t04LatestEnvelopeHash = synthetic.oldRows.filter((row) => row.laneId === "T04").at(-1).envelopeHash;
+  setTerminalHashEnvelope(program, "authorizationHash");
+  writeFileSync(programPath, `${JSON.stringify(program, null, 2)}\n`);
+  const programBytes = readFileSync(programPath);
+
+  const children = {};
+  for (const [lane, recordPath] of Object.entries(terminalChildPaths)) {
+    const absolute = resolve(terminalFixtureRoot, recordPath);
+    const child = JSON.parse(readFileSync(absolute, "utf8"));
+    child.branch = branch;
+    child.parentProgramBinding.authorizationHash = program.authorizationHash.digest;
+    child.parentProgramBinding.recordSha256 = sha256(programBytes);
+    child.ownerDirectionBinding = structuredClone(program.ownerDirectionBinding);
+    child.activationAllowlistBinding = structuredClone(program.activationAllowlistBinding);
+    setTerminalHashEnvelope(child, "authorizationHash");
+    writeFileSync(absolute, `${JSON.stringify(child, null, 2)}\n`);
+    children[lane] = child;
+  }
+
+  const securityPath = resolve(terminalFixtureRoot, "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-terminal-correction-security-review.json");
+  const security = JSON.parse(readFileSync(securityPath, "utf8"));
+  const hashes = {
+    [terminalProgramAuthorizationId]: program.authorizationHash.digest,
+    [terminalAuthorizationIds.T03]: children.T03.authorizationHash.digest,
+    [terminalAuthorizationIds.T04]: children.T04.authorizationHash.digest,
+  };
+  for (const binding of security.authorizationBindings) binding.authorizationHash = hashes[binding.authorizationId];
+  setSelfHash(security);
+  writeFileSync(securityPath, `${JSON.stringify(security, null, 2)}\n`);
+}
+
+function initializeTerminalFixture() {
+  terminalSourceHeadBefore = sourceGit(["rev-parse", "HEAD"]);
+  const branch = sourceGit(["symbolic-ref", "--short", "HEAD"]);
+  terminalFixtureContainer = realpathSync(mkdtempSync(join(tmpdir(), "one-box-terminal-isolated-")));
+  terminalFixtureRoot = resolve(terminalFixtureContainer, "repo");
+  terminalGoalRoot = resolve(terminalFixtureContainer, "goal-state");
+  const clone = spawnSync("git", ["--no-replace-objects", "clone", "-q", "--no-hardlinks", "--no-checkout", sourceRoot, terminalFixtureRoot], {
+    encoding: "utf8",
+    env: terminalGitEnvironment(),
+  });
+  assert.equal(clone.status, 0, `terminal isolated clone failed\n${clone.stderr}`);
+  for (const path of ["docs", ".github", "src", "scripts"]) cpSync(resolve(fixtureRoot, path), resolve(terminalFixtureRoot, path), { recursive: true });
+  for (const path of ["AGENTS.md", "README.md", "CONTRIBUTING.md", ".env.example", "package.json", "package-lock.json"]) cpSync(resolve(fixtureRoot, path), resolve(terminalFixtureRoot, path));
+  symlinkSync(resolve(sourceRoot, "node_modules"), resolve(terminalFixtureRoot, "node_modules"), "dir");
+  const gitDirectory = realpathSync(resolve(terminalFixtureRoot, ".git"));
+  const containment = relative(terminalFixtureContainer, gitDirectory);
+  assert.ok(containment && containment !== ".." && !containment.startsWith(`..${sep}`), "terminal git dir must be below the isolated fixture root");
+  assert.equal(sourceGit(["rev-parse", "HEAD"]), terminalSourceHeadBefore, "terminal clone must not mutate source HEAD");
+  assert.equal(terminalGit(["rev-parse", "HEAD"]), terminalSourceHeadBefore, "terminal clone must start at source HEAD");
+  assert.equal(terminalGit(["symbolic-ref", "--short", "HEAD"]), branch, "terminal clone must retain the authorized source branch");
+  rewriteTerminalRecordsForFixture(branch);
+}
+
+function terminalGit(args) {
+  const result = terminalFixtureGitResult(args);
+  assert.equal(result.status, 0, `terminal fixture git ${args.join(" ")} failed\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function terminalGitWithEnvironment(args, { env: extraEnv = {}, input } = {}) {
+  const result = terminalFixtureGitResult(args, { env: extraEnv, input });
+  assert.equal(result.status, 0, `terminal fixture git ${args.join(" ")} failed\n${result.stderr}`);
+  return result.stdout.trim();
+}
+
+function terminalAuthorizationHashes() {
+  return {
+    program: JSON.parse(readFileSync(resolve(terminalFixtureRoot, terminalProgramPath), "utf8")).authorizationHash.digest,
+    children: Object.fromEntries(Object.entries(terminalChildPaths).map(([lane, path]) => [
+      lane,
+      JSON.parse(readFileSync(resolve(terminalFixtureRoot, path), "utf8")).authorizationHash.digest,
+    ])),
+  };
+}
+
+function setTerminalImmutable(path) {
+  const result = spawnSync("chflags", ["uchg", path], { encoding: "utf8" });
+  assert.equal(result.status, 0, `chflags uchg failed for ${path}\n${result.stderr}`);
+}
+
+function clearTerminalImmutable(path) {
+  if (!existsSync(path)) return;
+  const result = spawnSync("chflags", ["nouchg", path], { encoding: "utf8" });
+  assert.equal(result.status, 0, `chflags nouchg failed for ${path}\n${result.stderr}`);
+}
+
+function terminalOutputPath(lane, attemptNumber, commandIndex, commandId) {
+  return `proof/phase1-terminal-correction-${lane.toLowerCase()}-attempt-${String(attemptNumber).padStart(3, "0")}-${String(commandIndex + 1).padStart(2, "0")}-${commandId}.log`;
+}
+
+function buildTerminalRow(fixture, { lane = "T03", status = "FAIL", targetCommit = fixture.targetCommit, targetTree = fixture.targetTree } = {}) {
+  const commandTemplates = status === "PASS" ? terminalCommandTemplates[lane] : terminalCommandTemplates[lane].slice(0, 1);
+  const attemptNumber = fixture.rows.filter((row) => row.laneId === lane).length + 1;
+  const commandReceipts = commandTemplates.map(([commandId, template], commandIndex) => {
+    const commandSpec = template.replaceAll("{TARGET_COMMIT}", targetCommit);
+    const outputPath = terminalOutputPath(lane, attemptNumber, commandIndex, commandId);
+    const output = Buffer.from(`terminal ${lane} attempt ${attemptNumber} command ${commandIndex + 1}\n`);
+    writeFileSync(resolve(fixture.proofRoot, outputPath.slice("proof/".length)), output, { mode: 0o600 });
+    return {
+      commandId,
+      commandSpec,
+      commandSpecSha256: sha256(commandSpec),
+      outputPath,
+      outputSha256: sha256(output),
+      outputBytes: output.length,
+      exitCode: status === "PASS" ? 0 : 1,
+    };
+  });
+  return {
+    activationCommit: targetCommit,
+    activationTree: targetTree,
+    attemptId: "",
+    attemptNumber,
+    authorizationHash: fixture.authorizationHashes.children[lane],
+    authorizationId: terminalAuthorizationIds[lane],
+    commandReceipts,
+    envelopeHash: "",
+    executionCommit: targetCommit,
+    executionTree: targetTree,
+    finishedAt: "2026-09-01T20:24:01.000Z",
+    laneId: lane,
+    previousEnvelopeHash: "",
+    programAuthorizationHash: fixture.authorizationHashes.program,
+    programAuthorizationId: terminalProgramAuthorizationId,
+    sequence: 0,
+    startedAt: "2026-09-01T20:24:00.000Z",
+    status,
+  };
+}
+
+function sealTerminalRows(rows) {
+  const counts = { T03: 0, T04: 0 };
+  let previousEnvelopeHash = terminalZeroHash;
+  for (const [index, row] of rows.entries()) {
+    counts[row.laneId] += 1;
+    row.sequence = index + 1;
+    row.attemptNumber = counts[row.laneId];
+    row.attemptId = `OBX-P180-${row.laneId}-TERMINAL-CORRECTION-003-ATTEMPT-${String(counts[row.laneId]).padStart(3, "0")}`;
+    row.previousEnvelopeHash = previousEnvelopeHash;
+    delete row.envelopeHash;
+    row.envelopeHash = sha256(canonicalJson(row));
+    previousEnvelopeHash = row.envelopeHash;
+  }
+}
+
+function writeTerminalProof(fixture, { serialization = "canonical", keepLaterAnchors = false } = {}) {
+  for (const path of fixture.anchorPaths) clearTerminalImmutable(path);
+  if (!keepLaterAnchors) {
+    for (const path of fixture.anchorPaths) rmSync(path, { force: true });
+    fixture.anchorPaths.length = 0;
+  }
+  sealTerminalRows(fixture.rows);
+  const lines = fixture.rows.map((row) => serialization === "canonical" ? canonicalJson(row) : JSON.stringify(row));
+  const bytes = Buffer.from(`${lines.join("\n")}\n`);
+  writeFileSync(fixture.registryPath, bytes, { mode: 0o600 });
+  let prefixBytes = 0;
+  for (const [index, line] of lines.entries()) {
+    prefixBytes += Buffer.byteLength(line) + 1;
+    const prefix = bytes.subarray(0, prefixBytes);
+    const prefixSha256 = sha256(prefix);
+    const anchorPath = resolve(fixture.proofRoot, `phase1-terminal-correction-anchor-${String(index + 1).padStart(3, "0")}-${prefixSha256}.json`);
+    const anchor = {
+      schemaVersion: 1,
+      sequence: index + 1,
+      registryPath: `proof/${terminalRegistryName}`,
+      prefixBytes,
+      prefixSha256,
+      rowCount: index + 1,
+      headEnvelopeHash: fixture.rows[index].envelopeHash,
+    };
+    setSelfHash(anchor);
+    writeFileSync(anchorPath, `${JSON.stringify(anchor, null, 2)}\n`, { mode: 0o600 });
+    setTerminalImmutable(anchorPath);
+    if (!fixture.anchorPaths.includes(anchorPath)) fixture.anchorPaths.push(anchorPath);
+  }
+  if (fixture.requireCompletion) setTerminalImmutable(fixture.registryPath);
+}
+
+function withTerminalProofFixture(options, callback) {
+  const proofRoot = mkdtempSync(join(tmpdir(), "one-box-terminal-proof-"));
+  chmodSync(proofRoot, 0o700);
+  const targetCommit = terminalGit(["rev-parse", "HEAD"]);
+  const targetTree = terminalGit(["rev-parse", `${targetCommit}^{tree}`]);
+  const fixture = {
+    proofRoot,
+    registryPath: resolve(proofRoot, terminalRegistryName),
+    targetCommit,
+    targetTree,
+    authorizationHashes: terminalAuthorizationHashes(),
+    rows: [],
+    anchorPaths: [],
+    requireCompletion: options?.requireCompletion ?? false,
+  };
+  const rowSpecs = options?.rows ?? [{ lane: "T03", status: "FAIL" }];
+  for (const spec of rowSpecs) fixture.rows.push(buildTerminalRow(fixture, spec));
+  if (fixture.rows.length) writeTerminalProof(fixture);
+  fixture.verify = () => terminalProofRegistryBinding({
+    repoRoot: terminalFixtureRoot,
+    proofRoot,
+    requireCompletion: fixture.requireCompletion,
+    programAuthorizationHash: fixture.authorizationHashes.program,
+    childAuthorizationHashes: fixture.authorizationHashes.children,
+  });
+  try {
+    return callback(fixture);
+  } finally {
+    clearTerminalImmutable(fixture.registryPath);
+    for (const path of fixture.anchorPaths) clearTerminalImmutable(path);
+    rmSync(proofRoot, { recursive: true, force: true });
+  }
+}
+
+function resealTerminalProof(fixture, mutateRows, { serialization = "canonical" } = {}) {
+  clearTerminalImmutable(fixture.registryPath);
+  for (const path of fixture.anchorPaths) {
+    clearTerminalImmutable(path);
+    rmSync(path, { force: true });
+  }
+  fixture.anchorPaths.length = 0;
+  mutateRows(fixture.rows);
+  writeTerminalProof(fixture, { serialization });
+}
+
+function assertTerminalTargetedFailure(result, expected, forbidden = [
+  /output path escape/,
+  /terminal prefix anchor \d+: missing/,
+  /envelope hash drift/,
+  /not strict canonical JSON/,
+]) {
+  const text = result.failures.join("\n");
+  assert.match(text, expected);
+  for (const pattern of forbidden) assert.doesNotMatch(text, pattern);
+}
+
+function terminalRegistryForFixture() {
+  const registry = JSON.parse(readFileSync(resolve(terminalFixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+  const records = [
+    [terminalProgramAuthorizationId, "owner-bounded-rolling-terminal-correction-program-reference-v1", terminalProgramPath],
+    [terminalAuthorizationIds.T03, "owner-solo-terminal-correction-child-reference-v1", terminalChildPaths.T03],
+    [terminalAuthorizationIds.T04, "owner-solo-terminal-correction-child-reference-v1", terminalChildPaths.T04],
+  ];
+  const ids = new Set(records.map(([id]) => id));
+  registry.authorizations = registry.authorizations.filter((row) => !ids.has(row.id));
+  for (const [id, recordKind, path] of records) {
+    registry.authorizations.push({ id, recordKind, path, algorithm: "sha256", digest: sha256(readFileSync(resolve(terminalFixtureRoot, path))) });
+  }
+  return registry;
+}
+
+function withTerminalActivationFixture(callback) {
+  const activationPaths = {
+    T03: "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-terminal-correction-activation-receipt.json",
+    T04: "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-terminal-correction-activation-receipt.json",
+  };
+  const originalHead = terminalGit(["rev-parse", "HEAD"]);
+  const originalSourceHead = sourceGit(["rev-parse", "HEAD"]);
+  const gitDirectory = realpathSync(resolve(terminalFixtureRoot, ".git"));
+  const containment = relative(terminalFixtureContainer, gitDirectory);
+  assert.ok(containment && containment !== ".." && !containment.startsWith(`..${sep}`), "terminal activation git dir must remain below the isolated fixture root");
+  const originalTree = terminalGit(["rev-parse", `${originalHead}^{tree}`]);
+  const authorizationHashes = terminalAuthorizationHashes();
+  const indexRoot = mkdtempSync(join(tmpdir(), "one-box-terminal-index-"));
+  const indexPath = resolve(indexRoot, "index");
+  const gitIdentity = {
+    GIT_INDEX_FILE: indexPath,
+    GIT_AUTHOR_NAME: "Terminal Fixture",
+    GIT_AUTHOR_EMAIL: "terminal-fixture@example.invalid",
+    GIT_COMMITTER_NAME: "Terminal Fixture",
+    GIT_COMMITTER_EMAIL: "terminal-fixture@example.invalid",
+    GIT_AUTHOR_DATE: "2026-09-01T20:23:00Z",
+    GIT_COMMITTER_DATE: "2026-09-01T20:23:00Z",
+  };
+  let activationCommit = null;
+  try {
+    for (const lane of ["T03", "T04"]) {
+      const child = JSON.parse(readFileSync(resolve(terminalFixtureRoot, terminalChildPaths[lane]), "utf8"));
+      const receipt = {
+        schemaVersion: 1,
+        receiptId: `OBX-P180-${lane}-TERMINAL-CORRECTION-ACTIVATION-003`,
+        receiptKind: "owner-solo-terminal-correction-activation-v1",
+        status: "ACTIVE",
+        programAuthorizationId: terminalProgramAuthorizationId,
+        programAuthorizationHash: authorizationHashes.program,
+        authorizationId: terminalAuthorizationIds[lane],
+        authorizationHash: authorizationHashes.children[lane],
+        ticketId: `OBX-P180-${lane}`,
+        laneId: lane,
+        governanceCommit: originalHead,
+        governanceTree: originalTree,
+        observedAt: "2026-09-01T20:23:30.000Z",
+        expiresAt: child.expiresAt,
+      };
+      setSelfHash(receipt);
+      writeFileSync(resolve(terminalFixtureRoot, activationPaths[lane]), `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o644 });
+    }
+    terminalGitWithEnvironment(["read-tree", originalHead], { env: gitIdentity });
+    terminalGitWithEnvironment(["add", "--", ...Object.values(activationPaths)], { env: gitIdentity });
+    const activationTree = terminalGitWithEnvironment(["write-tree"], { env: gitIdentity });
+    activationCommit = terminalGitWithEnvironment(["commit-tree", activationTree, "-p", originalHead], { env: gitIdentity, input: "terminal activation fixture\n" });
+    terminalGit(["update-ref", "HEAD", activationCommit, originalHead]);
+    return callback({ activationCommit, activationTree, registry: terminalRegistryForFixture() });
+  } finally {
+    if (activationCommit) terminalGit(["update-ref", "HEAD", originalHead, activationCommit]);
+    for (const path of Object.values(activationPaths)) rmSync(resolve(terminalFixtureRoot, path), { force: true });
+    rmSync(indexRoot, { recursive: true, force: true });
+    assert.equal(sourceGit(["rev-parse", "HEAD"]), originalSourceHead, "terminal activation fixture must not mutate source HEAD");
+  }
+}
+
+function withTerminalRecordProofRoot(callback) {
+  const proofRoot = mkdtempSync(join(tmpdir(), "one-box-terminal-record-"));
+  chmodSync(proofRoot, 0o700);
+  const verify = (options = {}) => verifyPhase1TerminalCorrectionAuthorizations({
+    repoRoot: terminalFixtureRoot,
+    registry: terminalRegistryForFixture(),
+    mode: "record",
+    evaluationTime: Date.parse("2026-09-02T00:00:00.000Z"),
+    verifyRepositoryState: false,
+    verifyRepin: false,
+    goalRoot: terminalGoalRoot,
+    proofRoot,
+    ...terminalExpectedAnchors,
+    ...options,
+  });
+  try {
+    return callback({ proofRoot, verify });
+  } finally {
+    rmSync(proofRoot, { recursive: true, force: true });
+  }
+}
+
+function withTerminalSecurityMutation(mutate, assertion) {
+  const path = resolve(terminalFixtureRoot, "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-terminal-correction-security-review.json");
+  const original = readFileSync(path, "utf8");
+  withTerminalRecordProofRoot(({ verify }) => {
+    assert.deepEqual(verify().failures, [], "unmutated terminal record fixture must be clean");
+    try {
+      const record = JSON.parse(original);
+      mutate(record);
+      setSelfHash(record);
+      writeFileSync(path, `${JSON.stringify(record, null, 2)}\n`);
+      assertion(verify());
+    } finally {
+      writeFileSync(path, original);
+    }
+  });
+}
+
+function withTerminalChildBranchMutation(lane, branch, callback) {
+  const path = resolve(terminalFixtureRoot, terminalChildPaths[lane]);
+  const original = readFileSync(path);
+  try {
+    const child = JSON.parse(original.toString("utf8"));
+    child.branch = branch;
+    setTerminalHashEnvelope(child, "authorizationHash");
+    writeFileSync(path, `${JSON.stringify(child, null, 2)}\n`);
+    return callback();
+  } finally {
+    writeFileSync(path, original);
+  }
+}
+
+function verifyTerminalActiveFixture(registry, proofRoot, options = {}) {
+  return verifyPhase1TerminalCorrectionAuthorizations({
+    repoRoot: terminalFixtureRoot,
+    goalRoot: terminalGoalRoot,
+    registry,
+    mode: "lifecycle",
+    evaluationTime: Date.parse("2026-09-02T00:00:00.000Z"),
+    verifyRepositoryState: true,
+    verifySecurity: false,
+    verifyRepin: false,
+    proofRoot,
+    ...terminalExpectedAnchors,
+    ...options,
+  });
+}
+
+function terminalReviewBindings(targetCommit, targetTree) {
+  return [
+    ["OBX-P180-T03-TERMINAL-CORRECTION-GLM-R1", "model:z-ai-glm-5.3-flash:openrouter-z-ai-fp8", "GREEN"],
+    ["OBX-P180-T04-TERMINAL-CORRECTION-GLM-R1", "model:z-ai-glm-5.3-flash:openrouter-z-ai-fp8", "GREEN"],
+    ["OBX-P180-PHASE1-TERMINAL-CORRECTION-OPUS-R1", "model:claude-opus-5:claude-max-oauth", "GREEN"],
+    ["OBX-P180-PHASE1-TERMINAL-CORRECTION-SECURITY-FINAL", "agent:codex-gpt-5.6-sol-ultra:terminal-correction-post-security", "PASS"],
+    ["OBX-P180-PHASE1-TERMINAL-CORRECTION-FACT-FINAL", "agent:codex-gpt-5.6-sol-ultra:terminal-correction-post-fact", "PASS"],
+  ].map(([reviewId, reviewerActorId, verdict]) => ({ reviewId, reviewerActorId, verdict, targetCommit, targetTree }));
+}
+
+before(() => {
+  initializeTerminalFixture();
+});
+
+test("terminal verifier and plan-authority test file parse", () => {
+  for (const path of [terminalVerifierPath, fileURLToPath(import.meta.url)]) {
+    const result = spawnSync(process.execPath, ["--check", path], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr, "");
+  }
+});
+
+test("terminal harness isolates Git metadata and all goal evidence under its temporary root", () => {
+  const planFixtureGitDirectory = realpathSync(resolve(fixtureRoot, ".git"));
+  const planFixtureContainment = relative(fixtureRoot, planFixtureGitDirectory);
+  assert.ok(planFixtureContainment && planFixtureContainment !== ".." && !planFixtureContainment.startsWith(`..${sep}`), "plan fixture git dir must be a real directory below its temporary root");
+  const gitDirectory = realpathSync(resolve(terminalFixtureRoot, ".git"));
+  for (const path of [gitDirectory, terminalGoalRoot]) {
+    const containment = relative(terminalFixtureContainer, path);
+    assert.ok(containment && containment !== ".." && !containment.startsWith(`..${sep}`), `${path} must be contained by the terminal fixture`);
+  }
+  assert.equal(existsSync(resolve(terminalFixtureRoot, ".claude")), false, "terminal repo must not materialize production goal or handoff state");
+  assert.equal(sourceGit(["rev-parse", "HEAD"]), terminalSourceHeadBefore, "terminal harness setup must preserve source HEAD");
+  withTerminalRecordProofRoot(({ verify }) => {
+    assert.deepEqual(verify().failures, [], "complete synthetic immutable history must verify without production goal-state bytes");
+  });
+});
+
+test("terminal active lifecycle derives the exact branch from self-hashed records and never accesses protected handoff state", async (t) => {
+  const authorizedBranch = "feat/obx-p180-terminal-correction-003";
+  const program = JSON.parse(readFileSync(resolve(terminalFixtureRoot, terminalProgramPath), "utf8"));
+  assert.equal(program.branch, authorizedBranch);
+  const verifierSource = readFileSync(terminalVerifierPath, "utf8");
+  assert.doesNotMatch(verifierSource, /one-box-operating-environment-next-phase|cbbc878aa0691f333b128a71aee43adde89a9691a9ed65880f1f2b41a20643a6/);
+
+  await t.test("authorized program branch passes active lifecycle", () => {
+    withTerminalActivationFixture(({ registry }) => {
+      withTerminalProofFixture({}, (fixture) => {
+        assert.deepEqual(verifyTerminalActiveFixture(registry, fixture.proofRoot).failures, []);
+      });
+    });
+  });
+
+  await t.test("a self-hashed child on the recovery branch fails", () => {
+    withTerminalChildBranchMutation("T03", "feat/obx-p180-t03-t05-offline-wave-recovery", () => {
+      withTerminalActivationFixture(({ registry }) => {
+        withTerminalProofFixture({}, (fixture) => {
+          assert.match(verifyTerminalActiveFixture(registry, fixture.proofRoot).failures.join("\n"), /T03 terminal identity: exact value drift/);
+        });
+      });
+    });
+  });
+});
+
+test("terminal independent anchors reject jointly resealed external-authority substitution", async (t) => {
+  await t.test("production defaults retain the immutable external anchors", async () => {
+    const terminalModule = await import("./verify-p180-phase1-terminal-correction-authorization.mjs");
+    assert.deepEqual([
+      terminalModule.TERMINAL_OWNER_DIRECTION_SHA256,
+      terminalModule.TERMINAL_ACTIVATION_ALLOWLIST_SHA256,
+      terminalModule.TERMINAL_EXECUTION_BRANCH,
+    ], [
+      "a47ef38b2e90d98a269f4e2a5bce958e4e27196395c2cf4a23c43025f4fbc7ed",
+      "8dbaf7a4dc8dc3ed752d268b70e42c6fcecfc65e4622cceb3d0d1bc7f13cd08e",
+      "feat/obx-p180-terminal-correction-003",
+    ]);
+  });
+
+  await t.test("owner replacement cannot authenticate itself by resealing every repository record", () => {
+    const ownerPath = resolve(terminalGoalRoot, "owner-authorizations/2026-09-01-phase1-terminal-correction-wave.md");
+    const programPath = resolve(terminalFixtureRoot, terminalProgramPath);
+    const childPaths = Object.fromEntries(Object.entries(terminalChildPaths).map(([lane, path]) => [lane, resolve(terminalFixtureRoot, path)]));
+    const securityPath = resolve(terminalFixtureRoot, "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-terminal-correction-security-review.json");
+    const repinPath = resolve(terminalFixtureRoot, "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-terminal-correction-authority-repin.json");
+    const manifestPath = resolve(terminalFixtureRoot, "docs/plans/one-box-master/00-authority/authority-manifest.json");
+    const saved = new Map([ownerPath, programPath, ...Object.values(childPaths), securityPath, repinPath].map((path) => [path, existsSync(path) ? readFileSync(path) : null]));
+
+    withTerminalRecordProofRoot(({ proofRoot }) => {
+      try {
+        const replacementOwnerBytes = Buffer.from("Synthetic substituted owner bytes that must not become self-authorizing.\n");
+        writeFileSync(ownerPath, replacementOwnerBytes, { mode: 0o644 });
+
+        const program = JSON.parse(readFileSync(programPath, "utf8"));
+        program.ownerDirectionBinding.digest = sha256(replacementOwnerBytes);
+        setTerminalHashEnvelope(program, "authorizationHash");
+        writeFileSync(programPath, `${JSON.stringify(program, null, 2)}\n`);
+        const programBytes = readFileSync(programPath);
+
+        const children = {};
+        for (const [lane, path] of Object.entries(childPaths)) {
+          const child = JSON.parse(readFileSync(path, "utf8"));
+          child.parentProgramBinding.authorizationHash = program.authorizationHash.digest;
+          child.parentProgramBinding.recordSha256 = sha256(programBytes);
+          child.ownerDirectionBinding = structuredClone(program.ownerDirectionBinding);
+          setTerminalHashEnvelope(child, "authorizationHash");
+          writeFileSync(path, `${JSON.stringify(child, null, 2)}\n`);
+          children[lane] = child;
+        }
+
+        const authorizationHashes = {
+          [terminalProgramAuthorizationId]: program.authorizationHash.digest,
+          [terminalAuthorizationIds.T03]: children.T03.authorizationHash.digest,
+          [terminalAuthorizationIds.T04]: children.T04.authorizationHash.digest,
+        };
+        const security = JSON.parse(readFileSync(securityPath, "utf8"));
+        for (const binding of security.authorizationBindings) binding.authorizationHash = authorizationHashes[binding.authorizationId];
+        setSelfHash(security);
+        writeFileSync(securityPath, `${JSON.stringify(security, null, 2)}\n`);
+
+        const manifestBytes = readFileSync(manifestPath);
+        const manifest = JSON.parse(manifestBytes);
+        const repin = {
+          schemaVersion: 1,
+          reviewId: "OBX-P180-PHASE1-TERMINAL-CORRECTION-AUTHORITY-REPIN-003",
+          recordKind: "owner-directed-phase1-terminal-correction-authority-repin-v1",
+          status: "VERIFIED_PENDING_TERMINAL_GOVERNANCE_COMMIT",
+          authorizationBindings: [
+            { authorizationId: terminalProgramAuthorizationId, authorizationHash: program.authorizationHash.digest, recordPath: terminalProgramPath, recordSha256: sha256(readFileSync(programPath)) },
+            ...Object.entries(childPaths).map(([lane, path]) => ({
+              authorizationId: terminalAuthorizationIds[lane],
+              authorizationHash: children[lane].authorizationHash.digest,
+              recordPath: terminalChildPaths[lane],
+              recordSha256: sha256(readFileSync(path)),
+            })),
+          ],
+          currentAuthorityManifest: {
+            path: "docs/plans/one-box-master/00-authority/authority-manifest.json",
+            packetDigest: manifest.packetDigest,
+            sha256: sha256(manifestBytes),
+          },
+          invariants: {
+            oldEvidenceRewritten: false,
+            authorityExpansion: false,
+            runtimeOrDependencyChange: false,
+            t05Authorized: false,
+            t06ThroughT08Authorized: false,
+          },
+        };
+        setSelfHash(repin);
+        writeFileSync(repinPath, `${JSON.stringify(repin, null, 2)}\n`, { mode: 0o644 });
+
+        const result = verifyPhase1TerminalCorrectionAuthorizations({
+          repoRoot: terminalFixtureRoot,
+          goalRoot: terminalGoalRoot,
+          registry: terminalRegistryForFixture(),
+          mode: "record",
+          evaluationTime: Date.parse("2026-09-02T00:00:00.000Z"),
+          verifyRepositoryState: false,
+          verifySecurity: true,
+          verifyRepin: true,
+          proofRoot,
+          ...terminalExpectedAnchors,
+        });
+        assert.ok(result.failures.length > 0, "jointly resealed substituted owner bytes must fail the independent anchor");
+        assert.ok(result.failures.every((failure) => /owner direction external anchor/.test(failure)), result.failures.join("\n"));
+      } finally {
+        for (const [path, bytes] of saved) {
+          if (bytes === null) rmSync(path, { force: true });
+          else writeFileSync(path, bytes);
+        }
+      }
+    });
+  });
+});
+
+test("terminal proof validator sees a writer lock in an injected proof root", () => {
+  const proofRoot = mkdtempSync(join(tmpdir(), "one-box-terminal-lock-"));
+  chmodSync(proofRoot, 0o700);
+  writeFileSync(resolve(proofRoot, "phase1-terminal-correction-proof-registry.lock"), "locked\n", { mode: 0o600 });
+  try {
+    const result = terminalProofRegistryBinding({ repoRoot: terminalFixtureRoot, proofRoot });
+    assert.match(result.failures.join("\n"), /terminal proof registry has a live writer lock/);
+  } finally {
+    rmSync(proofRoot, { recursive: true, force: true });
+  }
+});
+
+test("terminal proof validator is self-contained under an injected proof root", () => {
+  withTerminalProofFixture({}, ({ verify }) => {
+    assert.deepEqual(verify().failures, []);
+  });
+});
+
+test("terminal proof rows reject stale program and lane authorization hashes after resealing", async (t) => {
+  for (const { name, field, replacement, expected } of [
+    {
+      name: "program authorization hash",
+      field: "programAuthorizationHash",
+      replacement: "f".repeat(64),
+      expected: "terminal proof registry row 1 program authorization hash: exact value drift",
+    },
+    {
+      name: "child authorization hash",
+      field: "authorizationHash",
+      replacement: "e".repeat(64),
+      expected: "terminal proof registry row 1 child authorization hash: exact value drift",
+    },
+  ]) {
+    await t.test(name, () => {
+      withTerminalActivationFixture(({ registry }) => {
+        withTerminalProofFixture({}, (fixture) => {
+          const verify = () => verifyPhase1TerminalCorrectionAuthorizations({
+            repoRoot: terminalFixtureRoot,
+            registry,
+            mode: "lifecycle",
+            evaluationTime: Date.parse("2026-09-02T00:00:00.000Z"),
+            verifyRepositoryState: false,
+            verifySecurity: false,
+            verifyRepin: false,
+            goalRoot: terminalGoalRoot,
+            proofRoot: fixture.proofRoot,
+            ...terminalExpectedAnchors,
+          });
+          const knownRepositoryStateFailure = "terminal active or consumed state requires repository-state verification";
+          assert.deepEqual(verify().failures, [knownRepositoryStateFailure], "unmutated active terminal fixture must have only the documented repository-state failure");
+          resealTerminalProof(fixture, (rows) => { rows[0][field] = replacement; });
+          const targeted = verify().failures.filter((failure) => failure !== knownRepositoryStateFailure);
+          assert.deepEqual(targeted, [expected]);
+        });
+      });
+    });
+  }
+});
+
+test("terminal completion rejects a truncated valid prefix when later immutable anchors exist", () => {
+  withTerminalProofFixture({ rows: [], requireCompletion: true }, (fixture) => {
+    const commitEnvironment = {
+      GIT_AUTHOR_NAME: "Terminal Fixture",
+      GIT_AUTHOR_EMAIL: "terminal-fixture@example.invalid",
+      GIT_COMMITTER_NAME: "Terminal Fixture",
+      GIT_COMMITTER_EMAIL: "terminal-fixture@example.invalid",
+      GIT_AUTHOR_DATE: "2026-09-01T20:25:00Z",
+      GIT_COMMITTER_DATE: "2026-09-01T20:25:00Z",
+    };
+    const secondTarget = terminalGitWithEnvironment(["commit-tree", fixture.targetTree, "-p", fixture.targetCommit], {
+      env: commitEnvironment,
+      input: "second terminal target\n",
+    });
+    const secondTree = terminalGit(["rev-parse", `${secondTarget}^{tree}`]);
+    for (const row of [
+      { lane: "T03", status: "PASS" },
+      { lane: "T04", status: "PASS" },
+      { lane: "T03", status: "PASS", targetCommit: secondTarget, targetTree: secondTree },
+      { lane: "T04", status: "PASS", targetCommit: secondTarget, targetTree: secondTree },
+    ]) fixture.rows.push(buildTerminalRow(fixture, row));
+    writeTerminalProof(fixture);
+    assert.deepEqual(fixture.verify().failures, [], "untruncated four-row completion fixture must be clean");
+    clearTerminalImmutable(fixture.registryPath);
+    const retained = Buffer.from(`${fixture.rows.slice(0, 2).map(canonicalJson).join("\n")}\n`);
+    writeFileSync(fixture.registryPath, retained, { mode: 0o600 });
+    setTerminalImmutable(fixture.registryPath);
+    const failures = fixture.verify().failures;
+    assert.match(failures.join("\n"), /terminal proof registry is a stale valid prefix/);
+    assert.doesNotMatch(failures.join("\n"), /output path escape|missing|envelope hash drift|not strict canonical JSON/);
+  });
+});
+
+test("terminal forbidden-effect scanner catches bracketed and dynamic access", async (t) => {
+  for (const { name, source, expected } of [
+    { name: "bracketed fetch", source: "globalThis[\"fetch\"]('/endpoint')", expected: ["network-call"] },
+    { name: "aliased global fetch", source: "const request = globalThis[\"fetch\"]; request('/endpoint')", expected: ["network-call"] },
+    { name: "aliased global object", source: "const runtime = globalThis; runtime.fetch('/endpoint')", expected: ["network-call"] },
+    { name: "optional-chain global fetch", source: "globalThis?.[\"fetch\"]?.('/endpoint')", expected: ["network-call"] },
+    { name: "parenthesized global fetch", source: "((globalThis)).fetch('/endpoint')", expected: ["network-call"] },
+    { name: "as-asserted global fetch", source: "(globalThis as any).fetch('/endpoint')", expected: ["network-call"] },
+    { name: "angle-asserted global fetch", source: "(<any>globalThis).fetch('/endpoint')", expected: ["network-call"] },
+    { name: "non-null global fetch", source: "globalThis!.fetch('/endpoint')", expected: ["network-call"] },
+    { name: "satisfies-wrapped global fetch", source: "(globalThis satisfies object).fetch('/endpoint')", expected: ["network-call"] },
+    { name: "bracketed environment", source: "const token = process[\"env\"].TOKEN", expected: ["environment-access"] },
+    { name: "optional-chain environment", source: "const token = process?.[\"env\"]?.TOKEN", expected: ["environment-access"] },
+    { name: "aliased process object", source: "const runtimeProcess = process; const token = runtimeProcess.env.TOKEN", expected: ["environment-access"] },
+    { name: "nested global process", source: "const token = globalThis.process.env.TOKEN", expected: ["environment-access"] },
+    { name: "copied nested global process", source: "const runtimeProcess = globalThis.process; const token = runtimeProcess.env.TOKEN", expected: ["environment-access"] },
+    { name: "copied protected global", source: "const root = globalThis; const copied = root; copied.process.env.TOKEN", expected: ["environment-access"] },
+    { name: "static filesystem import with local alias", source: "import * as storage from 'node:fs'; storage.statSync('x')", expected: ["filesystem-or-shell"] },
+    { name: "dynamic filesystem import", source: "const fs = await import(\"node:fs\")", expected: ["filesystem-or-shell"] },
+    { name: "template-literal filesystem import", source: "const fs = await import(`fs/promises`)", expected: ["filesystem-or-shell"] },
+    { name: "aliased require", source: "const load = require; const proc = load('node:child_process')", expected: ["filesystem-or-shell"] },
+    { name: "indirect dynamic import", source: "const moduleName = 'node:' + 'fs'; const fs = await import(moduleName)", expected: ["filesystem-or-shell"] },
+    { name: "destructured process environment", source: "const { env } = process; void env.TOKEN", expected: ["environment-access"] },
+    { name: "protected Reflect fetch access", source: "Reflect.get(globalThis, 'fetch')('/exfil')", expected: ["network-call"] },
+    { name: "protected Reflect environment access", source: "Reflect.get(process, 'env').TOKEN", expected: ["environment-access"] },
+    { name: "protected Reflect browser access", source: "Reflect.get(window, 'document').title", expected: ["browser-or-ui"] },
+    { name: "process builtin filesystem module", source: "process.getBuiltinModule('node:fs').statSync('/tmp/x')", expected: ["filesystem-or-shell"] },
+    { name: "aliased module require", source: "const load = module.require; load('node:fs')", expected: ["filesystem-or-shell"] },
+    { name: "createRequire loader", source: "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); load('node:fs')", expected: ["filesystem-or-shell"] },
+    { name: "Function dynamic code", source: "const make = Function('return fetch'); make()('/exfil')", expected: ["dynamic-code"] },
+    { name: "eval dynamic code", source: "eval('fetch(\\\"/exfil\\\")')", expected: ["dynamic-code"] },
+    { name: "static node https", source: "import https from 'node:https'; https.get('https://example.invalid')", expected: ["network-call"] },
+    { name: "node-fetch package", source: "import fetch from 'node-fetch'; fetch('https://example.invalid')", expected: ["network-call"] },
+    { name: "undici package", source: "import { request } from 'undici'; request('https://example.invalid')", expected: ["network-call"] },
+    { name: "openai provider package", source: "import OpenAI from 'openai'; new OpenAI()", expected: ["provider-or-model"] },
+    { name: "anthropic provider package", source: "import Anthropic from '@anthropic-ai/sdk'; new Anthropic()", expected: ["provider-or-model"] },
+    { name: "unapproved runtime package", source: "import runtime from 'left-pad'; runtime('x', 2)", expected: ["forbidden-runtime-import"] },
+  ]) await t.test(name, () => assert.deepEqual(terminalForbiddenEffectFindings(source), expected));
+  for (const moduleName of ["http", "node:http", "https", "node:https", "net", "node:net", "tls", "node:tls", "dgram", "node:dgram"]) {
+    await t.test(`network transport module ${moduleName}`, () => {
+      assert.deepEqual(terminalForbiddenEffectFindings(`import transport from ${JSON.stringify(moduleName)}; transport.connect?.()`), ["network-call"]);
+    });
+  }
+  await t.test("provider-offline reducer remains clean", () => {
+    assert.deepEqual(terminalForbiddenEffectFindings("export function reduce(input) { return { ...input, status: 'denied' }; }"), []);
+  });
+  await t.test("locally bound domain window remains clean", () => {
+    assert.deepEqual(terminalForbiddenEffectFindings("export const remaining = (windows) => windows.map((window) => window.remaining);"), []);
+  });
+  for (const { name, source } of [
+    { name: "local process environment", source: "const process = { env: { TOKEN: 'local' } }; const { env } = process; void env.TOKEN" },
+    { name: "local Reflect and globalThis", source: "const Reflect = { get: (value, key) => value[key] }; const globalThis = { fetch: () => 'local' }; Reflect.get(globalThis, 'fetch')()" },
+    { name: "local process builtin loader", source: "const process = { getBuiltinModule: () => ({ statSync: () => 'local' }) }; process.getBuiltinModule('node:fs').statSync()" },
+    { name: "local module require", source: "const module = { require: () => ({}) }; const load = module.require; load('node:fs')" },
+    { name: "local Function", source: "const Function = () => () => 'local'; Function('return fetch')()" },
+    { name: "local transport", source: "const https = { get: () => 'local' }; https.get('local')" },
+    { name: "local createRequire", source: "const createRequire = () => () => 'local'; createRequire()('node:fs')" },
+    { name: "local eval", source: "const eval = () => 'local'; eval('fetch')" },
+    { name: "block shadow after global-object alias", source: "const runtime = globalThis; { const runtime = { fetch: () => 'local' }; runtime.fetch() }" },
+    { name: "parameter shadow after global-object alias", source: "const runtime = globalThis; function local(runtime) { return runtime.fetch() }" },
+    { name: "allowed provider-offline imports", source: "import { isProxy } from 'node:util/types'; import { computeSelfHash } from './canonical'; import { failure } from './reasonCodes'; void isProxy; void computeSelfHash; void failure" },
+    { name: "type-only package import", source: "import type { Client } from 'openai'; const local: Client | null = null; void local" },
+  ]) await t.test(name, () => assert.deepEqual(terminalForbiddenEffectFindings(source), []));
+});
+
+test("terminal production Git rejects repository redirection and replacement objects", async (t) => {
+  for (const key of ["GIT_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"]) {
+    await t.test(key, () => {
+      const redirectRoot = realpathSync(mkdtempSync(join(tmpdir(), "one-box-terminal-git-redirect-")));
+      const redirectPath = key === "GIT_DIR" ? resolve(redirectRoot, "repo") : resolve(redirectRoot, "objects");
+      mkdirSync(redirectPath, { recursive: true });
+      if (key === "GIT_DIR") {
+        const initialized = spawnSync("git", ["init", "-q", redirectPath], { encoding: "utf8", env: terminalGitEnvironment() });
+        assert.equal(initialized.status, 0, initialized.stderr);
+      }
+      const previous = process.env[key];
+      process.env[key] = redirectPath;
+      try {
+        withTerminalRecordProofRoot(({ verify }) => {
+          assert.match(verify().failures.join("\n"), new RegExp(`terminal Git environment redirect forbidden: ${key}`));
+        });
+      } finally {
+        if (previous === undefined) delete process.env[key];
+        else process.env[key] = previous;
+        rmSync(redirectRoot, { recursive: true, force: true });
+      }
+    });
+  }
+
+  await t.test("replacement ref", () => {
+    const originalHead = terminalGit(["rev-parse", "HEAD"]);
+    const tree = terminalGit(["rev-parse", `${originalHead}^{tree}`]);
+    const replacement = terminalGitWithEnvironment(["commit-tree", tree], {
+      env: {
+        GIT_AUTHOR_NAME: "Terminal Fixture",
+        GIT_AUTHOR_EMAIL: "terminal-fixture@example.invalid",
+        GIT_COMMITTER_NAME: "Terminal Fixture",
+        GIT_COMMITTER_EMAIL: "terminal-fixture@example.invalid",
+      },
+      input: "terminal replacement fixture\n",
+    });
+    terminalGit(["replace", originalHead, replacement]);
+    try {
+      withTerminalRecordProofRoot(({ verify }) => {
+        assert.match(verify().failures.join("\n"), /terminal Git replacement refs forbidden/);
+      });
+    } finally {
+      terminalGit(["replace", "-d", originalHead]);
+    }
+  });
+});
+
+test("terminal trusted subprocesses ignore hostile PATH and fail closed when unavailable", async (t) => {
+  await t.test("unavailable trusted executable", async () => {
+    const terminalModule = await import("./verify-p180-phase1-terminal-correction-authorization.mjs");
+    const validate = terminalModule.terminalTrustedExecutableFailures ?? (() => []);
+    const missing = resolve(tmpdir(), "one-box-terminal-definitely-missing-git");
+    assert.deepEqual(validate({ gitPath: missing, statPath: "/usr/bin/stat" }), [`terminal trusted git executable unavailable: ${missing}`]);
+  });
+
+  await t.test("hostile PATH cannot replace git or stat", () => {
+    const hostileRoot = mkdtempSync(join(tmpdir(), "one-box-terminal-hostile-path-"));
+    const hostileBin = resolve(hostileRoot, "bin");
+    const gitMarker = resolve(hostileRoot, "fake-git-executed");
+    const statMarker = resolve(hostileRoot, "fake-stat-executed");
+    mkdirSync(hostileBin);
+    for (const [name, trusted, marker] of [["git", "/usr/bin/git", gitMarker], ["stat", "/usr/bin/stat", statMarker]]) {
+      const path = resolve(hostileBin, name);
+      writeFileSync(path, `#!/bin/sh\nprintf 'executed\\n' >> ${JSON.stringify(marker)}\nexec ${trusted} \"$@\"\n`);
+      chmodSync(path, 0o755);
+    }
+
+    withTerminalRecordProofRoot(({ proofRoot }) => {
+      withTerminalProofFixture({}, (proofFixture) => {
+        const registry = terminalRegistryForFixture();
+        const previousPath = process.env.PATH;
+        process.env.PATH = `${hostileBin}:/usr/bin:/bin`;
+        try {
+          const record = verifyPhase1TerminalCorrectionAuthorizations({
+            repoRoot: terminalFixtureRoot,
+            goalRoot: terminalGoalRoot,
+            registry,
+            mode: "record",
+            evaluationTime: Date.parse("2026-09-02T00:00:00.000Z"),
+            verifyRepositoryState: false,
+            verifyRepin: false,
+            proofRoot,
+            ...terminalExpectedAnchors,
+          });
+          assert.deepEqual(record.failures, []);
+          assert.deepEqual(proofFixture.verify().failures, []);
+        } finally {
+          if (previousPath === undefined) delete process.env.PATH;
+          else process.env.PATH = previousPath;
+        }
+        assert.deepEqual([existsSync(gitMarker), existsSync(statMarker)], [false, false], "caller PATH executables must never run");
+      });
+    });
+    rmSync(hostileRoot, { recursive: true, force: true });
+  });
+});
+
+test("terminal security record has closed coverage, findings, and reviewer independence", async (t) => {
+  await t.test("closed shape", () => {
+    withTerminalSecurityMutation((security) => { security.extra = true; }, (result) => {
+      assert.match(result.failures.join("\n"), /terminal security keys: exact value drift/);
+    });
+  });
+  await t.test("exact coverage", () => {
+    withTerminalSecurityMutation((security) => { security.coverage[0].surface = "partial-owner-authority"; }, (result) => {
+      assert.match(result.failures.join("\n"), /terminal security coverage: exact value drift/);
+    });
+  });
+  await t.test("no adverse or open findings", () => {
+    withTerminalSecurityMutation((security) => {
+      security.findings.push({ id: "OPEN-1", severity: "high", status: "OPEN" });
+    }, (result) => {
+      assert.match(result.failures.join("\n"), /terminal security findings: exact value drift/);
+    });
+  });
+  await t.test("independent reviewer", () => {
+    withTerminalSecurityMutation((security) => {
+      security.reviewerActorId = "agent:codex-gpt-5.6-sol-ultra:obx-p180-controller";
+    }, (result) => {
+      assert.match(result.failures.join("\n"), /terminal security reviewer independence drift/);
+    });
+  });
+});
+
+test("terminal completion review bindings require exact identities, verdicts, targets, and shape", async () => {
+  const terminalModule = await import("./verify-p180-phase1-terminal-correction-authorization.mjs");
+  const validate = terminalModule.terminalCompletionReviewBindingFailures ?? (() => []);
+  const targetCommit = "a".repeat(40);
+  const targetTree = "b".repeat(40);
+  const valid = terminalReviewBindings(targetCommit, targetTree);
+  assert.deepEqual(validate(valid, { targetCommit, targetTree }), []);
+
+  const wrongIdentity = structuredClone(valid);
+  wrongIdentity[0].reviewId = "OBX-P180-WRONG-REVIEW";
+  assert.match(validate(wrongIdentity, { targetCommit, targetTree }).join("\n"), /terminal completion review binding 1 identity: exact value drift/);
+
+  const wrongVerdict = structuredClone(valid);
+  wrongVerdict[2].verdict = "PROCEED_WITH_CONDITIONS";
+  assert.match(validate(wrongVerdict, { targetCommit, targetTree }).join("\n"), /terminal completion review binding 3 verdict: exact value drift/);
+
+  const wrongTarget = structuredClone(valid);
+  wrongTarget[4].targetTree = "c".repeat(40);
+  assert.match(validate(wrongTarget, { targetCommit, targetTree }).join("\n"), /terminal completion review binding 5 target: exact value drift/);
+
+  const extraKey = structuredClone(valid);
+  extraKey[1].extra = true;
+  assert.match(validate(extraKey, { targetCommit, targetTree }).join("\n"), /terminal completion review binding 2 keys: exact value drift/);
+});
+
+test("terminal proof rows require every matching prefix anchor to retain uchg", async (t) => {
+  await t.test("missing uchg", () => {
+    withTerminalProofFixture({}, (fixture) => {
+      assert.deepEqual(fixture.verify().failures, []);
+      clearTerminalImmutable(fixture.anchorPaths[0]);
+      assertTerminalTargetedFailure(fixture.verify(), /terminal prefix anchor 1: immutable uchg flag missing/);
+    });
+  });
+  await t.test("missing anchor", () => {
+    withTerminalProofFixture({}, (fixture) => {
+      assert.deepEqual(fixture.verify().failures, []);
+      clearTerminalImmutable(fixture.anchorPaths[0]);
+      rmSync(fixture.anchorPaths[0], { force: true });
+      assertTerminalTargetedFailure(fixture.verify(), /terminal prefix anchor 1: missing/, [
+        /output path escape/,
+        /envelope hash drift/,
+        /not strict canonical JSON/,
+      ]);
+    });
+  });
+});
+
+test("terminal proof rejects a valid command tuple substituted into another command slot", () => {
+  withTerminalProofFixture({ rows: [{ lane: "T03", status: "PASS" }] }, (fixture) => {
+    assert.deepEqual(fixture.verify().failures, []);
+    resealTerminalProof(fixture, (rows) => {
+      const replacement = rows[0].commandReceipts[1];
+      Object.assign(rows[0].commandReceipts[0], {
+        commandId: replacement.commandId,
+        commandSpec: replacement.commandSpec,
+        commandSpecSha256: replacement.commandSpecSha256,
+      });
+    });
+    assertTerminalTargetedFailure(fixture.verify(), /T03 attempt 001 command 1 specification: exact value drift/);
+  });
+});
+
+test("terminal proof rejects output-path substitution and post-seal output-byte substitution", async (t) => {
+  await t.test("output path", () => {
+    withTerminalProofFixture({ rows: [{ lane: "T03", status: "PASS" }] }, (fixture) => {
+      assert.deepEqual(fixture.verify().failures, []);
+      resealTerminalProof(fixture, (rows) => {
+        const first = rows[0].commandReceipts[0];
+        const second = rows[0].commandReceipts[1];
+        const firstBinding = { outputPath: first.outputPath, outputSha256: first.outputSha256, outputBytes: first.outputBytes };
+        Object.assign(first, { outputPath: second.outputPath, outputSha256: second.outputSha256, outputBytes: second.outputBytes });
+        Object.assign(second, firstBinding);
+      });
+      assertTerminalTargetedFailure(fixture.verify(), /T03 attempt 001 command 1 output path: exact value drift/);
+    });
+  });
+  await t.test("output bytes", () => {
+    withTerminalProofFixture({ rows: [{ lane: "T03", status: "PASS" }] }, (fixture) => {
+      assert.deepEqual(fixture.verify().failures, []);
+      const [first, second] = fixture.rows[0].commandReceipts;
+      const firstOutput = resolve(fixture.proofRoot, first.outputPath.slice("proof/".length));
+      const secondOutput = resolve(fixture.proofRoot, second.outputPath.slice("proof/".length));
+      writeFileSync(firstOutput, readFileSync(secondOutput));
+      assertTerminalTargetedFailure(fixture.verify(), /T03 attempt 001 command 1 output bytes: exact value drift/);
+    });
+  });
+});
+
+test("terminal completion rejects latest T03 and T04 attempts at different commits", () => {
+  withTerminalProofFixture({
+    rows: [{ lane: "T03", status: "PASS" }, { lane: "T04", status: "PASS" }],
+    requireCompletion: true,
+  }, (fixture) => {
+    assert.deepEqual(fixture.verify().failures, []);
+    const commitEnvironment = {
+      GIT_AUTHOR_NAME: "Terminal Fixture",
+      GIT_AUTHOR_EMAIL: "terminal-fixture@example.invalid",
+      GIT_COMMITTER_NAME: "Terminal Fixture",
+      GIT_COMMITTER_EMAIL: "terminal-fixture@example.invalid",
+      GIT_AUTHOR_DATE: "2026-09-01T20:26:00Z",
+      GIT_COMMITTER_DATE: "2026-09-01T20:26:00Z",
+    };
+    const secondTarget = terminalGitWithEnvironment(["commit-tree", fixture.targetTree, "-p", fixture.targetCommit], {
+      env: commitEnvironment,
+      input: "cross-lane target fixture\n",
+    });
+    const secondTree = terminalGit(["rev-parse", `${secondTarget}^{tree}`]);
+    resealTerminalProof(fixture, (rows) => {
+      const t04 = rows[1];
+      t04.executionCommit = secondTarget;
+      t04.executionTree = secondTree;
+      for (const [index, receipt] of t04.commandReceipts.entries()) {
+        const commandSpec = terminalCommandTemplates.T04[index][1].replaceAll("{TARGET_COMMIT}", secondTarget);
+        receipt.commandSpec = commandSpec;
+        receipt.commandSpecSha256 = sha256(commandSpec);
+      }
+    });
+    assertTerminalTargetedFailure(fixture.verify(), /terminal paired latest target: exact value drift/);
+  });
+});
+
+test("terminal proof activationTree is bound to the activation commit and paired lifecycle receipt", async (t) => {
+  await t.test("direct proof validation", () => {
+    withTerminalProofFixture({}, (fixture) => {
+      assert.deepEqual(fixture.verify().failures, []);
+      resealTerminalProof(fixture, (rows) => { rows[0].activationTree = "f".repeat(40); });
+      assertTerminalTargetedFailure(fixture.verify(), /terminal proof registry row 1 activation tree: exact value drift/);
+    });
+  });
+
+  await t.test("active lifecycle receipt pairing", () => {
+    withTerminalActivationFixture(({ registry }) => {
+      withTerminalProofFixture({}, (fixture) => {
+        assert.deepEqual(verifyTerminalActiveFixture(registry, fixture.proofRoot).failures, []);
+        resealTerminalProof(fixture, (rows) => { rows[0].activationTree = "e".repeat(40); });
+        assert.match(verifyTerminalActiveFixture(registry, fixture.proofRoot).failures.join("\n"), /terminal proof registry row 1 paired activation tree: exact value drift/);
+      });
+    });
+  });
+});
+
+test("terminal proof rejects semantically valid noncanonical JSONL", () => {
+  withTerminalProofFixture({}, (fixture) => {
+    assert.deepEqual(fixture.verify().failures, []);
+    resealTerminalProof(fixture, () => {}, { serialization: "noncanonical" });
+    assertTerminalTargetedFailure(fixture.verify(), /terminal proof registry row 1: not strict canonical JSON/, [
+      /output path escape/,
+      /terminal prefix anchor \d+: missing/,
+      /envelope hash drift/,
+    ]);
+  });
+});
+
+test("terminal proof rejects a registry row above the one-million-byte boundary", () => {
+  const proofRoot = mkdtempSync(join(tmpdir(), "one-box-terminal-oversized-"));
+  chmodSync(proofRoot, 0o700);
+  const raw = JSON.stringify({ padding: "x".repeat(1_000_001) });
+  assert.ok(Buffer.byteLength(raw) > 1_000_000);
+  writeFileSync(resolve(proofRoot, terminalRegistryName), `${raw}\n`, { mode: 0o600 });
+  try {
+    const hashes = terminalAuthorizationHashes();
+    const result = terminalProofRegistryBinding({
+      repoRoot: terminalFixtureRoot,
+      proofRoot,
+      programAuthorizationHash: hashes.program,
+      childAuthorizationHashes: hashes.children,
+    });
+    assertTerminalTargetedFailure(result, /terminal proof registry row 1: oversized/);
+  } finally {
+    rmSync(proofRoot, { recursive: true, force: true });
+  }
+});
+
+test("terminal proof malformed canonical rows return bounded failures instead of throwing", async (t) => {
+  await t.test("null row", () => {
+    const proofRoot = mkdtempSync(join(tmpdir(), "one-box-terminal-null-row-"));
+    chmodSync(proofRoot, 0o700);
+    writeFileSync(resolve(proofRoot, terminalRegistryName), "null\n", { mode: 0o600 });
+    try {
+      let result;
+      assert.doesNotThrow(() => {
+        result = terminalProofRegistryBinding({ repoRoot: terminalFixtureRoot, proofRoot });
+      });
+      assert.match(result.failures.join("\n"), /terminal proof registry row 1: plain object required/);
+      assert.ok(result.failures.length <= 3, result.failures.join("\n"));
+    } finally {
+      rmSync(proofRoot, { recursive: true, force: true });
+    }
+  });
+
+  for (const { name, mutate, expected } of [
+    {
+      name: "missing commandReceipts array",
+      mutate: (row) => { delete row.commandReceipts; },
+      expected: /terminal proof registry row 1 commandReceipts must be an array/,
+    },
+    {
+      name: "null command receipt",
+      mutate: (row) => { row.commandReceipts = [null]; },
+      expected: /terminal proof registry row 1 command receipt 1: plain object required/,
+    },
+    {
+      name: "non-string row timestamp",
+      mutate: (row) => { row.startedAt = 42; },
+      expected: /terminal proof registry row 1 startedAt must be a string/,
+    },
+    {
+      name: "non-integer receipt exit code",
+      mutate: (row) => { row.commandReceipts[0].exitCode = "1"; },
+      expected: /terminal proof registry row 1 command receipt 1 exitCode must be an integer/,
+    },
+    {
+      name: "open receipt shape",
+      mutate: (row) => { row.commandReceipts[0].unexpected = true; },
+      expected: /terminal proof registry row 1 command receipt 1 keys: exact value drift/,
+    },
+  ]) await t.test(name, () => {
+    withTerminalProofFixture({}, (fixture) => {
+      resealTerminalProof(fixture, (rows) => mutate(rows[0]));
+      let result;
+      assert.doesNotThrow(() => { result = fixture.verify(); });
+      assert.match(result.failures.join("\n"), expected);
+      assert.ok(result.failures.length <= 5, result.failures.join("\n"));
+    });
+  });
+});
+
+test("terminal proof enforces both per-lane and total append-only attempt limits", async (t) => {
+  await t.test("per-lane limit", () => {
+    withTerminalProofFixture({ rows: [] }, (fixture) => {
+      for (let index = 0; index < 12; index += 1) fixture.rows.push(buildTerminalRow(fixture, { lane: "T03", status: "FAIL" }));
+      writeTerminalProof(fixture);
+      assert.deepEqual(fixture.verify().failures, [], "twelve valid T03 attempts must remain within the bound");
+      resealTerminalProof(fixture, (rows) => { rows.push(buildTerminalRow(fixture, { lane: "T03", status: "FAIL" })); });
+      assertTerminalTargetedFailure(fixture.verify(), /T03: terminal attempt limit exceeded/);
+    });
+  });
+  await t.test("total limit", () => {
+    withTerminalProofFixture({ rows: [] }, (fixture) => {
+      for (let index = 0; index < 24; index += 1) {
+        fixture.rows.push(buildTerminalRow(fixture, { lane: index % 2 === 0 ? "T03" : "T04", status: "FAIL" }));
+      }
+      writeTerminalProof(fixture);
+      assert.deepEqual(fixture.verify().failures, [], "twenty-four balanced valid attempts must remain within the bound");
+      resealTerminalProof(fixture, (rows) => { rows.push(buildTerminalRow(fixture, { lane: "T03", status: "FAIL" })); });
+      assertTerminalTargetedFailure(fixture.verify(), /terminal proof registry total attempt limit exceeded/);
+    });
+  });
+});
+
+test("terminal record verification rejects mutation of a pinned historical repository artifact", () => {
+  const historicalPath = "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json";
+  const program = JSON.parse(readFileSync(resolve(terminalFixtureRoot, terminalProgramPath), "utf8"));
+  const selected = program.immutableHistory.repositoryArtifacts.find((row) => row.path === historicalPath);
+  assert.equal(selected?.path, historicalPath);
+  const absolute = resolve(terminalFixtureRoot, historicalPath);
+  const original = readFileSync(absolute);
+  withTerminalRecordProofRoot(({ verify }) => {
+    assert.deepEqual(verify().failures, [], "unmutated terminal record fixture must be clean");
+    try {
+      writeFileSync(absolute, Buffer.concat([original, Buffer.from("x")]));
+      assert.match(verify().failures.join("\n"), new RegExp(`immutable historical repository artifact drift ${historicalPath}`));
+    } finally {
+      writeFileSync(absolute, original);
+    }
+  });
+});
+
+test("terminal record verification rejects every historical completion path that must remain absent", async (t) => {
+  const expectedPaths = [
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-completion-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-completion-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-supersession-completion-receipt.json",
+    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-supersession-completion-receipt.json",
+  ];
+  const program = JSON.parse(readFileSync(resolve(terminalFixtureRoot, terminalProgramPath), "utf8"));
+  assert.deepEqual(program.immutableHistory.oldCompletionPathsMustRemainAbsent, expectedPaths);
+  for (const path of expectedPaths) {
+    await t.test(path, () => {
+      const absolute = resolve(terminalFixtureRoot, path);
+      withTerminalRecordProofRoot(({ verify }) => {
+        assert.deepEqual(verify().failures, [], "unmutated terminal record fixture must be clean");
+        try {
+          writeFileSync(absolute, "unexpected historical completion\n", { mode: 0o600 });
+          assert.match(verify().failures.join("\n"), new RegExp(`historical completion path must remain absent ${path}`));
+        } finally {
+          rmSync(absolute, { force: true });
+        }
+      });
+    });
+  }
+});
+
+test("terminal completion rejects malformed and duplicate anchor inventory", async (t) => {
+  const rows = [{ lane: "T03", status: "PASS" }, { lane: "T04", status: "PASS" }];
+  await t.test("malformed anchor name", () => {
+    withTerminalProofFixture({ rows, requireCompletion: true }, (fixture) => {
+      assert.deepEqual(fixture.verify().failures, []);
+      const path = resolve(fixture.proofRoot, "phase1-terminal-correction-anchor-malformed.json");
+      writeFileSync(path, "{}\n", { mode: 0o600 });
+      setTerminalImmutable(path);
+      try {
+        assertTerminalTargetedFailure(fixture.verify(), /terminal prefix anchor filename malformed/);
+      } finally {
+        clearTerminalImmutable(path);
+      }
+    });
+  });
+  await t.test("duplicate anchor sequence", () => {
+    withTerminalProofFixture({ rows, requireCompletion: true }, (fixture) => {
+      assert.deepEqual(fixture.verify().failures, []);
+      const path = resolve(fixture.proofRoot, `phase1-terminal-correction-anchor-001-${"f".repeat(64)}.json`);
+      writeFileSync(path, readFileSync(fixture.anchorPaths[0]), { mode: 0o600 });
+      setTerminalImmutable(path);
+      try {
+        assertTerminalTargetedFailure(fixture.verify(), /terminal prefix anchor sequence duplicated 1/);
+      } finally {
+        clearTerminalImmutable(path);
+      }
+    });
+  });
 });

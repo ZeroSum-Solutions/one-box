@@ -1,0 +1,276 @@
+{
+  "schemaVersion": 1,
+  "id": "OBX-AUTH-P180-T03-TERMINAL-CORRECTION-003",
+  "recordKind": "owner-solo-terminal-correction-child-v1",
+  "status": "reserved-pending-activation",
+  "implementationAuthorized": true,
+  "activationRequired": true,
+  "projectId": "one-box",
+  "branch": "feat/obx-p180-t03-t05-offline-wave-recovery",
+  "baseCommit": "c09dfd0cf5dd39578397c50f66741fbcd591bb66",
+  "baseTree": "ab07eb062b777068d57af2a9bf2f312fb5d451fd",
+  "ticketId": "OBX-P180-T03",
+  "laneId": "T03",
+  "ownerActorId": "person:devin-wiggins",
+  "riskOwnerActorId": "person:devin-wiggins",
+  "controllerActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-controller",
+  "goalRunId": "obx-p180-t03-t05-offline-wave",
+  "parentProgramBinding": {
+    "authorizationId": "OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003",
+    "authorizationHash": "4c23f2c971ea21550acf54674a3176025279e2e52564858aa9a096e3cf0e0e4f",
+    "recordPath": "docs/governance/risk-exceptions/2026-09-01-obx-p180-phase1-terminal-correction-program.json",
+    "recordSha256": "18c5218e8b610a81aeb3a4cbc17526c0e4aff86223d2c5e53b455dcb305628b6"
+  },
+  "ownerDirectionBinding": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/owner-authorizations/2026-09-01-phase1-terminal-correction-wave.md",
+    "algorithm": "sha256",
+    "digest": "a47ef38b2e90d98a269f4e2a5bce958e4e27196395c2cf4a23c43025f4fbc7ed",
+    "expectedMode": "0644",
+    "regularOwnerMatchedFileRequired": true
+  },
+  "activationAllowlistBinding": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/censuses/phase1-terminal-correction-activation-allowlist.txt",
+    "algorithm": "sha256",
+    "digest": "8dbaf7a4dc8dc3ed752d268b70e42c6fcecfc65e4622cceb3d0d1bc7f13cd08e",
+    "exactPathCount": 34,
+    "expectedMode": "0644",
+    "regularOwnerMatchedFileRequired": true
+  },
+  "acceptedPreviousCorrectionBinding": {
+    "commit": "76cbe6c19d553a41bc34c0ac8a88fb595bfbd354",
+    "tree": "8426b191a7c2e6802ed77ba1379a13b361313148",
+    "integratedCommit": "a448fc993e6e89b2d5aeebb54e2261456c43f281",
+    "integratedTree": "e8a5c2b42881c0e806e8df63108b4f559c6e8491"
+  },
+  "allowedCorrectionPaths": [
+    "src/lib/operatingEnvironment/skills.ts",
+    "src/lib/operatingEnvironment/skills.test.ts",
+    "src/lib/operatingEnvironment/context.ts",
+    "src/lib/operatingEnvironment/context.test.ts",
+    "src/lib/operatingEnvironment/interrupts.ts",
+    "src/lib/operatingEnvironment/interrupts.test.ts",
+    "src/lib/operatingEnvironment/receipts.ts",
+    "src/lib/operatingEnvironment/receipts.test.ts",
+    "src/lib/operatingEnvironment/fixtures/security-v1.json"
+  ],
+  "allowedEffects": [
+    "add-provider-offline-skill-context-interrupt-receipt-reducers"
+  ],
+  "governanceWriteScope": {
+    "exactPaths": [
+      "scripts/verify-p180-phase1-correction-authorization.mjs",
+      "scripts/verify-p180-phase1-superseding-correction-authorization.mjs",
+      "scripts/verify-p180-phase1-terminal-correction-authorization.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "scripts/verify-obx-p180-source-adoption.mjs",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/governance/risk-exceptions/2026-09-01-obx-p180-phase1-terminal-correction-program.json",
+      "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-terminal-correction-solo.json",
+      "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-terminal-correction-solo.json",
+      "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-terminal-correction-security-review.json",
+      "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-terminal-correction-authority-repin.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-terminal-correction-activation-receipt.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-terminal-correction-completion-receipt.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-terminal-correction-activation-receipt.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-terminal-correction-completion-receipt.json"
+    ],
+    "authorizedEffects": [
+      "record-terminal-correction-governance",
+      "test-first-correct-reproducible-findings",
+      "re-pin-current-authority-packet",
+      "activate-run-review-and-complete-bounded-attempts"
+    ],
+    "runtimeAuthority": false,
+    "dependencyOrLockfileChangeAuthorized": false,
+    "t05BeforeBothCompletedVerified": false,
+    "t06ThroughT08Authority": false
+  },
+  "attemptProtocol": {
+    "goalStateRoot": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave",
+    "registryPath": "proof/phase1-terminal-correction-proof-registry.jsonl",
+    "appendOnlyHashChain": true,
+    "priorRegistriesImmutable": true,
+    "priorAttemptRewriteOrTruncateAllowed": false,
+    "freshAttemptRequiredAfterReproducibleFinding": true,
+    "maxAttemptsPerLane": 12,
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "attemptIdPattern": "OBX-P180-T03-TERMINAL-CORRECTION-003-ATTEMPT-NNN",
+    "strictCanonicalJsonl": true,
+    "newlineTerminated": true,
+    "blankRowsAllowed": false,
+    "maxTotalRows": 24,
+    "contiguousPerLaneAttemptNumbers": true,
+    "eachStartedAttemptConsumesSlot": true,
+    "statuses": [
+      "PASS",
+      "FAIL",
+      "ABORTED"
+    ],
+    "immutablePrefixAnchorsRequired": true,
+    "prefixAnchorPathPattern": "proof/phase1-terminal-correction-anchor-SEQ-SHA256.json",
+    "prefixAnchorImmutableFlag": "uchg",
+    "finalRegistryImmutableFlag": "uchg",
+    "lockPath": "proof/phase1-terminal-correction-proof-registry.lock",
+    "exclusiveLockRequired": true
+  },
+  "activationProtocol": {
+    "ownReceiptPath": "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-terminal-correction-activation-receipt.json",
+    "siblingReceiptPath": "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-terminal-correction-activation-receipt.json",
+    "pairedActivationRequired": true,
+    "receiptMustBindExactGovernanceCommitAndTree": true,
+    "proofBeforeCommittedActivationInvalid": true,
+    "atomicPairedActivationCommitRequired": true
+  },
+  "completionEvidence": {
+    "receiptPath": "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-terminal-correction-completion-receipt.json",
+    "validStatus": "COMPLETED_VERIFIED",
+    "requiredCommandIds": [
+      "t03-terminal-focused",
+      "operating-environment",
+      "source-adoption",
+      "typecheck",
+      "targeted-lint",
+      "verify-plans",
+      "test-plans",
+      "path-census",
+      "dependency-diff",
+      "forbidden-effects",
+      "secrets-scan"
+    ],
+    "receiptMustBindLiveRegistry": [
+      "sha256",
+      "rowCount",
+      "headEnvelopeHash",
+      "t03LatestEnvelopeHash",
+      "terminalTargetCommit",
+      "terminalTargetTree"
+    ],
+    "staleValidPrefixAccepted": false,
+    "fullSettlementRequired": true,
+    "requiredCommands": [
+      {
+        "commandId": "t03-terminal-focused",
+        "commandSpec": "npx vitest run src/lib/operatingEnvironment/skills.test.ts src/lib/operatingEnvironment/context.test.ts src/lib/operatingEnvironment/interrupts.test.ts src/lib/operatingEnvironment/receipts.test.ts"
+      },
+      {
+        "commandId": "operating-environment",
+        "commandSpec": "npm test -- src/lib/operatingEnvironment"
+      },
+      {
+        "commandId": "source-adoption",
+        "commandSpec": "node scripts/verify-obx-p180-source-adoption.mjs"
+      },
+      {
+        "commandId": "typecheck",
+        "commandSpec": "npm run typecheck"
+      },
+      {
+        "commandId": "targeted-lint",
+        "commandSpec": "npx eslint src/lib/operatingEnvironment/skills.ts src/lib/operatingEnvironment/skills.test.ts src/lib/operatingEnvironment/context.ts src/lib/operatingEnvironment/context.test.ts src/lib/operatingEnvironment/interrupts.ts src/lib/operatingEnvironment/interrupts.test.ts src/lib/operatingEnvironment/receipts.ts src/lib/operatingEnvironment/receipts.test.ts"
+      },
+      {
+        "commandId": "verify-plans",
+        "commandSpec": "node scripts/verify-plan-authority.mjs"
+      },
+      {
+        "commandId": "test-plans",
+        "commandSpec": "node --test scripts/verify-plan-authority.node.mjs"
+      },
+      {
+        "commandId": "path-census",
+        "commandSpec": "git diff --name-only 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT}"
+      },
+      {
+        "commandId": "dependency-diff",
+        "commandSpec": "git diff --exit-code 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT} -- package.json package-lock.json"
+      },
+      {
+        "commandId": "forbidden-effects",
+        "commandSpec": "node scripts/verify-p180-phase1-terminal-correction-authorization.mjs --forbidden-effects-only --lane T03"
+      },
+      {
+        "commandId": "secrets-scan",
+        "commandSpec": "gitleaks git --log-opts 62b7b749f37ad9a1b8d9cc2a9a45f6062f59bbf1..{TARGET_COMMIT} --no-banner --no-color --redact=100"
+      }
+    ],
+    "latestAttemptMustPass": true,
+    "pairedLatestTargetRequired": true,
+    "atomicPairedCompletionCommitRequired": true,
+    "completionCommitOnlyReceiptPaths": true
+  },
+  "reviewProtocol": {
+    "quickAudit": {
+      "model": "z-ai/glm-5.3-flash",
+      "providerOrder": [
+        "z-ai/fp8"
+      ],
+      "providerOnly": [
+        "z-ai/fp8"
+      ],
+      "allowFallbacks": false,
+      "requireParameters": true,
+      "dataCollection": "deny",
+      "zdr": true,
+      "reasoningEffort": "low",
+      "tools": [],
+      "plugins": [],
+      "maxTokens": 8000,
+      "maxAttempts": 1
+    },
+    "finalAudit": {
+      "model": "claude-opus-5",
+      "provider": "claude-max-oauth",
+      "permissionMode": "plan",
+      "outputFormat": "json"
+    },
+    "independentSecurityRequired": true,
+    "independentFactRequired": true,
+    "modelAuthority": "advisory-only",
+    "deterministicAuthority": "provider-offline-tests-and-append-only-proof-registry",
+    "targetChangeInvalidatesEveryReceipt": true
+  },
+  "soloRoleRisk": {
+    "ownerRiskAcceptanceExplicit": true,
+    "controllerMayPrepareAuditValidateActivateAndExecute": true,
+    "independentSecurityAndFactReviewCannotBeSelfSatisfied": true,
+    "humanIndependenceForT07": false,
+    "scopeExpansionAllowed": false
+  },
+  "forbiddenEffects": [
+    "rewrite-renew-reuse-truncate-or-rebaseline-001-or-002-evidence",
+    "provider-or-network-runtime",
+    "credential-or-environment-access-from-implementation",
+    "filesystem-shell-persistence-worker-queue-ui-browser-collaboration-canvas-or-page-ir-from-implementation",
+    "dependency-or-lockfile-change",
+    "deployment-release-product-inference-or-product-data-transfer",
+    "t05-before-terminal-t03-and-t04-completed-verified",
+    "t06-through-t08-authority"
+  ],
+  "invalidators": [
+    "owner-direction-or-allowlist-digest-drift",
+    "path-effect-base-branch-or-child-identity-drift",
+    "immutable-001-or-002-evidence-drift",
+    "proof-path-mode-owner-type-symlink-containment-chain-or-live-byte-drift",
+    "attempt-limit-duplicate-number-cross-lane-or-stale-prefix-binding",
+    "deterministic-gate-or-review-failure",
+    "target-change-after-review",
+    "forbidden-effect-or-scope-expansion"
+  ],
+  "recordedAt": "2026-09-01T20:20:00.000Z",
+  "notBefore": "2026-09-01T20:20:00.000Z",
+  "expiresAt": "2026-09-15T20:20:00.000Z",
+  "exactDurationMilliseconds": 1209600000,
+  "renewable": false,
+  "authorizationHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/authorizationHash/digest"
+    ],
+    "digest": "91ed82a77efdca047fbe8215ee0290a76a9a0fd137a8d698db489156a2d12312"
+  }
+}

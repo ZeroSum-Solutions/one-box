@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "reviewId": "OBX-P180-PHASE1-TERMINAL-CORRECTION-SECURITY-003",
+  "reviewKind": "phase1-terminal-correction-authorization-security-review-v1",
+  "status": "PASS",
+  "reviewerActorId": "agent:codex-gpt-5.6-sol-ultra:terminal-correction-security-review",
+  "reviewedAt": "2026-09-01T20:21:00.000Z",
+  "authorizationBindings": [
+    {
+      "authorizationId": "OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003",
+      "authorizationHash": "4c23f2c971ea21550acf54674a3176025279e2e52564858aa9a096e3cf0e0e4f"
+    },
+    {
+      "authorizationId": "OBX-AUTH-P180-T03-TERMINAL-CORRECTION-003",
+      "authorizationHash": "91ed82a77efdca047fbe8215ee0290a76a9a0fd137a8d698db489156a2d12312"
+    },
+    {
+      "authorizationId": "OBX-AUTH-P180-T04-TERMINAL-CORRECTION-003",
+      "authorizationHash": "9e5753c3c40c9626266e0bfeb44681f8600f76a07deacd582e3ec1be3f3ba4e2"
+    }
+  ],
+  "coverage": [
+    {
+      "surface": "owner-authority",
+      "status": "PASS",
+      "disposition": "The repository owner directly authorizes the bounded rolling -003 program and fresh immutable T03/T04 children."
+    },
+    {
+      "surface": "exact-path-and-effect-scope",
+      "status": "PASS",
+      "disposition": "Eighteen governance paths and the exact nine-path T03 and seven-path T04 universes are closed, no-glob allowlists."
+    },
+    {
+      "surface": "immutable-history",
+      "status": "PASS",
+      "disposition": "All -001/-002 repository artifacts and external proof, model-receipt, and report aggregates are content-addressed and immutable."
+    },
+    {
+      "surface": "activation-order-and-topology",
+      "status": "PASS",
+      "disposition": "Proof before the atomic activation pair is invalid; both latest lane rows and both completion receipts must bind one terminal commit/tree and the direct two-receipt completion commit."
+    },
+    {
+      "surface": "SEC-001",
+      "status": "PASS",
+      "disposition": "Completion must compare receipt bindings with the actual live fresh registry SHA, row count, head, and per-lane latest envelopes; stale valid prefixes are rejected."
+    },
+    {
+      "surface": "SEC-002",
+      "status": "PASS",
+      "disposition": "Actor principals in interrupt and receipt reducers must use the same named-principal grammar as skills; bare person: is rejected."
+    },
+    {
+      "surface": "immutable-prefix-anchors",
+      "status": "PASS",
+      "disposition": "Every registry append is bound by a content-addressed owner-mode-matched uchg prefix anchor; completion requires the registry itself to be uchg and byte-identical to the receipt binding."
+    },
+    {
+      "surface": "attempt-protocol",
+      "status": "PASS",
+      "disposition": "Each lane permits at most twelve fresh append-only attempts; every row and output is re-read with owner, mode, containment, chain, and command checks."
+    },
+    {
+      "surface": "runtime-effects",
+      "status": "NONE",
+      "disposition": "No provider, network, credential, persistence, filesystem, shell, worker, UI, browser, collaboration, Canvas, Page IR, deployment, release, inference, or product-data authority is granted."
+    },
+    {
+      "surface": "future-tickets",
+      "status": "NONE",
+      "disposition": "T05 remains prohibited until both terminal children are COMPLETED_VERIFIED; T06 through T08 remain unauthorized."
+    }
+  ],
+  "findings": [],
+  "deniedAuthority": [
+    "T05-before-terminal-T03-T04-completed-verified",
+    "T06+",
+    "provider-or-network-runtime",
+    "dependency-or-lockfile-change",
+    "deployment-release-or-product-data-transfer"
+  ],
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "23637a5080a0da5bbcecf2efc8883934e3dadab1b7faafa35a9ca96c377a279d"
+  }
+}
