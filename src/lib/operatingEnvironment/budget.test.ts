@@ -151,7 +151,9 @@ describe("authoritative budget policy reservation", () => {
     if (!result.ok) return;
     expect(result.value.state.balances).toHaveLength(8);
     expect(result.value.state.balances.map((item) => item.scopeType)).toEqual(TYPES);
-    expect(result.value.state.balances.every((item) => item.held === 480 && item.revision === 1)).toBe(true);
+    expect(result.value.state.balances.map(({ limit, remaining, held, revision }) =>
+      ({ limit, remaining, held, revision }))).toEqual(LIMITS.map((limit) =>
+      ({ limit, remaining: limit - 480, held: 480, revision: 1 })));
     expect(result.value.state.reservation).toMatchObject({ state: "held", forecastUnits: 480,
       policyHash: portfolio.policy.policyHash, routeIntentHashes: [H("8"), H("9")] });
     expect(validateBudgetState(result.value.state).ok).toBe(true);

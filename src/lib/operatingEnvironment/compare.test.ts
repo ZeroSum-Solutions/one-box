@@ -2,11 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import fixture from "./fixtures/budget-capacity-v1.json";
 import { canonicalize, canonicalSha256, computeSelfHash } from "./canonical";
+import { reserveBudget } from "./budget";
 import { createCompareState, reduceCompare, validateCompareIntent, validateCompareState,
   type CompareComponentStateV1, type CompareStateV1 } from "./compare";
 
 const H = (char: string) => char.repeat(64);
 const SCOPES = ["agency", "project", "assignment", "compare", "segment", "retry", "evaluator", "reviewer"] as const;
+const LIMITS = [1000, 900, 800, 700, 650, 600, 550, 500];
 function seal<T extends Record<string, unknown>>(record: T, field: string): T {
   const candidate = { ...record, [field]: H("0") }; const result = computeSelfHash(candidate, field);
   if (!result.ok) throw new Error(result.reason); return { ...candidate, [field]: result.value } as T;
@@ -32,8 +34,8 @@ const COMPONENTS = [
   { componentType: "reviewer", componentId: "reviewer-1", reservedUnits: 15 },
 ] as const;
 function reservation() {
-  const balances = SCOPES.map((scopeType) => seal({ schemaVersion: "compare-budget-balance-v1", scopeType,
-    scopeId: `${scopeType}-1`, limit: 1000, remaining: 520, held: 480, settled: 0, released: 0,
+  const balances = SCOPES.map((scopeType, index) => seal({ schemaVersion: "compare-budget-balance-v1", scopeType,
+    scopeId: `${scopeType}-1`, limit: LIMITS[index], remaining: LIMITS[index] - 480, held: 480, settled: 0, released: 0,
     revision: 0, previousBalanceHash: null, balanceHash: H("0") }, "balanceHash"));
   return seal({ schemaVersion: "compare-reservation-v1", reservationId: "reservation-compare-1",
     compareId: "compare-1", state: "held", revision: 0, totalUnits: 480, components: COMPONENTS,
@@ -128,6 +130,22 @@ describe("opaque two-arm admission", () => {
     expect(createCompareState(fixture.compare.intent, fixture.compare.reservation).ok).toBe(true);
     const state = initialState(); expect(state.manifest.components).toEqual(COMPONENTS);
     expect(state.currentBalances.map((item) => item.scopeType)).toEqual(SCOPES);
+  });
+  it("derives fixture limits and stock from the admitted eight-scope aggregate reservation", () => {
+    const reserved = reserveBudget(fixture.budget.portfolio, fixture.budget.reserveCommand);
+    expect(reserved.ok, JSON.stringify(reserved)).toBe(true); if (!reserved.ok) return;
+    expect({ reservationId: fixture.compare.reservation.reservationId,
+      compareId: fixture.compare.reservation.compareId, revision: fixture.compare.reservation.revision,
+      totalUnits: fixture.compare.reservation.totalUnits }).toEqual({
+      reservationId: reserved.value.state.reservation.reservationId,
+      compareId: reserved.value.state.reservation.compareId,
+      revision: reserved.value.state.reservation.revision,
+      totalUnits: reserved.value.state.reservation.forecastUnits,
+    });
+    expect(fixture.compare.reservation.balances.map(({ scopeType, scopeId, limit, remaining,
+      held, settled, released }) => ({ scopeType, scopeId, limit, remaining, held, settled, released })))
+      .toEqual(reserved.value.state.balances.map(({ scopeType, scopeId, limit, remaining,
+        held, settled, released }) => ({ scopeType, scopeId, limit, remaining, held, settled, released })));
   });
   it("rejects a third arm, marketing labels, and actor/project/context drift", () => {
     const base = intent();
@@ -226,7 +244,7 @@ describe("atomic full-set settlement", () => {
     expect(result.value.state.currentReservation.reservationHash).not.toBe(state.currentReservation.reservationHash);
     expect(result.value.state.currentBalances).toHaveLength(8);
     result.value.state.currentBalances.forEach((item, index) => {
-      expect(item).toMatchObject({ remaining: 770, held: 0, settled: 230, released: 250,
+      expect(item).toMatchObject({ remaining: LIMITS[index] - 230, held: 0, settled: 230, released: 250,
         revision: 1, previousBalanceHash: prior[index].balanceHash });
       expect(item.remaining + item.held + item.settled).toBe(item.limit);
     });

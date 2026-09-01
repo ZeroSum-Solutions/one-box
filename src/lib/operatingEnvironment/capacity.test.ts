@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { canonicalize, canonicalSha256, computeSelfHash } from "./canonical"; import fixture from "./fixtures/budget-capacity-v1.json";
+import { reserveBudget } from "./budget";
 import { reduceCapacity, validateCapacityState, type CapacityLeaseV1, type CapacityStateV1 } from "./capacity";
 const H = (char: string) => char.repeat(64); const SCOPE_IDS = ["agency-1", "project-1", "assignment-1", "compare-1", "segment-1", "retry-1", "evaluator-1", "reviewer-1"];
 function seal<T extends Record<string, unknown>>(record: T, field: string): T {
@@ -115,6 +116,21 @@ describe("authoritative capacity admission", () => {
     expect(validateCapacityState(fixture.capacity.state).ok).toBe(true);
     expect(reduceCapacity(fixture.capacity.state, fixture.capacity.offerCommand).ok).toBe(true);
   });
+  it("binds the fixture guard to the live reservation and all eight scope revisions", () => {
+    const reserved = reserveBudget(fixture.budget.portfolio, fixture.budget.reserveCommand);
+    expect(reserved.ok, JSON.stringify(reserved)).toBe(true); if (!reserved.ok) return;
+    const guard = fixture.capacity.state.budgetGuards[0];
+    expect(guard).toBeDefined(); if (!guard) return;
+    expect({ reservationId: guard.reservationId, reservationHash: guard.reservationHash,
+      reservationRevision: guard.reservationRevision, budgetPolicyHash: guard.budgetPolicyHash,
+      scopeRevisions: guard.scopeRevisions }).toEqual({
+      reservationId: reserved.value.state.reservation.reservationId,
+      reservationHash: reserved.value.state.reservation.reservationHash,
+      reservationRevision: reserved.value.state.reservation.revision,
+      budgetPolicyHash: reserved.value.state.policy.policyHash,
+      scopeRevisions: reserved.value.state.balances.map(({ scopeId, revision }) => ({ scopeId, revision })),
+    });
+  });
   it("accepts closed owner-bound policy, held guard, and policy priority state", () => {
     const admission = admit(baseState(), "one");
     expect(validateCapacityState(admission.state).ok).toBe(true);
@@ -154,6 +170,12 @@ describe("authoritative capacity admission", () => {
       expect(reduceCapacity(admission.state, { ...command, ...drift }).ok).toBe(false);
     expect(validateCapacityState({ ...admission.state, currentOwnerAssignmentRefs: [] }).ok).toBe(false);
     expect(validateCapacityState({ ...admission.state, killedRefs: ["kill:capacity"] }).ok).toBe(false);
+  });
+  it("rejects a route-policy hash mutation with every other live binding unchanged", () => {
+    const admission = admit(baseState(), "route-drift"); const command = offer(admission);
+    expect(reduceCapacity(admission.state, command).ok).toBe(true);
+    expect(reduceCapacity(admission.state, { ...command,
+      lease: { ...command.lease, routePolicyHash: H("f") } }).ok).toBe(false);
   });
   it("enforces exact live queue depth, rate windows, deadline, and maximum wait", () => {
     const admission = admit(baseState(), "fresh"); const command = offer(admission);
@@ -196,6 +218,22 @@ describe("bounded fair queue and replay", () => {
     expect(reduceCapacity(claimed.value.state, claim(current, waiting))).toMatchObject({
       ok: true, value: { disposition: "attached" },
     });
+  });
+  it("orders same-priority projects by weighted fair share instead of arrival time", () => {
+    const activeAdmission = admit(baseState(), "weighted-active", "project-a", "standard");
+    const active = reduceCapacity(activeAdmission.state, offer(activeAdmission));
+    expect(active.ok).toBe(true); if (!active.ok) return;
+    const projectB = admit(refresh(active.value.state, 1150), "weighted-b", "project-b", "standard");
+    const queuedB = reduceCapacity(projectB.state, offer(projectB, 1150));
+    expect(queuedB.ok).toBe(true); if (!queuedB.ok) return;
+    const projectA = admit(refresh(queuedB.value.state, 1160), "weighted-a", "project-a", "standard");
+    const queuedA = reduceCapacity(projectA.state, offer(projectA, 1160));
+    expect(queuedA.ok).toBe(true); if (!queuedA.ok) return;
+    expect(queuedA.value.state.queue.tickets.map(({ projectId, priorityClass, projectSequence }) =>
+      ({ projectId, priorityClass, projectSequence }))).toEqual([
+      { projectId: "project-a", priorityClass: "standard", projectSequence: 1 },
+      { projectId: "project-b", priorityClass: "standard", projectSequence: 1 },
+    ]);
   });
   it("rejects stale claim CAS and non-head claim without changing state", () => {
     const firstAdmission = admit(baseState(), "active");

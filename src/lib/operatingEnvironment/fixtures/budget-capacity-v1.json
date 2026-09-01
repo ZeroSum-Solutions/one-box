@@ -422,7 +422,7 @@
           "manifestHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
           "state": "held",
           "reservationId": "reservation-compare-1",
-          "reservationHash": "1111111111111111111111111111111111111111111111111111111111111111",
+          "reservationHash": "07267afd36ed7b133defd4a1a597d443c68c79066d3b439440a15c188bafe230",
           "reservationRevision": 0,
           "hierarchyHash": "2222222222222222222222222222222222222222222222222222222222222222",
           "scopeRevisions": [
@@ -466,7 +466,7 @@
           "killSwitchRef": "kill:budget",
           "effectiveAtMs": 1000,
           "expiresAtMs": 5000,
-          "guardHash": "0a1429f4f926913f8a9de4c2e884f3d49af754fc321c751d0c384bccfcef6dea"
+          "guardHash": "4f92f4bc5dece7a60f60faa14ba37ab81a7d11dc9dab5973b23aa15fe811d225"
         }
       ],
       "priorityAssignments": [
@@ -508,7 +508,7 @@
         "leaseId": "lease-fixture",
         "segmentId": "segment-fixture",
         "manifestHash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-        "budgetGuardHash": "0a1429f4f926913f8a9de4c2e884f3d49af754fc321c751d0c384bccfcef6dea",
+        "budgetGuardHash": "4f92f4bc5dece7a60f60faa14ba37ab81a7d11dc9dab5973b23aa15fe811d225",
         "priorityAssignmentHash": "3c06381d29670ba1190ef2fa6937ff530abe839fd1e55a19708de67fbdf7bea4",
         "routePolicyHash": "9999999999999999999999999999999999999999999999999999999999999999",
         "policyHash": "e5ef8ea12f92a4133c21276ec13f4a3d2d4bb951de164da276debcb3e2ea5add",
@@ -655,96 +655,96 @@
           "schemaVersion": "compare-budget-balance-v1",
           "scopeType": "project",
           "scopeId": "project-1",
-          "limit": 1000,
-          "remaining": 520,
+          "limit": 900,
+          "remaining": 420,
           "held": 480,
           "settled": 0,
           "released": 0,
           "revision": 0,
           "previousBalanceHash": null,
-          "balanceHash": "abb0878c9221957f67ef77bce8539c2b0ec162ad0f952a2c40f4174dc1f184c7"
+          "balanceHash": "6c07e74261ace367ceb0b18b89dff36a8fb41307800a627cf09ad5114c2d6c09"
         },
         {
           "schemaVersion": "compare-budget-balance-v1",
           "scopeType": "assignment",
           "scopeId": "assignment-1",
-          "limit": 1000,
-          "remaining": 520,
+          "limit": 800,
+          "remaining": 320,
           "held": 480,
           "settled": 0,
           "released": 0,
           "revision": 0,
           "previousBalanceHash": null,
-          "balanceHash": "b7c6a569b35682a5d16e0690b0d32218370725c85c2308e4efe4770cbc094543"
+          "balanceHash": "f27ef57c72c69e618d00cf0ed66f3bf32227b493385ae2704a3cfe231c8f97c1"
         },
         {
           "schemaVersion": "compare-budget-balance-v1",
           "scopeType": "compare",
           "scopeId": "compare-1",
-          "limit": 1000,
-          "remaining": 520,
+          "limit": 700,
+          "remaining": 220,
           "held": 480,
           "settled": 0,
           "released": 0,
           "revision": 0,
           "previousBalanceHash": null,
-          "balanceHash": "781199c902b6df36c3f0439bf2ae24bba290408428dc7c4ac8cc5fdaef6a5dee"
+          "balanceHash": "c235230fbe4d8bb8ac900d01a36418caac18fc5186d79de8a2b8068bd566e146"
         },
         {
           "schemaVersion": "compare-budget-balance-v1",
           "scopeType": "segment",
           "scopeId": "segment-1",
-          "limit": 1000,
-          "remaining": 520,
+          "limit": 650,
+          "remaining": 170,
           "held": 480,
           "settled": 0,
           "released": 0,
           "revision": 0,
           "previousBalanceHash": null,
-          "balanceHash": "bd9c87ed011d40c5e2e3f1435062814cf247254fb5c13623eae3749c0b030803"
+          "balanceHash": "20252b6291eb0ffdff1b532bc8565a90bbde7d89a1e75482673b31cca72f4843"
         },
         {
           "schemaVersion": "compare-budget-balance-v1",
           "scopeType": "retry",
           "scopeId": "retry-1",
-          "limit": 1000,
-          "remaining": 520,
+          "limit": 600,
+          "remaining": 120,
           "held": 480,
           "settled": 0,
           "released": 0,
           "revision": 0,
           "previousBalanceHash": null,
-          "balanceHash": "b1d7a28715cb620aa73015c53d861d0fc95403b93462111116ce06fce27cd6dd"
+          "balanceHash": "9451396b55d934f924f88ed7348913fb23c3628d8de241f773528c6763bc875f"
         },
         {
           "schemaVersion": "compare-budget-balance-v1",
           "scopeType": "evaluator",
           "scopeId": "evaluator-1",
-          "limit": 1000,
-          "remaining": 520,
+          "limit": 550,
+          "remaining": 70,
           "held": 480,
           "settled": 0,
           "released": 0,
           "revision": 0,
           "previousBalanceHash": null,
-          "balanceHash": "a57178076a8fc060a0eb8e08ce7f6dfd35619f4bca0565a463db04b62bcb42be"
+          "balanceHash": "073bec9af131e152209d2c7e4163f49fd1d4c768c9b812af21d7895d449f263a"
         },
         {
           "schemaVersion": "compare-budget-balance-v1",
           "scopeType": "reviewer",
           "scopeId": "reviewer-1",
-          "limit": 1000,
-          "remaining": 520,
+          "limit": 500,
+          "remaining": 20,
           "held": 480,
           "settled": 0,
           "released": 0,
           "revision": 0,
           "previousBalanceHash": null,
-          "balanceHash": "0aece22e0439dd8d71370beffcb5d09505d4d8f59c70608bd2702e64870f4340"
+          "balanceHash": "7885808cd302b335095fc12e16e06b8cb6addd49223cace87ff95dbf03d7d114"
         }
       ],
       "previousReservationHash": null,
-      "reservationHash": "4385b180cd58c0c82b3d25bc48add753e14818326b7bf8584b30a3f2a03fa403"
+      "reservationHash": "8b7159ad6e1d095629270c6e07c1b565882c622d2fa3ab63b7cb9c13d38aca05"
     }
   }
 }
