@@ -311,6 +311,53 @@ function verifySupersedingCorrectionLifecycle() {
   });
 }
 
+const supersedingProofSourceRoot = "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/proof";
+
+function withSupersedingProofFixture(callback) {
+  const proofRoot = mkdtempSync(join(tmpdir(), "one-box-superseding-proof-"));
+  chmodSync(proofRoot, 0o700);
+  const registryName = "phase1-superseding-correction-proof-registry.jsonl";
+  const sourceRegistry = resolve(supersedingProofSourceRoot, registryName);
+  const registryBytes = readFileSync(sourceRegistry);
+  writeFileSync(resolve(proofRoot, registryName), registryBytes, { mode: 0o600 });
+  const rows = registryBytes.toString("utf8").trimEnd().split("\n").filter(Boolean).map(JSON.parse);
+  for (const row of rows) {
+    for (const receipt of row.commandReceipts) {
+      const relative = receipt.outputPath.replace(/^proof\//, "");
+      cpSync(resolve(supersedingProofSourceRoot, relative), resolve(proofRoot, relative));
+      chmodSync(resolve(proofRoot, relative), 0o600);
+    }
+  }
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+  const verify = () => verifyPhase1SupersedingCorrectionAuthorizations({
+    repoRoot: fixtureRoot,
+    registry,
+    mode: "lifecycle",
+    verifyRepositoryState: false,
+    proofRoot,
+  });
+  try {
+    callback({ proofRoot, registryName, rows, verify });
+  } finally {
+    rmSync(proofRoot, { recursive: true, force: true });
+  }
+}
+
+function rewriteSupersedingProofRows(proofRoot, registryName, mutate) {
+  const registryPath = resolve(proofRoot, registryName);
+  const rows = readFileSync(registryPath, "utf8").trimEnd().split("\n").filter(Boolean).map(JSON.parse);
+  mutate(rows);
+  let previousEnvelopeHash = null;
+  rows.forEach((row, index) => {
+    row.sequence = index + 1;
+    row.previousEnvelopeHash = previousEnvelopeHash;
+    delete row.envelopeHash;
+    row.envelopeHash = sha256(canonicalJson(row));
+    previousEnvelopeHash = row.envelopeHash;
+  });
+  writeFileSync(registryPath, `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`, { mode: 0o600 });
+}
+
 function withCorrectionRecordMutation(lane, mutate, assertion) {
   const absolute = resolve(fixtureRoot, correctionRecordPaths[lane]);
   const original = readFileSync(absolute, "utf8");
@@ -1248,6 +1295,67 @@ test("the superseding correction rejects mutation of invalidated receipts and in
   });
   assert.equal(historicalVerificationCommitForSupersessionState({ failures: ["drift"], state: "ACTIVE" }), null);
   assert.equal(historicalVerificationCommitForSupersessionState({ failures: [], state: "INVALID" }), null);
+});
+
+test("the superseding correction proof registry rejects cross-lane identity and failed command substitution", () => {
+  withSupersedingProofFixture(({ proofRoot, registryName, verify }) => {
+    rewriteSupersedingProofRows(proofRoot, registryName, ([row]) => {
+      row.laneId = "T04";
+      row.authorizationHash = "6788271928057097ae4a3ff0ac2b32f6366108b8b7f52c19d708204c0b5743a2";
+      row.implementationCommit = "a448fc993e6e89b2d5aeebb54e2261456c43f281";
+      row.implementationTree = "e8a5c2b42881c0e806e8df63108b4f559c6e8491";
+      row.executionCommit = "0".repeat(40);
+      row.executionTree = "0".repeat(40);
+      row.status = "FAIL";
+      row.commandReceipts[0].exitCode = 1;
+    });
+    const result = verify();
+    assert.equal(result.state, "INVALID");
+    assert.match(result.failures.join("\n"), /lane identity drift|status drift|exit code drift/);
+  });
+});
+
+test("the superseding correction proof registry rejects traversal, symlink, and byte drift", () => {
+  withSupersedingProofFixture(({ proofRoot, registryName, verify }) => {
+    rewriteSupersedingProofRows(proofRoot, registryName, ([row]) => {
+      row.commandReceipts[0].outputPath = "proof/../../outside-proof.log";
+    });
+    assert.match(verify().failures.join("\n"), /output path escapes proof root/);
+  });
+  withSupersedingProofFixture(({ proofRoot, rows, verify }) => {
+    const relative = rows[0].commandReceipts[0].outputPath.replace(/^proof\//, "");
+    const output = resolve(proofRoot, relative);
+    const outside = resolve(dirname(proofRoot), "one-box-superseding-proof-outside.log");
+    const original = readFileSync(output);
+    rmSync(output, { force: true });
+    writeFileSync(outside, original, { mode: 0o600 });
+    symlinkSync(outside, output);
+    try {
+      assert.match(verify().failures.join("\n"), /output must not be a symlink/);
+    } finally {
+      rmSync(outside, { force: true });
+    }
+  });
+  withSupersedingProofFixture(({ proofRoot, rows, verify }) => {
+    const relative = rows[0].commandReceipts[0].outputPath.replace(/^proof\//, "");
+    writeFileSync(resolve(proofRoot, relative), "drift\n", { mode: 0o600 });
+    assert.match(verify().failures.join("\n"), /output digest drift/);
+  });
+});
+
+test("the superseding correction proof registry rejects missing, empty, and unsafe proof state", () => {
+  withSupersedingProofFixture(({ proofRoot, registryName, verify }) => {
+    rmSync(resolve(proofRoot, registryName));
+    assert.match(verify().failures.join("\n"), /proof registry: missing/);
+  });
+  withSupersedingProofFixture(({ proofRoot, registryName, verify }) => {
+    writeFileSync(resolve(proofRoot, registryName), "", { mode: 0o600 });
+    assert.match(verify().failures.join("\n"), /proof registry: empty/);
+  });
+  withSupersedingProofFixture(({ proofRoot, verify }) => {
+    chmodSync(proofRoot, 0o755);
+    assert.match(verify().failures.join("\n"), /proof root mode drift/);
+  });
 });
 
 test("Phase 1 correction authority rejects implementation path or effect expansion", () => {

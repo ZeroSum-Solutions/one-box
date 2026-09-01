@@ -4,7 +4,7 @@
   "reviewKind": "phase1-audit-correction-supersession-security-review-v1",
   "status": "PASS",
   "reviewerActorId": "agent:codex-gpt-5.6-sol-ultra:phase1-supersession-security-review",
-  "reviewedAt": "2026-09-01T12:32:00.000Z",
+  "reviewedAt": "2026-09-01T13:35:39.000Z",
   "authorizationBindings": [
     {
       "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-002",
@@ -34,7 +34,7 @@
     {
       "surface": "fresh-attempt-protocol",
       "status": "PASS",
-      "disposition": "A distinct append-only proof registry permits at most four unique attempts per lane and prohibits rewrite or truncation."
+      "disposition": "A distinct append-only proof registry permits at most four unique attempts per lane, fails closed when missing or empty, binds every lane, authorization, implementation and execution identity, and re-reads every contained owner-matched mode-0600 command output to reject failure, traversal, symlink, or byte drift."
     },
     {
       "surface": "exact-path-and-effect-scope",
@@ -71,6 +71,6 @@
     "excludedJsonPointers": [
       "/selfHash/digest"
     ],
-    "digest": "9382b7c566041751ad7b49b0e8f3d3e9d0769b9d2b05c868f6aece0c3983b109"
+    "digest": "2c2f50e41000f56ed33f06a63999cbce7765af4185c598be901e8e3b67b3b233"
   }
 }

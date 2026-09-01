@@ -66,8 +66,8 @@
   },
   "currentAuthorityManifest": {
     "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
-    "packetDigest": "d7e2166561456dd65b77c859d4b5cd1811e995ac2013f0b91ac24b61d4496ddc",
-    "sha256": "fe5f2d6d55dd5489c866041b41f05ddf7598a36ce838677535a2c83b3cd8aab7",
+    "packetDigest": "860f6dc1067943bf86e0f7e358c3a5da8dc12c0ce2285329a90a83e9474ceb3b",
+    "sha256": "6772ed7236754b72d419a6be64a2156067496b059787c3eea8724e4195c9b1a2",
     "requiresPostRepairRefresh": false
   },
   "completionProtocol": {
@@ -98,6 +98,6 @@
     "excludedJsonPointers": [
       "/selfHash/digest"
     ],
-    "digest": "45ba45136a849d9bc5479eefe5243bfb0fe1f9e483c623dc73712ab6a99d9f6f"
+    "digest": "d6ff959d866aad16ed7d155a0588125a4f07df753e128e8522439ad3648a52a1"
   }
 }

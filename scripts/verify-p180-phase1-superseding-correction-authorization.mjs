@@ -3,7 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const T03_SUPERSESSION_AUTHORIZATION_ID = "OBX-AUTH-P180-T03-AUDIT-CORRECTION-002";
@@ -14,7 +14,21 @@ const ROOT = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const GOAL_ROOT = "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave";
 const REGISTRY_PATH = "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json";
 const SECURITY_PATH = "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-supersession-security-review.json";
-const NEW_PROOF_REGISTRY = resolve(GOAL_ROOT, "proof/phase1-superseding-correction-proof-registry.jsonl");
+const DEFAULT_PROOF_ROOT = resolve(GOAL_ROOT, "proof");
+const NEW_PROOF_REGISTRY_NAME = "phase1-superseding-correction-proof-registry.jsonl";
+const REQUIRED_COMMAND_IDS = [
+  "correction-focused",
+  "operating-environment",
+  "source-adoption",
+  "typecheck",
+  "targeted-lint",
+  "verify-plans",
+  "test-plans",
+  "path-census",
+  "dependency-diff",
+  "forbidden-effects",
+  "secrets-scan",
+];
 const GOVERNANCE_PATHS = [
   "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-supersession-activation-receipt.json",
   "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-supersession-completion-receipt.json",
@@ -48,6 +62,7 @@ const CONFIG = {
     tree: "8426b191a7c2e6802ed77ba1379a13b361313148",
     parent: "98ae5fa7c121e6c9f590fc8b37b3dbe736e53c5b",
     paths: ["src/lib/operatingEnvironment/receipts.ts", "src/lib/operatingEnvironment/receipts.test.ts"],
+    orderedFileListSha256: "205c6b7e9c3b16770badd9eb4f0f41bb6a96eaf48aee933355f58b131d86f5c2",
     effect: "add-provider-offline-skill-context-interrupt-receipt-reducers",
   },
   T04: {
@@ -69,6 +84,7 @@ const CONFIG = {
       "src/lib/operatingEnvironment/compare.test.ts",
       "src/lib/operatingEnvironment/fixtures/budget-capacity-v1.json",
     ],
+    orderedFileListSha256: "25b116a0eb5fa8d4f0a6b552c8217da868980411bec363993c016552368bb809",
     effect: "add-provider-offline-in-memory-budget-capacity-compare-reducers",
   },
 };
@@ -136,7 +152,7 @@ function validateRecord(root, registry, lane, failures) {
     const target = resolve(goal, path); if (!existsSync(target) || sha(readFileSync(target)) !== digest) failures.push(`${config.id}: immutable failed evidence drift ${path}`);
     else { if (bytes !== null && statSync(target).size !== bytes) failures.push(`${config.id}: failed proof size drift`); if (rows !== null && readFileSync(target, "utf8").trimEnd().split("\n").length !== rows) failures.push(`${config.id}: failed registry row drift`); }
   }
-  exact([record.attemptProtocol.registryPath, record.attemptProtocol.appendOnlyHashChain, record.attemptProtocol.oldRegistryImmutable, record.attemptProtocol.priorAttemptRewriteOrTruncateAllowed, record.attemptProtocol.freshAttemptRequiredAfterReproducibleFinding, record.attemptProtocol.maxAttemptsPerLane], ["proof/phase1-superseding-correction-proof-registry.jsonl", true, true, false, true, 4], `${config.id}.attempt protocol`, failures);
+  exact([record.attemptProtocol.registryPath, record.attemptProtocol.appendOnlyHashChain, record.attemptProtocol.oldRegistryImmutable, record.attemptProtocol.priorAttemptRewriteOrTruncateAllowed, record.attemptProtocol.freshAttemptRequiredAfterReproducibleFinding, record.attemptProtocol.maxAttemptsPerLane, record.attemptProtocol.directoryMode, record.attemptProtocol.fileMode], ["proof/phase1-superseding-correction-proof-registry.jsonl", true, true, false, true, 4, "0700", "0600"], `${config.id}.attempt protocol`, failures);
   validateCommit(root, record, config, failures);
   const reference = registry?.authorizations?.find((row) => row.id === config.id);
   exact(reference, { id: config.id, recordKind: "owner-solo-superseding-correction-reference-v1", path: config.recordPath, algorithm: "sha256", digest: config.recordSha }, `${config.id}.registry reference`, failures);
@@ -149,24 +165,80 @@ function validateActivation(root, lane, record, failures) {
   if (receipt.expiresAt !== record.expiresAt || Date.parse(receipt.observedAt) < Date.parse(record.notBefore) || Date.parse(receipt.observedAt) >= Date.parse(record.expiresAt)) failures.push(`${config.id}.activation time drift`);
   return receipt;
 }
-function validateNewProofRegistry(failures) {
-  if (!existsSync(NEW_PROOF_REGISTRY)) return;
-  if ((statSync(NEW_PROOF_REGISTRY).mode & 0o777) !== 0o600) failures.push("superseding proof registry mode drift");
-  const rows = readFileSync(NEW_PROOF_REGISTRY, "utf8").trimEnd().split("\n").filter(Boolean).map((row, index) => { try { return JSON.parse(row); } catch { failures.push(`superseding proof registry row ${index + 1}: invalid JSON`); return null; } }).filter(Boolean);
+function validateProofFile(proofRoot, receipt, lane, attemptNumber, commandIndex, failures) {
+  const label = `superseding proof ${lane} attempt ${attemptNumber} command ${commandIndex + 1}`;
+  const commandId = REQUIRED_COMMAND_IDS[commandIndex];
+  const expectedCommandId = commandIndex === 0 ? `${lane.toLowerCase()}-correction-focused` : commandId;
+  exact(receipt?.commandId, expectedCommandId, `${label}.commandId`, failures);
+  if (typeof receipt?.commandSpec !== "string" || receipt.commandSpec.length === 0 || receipt.commandSpecSha256 !== sha(receipt.commandSpec)) failures.push(`${label}: command spec digest drift`);
+  if (receipt?.exitCode !== 0) failures.push(`${label}: exit code drift`);
+  const expectedOutputPath = `proof/phase1-supersession-${lane.toLowerCase()}-attempt-${String(attemptNumber).padStart(3, "0")}-${String(commandIndex + 1).padStart(2, "0")}-${expectedCommandId}.log`;
+  exact(receipt?.outputPath, expectedOutputPath, `${label}.outputPath`, failures);
+  if (typeof receipt?.outputPath !== "string" || isAbsolute(receipt.outputPath) || !receipt.outputPath.startsWith("proof/")) {
+    failures.push(`${label}: output path escapes proof root`);
+    return;
+  }
+  const output = resolve(proofRoot, receipt.outputPath.slice("proof/".length));
+  const relativeOutput = relative(proofRoot, output);
+  if (relativeOutput === "" || relativeOutput.startsWith("..") || isAbsolute(relativeOutput)) {
+    failures.push(`${label}: output path escapes proof root`);
+    return;
+  }
+  if (!existsSync(output)) {
+    failures.push(`${label}: output missing`);
+    return;
+  }
+  const outputState = lstatSync(output);
+  if (outputState.isSymbolicLink()) failures.push(`${label}: output must not be a symlink`);
+  else if (!outputState.isFile()) failures.push(`${label}: output must be a regular file`);
+  if (typeof process.getuid === "function" && outputState.uid !== process.getuid()) failures.push(`${label}: output owner drift`);
+  if ((outputState.mode & 0o777) !== 0o600) failures.push(`${label}: output mode drift`);
+  if (!outputState.isSymbolicLink() && outputState.isFile() && sha(readFileSync(output)) !== receipt.outputSha256) failures.push(`${label}: output digest drift`);
+}
+function validateNewProofRegistry(repoRoot, proofRoot, failures) {
+  if (!existsSync(proofRoot)) { failures.push("superseding proof root: missing"); return; }
+  const rootState = lstatSync(proofRoot);
+  if (rootState.isSymbolicLink() || !rootState.isDirectory()) { failures.push("superseding proof root must be a real directory"); return; }
+  if (typeof process.getuid === "function" && rootState.uid !== process.getuid()) failures.push("superseding proof root owner drift");
+  if ((rootState.mode & 0o777) !== 0o700) failures.push("superseding proof root mode drift");
+  const proofRegistry = resolve(proofRoot, NEW_PROOF_REGISTRY_NAME);
+  if (!existsSync(proofRegistry)) { failures.push("superseding proof registry: missing"); return; }
+  const registryState = lstatSync(proofRegistry);
+  if (registryState.isSymbolicLink() || !registryState.isFile()) { failures.push("superseding proof registry must be a real file"); return; }
+  if (typeof process.getuid === "function" && registryState.uid !== process.getuid()) failures.push("superseding proof registry owner drift");
+  if ((registryState.mode & 0o777) !== 0o600) failures.push("superseding proof registry mode drift");
+  const registryText = readFileSync(proofRegistry, "utf8");
+  if (registryText.length === 0 || registryText.trim().length === 0) { failures.push("superseding proof registry: empty"); return; }
+  const rows = registryText.trimEnd().split("\n").filter(Boolean).map((row, index) => { try { return JSON.parse(row); } catch { failures.push(`superseding proof registry row ${index + 1}: invalid JSON`); return null; } }).filter(Boolean);
   let previous = null; const attempts = new Map();
   rows.forEach((row, index) => {
-    if (row.sequence !== index + 1 || row.previousEnvelopeHash !== previous || ![T03_SUPERSESSION_AUTHORIZATION_ID, T04_SUPERSESSION_AUTHORIZATION_ID].includes(row.authorizationId)) failures.push(`superseding proof registry row ${index + 1}: chain drift`);
+    const config = CONFIG[row.laneId];
+    if (row.sequence !== index + 1 || row.previousEnvelopeHash !== previous || !config || row.authorizationId !== config.id) failures.push(`superseding proof registry row ${index + 1}: chain or lane identity drift`);
     const copy = structuredClone(row); const digest = copy.envelopeHash; delete copy.envelopeHash;
     if (digest !== sha(canonical(copy))) failures.push(`superseding proof registry row ${index + 1}: envelope hash drift`);
     const key = `${row.authorizationId}:${row.attemptId}`; if (attempts.has(key)) failures.push(`superseding proof registry row ${index + 1}: attempt reuse`); attempts.set(key, true);
+    if (config) {
+      const laneRowsBefore = rows.slice(0, index + 1).filter((candidate) => candidate.laneId === row.laneId).length;
+      exact([row.schemaVersion, row.authorizationHash, row.implementationCommit, row.implementationTree, row.orderedFileListSha256, row.attemptId, row.status], [1, config.hash, config.commit, config.tree, config.orderedFileListSha256, `${row.laneId}-ATTEMPT-${String(laneRowsBefore).padStart(3, "0")}`, "PASS"], `superseding proof registry row ${index + 1} binding`, failures);
+      const executionTree = /^[0-9a-f]{40}$/.test(row.executionCommit ?? "") ? git(repoRoot, ["rev-parse", `${row.executionCommit}^{tree}`], `superseding proof registry row ${index + 1} execution commit`, failures) : null;
+      if (!/^[0-9a-f]{40}$/.test(row.executionCommit ?? "") || executionTree !== row.executionTree) failures.push(`superseding proof registry row ${index + 1}: execution binding drift`);
+      const ancestry = spawnSync("git", ["merge-base", "--is-ancestor", config.commit, row.executionCommit], { cwd: repoRoot, encoding: "utf8" });
+      if (ancestry.status !== 0) failures.push(`superseding proof registry row ${index + 1}: implementation ancestry drift`);
+      if (!Array.isArray(row.commandReceipts) || row.commandReceipts.length !== REQUIRED_COMMAND_IDS.length) failures.push(`superseding proof registry row ${index + 1}: command receipt count drift`);
+      else row.commandReceipts.forEach((receipt, commandIndex) => validateProofFile(proofRoot, receipt, row.laneId, laneRowsBefore, commandIndex, failures));
+    }
     previous = digest;
   });
-  for (const id of [T03_SUPERSESSION_AUTHORIZATION_ID, T04_SUPERSESSION_AUTHORIZATION_ID]) if (rows.filter((row) => row.authorizationId === id).length > 4) failures.push(`${id}: attempt limit exceeded`);
+  for (const id of [T03_SUPERSESSION_AUTHORIZATION_ID, T04_SUPERSESSION_AUTHORIZATION_ID]) {
+    const count = rows.filter((row) => row.authorizationId === id).length;
+    if (count === 0) failures.push(`${id}: proof rows missing`);
+    if (count > 4) failures.push(`${id}: attempt limit exceeded`);
+  }
 }
 export function historicalVerificationCommitForSupersessionState(result) {
   return result?.failures?.length === 0 && ["PRE_ACTIVATION", "ACTIVE", "CONSUMED"].includes(result.state) ? SUPERSESSION_HISTORICAL_VERIFICATION_COMMIT : null;
 }
-export function verifyPhase1SupersedingCorrectionAuthorizations({ repoRoot = ROOT, registry, mode = "lifecycle", evaluationTime = Date.now(), verifyRepositoryState = true, verifySecurity = true } = {}) {
+export function verifyPhase1SupersedingCorrectionAuthorizations({ repoRoot = ROOT, registry, mode = "lifecycle", evaluationTime = Date.now(), verifyRepositoryState = true, verifySecurity = true, proofRoot = DEFAULT_PROOF_ROOT } = {}) {
   repoRoot = realpathSync(repoRoot); const failures = [];
   if (!["record", "activation", "lifecycle", "completion"].includes(mode)) failures.push(`unsupported superseding correction verification mode ${mode}`);
   const source = registry ?? readJson(resolve(repoRoot, REGISTRY_PATH), "scoped registry", failures);
@@ -185,7 +257,7 @@ export function verifyPhase1SupersedingCorrectionAuthorizations({ repoRoot = ROO
     const protectedPath = resolve(repoRoot, ".claude/handoffs/one-box-operating-environment-next-phase.md");
     if (!existsSync(protectedPath) || !lstatSync(protectedPath).isFile() || sha(readFileSync(protectedPath)) !== "cbbc878aa0691f333b128a71aee43adde89a9691a9ed65880f1f2b41a20643a6") failures.push("protected handoff integrity drift");
   }
-  validateNewProofRegistry(failures);
+  validateNewProofRegistry(repoRoot, proofRoot, failures);
   const activationPresence = Object.values(ACTIVATION_PATHS).map((path) => existsSync(resolve(repoRoot, path)));
   const completionPresence = Object.values(COMPLETION_PATHS).map((path) => existsSync(resolve(repoRoot, path)));
   if (activationPresence.some(Boolean) && !activationPresence.every(Boolean)) failures.push("superseding activation pair incomplete");
