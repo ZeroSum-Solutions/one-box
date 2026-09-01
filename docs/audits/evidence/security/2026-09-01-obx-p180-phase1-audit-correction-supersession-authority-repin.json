@@ -1,0 +1,103 @@
+{
+  "schemaVersion": 1,
+  "reviewId": "OBX-P180-PHASE1-AUDIT-CORRECTION-SUPERSESSION-AUTHORITY-REPIN-002",
+  "recordKind": "owner-directed-phase1-correction-supersession-authority-repin-v1",
+  "status": "VERIFIED_PENDING_SINGLE_USE_GOVERNANCE_COMMIT",
+  "owner": {
+    "actorId": "person:devin-wiggins",
+    "displayName": "Devin Wiggins",
+    "role": "repository-owner"
+  },
+  "ownerDirectionBinding": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/owner-authorizations/2026-09-01-phase1-superseding-correction-wave.md",
+    "algorithm": "sha256",
+    "digest": "422412d5b110b4619471384f0b4b364df4cb1c2db6132ffbee0e26da222aa2c9"
+  },
+  "activationAllowlist": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/censuses/phase1-superseding-correction-governance-allowlist.txt",
+    "algorithm": "sha256",
+    "digest": "77d46a1810e758cc6e49d5b91b98de5cf73665f0b71bf99ad119d19a0072526c",
+    "predecessorCommit": "a448fc993e6e89b2d5aeebb54e2261456c43f281",
+    "predecessorTree": "e8a5c2b42881c0e806e8df63108b4f559c6e8491",
+    "authorizedPathCount": 16
+  },
+  "invalidatedAttemptBindings": [
+    {
+      "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-001",
+      "recordSha256": "4cef2ba9b5e97b8a1da94243edf9b5ae9672536b7db5fd116e2aeacbec46d249",
+      "activationReceiptSha256": "9a468b569579273fe2f9ffa34f106479397c47304313568775d8e4203fa7763c"
+    },
+    {
+      "authorizationId": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-001",
+      "recordSha256": "2f264c3bf3b3d1f02cbc66e63af7a72e27447a6b0c45fb9b2c07eb24e2cdea2e",
+      "activationReceiptSha256": "1eb83f113b6bc88155f8c6f4cbf4f9a526a862b784f170474ad82d78f09cca14"
+    }
+  ],
+  "invalidatedProofBinding": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/proof/phase1-correction-07-t03-test-plans.log",
+    "sha256": "b7bcff2347ccc1d23358d25c08dd3104eaf29e1775f449c7fab9eaaa83d0cfbf",
+    "bytes": 41526,
+    "registryPath": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/proof/phase1-correction-proof-registry.jsonl",
+    "registrySha256": "38a2d0f438117cdd0c40257f45e2d9e1c198242081affaf7685617f12ea7e519",
+    "registryRows": 6,
+    "immutable": true
+  },
+  "supersedingAuthorizations": [
+    {
+      "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-002",
+      "authorizationHash": "9f0df3084adca885a15558cf7196411364e647dabdcf6c9c7b2ac91138424246",
+      "recordPath": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-supersession-solo.json",
+      "recordSha256": "73661cc4ec443fcd3be7605e130e7c23b65b03f92612efa25fb9c5efba88f9e0"
+    },
+    {
+      "authorizationId": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-002",
+      "authorizationHash": "6788271928057097ae4a3ff0ac2b32f6366108b8b7f52c19d708204c0b5743a2",
+      "recordPath": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-supersession-solo.json",
+      "recordSha256": "4e739b5140d27db1a4c8365944dffc49ea4b887090b7a73f7298211a26941ca1"
+    }
+  ],
+  "historicalCorrectionRepinBinding": {
+    "path": "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-authority-repin.json",
+    "algorithm": "sha256",
+    "digest": "40798435dd9386e1d2b1c6a0128cd459094d949347c470140568d3da2e7ff9f4",
+    "singleUse": true,
+    "invalidatedByFailedProof": true,
+    "reused": false
+  },
+  "currentAuthorityManifest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "packetDigest": "bbd569892f915b6f67e05e7ba8d1bf6b55d969b4d6324be7e7eb6186eeb67aa5",
+    "sha256": "c9464c63d9cb4b1f69d6b92c436b6b0b093e31f7d6a811420947b3b2299627e7",
+    "requiresPostRepairRefresh": true
+  },
+  "completionProtocol": {
+    "useLimit": 1,
+    "singleUse": true,
+    "renewable": false,
+    "replacementAllowed": false,
+    "rebaselineAllowed": false,
+    "freshAppendOnlyProofRegistryRequired": true,
+    "expectedParentCommit": "a448fc993e6e89b2d5aeebb54e2261456c43f281"
+  },
+  "invariants": {
+    "invalidatedRecordsRewritten": false,
+    "invalidatedReceiptsRewritten": false,
+    "invalidatedProofRewrittenOrTruncated": false,
+    "invalidatedRegistryRewrittenOrTruncated": false,
+    "authorityExpansion": false,
+    "runtimeOrDependencyChange": false,
+    "providerBackedProductRoute": false,
+    "t05Authorized": false,
+    "t06ThroughT08Authorized": false
+  },
+  "recordedAt": "2026-09-01T12:31:00.000Z",
+  "expiresAt": "2026-09-15T12:30:00.000Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "a694481f36271f4dea32ba62bf4ff5d56f5fd484d086a6ccd2984f3485ecec9c"
+  }
+}

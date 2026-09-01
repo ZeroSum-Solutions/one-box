@@ -1,0 +1,173 @@
+{
+  "schemaVersion": 1,
+  "id": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-002",
+  "recordKind": "owner-solo-superseding-correction-v1",
+  "status": "reserved-pending-activation",
+  "implementationAuthorized": true,
+  "activationRequired": true,
+  "projectId": "one-box",
+  "branch": "feat/obx-p180-t03-t05-offline-wave-recovery",
+  "baseCommit": "a448fc993e6e89b2d5aeebb54e2261456c43f281",
+  "baseTree": "e8a5c2b42881c0e806e8df63108b4f559c6e8491",
+  "ticketId": "OBX-P180-T03",
+  "laneId": "T03",
+  "ownerActorId": "person:devin-wiggins",
+  "riskOwnerActorId": "person:devin-wiggins",
+  "controllerActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-controller",
+  "goalRunId": "obx-p180-t03-t05-offline-wave",
+  "useLimit": 1,
+  "ownerDirectionBinding": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/owner-authorizations/2026-09-01-phase1-superseding-correction-wave.md",
+    "algorithm": "sha256",
+    "digest": "422412d5b110b4619471384f0b4b364df4cb1c2db6132ffbee0e26da222aa2c9"
+  },
+  "activationAllowlistBinding": {
+    "path": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave/censuses/phase1-superseding-correction-governance-allowlist.txt",
+    "algorithm": "sha256",
+    "digest": "77d46a1810e758cc6e49d5b91b98de5cf73665f0b71bf99ad119d19a0072526c",
+    "exactPathCount": 16
+  },
+  "invalidatedAttemptBinding": {
+    "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-001",
+    "recordPath": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-solo.json",
+    "recordSha256": "4cef2ba9b5e97b8a1da94243edf9b5ae9672536b7db5fd116e2aeacbec46d249",
+    "authorizationHash": "ee2cd288385106690bf088e0a7c9e90192a7cb49ba8fa9db03ebb7f088198976",
+    "activationReceiptPath": "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json",
+    "activationReceiptSha256": "9a468b569579273fe2f9ffa34f106479397c47304313568775d8e4203fa7763c",
+    "activationReceiptSelfHash": "5b3835033249be0fbbe8f94a99b6358531b3a1575042900c89f1972b5c1cafe8",
+    "failedProofPath": "proof/phase1-correction-07-t03-test-plans.log",
+    "failedProofSha256": "b7bcff2347ccc1d23358d25c08dd3104eaf29e1775f449c7fab9eaaa83d0cfbf",
+    "failedProofBytes": 41526,
+    "failedRegistryPath": "proof/phase1-correction-proof-registry.jsonl",
+    "failedRegistrySha256": "38a2d0f438117cdd0c40257f45e2d9e1c198242081affaf7685617f12ea7e519",
+    "failedRegistryRows": 6,
+    "state": "INVALIDATED_FAILED_PROOF",
+    "immutable": true,
+    "renewed": false,
+    "reused": false,
+    "truncated": false,
+    "rebaselined": false
+  },
+  "acceptedCorrectionBinding": {
+    "commit": "76cbe6c19d553a41bc34c0ac8a88fb595bfbd354",
+    "tree": "8426b191a7c2e6802ed77ba1379a13b361313148",
+    "parentCommit": "98ae5fa7c121e6c9f590fc8b37b3dbe736e53c5b",
+    "integratedCommit": "a448fc993e6e89b2d5aeebb54e2261456c43f281",
+    "integratedTree": "e8a5c2b42881c0e806e8df63108b4f559c6e8491",
+    "files": [
+      {
+        "path": "src/lib/operatingEnvironment/receipts.ts",
+        "algorithm": "sha256",
+        "digest": "bf8fad7ae3d5dea5649c1f21977da2dc25c4891990b7d6a3fbb44b55c9e015ad"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/receipts.test.ts",
+        "algorithm": "sha256",
+        "digest": "74ac027a69b51f920131a4b10d9231258d44b169eeb924c85c812c51b98dfdbb"
+      }
+    ]
+  },
+  "allowedCorrectionPaths": [
+    "src/lib/operatingEnvironment/receipts.ts",
+    "src/lib/operatingEnvironment/receipts.test.ts"
+  ],
+  "allowedEffects": [
+    "add-provider-offline-skill-context-interrupt-receipt-reducers"
+  ],
+  "governanceWriteScope": {
+    "exactPaths": [
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-supersession-activation-receipt.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-supersession-completion-receipt.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-supersession-activation-receipt.json",
+      "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-supersession-completion-receipt.json",
+      "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-supersession-authority-repin.json",
+      "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-supersession-security-review.json",
+      "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-supersession-solo.json",
+      "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-supersession-solo.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "scripts/verify-obx-p180-source-adoption.mjs",
+      "scripts/verify-p180-phase1-correction-authorization.mjs",
+      "scripts/verify-p180-phase1-superseding-correction-authorization.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "authorizedEffects": [
+      "record-superseding-correction-governance",
+      "repair-plan-authority-fixture-lifecycle-routing",
+      "re-pin-current-authority-packet",
+      "activate-and-complete-new-single-use-attempts"
+    ],
+    "runtimeAuthority": false,
+    "dependencyOrLockfileChangeAuthorized": false,
+    "t05ThroughT08Authority": false
+  },
+  "attemptProtocol": {
+    "goalStateRoot": "/Users/zero-suminc./.claude/goal-state/obx-p180-t03-t05-offline-wave",
+    "registryPath": "proof/phase1-superseding-correction-proof-registry.jsonl",
+    "appendOnlyHashChain": true,
+    "oldRegistryImmutable": true,
+    "priorAttemptRewriteOrTruncateAllowed": false,
+    "freshAttemptRequiredAfterReproducibleFinding": true,
+    "maxAttemptsPerLane": 4,
+    "directoryMode": "0700",
+    "fileMode": "0600"
+  },
+  "activationProtocol": {
+    "ownReceiptPath": "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-supersession-activation-receipt.json",
+    "siblingReceiptPath": "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-supersession-activation-receipt.json",
+    "pairedActivationRequired": true,
+    "receiptsCommitExactPathsOnly": true
+  },
+  "completionEvidence": {
+    "receiptPath": "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-supersession-completion-receipt.json",
+    "validStatus": "COMPLETED_VERIFIED",
+    "requiredCommandIds": [
+      "t03-correction-focused",
+      "operating-environment",
+      "source-adoption",
+      "typecheck",
+      "targeted-lint",
+      "verify-plans",
+      "test-plans",
+      "path-census",
+      "dependency-diff",
+      "forbidden-effects",
+      "secrets-scan"
+    ]
+  },
+  "reviewProtocol": {
+    "quickAuditModel": "z-ai/glm-5.3-flash",
+    "quickAuditProvider": "openrouter:z-ai/fp8:Z.AI",
+    "finalAuditModel": "claude-opus-5",
+    "finalAuditProvider": "claude-max-oauth:firstParty",
+    "modelAuthority": "advisory-only",
+    "deterministicAuthority": "provider-offline-tests-and-append-only-proof-registry",
+    "targetChangeInvalidatesReview": true
+  },
+  "securityReviewPath": "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-supersession-security-review.json",
+  "forbiddenEffects": [
+    "rewrite-renew-reuse-truncate-or-rebaseline-invalidated-attempt",
+    "provider-or-network-runtime",
+    "credential-or-environment-access-from-implementation",
+    "filesystem-shell-persistence-worker-ui-browser-collaboration-canvas-or-page-ir-from-implementation",
+    "dependency-or-lockfile-change",
+    "deployment-release-product-inference-or-product-data-transfer",
+    "t05-before-t03-and-t04-completed-verified",
+    "t06-through-t08-authority"
+  ],
+  "recordedAt": "2026-09-01T12:30:00.000Z",
+  "notBefore": "2026-09-01T12:30:00.000Z",
+  "expiresAt": "2026-09-15T12:30:00.000Z",
+  "exactDurationMilliseconds": 1209600000,
+  "renewable": false,
+  "authorizationHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/authorizationHash/digest"
+    ],
+    "digest": "9f0df3084adca885a15558cf7196411364e647dabdcf6c9c7b2ac91138424246"
+  }
+}

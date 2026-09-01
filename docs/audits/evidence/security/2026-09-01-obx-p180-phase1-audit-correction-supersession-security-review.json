@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "reviewId": "OBX-P180-PHASE1-AUDIT-CORRECTION-SUPERSESSION-SECURITY-002",
+  "reviewKind": "phase1-audit-correction-supersession-security-review-v1",
+  "status": "PASS",
+  "reviewerActorId": "agent:codex-gpt-5.6-sol-ultra:phase1-supersession-security-review",
+  "reviewedAt": "2026-09-01T12:32:00.000Z",
+  "authorizationBindings": [
+    {
+      "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-002",
+      "authorizationHash": "9f0df3084adca885a15558cf7196411364e647dabdcf6c9c7b2ac91138424246"
+    },
+    {
+      "authorizationId": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-002",
+      "authorizationHash": "6788271928057097ae4a3ff0ac2b32f6366108b8b7f52c19d708204c0b5743a2"
+    }
+  ],
+  "coverage": [
+    {
+      "surface": "owner-authority",
+      "status": "PASS",
+      "disposition": "The named repository owner explicitly authorizes fresh nonrenewable -002 records and the exact verifier repair surfaces."
+    },
+    {
+      "surface": "invalidated-history",
+      "status": "PASS",
+      "disposition": "Both -001 records, activation receipts, failed output, and six-row proof registry are content-addressed and immutable."
+    },
+    {
+      "surface": "accepted-correction-commits",
+      "status": "PASS",
+      "disposition": "T03 commit 76cbe6c and integrated T04 commit a448fc9 are bound by exact tree, parent, paths, and file hashes."
+    },
+    {
+      "surface": "fresh-attempt-protocol",
+      "status": "PASS",
+      "disposition": "A distinct append-only proof registry permits at most four unique attempts per lane and prohibits rewrite or truncation."
+    },
+    {
+      "surface": "exact-path-and-effect-scope",
+      "status": "PASS",
+      "disposition": "The sixteen governance paths and two disjoint correction path sets are exact; no glob or inherited authority is present."
+    },
+    {
+      "surface": "runtime-and-data-effects",
+      "status": "NONE",
+      "disposition": "No provider, network, credential, filesystem, shell, persistence, worker, UI, browser, collaboration, Canvas, Page IR, deployment, release, inference, or product-data authority is granted."
+    },
+    {
+      "surface": "dependency-boundary",
+      "status": "PASS",
+      "disposition": "Dependency and lockfile changes remain prohibited."
+    },
+    {
+      "surface": "future-tickets",
+      "status": "NONE",
+      "disposition": "T05 remains fail-closed until both -002 lanes are COMPLETED_VERIFIED; T06 through T08 remain unauthorized."
+    }
+  ],
+  "findings": [],
+  "deniedAuthority": [
+    "T05-before-T03-T04-completed-verified",
+    "T06+",
+    "provider-or-network-runtime",
+    "dependency-or-lockfile-change",
+    "deployment-release-or-product-data-transfer"
+  ],
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "9382b7c566041751ad7b49b0e8f3d3e9d0769b9d2b05c868f6aece0c3983b109"
+  }
+}

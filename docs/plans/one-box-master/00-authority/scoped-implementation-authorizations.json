@@ -993,6 +993,20 @@
       "path": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-solo.json",
       "algorithm": "sha256",
       "digest": "2f264c3bf3b3d1f02cbc66e63af7a72e27447a6b0c45fb9b2c07eb24e2cdea2e"
+    },
+    {
+      "id": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-002",
+      "recordKind": "owner-solo-superseding-correction-reference-v1",
+      "path": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-supersession-solo.json",
+      "algorithm": "sha256",
+      "digest": "73661cc4ec443fcd3be7605e130e7c23b65b03f92612efa25fb9c5efba88f9e0"
+    },
+    {
+      "id": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-002",
+      "recordKind": "owner-solo-superseding-correction-reference-v1",
+      "path": "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-supersession-solo.json",
+      "algorithm": "sha256",
+      "digest": "4e739b5140d27db1a4c8365944dffc49ea4b887090b7a73f7298211a26941ca1"
     }
   ]
 }
