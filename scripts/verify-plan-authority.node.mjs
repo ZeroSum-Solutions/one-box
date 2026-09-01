@@ -294,14 +294,22 @@ const completionPaths = {
   T04: "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json",
 };
 
+function controllerEnvelopePath(proofRoot, tuple) {
+  return resolve(proofRoot, `proof/controller-proof-envelope-${String(tuple.sequence).padStart(2, "0")}-${tuple.laneId.toLowerCase()}-${tuple.commandId}.json`);
+}
+
 function buildProofEntries(registry, activationReceipts) {
   const entries = [];
+  const envelopes = [];
   let previousDigest = "0".repeat(64);
   for (const ticket of ["T03", "T04"]) {
     const record = registry.authorizations.find((candidate) => candidate.id === `OBX-AUTH-P180-${ticket}-SOLO-001`);
     for (const commandId of record.completionEvidence.requiredCommandIds) {
       const sequence = entries.length + 1;
-      const entry = {
+      const outputDigest = sha256(`output:${ticket}:${commandId}`);
+      const envelope = {
+        schemaVersion: 1,
+        envelopeKind: "obx-p180-controller-proof-envelope-v1",
         sequence,
         laneId: ticket,
         commandId,
@@ -312,21 +320,33 @@ function buildProofEntries(registry, activationReceipts) {
         startedAt: "2026-09-01T03:10:00.000Z",
         finishedAt: "2026-09-01T03:10:01.000Z",
         exitCode: 0,
-        outputDigest: sha256(`output:${ticket}:${commandId}`),
-        envelopeDigest: sha256(`envelope:${ticket}:${commandId}`),
+        outputDigest,
+      };
+      const envelopeBytes = Buffer.from(`${JSON.stringify(envelope, null, 2)}\n`);
+      envelopes.push({
+        path: `proof/controller-proof-envelope-${String(sequence).padStart(2, "0")}-${ticket.toLowerCase()}-${commandId}.json`,
+        bytes: envelopeBytes,
+      });
+      const entry = {
+        ...envelope,
+        envelopeKind: undefined,
+        schemaVersion: undefined,
+        envelopeDigest: sha256(envelopeBytes),
         previousDigest,
       };
+      delete entry.envelopeKind;
+      delete entry.schemaVersion;
       entry.entryDigest = sha256(canonicalJson(entry));
       previousDigest = entry.entryDigest;
       entries.push(entry);
     }
   }
-  return entries;
+  return { entries, envelopes };
 }
 
 function withSyntheticCompletionReceipts(mutate, callback) {
   withSyntheticActivationReceipts(null, ({ registry, gitState, receipts: activationReceipts }) => {
-    const proofEntries = buildProofEntries(registry, activationReceipts);
+    const { entries: proofEntries, envelopes } = buildProofEntries(registry, activationReceipts);
     const registryBytes = proofEntries.map((entry) => JSON.stringify(entry)).join("\n") + "\n";
     const phase0BCommit = gitState.phase0BCommit;
     const phase0BTree = gitState.phase0BTree;
@@ -395,6 +415,14 @@ function withSyntheticCompletionReceipts(mutate, callback) {
       fileBytes.set(completionPaths[ticket], bytes);
       writeFileSync(resolve(fixtureRoot, completionPaths[ticket]), bytes);
     }
+    const historicalPaths = new Set();
+    for (const record of registry.authorizations.filter((row) => ["OBX-AUTH-P180-T03-SOLO-001", "OBX-AUTH-P180-T04-SOLO-001"].includes(row.id))) {
+      for (const binding of [...record.planBindings, ...record.dependencyBindings, ...record.sourceAdoptionBindings]) historicalPaths.add(binding.path);
+      const securityReceipt = JSON.parse(readFileSync(resolve(fixtureRoot, record.requiredEvidencePaths[0]), "utf8"));
+      historicalPaths.add(record.requiredEvidencePaths[0]);
+      for (const path of securityReceipt.targetPaths) historicalPaths.add(path);
+    }
+    const historicalFileBytes = new Map([...historicalPaths].map((path) => [path, readFileSync(resolve(fixtureRoot, path))]));
     const completionGitState = {
       ...gitState,
       currentCommit: completionCommit,
@@ -411,12 +439,14 @@ function withSyntheticCompletionReceipts(mutate, callback) {
         [completionCommit]: { tree: completionTree, parents: [t04Commit], changedPaths: [completionPaths.T03, completionPaths.T04] },
       },
       fileBytes,
+      historicalFileBytes,
     };
     const proofRoot = resolve(fixtureRoot, "goal-state-proof");
     mkdirSync(resolve(proofRoot, "proof"), { recursive: true });
     chmodSync(proofRoot, 0o700);
     chmodSync(resolve(proofRoot, "proof"), 0o700);
     writeFileSync(resolve(proofRoot, "proof/controller-proof-registry.jsonl"), registryBytes, { mode: 0o600 });
+    for (const envelope of envelopes) writeFileSync(resolve(proofRoot, envelope.path), envelope.bytes, { mode: 0o600 });
     try { callback({ registry, gitState: completionGitState, receipts: completionReceipts, proofRoot }); }
     finally {
       for (const path of Object.values(completionPaths)) rmSync(resolve(fixtureRoot, path), { force: true });
@@ -685,6 +715,22 @@ test("wrong real H1 and reversed activation paths never derive ACTIVE", () => {
   });
 });
 
+test("staged, unstaged, or unexpected untracked paths invalidate activation", () => {
+  for (const mutation of [
+    { cachedPaths: ["UNAUTHORIZED_WORKER_INDEX_SENTINEL.txt"] },
+    { worktreePaths: ["scripts/verify-plan-authority.mjs"] },
+    { untrackedPaths: ["UNAUTHORIZED_WORKER_UNTRACKED_SENTINEL.txt"] },
+  ]) {
+    withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
+      Object.assign(gitState, { cachedPaths: [], worktreePaths: [], untrackedPaths: [], ...mutation });
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "activation", gitState });
+      assert.notEqual(result.state, "ACTIVE");
+      assert.equal(result.frozenWorkerStart, null);
+      assert.match(result.failures.join("\n"), /WORKER_INDEX_OR_WORKTREE_MUTATION/);
+    });
+  }
+});
+
 test("activation rejects cross-grant substitution, HEAD/tree movement, and malformed completion", () => {
   withSyntheticActivationReceipts((receipts) => {
     [receipts.T03.authorizationId, receipts.T04.authorizationId] = [receipts.T04.authorizationId, receipts.T03.authorizationId];
@@ -735,6 +781,42 @@ test("completion-only verifies the bound external proof registry", () => {
   });
 });
 
+test("completion-only rejects a registry entry without its controller envelope", () => {
+  withSyntheticCompletionReceipts(null, ({ registry, gitState, proofRoot, receipts }) => {
+    rmSync(controllerEnvelopePath(proofRoot, receipts.T03.proofBinding.tuples[0]), { force: true });
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "completion", gitState, proofRoot });
+    assert.notEqual(result.state, "CONSUMED");
+    assert.match(result.failures.join("\n"), /controller proof envelope.*missing/i);
+  });
+});
+
+test("completion-only rejects unsafe-mode, symlinked, or byte-drifted controller envelopes", () => {
+  withSyntheticCompletionReceipts(null, ({ registry, gitState, proofRoot, receipts }) => {
+    chmodSync(controllerEnvelopePath(proofRoot, receipts.T03.proofBinding.tuples[0]), 0o644);
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "completion", gitState, proofRoot });
+    assert.match(result.failures.join("\n"), /controller proof envelope.*mode 0600/i);
+  });
+  withSyntheticCompletionReceipts(null, ({ registry, gitState, proofRoot, receipts }) => {
+    const path = controllerEnvelopePath(proofRoot, receipts.T03.proofBinding.tuples[0]);
+    const outside = resolve(fixtureRoot, "outside-controller-envelope.json");
+    const original = readFileSync(path);
+    rmSync(path, { force: true });
+    writeFileSync(outside, original, { mode: 0o600 });
+    symlinkSync(outside, path);
+    try {
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "completion", gitState, proofRoot });
+      assert.match(result.failures.join("\n"), /controller proof envelope.*missing or unsafe/i);
+    } finally { rmSync(outside, { force: true }); }
+  });
+  withSyntheticCompletionReceipts(null, ({ registry, gitState, proofRoot, receipts }) => {
+    const path = controllerEnvelopePath(proofRoot, receipts.T03.proofBinding.tuples[0]);
+    const original = readFileSync(path);
+    writeFileSync(path, Buffer.concat([original, Buffer.from(" ")]));
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "completion", gitState, proofRoot });
+    assert.match(result.failures.join("\n"), /controller proof envelope.*byte digest mismatch/i);
+  });
+});
+
 test("malformed or partial completion files fail without consuming the authorization", () => {
   withSyntheticActivationReceipts(null, ({ registry, gitState }) => {
     writeFileSync(resolve(fixtureRoot, completionPaths.T03), "{}\n");
@@ -768,6 +850,52 @@ test("terminal validation rejects cross-grant proof tuples and implementation dr
   }, ({ registry, gitState }) => {
     const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T04", mode: "lifecycle", gitState });
     assert.match(result.failures.join("\n"), /implementation.*digest|current completed artifact drift/i);
+  });
+  withSyntheticCompletionReceipts((receipts) => {
+    receipts.T04.implementation.parentCommit = receipts.T03.activationBinding.frozenStartCommit;
+  }, ({ registry, gitState }) => {
+    const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T04", mode: "lifecycle", gitState });
+    assert.match(result.failures.join("\n"), /T04 completion implementation parent|topology/i);
+  });
+});
+
+test("sealed completion survives later shared-governance verifier evolution", () => {
+  withSyntheticCompletionReceipts(null, ({ registry, gitState }) => {
+    for (const relativePath of [
+      "scripts/verify-plan-authority.mjs",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json",
+    ]) {
+      const path = resolve(fixtureRoot, relativePath);
+      const original = readFileSync(path);
+      writeFileSync(path, Buffer.concat([original, Buffer.from("\n ")]));
+      const evolvedRegistry = relativePath.endsWith("scoped-implementation-authorizations.json")
+        ? { ...registry, authorizations: [...registry.authorizations, { id: "OBX-AUTH-P180-T05-SYNTHETIC-LATER-RECORD" }] }
+        : registry;
+      try {
+        for (const ticket of ["T03", "T04"]) {
+          const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry: evolvedRegistry, ticket, mode: "lifecycle", gitState });
+          assert.deepEqual(result.failures, []);
+          assert.equal(result.state, "CONSUMED");
+        }
+      } finally { writeFileSync(path, original); }
+    }
+  });
+});
+
+test("a sealed pair cannot mask a current predecessor failure as CONSUMED", () => {
+  withSyntheticCompletionReceipts(null, ({ registry, gitState }) => {
+    const path = resolve(fixtureRoot, "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json");
+    const original = readFileSync(path);
+    const checkpoint = JSON.parse(original.toString("utf8"));
+    checkpoint.status = "DRIFT";
+    writeFileSync(path, `${JSON.stringify(checkpoint, null, 2)}\n`);
+    try {
+      const result = verifyP180SiblingAuthorization({ repoRoot: fixtureRoot, registry, ticket: "T03", mode: "lifecycle", gitState });
+      assert.equal(result.state, "INVALID");
+      assert.match(result.failures.join("\n"), /T02 completion checkpoint/);
+    } finally { writeFileSync(path, original); }
   });
 });
 

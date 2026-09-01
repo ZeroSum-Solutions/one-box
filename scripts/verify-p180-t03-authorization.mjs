@@ -26,6 +26,8 @@ const COMPLETION_PATHS = [
   "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-completion-receipt.json",
   "docs/audits/evidence/goal/2026-08-31-obx-p180-t04-completion-receipt.json",
 ];
+const PROTECTED_UNTRACKED_PATH = ".claude/handoffs/one-box-operating-environment-next-phase.md";
+const PROTECTED_UNTRACKED_SHA256 = "cbbc878aa0691f333b128a71aee43adde89a9691a9ed65880f1f2b41a20643a6";
 export const PHASE0A_SECURITY_TARGET_PATHS = [
   "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-completion-checkpoint.json",
   "docs/audits/evidence/goal/2026-08-31-obx-p180-t02-owner-completion-receipt.json",
@@ -192,15 +194,37 @@ function safeFile(repoRoot, path, label, failures, required = true) {
     return real;
   } catch (error) { failures.push(`${label}: unsafe ${path} (${error.message})`); return null; }
 }
-function readJson(repoRoot, path, label, failures, required = true) {
-  const absolute = safeFile(repoRoot, path, label, failures, required);
-  if (!absolute) return null;
-  try { const value = JSON.parse(readFileSync(absolute, "utf8")); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("top level must be object"); return value; }
+function historicalFileBytes(repoRoot, path, label, failures, binding) {
+  if (typeof path !== "string" || path.startsWith("/") || normalize(path).startsWith("..")) {
+    failures.push(`${label}: invalid repository-relative path`); return null;
+  }
+  if (!/^[a-f0-9]{40}$/.test(binding.commit ?? "")) {
+    failures.push(`${label}: invalid historical commit`); return null;
+  }
+  if (binding.gitState?.historicalFileBytes?.has(path)) return Buffer.from(binding.gitState.historicalFileBytes.get(path));
+  const treeEntry = spawnSync("git", ["ls-tree", binding.commit, "--", path], { cwd: repoRoot, encoding: "utf8" });
+  const [metadata, listedPath] = treeEntry.stdout.trim().split("\t");
+  const [mode, type] = (metadata ?? "").split(/\s+/);
+  if (treeEntry.status !== 0 || listedPath !== path || type !== "blob" || !["100644", "100755"].includes(mode)) {
+    failures.push(`${label}: historical nonsymlinked regular file required ${path}`); return null;
+  }
+  const result = spawnSync("git", ["show", `${binding.commit}:${path}`], { cwd: repoRoot, encoding: null });
+  if (result.status !== 0) { failures.push(`${label}: cannot read ${path} at ${binding.commit}`); return null; }
+  return result.stdout;
+}
+function readJson(repoRoot, path, label, failures, required = true, binding = null) {
+  const bytes = binding?.commit
+    ? historicalFileBytes(repoRoot, path, label, failures, binding)
+    : (() => { const absolute = safeFile(repoRoot, path, label, failures, required); return absolute ? readFileSync(absolute) : null; })();
+  if (!bytes) return null;
+  try { const value = JSON.parse(bytes.toString("utf8")); if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("top level must be object"); return value; }
   catch (error) { failures.push(`${label}: invalid JSON (${error.message})`); return null; }
 }
-function sha256File(repoRoot, path, label, failures) {
-  const absolute = safeFile(repoRoot, path, label, failures);
-  return absolute ? createHash("sha256").update(readFileSync(absolute)).digest("hex") : null;
+function sha256File(repoRoot, path, label, failures, binding = null) {
+  const bytes = binding?.commit
+    ? historicalFileBytes(repoRoot, path, label, failures, binding)
+    : (() => { const absolute = safeFile(repoRoot, path, label, failures); return absolute ? readFileSync(absolute) : null; })();
+  return bytes ? createHash("sha256").update(bytes).digest("hex") : null;
 }
 function checkKeys(value, expected, label, failures) {
   if (!value || typeof value !== "object" || Array.isArray(value)) { failures.push(`${label}: object required`); return; }
@@ -218,16 +242,18 @@ function validateSelfHash(value, field, expected, label, failures) {
   const actual = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
   if (value[field]?.digest !== expected || actual !== expected) failures.push(`${label}: self-hash mismatch`);
 }
-function validateLiveBindings(repoRoot, bindings, label, failures) {
+function validateLiveBindings(repoRoot, bindings, label, failures, binding = null) {
   if (!Array.isArray(bindings) || bindings.length === 0) { failures.push(`${label}: non-empty bindings required`); return; }
   for (const [index, row] of bindings.entries()) {
     checkKeys(row, ["path", "algorithm", "digest"], `${label}[${index}]`, failures);
-    if (row.algorithm !== "sha256" || sha256File(repoRoot, row.path, `${label}[${index}]`, failures) !== row.digest) failures.push(`${label}[${index}]: current hash drift ${row.path}`);
+    if (row.algorithm !== "sha256" || sha256File(repoRoot, row.path, `${label}[${index}]`, failures, binding) !== row.digest) {
+      failures.push(`${label}[${index}]: ${binding?.commit ? "activation-era" : "current"} hash drift ${row.path}`);
+    }
   }
 }
-function validateAmendment(repoRoot, config, record, failures) {
-  const amendment = readJson(repoRoot, config.amendmentPath, `${config.id}.amendment`, failures);
-  if (sha256File(repoRoot, config.amendmentPath, `${config.id}.amendment`, failures) !== config.amendmentDigest) failures.push(`${config.id}.amendment: file hash drift`);
+function validateAmendment(repoRoot, config, record, failures, binding = null) {
+  const amendment = readJson(repoRoot, config.amendmentPath, `${config.id}.amendment`, failures, true, binding);
+  if (sha256File(repoRoot, config.amendmentPath, `${config.id}.amendment`, failures, binding) !== config.amendmentDigest) failures.push(`${config.id}.amendment: file hash drift`);
   if (!amendment) return;
   exact([amendment.amendmentId, amendment.authorizationId, amendment.branch, amendment.baseCommit, amendment.baseTree],
     [config.amendmentId, config.id, COMMON.branch, COMMON.baseCommit, COMMON.baseTree], `${config.id}.amendment.identity`, failures);
@@ -242,10 +268,10 @@ function validateAmendment(repoRoot, config, record, failures) {
   validateSelfHash(amendment, "selfHash", config.amendmentSelfHash, `${config.id}.amendment`, failures);
   exact(record.amendmentBinding, { path: config.amendmentPath, amendmentId: config.amendmentId, algorithm: "sha256", digest: config.amendmentDigest, selfHash: config.amendmentSelfHash }, `${config.id}.amendmentBinding`, failures);
 }
-function validateDerivedRepin(repoRoot, failures) {
+function validateDerivedRepin(repoRoot, failures, binding = null) {
   const label = "Phase0A source-adoption derived re-pin";
-  const repin = readJson(repoRoot, SOURCE_ADOPTION_REPIN_PATH, label, failures);
-  const manifest = readJson(repoRoot, AUTHORITY_MANIFEST_PATH, `${label}.authorityManifest`, failures);
+  const repin = readJson(repoRoot, SOURCE_ADOPTION_REPIN_PATH, label, failures, true, binding);
+  const manifest = readJson(repoRoot, AUTHORITY_MANIFEST_PATH, `${label}.authorityManifest`, failures, true, binding);
   if (!repin || !manifest) return;
   checkKeys(repin, [
     "schemaVersion", "reviewId", "reviewedAt", "namedOwner", "scope", "derivedWriteAuthorization",
@@ -271,7 +297,7 @@ function validateDerivedRepin(repoRoot, failures) {
   }, `${label}.priorAuthorityManifest`, failures);
   exact(repin.currentAuthorityManifest, {
     path: AUTHORITY_MANIFEST_PATH, packetDigest: manifest.packetDigest,
-    sha256: sha256File(repoRoot, AUTHORITY_MANIFEST_PATH, `${label}.authorityManifest`, failures),
+    sha256: sha256File(repoRoot, AUTHORITY_MANIFEST_PATH, `${label}.authorityManifest`, failures, binding),
   }, `${label}.currentAuthorityManifest`, failures);
   exact(repin.refreshedT02SecurityReceipt, {
     path: "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
@@ -292,8 +318,8 @@ function validateDerivedRepin(repoRoot, failures) {
   ], `${label}.reReviewMethod`, failures);
   exact(repin.reEndorsement, "This receipt re-pins the source-adoption gate to the verifier-derived Phase 0A packet digest. The historical T02 security receipt remains unchanged; this does not re-approve, broaden, or add implementation, runtime, provider, dependency, activation, completion, or source-adoption-artifact authority.", `${label}.reEndorsement`, failures);
 }
-function validateSecurityReceipt(repoRoot, config, record, failures) {
-  const receipt = readJson(repoRoot, config.securityPath, `${config.id}.securityReceipt`, failures);
+function validateSecurityReceipt(repoRoot, config, record, failures, binding = null) {
+  const receipt = readJson(repoRoot, config.securityPath, `${config.id}.securityReceipt`, failures, true, binding);
   if (!receipt) return;
   checkKeys(receipt, ["schemaVersion", "reviewId", "receiptKind", "phase", "authorizationId", "authorizationHash", "amendmentId", "amendmentHash", "amendmentSelfHash", "baseCommit", "baseTree", "targetPaths", "targetHashes", "coverage", "findings", "exports", "secretsScan", "activationState", "verdict", "capturedAt", "selfHash"], `${config.id}.securityReceipt`, failures);
   exact([receipt.schemaVersion, receipt.reviewId, receipt.receiptKind, receipt.phase,
@@ -303,7 +329,7 @@ function validateSecurityReceipt(repoRoot, config, record, failures) {
     config.amendmentId, config.amendmentDigest, config.amendmentSelfHash, COMMON.baseCommit,
     COMMON.baseTree, "NOT_ACTIVE", "PASS-WITH-ACCEPTED-RISK"], `${config.id}.securityReceipt.identity`, failures);
   exact(receipt.targetPaths, PHASE0A_SECURITY_TARGET_PATHS, `${config.id}.securityReceipt.targetPaths`, failures);
-  validateLiveBindings(repoRoot, receipt.targetHashes, `${config.id}.securityReceipt.targetHashes`, failures);
+  validateLiveBindings(repoRoot, receipt.targetHashes, `${config.id}.securityReceipt.targetHashes`, failures, binding);
   exact(receipt.targetHashes?.map((row) => row.path), PHASE0A_SECURITY_TARGET_PATHS, `${config.id}.securityReceipt.targetHash order`, failures);
   const coverage = receipt.coverage ?? [];
   exact(coverage, SECURITY_COVERAGE, `${config.id}.securityReceipt.coverage`, failures);
@@ -441,12 +467,20 @@ function expectedInvalidators(config) {
 }
 function discoverGitState(repoRoot, failures) {
   const git = (...args) => { const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8" }); if (result.status !== 0) { failures.push(`activation git state: ${args.join(" ")} failed`); return null; } return result.stdout.trim(); };
+  const paths = (value) => value?.split("\n").filter(Boolean) ?? [];
   const phase0BCommit = git("rev-parse", "HEAD");
   const phase0BTree = git("rev-parse", "HEAD^{tree}");
   const phase0ACommit = git("rev-parse", "HEAD^");
   const phase0ATree = phase0ACommit ? git("rev-parse", `${phase0ACommit}^{tree}`) : null;
-  const changedPaths = phase0ACommit && phase0BCommit ? git("diff", "--name-only", `${phase0ACommit}..${phase0BCommit}`)?.split("\n").filter(Boolean) : [];
-  return { phase0ACommit, phase0ATree, phase0BCommit, phase0BTree, currentCommit: phase0BCommit, currentTree: phase0BTree, changedPaths };
+  const changedPaths = phase0ACommit && phase0BCommit ? paths(git("diff", "--name-only", `${phase0ACommit}..${phase0BCommit}`)) : [];
+  const cachedPaths = paths(git("diff", "--cached", "--name-only", "--"));
+  const worktreePaths = paths(git("diff", "--name-only", "--"));
+  const untrackedPaths = paths(git("ls-files", "--others", "--exclude-standard", "--"));
+  return {
+    phase0ACommit, phase0ATree, phase0BCommit, phase0BTree,
+    currentCommit: phase0BCommit, currentTree: phase0BTree, changedPaths,
+    cachedPaths, worktreePaths, untrackedPaths,
+  };
 }
 function validateActivationReceipt(repoRoot, config, record, failures) {
   const receipt = readJson(repoRoot, config.activationPath, `${config.id}.activationReceipt`, failures);
@@ -474,6 +508,17 @@ function validateActivation(repoRoot, config, sibling, registry, failures, gitSt
   const state = gitState ?? discoverGitState(repoRoot, failures);
   exact([state.phase0ACommit, state.phase0ATree], [own.phase0ACommit, own.phase0ATree], "activation real H1/T1", failures);
   exact(state.changedPaths, ACTIVATION_PATHS, "activation exact Phase0B write set", failures);
+  const cachedPaths = state.cachedPaths ?? [];
+  const worktreePaths = state.worktreePaths ?? [];
+  const untrackedPaths = state.untrackedPaths ?? [];
+  const unexpectedUntracked = untrackedPaths.filter((path) => path !== PROTECTED_UNTRACKED_PATH);
+  if (cachedPaths.length > 0 || worktreePaths.length > 0 || unexpectedUntracked.length > 0) {
+    failures.push("WORKER_INDEX_OR_WORKTREE_MUTATION: activation requires an empty index, no tracked worktree changes, and no unexpected untracked paths");
+  }
+  if (untrackedPaths.includes(PROTECTED_UNTRACKED_PATH)
+    && sha256File(repoRoot, PROTECTED_UNTRACKED_PATH, "protected untracked baseline", failures) !== PROTECTED_UNTRACKED_SHA256) {
+    failures.push("WORKER_INDEX_OR_WORKTREE_MUTATION: protected untracked baseline hash drift");
+  }
   const start = { commit: state.phase0BCommit, tree: state.phase0BTree };
   if (frozenStart && (state.currentCommit !== frozenStart.commit || state.currentTree !== frozenStart.tree)) failures.push("ABORTED_DERIVED: frozen worker HEAD/tree moved");
   if (existsSync(resolve(repoRoot, config.completionPath))) failures.push("AUTHORIZATION_ALREADY_CONSUMED");
@@ -559,6 +604,47 @@ function validateProofRegistry(repoRoot, proofRoot, proofBinding, expectedEntrie
     exact(entries, expectedEntries, "completion proof registry entries", failures);
   } catch (error) {
     failures.push(`completion proof registry: invalid JSONL (${error.message})`);
+  }
+  for (const tuple of expectedEntries) {
+    const relativePath = `proof/controller-proof-envelope-${String(tuple.sequence).padStart(2, "0")}-${tuple.laneId.toLowerCase()}-${tuple.commandId}.json`;
+    const envelopePath = resolve(rootPath, relativePath);
+    let envelopeBytes;
+    try {
+      const stat = lstatSync(envelopePath);
+      if (stat.isSymbolicLink() || !stat.isFile()) throw new Error("real regular file required");
+      if ((stat.mode & 0o777) !== 0o600) throw new Error("mode 0600 required");
+      if (expectedUid !== null && stat.uid !== expectedUid) throw new Error("owner mismatch");
+      const real = realpathSync(envelopePath);
+      if (relative(rootReal, real).startsWith("..")) throw new Error("path escapes proof root");
+      envelopeBytes = readFileSync(envelopePath);
+    } catch (error) {
+      failures.push(`controller proof envelope ${relativePath}: missing or unsafe (${error.message})`);
+      continue;
+    }
+    if (envelopeBytes.length === 0 || envelopeBytes.at(-1) !== 0x0a) failures.push(`controller proof envelope ${relativePath}: newline-terminated content required`);
+    if (createHash("sha256").update(envelopeBytes).digest("hex") !== tuple.envelopeDigest) failures.push(`controller proof envelope ${relativePath}: byte digest mismatch`);
+    try {
+      const envelope = JSON.parse(envelopeBytes.toString("utf8"));
+      const expected = {
+        schemaVersion: 1,
+        envelopeKind: "obx-p180-controller-proof-envelope-v1",
+        sequence: tuple.sequence,
+        laneId: tuple.laneId,
+        commandId: tuple.commandId,
+        authorizationId: tuple.authorizationId,
+        authorizationHash: tuple.authorizationHash,
+        activationReceiptId: tuple.activationReceiptId,
+        activationReceiptHash: tuple.activationReceiptHash,
+        startedAt: tuple.startedAt,
+        finishedAt: tuple.finishedAt,
+        exitCode: tuple.exitCode,
+        outputDigest: tuple.outputDigest,
+      };
+      checkKeys(envelope, Object.keys(expected), `controller proof envelope ${relativePath}`, failures);
+      exact(envelope, expected, `controller proof envelope ${relativePath}`, failures);
+    } catch (error) {
+      failures.push(`controller proof envelope ${relativePath}: invalid JSON (${error.message})`);
+    }
   }
 }
 
@@ -751,16 +837,22 @@ export function verifyP180SiblingAuthorization({
   exact(record.invalidators, expectedInvalidators(config), `${config.id}.invalidators`, failures);
   if (Date.parse(record.expiresAt) - Date.parse(record.notBefore) !== COMMON.duration) failures.push(`${config.id}: expiry must be exactly 336 hours`);
   validateSelfHash(record, "authorizationHash", config.hash, config.id, failures);
-  if (verifyPredecessorCompletion) failures.push(...verifyP180T02Completion({ repoRoot }).failures);
-  validateLiveBindings(repoRoot, record.planBindings, `${config.id}.planBindings`, failures);
-  validateLiveBindings(repoRoot, record.dependencyBindings, `${config.id}.dependencyBindings`, failures);
-  validateLiveBindings(repoRoot, record.sourceAdoptionBindings, `${config.id}.sourceAdoptionBindings`, failures);
-  validateAmendment(repoRoot, config, record, failures);
-  validateDerivedRepin(repoRoot, failures);
-  validateOutputTuple(config, sibling, record, failures);
-  validateSecurityReceipt(repoRoot, config, record, failures);
-  let frozenWorkerStart = null;
   const completionPresence = COMPLETION_PATHS.map((path) => existsSync(resolve(repoRoot, path)));
+  const allCompletionReceiptsPresent = completionPresence.every(Boolean);
+  let historicalBinding = null;
+  if (allCompletionReceiptsPresent) {
+    const activation = readJson(repoRoot, config.activationPath, `${config.id}.terminalActivationBinding`, failures);
+    if (/^[a-f0-9]{40}$/.test(activation?.phase0ACommit ?? "")) historicalBinding = { commit: activation.phase0ACommit, gitState };
+  }
+  if (verifyPredecessorCompletion) failures.push(...verifyP180T02Completion({ repoRoot }).failures);
+  validateLiveBindings(repoRoot, record.planBindings, `${config.id}.planBindings`, failures, historicalBinding);
+  validateLiveBindings(repoRoot, record.dependencyBindings, `${config.id}.dependencyBindings`, failures, historicalBinding);
+  validateLiveBindings(repoRoot, record.sourceAdoptionBindings, `${config.id}.sourceAdoptionBindings`, failures, historicalBinding);
+  validateAmendment(repoRoot, config, record, failures, historicalBinding);
+  validateDerivedRepin(repoRoot, failures, historicalBinding);
+  validateOutputTuple(config, sibling, record, failures);
+  validateSecurityReceipt(repoRoot, config, record, failures, historicalBinding);
+  let frozenWorkerStart = null;
   const anyCompletion = completionPresence.some(Boolean);
   if (anyCompletion && !completionPresence.every(Boolean)) {
     failures.push("COMPLETION_RECEIPT_PAIR_INCOMPLETE");
@@ -768,7 +860,7 @@ export function verifyP180SiblingAuthorization({
   }
   if (completionPresence.every(Boolean)) {
     const completionValid = validateCompletionPair(repoRoot, source, failures, gitState, proofRoot, mode === "completion");
-    if (!completionValid) return { failures, authorizationHash: config.hash, state: "INVALID", frozenWorkerStart: null };
+    if (!completionValid || failures.length > 0) return { failures, authorizationHash: config.hash, state: "INVALID", frozenWorkerStart: null };
     if (mode === "activation") failures.push("AUTHORIZATION_ALREADY_CONSUMED");
     return { failures, authorizationHash: config.hash, state: "CONSUMED", frozenWorkerStart: null };
   }
