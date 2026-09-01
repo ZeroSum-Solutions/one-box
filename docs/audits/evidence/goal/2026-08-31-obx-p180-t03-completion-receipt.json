@@ -1,0 +1,284 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "OBX-P180-T03-COMPLETION-001",
+  "receiptKind": "solo-t03-completion-receipt-v1",
+  "status": "COMPLETED_VERIFIED",
+  "ticketId": "OBX-P180-T03",
+  "laneId": "T03",
+  "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+  "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+  "activationBinding": {
+    "path": "docs/audits/evidence/goal/2026-08-31-obx-p180-t03-activation-receipt.json",
+    "receiptId": "OBX-P180-T03-ACTIVATION-001",
+    "receiptSelfHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+    "frozenStartCommit": "f68df60b9b45ebdd5fde0243e619520de76f8cf8",
+    "frozenStartTree": "9e42668ce29c7bcd035cdbb47e3b196cebc29ef1"
+  },
+  "implementation": {
+    "commit": "547f9b09d75f0e3604ee9aadae698d68736cbfc0",
+    "tree": "43c4792f4ef51d0f245c8de336f69d061e437714",
+    "parentCommit": "f68df60b9b45ebdd5fde0243e619520de76f8cf8",
+    "files": [
+      {
+        "path": "src/lib/operatingEnvironment/skills.ts",
+        "algorithm": "sha256",
+        "digest": "cdcf0c23868cda3fa8e8d282f304faee8a182820fccc9fee7fbf1feb78c90934"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/skills.test.ts",
+        "algorithm": "sha256",
+        "digest": "e31b787299ce6a5a4dc2aa4e6985ae0e6fc10835ac839c64b06aa43f4a062a5a"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/context.ts",
+        "algorithm": "sha256",
+        "digest": "9409aa4dc33ace3bbe9c90fbed8b519ec2a6741ad4d18bd44f3cc77fe17ef02f"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/context.test.ts",
+        "algorithm": "sha256",
+        "digest": "d4817e5c6c67cb609bc87f68619f0aeda655553d004f377d96ce9cca4fcce8ef"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/interrupts.ts",
+        "algorithm": "sha256",
+        "digest": "88fcfbc7022ad23f3cf87b17c64d1d349073b6b52237df069d51e2c121688afb"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/interrupts.test.ts",
+        "algorithm": "sha256",
+        "digest": "c590ed9eea597bdc323041480ad42ac3d997a2145d58ee96768febc5ce7787f1"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/receipts.ts",
+        "algorithm": "sha256",
+        "digest": "080de102e05a6d408fdc4d26584add13bb87156beaf794605bdbf784f3363ae7"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/receipts.test.ts",
+        "algorithm": "sha256",
+        "digest": "127f4939d0acd4f7d7091f5ed80b20dae5b8ba9d33c81100c13ac89d85c1f175"
+      },
+      {
+        "path": "src/lib/operatingEnvironment/fixtures/security-v1.json",
+        "algorithm": "sha256",
+        "digest": "3ae322dfaae8584e9019b0d7db452924501c9845378eb9689eb785e4d1dcba8d"
+      }
+    ]
+  },
+  "completionBase": {
+    "commit": "3f228c35fd5e7aa19af9646818d1482d78f2a6b1",
+    "tree": "8fe5236942047a03018d32ad8c8e41a3e1232592"
+  },
+  "leaseReleases": [
+    {
+      "laneId": "T03",
+      "claimantActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-t03-implementer",
+      "claimSequence": 1,
+      "taskStatus": "COMPLETED",
+      "terminalReportDigest": "9ff8272891f4f62217785023d535605f1023b5854476a9c79978255ace97dfb8",
+      "releasedAt": "2026-09-01T05:56:03.000Z"
+    },
+    {
+      "laneId": "T04",
+      "claimantActorId": "agent:codex-gpt-5.6-sol-ultra:obx-p180-t04-implementer",
+      "claimSequence": 1,
+      "taskStatus": "COMPLETED",
+      "terminalReportDigest": "c706fc887bd65c6caba89fc5897f7fa784ab468a6fdb46f82178fe03e3f0fdb4",
+      "releasedAt": "2026-09-01T08:39:13.000Z"
+    }
+  ],
+  "proofBinding": {
+    "registryPath": "proof/controller-proof-registry.jsonl",
+    "registrySha256": "1371842e826da1fb064043064acd65acfcebfa2c00bfef394f3cd9eb6fbc8116",
+    "entryCount": 22,
+    "headDigest": "7876c100991aca776e69eb455f4100e2e77c84080b91b0364cc2f9020f97653f",
+    "tuples": [
+      {
+        "sequence": 1,
+        "laneId": "T03",
+        "commandId": "t03-focused",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:14.661Z",
+        "finishedAt": "2026-09-01T08:52:15.092Z",
+        "exitCode": 0,
+        "outputDigest": "b94c8aa303968bf7333359507f792a5d19befb19428207e0dfe69628f4663338",
+        "envelopeDigest": "5517782d908d995188ea7ac2266f152383b655e6396661ec43b1396d0b388969",
+        "previousDigest": "0000000000000000000000000000000000000000000000000000000000000000",
+        "entryDigest": "1d7c15f1e9f6211339febdfe575ede0006def6014422ac8f3ded336c209a7ab9"
+      },
+      {
+        "sequence": 2,
+        "laneId": "T03",
+        "commandId": "operating-environment",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:15.112Z",
+        "finishedAt": "2026-09-01T08:52:16.020Z",
+        "exitCode": 0,
+        "outputDigest": "f66faafbebfe84675ac30ee80c4f9476d5dc7ff0d07acd09dcc7413f223f86c7",
+        "envelopeDigest": "355d22be755ce8a7759e5c9d93f6902b04ac9667eba273962fb63b9fa0816062",
+        "previousDigest": "1d7c15f1e9f6211339febdfe575ede0006def6014422ac8f3ded336c209a7ab9",
+        "entryDigest": "a9b21fbbc62e99a528ef4fa42aefe8fa1aecdb10725dd34c5f37db28a169352b"
+      },
+      {
+        "sequence": 3,
+        "laneId": "T03",
+        "commandId": "source-adoption",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:16.035Z",
+        "finishedAt": "2026-09-01T08:52:16.090Z",
+        "exitCode": 0,
+        "outputDigest": "57345f8f1aa711d18225b29c31f7daa67eb1bdd79c5cccb3bc9af61530550748",
+        "envelopeDigest": "fa0c785cc9b64aec501d88b5cda429fb5760612afc51f98856d33c65bdb9ffa7",
+        "previousDigest": "a9b21fbbc62e99a528ef4fa42aefe8fa1aecdb10725dd34c5f37db28a169352b",
+        "entryDigest": "b49c6f0e782fd7c4d58b6c513e58c3da8747e19131c51cc73fa8b07e5cd49fb8"
+      },
+      {
+        "sequence": 4,
+        "laneId": "T03",
+        "commandId": "typecheck",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:16.103Z",
+        "finishedAt": "2026-09-01T08:52:17.186Z",
+        "exitCode": 0,
+        "outputDigest": "ad77f18d965278de4e3b4473520f763fcd9dd8371330bcb2c3ecfc7505b4b1e7",
+        "envelopeDigest": "47860a71bc79a414bb226d2c565d3af6ba39d12a6ba3be11aa5ed9c289b1de88",
+        "previousDigest": "b49c6f0e782fd7c4d58b6c513e58c3da8747e19131c51cc73fa8b07e5cd49fb8",
+        "entryDigest": "3673d2b66da108fa24c6c13c7aaab0ce2e3f29ad59e1cb27e3485ef69e19bcaf"
+      },
+      {
+        "sequence": 5,
+        "laneId": "T03",
+        "commandId": "targeted-lint",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:17.201Z",
+        "finishedAt": "2026-09-01T08:52:18.250Z",
+        "exitCode": 0,
+        "outputDigest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "envelopeDigest": "2a3fbed19df7464927605770f6be69f9a4adfd786c9c6afe8ce9763ff2c11b9f",
+        "previousDigest": "3673d2b66da108fa24c6c13c7aaab0ce2e3f29ad59e1cb27e3485ef69e19bcaf",
+        "entryDigest": "dabc2de6a913fe393972fa55f92fd6e63bc6286bff7650fbf7ffd0a1a79105dd"
+      },
+      {
+        "sequence": 6,
+        "laneId": "T03",
+        "commandId": "verify-plans",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:18.265Z",
+        "finishedAt": "2026-09-01T08:52:18.496Z",
+        "exitCode": 0,
+        "outputDigest": "fa1528719ec55a8d141391043a9bb158dea59c8ae241b74aff24e7dd6355b754",
+        "envelopeDigest": "b21bba7b216e2394a6a2a3335b57eefd6b37b34fb63122fd4017801b0066afe6",
+        "previousDigest": "dabc2de6a913fe393972fa55f92fd6e63bc6286bff7650fbf7ffd0a1a79105dd",
+        "entryDigest": "e8abfa83bd106971a71a10ebc734e7c1453b46c5891fca83b945c0b92096810e"
+      },
+      {
+        "sequence": 7,
+        "laneId": "T03",
+        "commandId": "test-plans",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:18.510Z",
+        "finishedAt": "2026-09-01T08:52:23.845Z",
+        "exitCode": 0,
+        "outputDigest": "e3e40dc25464c81246d44dab3f2672c8d7ca23640ad7596ea81e6178ed7e4b37",
+        "envelopeDigest": "711a3a813c48d6b72e111c871a5aa754eb2fe2e652951f9716c63b623d25f3e4",
+        "previousDigest": "e8abfa83bd106971a71a10ebc734e7c1453b46c5891fca83b945c0b92096810e",
+        "entryDigest": "8e487ae2c30269f5ca6ecb744a77c52b41f274b392284d1bba78e6dbca6d6400"
+      },
+      {
+        "sequence": 8,
+        "laneId": "T03",
+        "commandId": "path-census",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:23.861Z",
+        "finishedAt": "2026-09-01T08:52:23.980Z",
+        "exitCode": 0,
+        "outputDigest": "f2d4ccbf6946e9195b5ddfede818bf86f1c42a208d785639c56f5eefa82560ff",
+        "envelopeDigest": "18146195dd0b12a4244fe7391b100e63ad6e3469d9e83b7506252ea50893fa9f",
+        "previousDigest": "8e487ae2c30269f5ca6ecb744a77c52b41f274b392284d1bba78e6dbca6d6400",
+        "entryDigest": "f0e0dd0a1facb5f436f756f8fc592a22e52716a3835e00ded5dd9aa24b437097"
+      },
+      {
+        "sequence": 9,
+        "laneId": "T03",
+        "commandId": "dependency-diff",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:23.993Z",
+        "finishedAt": "2026-09-01T08:52:24.034Z",
+        "exitCode": 0,
+        "outputDigest": "f5a530c34275c6f76f860285190fd810600fe44d422259045145b9009430db9d",
+        "envelopeDigest": "35e48bd4f0719fc2fd32ea6beff613b8c4b77821a7ef6204c76299c6e468f14c",
+        "previousDigest": "f0e0dd0a1facb5f436f756f8fc592a22e52716a3835e00ded5dd9aa24b437097",
+        "entryDigest": "8270c008cadeac7b89b066c5be86fc250ab9356f627d405f7e6803682e455baf"
+      },
+      {
+        "sequence": 10,
+        "laneId": "T03",
+        "commandId": "forbidden-effects",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:24.048Z",
+        "finishedAt": "2026-09-01T08:52:24.090Z",
+        "exitCode": 0,
+        "outputDigest": "91d5cdb4733783a82612f8fa790a4dacfecfd181a196dbab3ce5365d72de3834",
+        "envelopeDigest": "eabfdafcb6a57c90555098f91b32384925ce30e94901d53b543d69ce841b43c4",
+        "previousDigest": "8270c008cadeac7b89b066c5be86fc250ab9356f627d405f7e6803682e455baf",
+        "entryDigest": "a756bb2fb90dcc0c1724d4bf76ed8a507b547bdfe6a4f3e571b7554b6b7b4de9"
+      },
+      {
+        "sequence": 11,
+        "laneId": "T03",
+        "commandId": "secrets-scan",
+        "authorizationId": "OBX-AUTH-P180-T03-SOLO-001",
+        "authorizationHash": "9600f44942637d0f71be82f697b352620fcc5de8aac0151259ff55e0692d058e",
+        "activationReceiptId": "OBX-P180-T03-ACTIVATION-001",
+        "activationReceiptHash": "3718a4f923a157fcaee59ab884711b274c5bc597d36ab5488a3d97fbe35a780f",
+        "startedAt": "2026-09-01T08:52:24.103Z",
+        "finishedAt": "2026-09-01T08:52:24.349Z",
+        "exitCode": 0,
+        "outputDigest": "e4985e7115f5b61176b923862c14fcc6c3f54c3c33979792f97ac49c48105da4",
+        "envelopeDigest": "59a6662f9d249caeab8702a6fd2057fa18d4c8531bfc2975c033608b3b4e294c",
+        "previousDigest": "a756bb2fb90dcc0c1724d4bf76ed8a507b547bdfe6a4f3e571b7554b6b7b4de9",
+        "entryDigest": "ae89d0e936520fdd9ecfa37a17f9330523f1d67624e8eee092e8894672032e5a"
+      }
+    ]
+  },
+  "completedAt": "2026-09-01T08:56:37.317Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "b3b36beaceec58e5e8cb285ef113324a7e75a44c35f936032692c126e618fefc"
+  }
+}
