@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "receipt-security-fixture-v1",
+  "foundationReceipt": {
+    "schemaVersion": "synthetic-foundation-job-receipt-v1",
+    "jobId": "job-fixture-1",
+    "receiptOwner": "foundation-job-contract",
+    "terminalState": "completed",
+    "outputArtifactHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "endedAt": "2026-09-01T00:00:01Z",
+    "receiptHash": "75ef387e6d30ad48e2c1b4127cdb77358e37cbdef7b734aea35a099427254065"
+  },
+  "routeReceipts": [
+    {
+      "schemaVersion": "route-segment-receipt-v1",
+      "jobId": "job-fixture-1",
+      "segmentId": "segment-fixture-1",
+      "segmentIntentHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "segmentManifestHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "finalSegmentStateHash": "4444444444444444444444444444444444444444444444444444444444444444",
+      "routePolicyHash": "5555555555555555555555555555555555555555555555555555555555555555",
+      "contextBundleHash": "6666666666666666666666666666666666666666666666666666666666666666",
+      "skillSetHash": "7777777777777777777777777777777777777777777777777777777777777777",
+      "toolGrantHash": "8888888888888888888888888888888888888888888888888888888888888888",
+      "attemptHashes": [
+        "29e2065244c6ce37fc76eae6e499bbd9bfab48792c4d775509f2ad932ba1f026"
+      ],
+      "terminalState": "completed",
+      "outputArtifactHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "proposalEnvelopeHash": "5c8ff6c2695c2cbe7fdf03d94cf7f848848f712aca61128aec67682499de6d54",
+      "interruptHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "decisionHash": "562d33ac86b54bc4cf76842621eaaca06d5a7692fbd4bf56e90e66a016f826bf",
+      "startedAt": "2026-09-01T00:00:00Z",
+      "endedAt": "2026-09-01T00:00:01Z",
+      "receiptHash": "1dd56e39983c9c80f90864c74726ddf338985db7bfd53fa60abf6635287721a2"
+    }
+  ],
+  "attempts": [
+    {
+      "schemaVersion": "receipt-attempt-evidence-v1",
+      "attemptId": "attempt-fixture-1",
+      "state": "completed",
+      "outputArtifactHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "attemptHash": "29e2065244c6ce37fc76eae6e499bbd9bfab48792c4d775509f2ad932ba1f026"
+    }
+  ],
+  "proposalEnvelopes": [
+    {
+      "schemaVersion": "proposal-envelope-v1",
+      "proposalId": "proposal-fixture-1",
+      "jobId": "job-fixture-1",
+      "segmentIntentHash": "1111111111111111111111111111111111111111111111111111111111111111",
+      "segmentManifestHash": "2222222222222222222222222222222222222222222222222222222222222222",
+      "skillInvocationReceiptHash": null,
+      "proposalSchemaHash": "3333333333333333333333333333333333333333333333333333333333333333",
+      "targetProjectId": "one-box",
+      "expectedSourceIdentity": "source:fixture-v1",
+      "expectedSourceHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "effectClass": "propose",
+      "proposalArtifactHash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "createdAt": "2026-09-01T00:00:00Z",
+      "expiresAt": "2026-09-02T00:00:00Z",
+      "proposalHash": "5c8ff6c2695c2cbe7fdf03d94cf7f848848f712aca61128aec67682499de6d54"
+    }
+  ],
+  "decisions": [
+    {
+      "schemaVersion": "proposal-decision-evidence-v1",
+      "interruptHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "actorId": "person:fixture-reviewer",
+      "decisionValue": "accept-proposal",
+      "decisionHash": "562d33ac86b54bc4cf76842621eaaca06d5a7692fbd4bf56e90e66a016f826bf"
+    }
+  ],
+  "bundle": {
+    "schemaVersion": "receipt-bundle-manifest-v1",
+    "jobId": "job-fixture-1",
+    "foundationJobReceiptHash": "75ef387e6d30ad48e2c1b4127cdb77358e37cbdef7b734aea35a099427254065",
+    "routeSegmentReceiptHashes": [
+      "1dd56e39983c9c80f90864c74726ddf338985db7bfd53fa60abf6635287721a2"
+    ],
+    "skillInvocationReceiptHashes": [],
+    "contextReceiptHashes": [],
+    "interruptHashes": [
+      "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+    ],
+    "decisionHashes": [
+      "562d33ac86b54bc4cf76842621eaaca06d5a7692fbd4bf56e90e66a016f826bf"
+    ],
+    "proposalEnvelopeHashes": [
+      "5c8ff6c2695c2cbe7fdf03d94cf7f848848f712aca61128aec67682499de6d54"
+    ],
+    "createdAt": "2026-09-01T00:00:01Z",
+    "bundleHash": "254d6896720bd463d6c77d979430b4d49ea1678b88b91fef7fab39607d72689d"
+  },
+  "nodes": [
+    {
+      "schemaVersion": "supplemental-receipt-node-v1",
+      "kind": "route-segment",
+      "receiptHash": "1dd56e39983c9c80f90864c74726ddf338985db7bfd53fa60abf6635287721a2",
+      "references": [
+        "5c8ff6c2695c2cbe7fdf03d94cf7f848848f712aca61128aec67682499de6d54",
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "562d33ac86b54bc4cf76842621eaaca06d5a7692fbd4bf56e90e66a016f826bf"
+      ],
+      "nodeHash": "4c1b68356f885484c9cd4abf6b13c4610131eab97a2df6566f87a942e67bac9f"
+    },
+    {
+      "schemaVersion": "supplemental-receipt-node-v1",
+      "kind": "proposal",
+      "receiptHash": "5c8ff6c2695c2cbe7fdf03d94cf7f848848f712aca61128aec67682499de6d54",
+      "references": [],
+      "nodeHash": "0555798b0da23c33bedf19d497beff925a37d5260c58a6c8a87ba318244947ad"
+    },
+    {
+      "schemaVersion": "supplemental-receipt-node-v1",
+      "kind": "decision",
+      "receiptHash": "562d33ac86b54bc4cf76842621eaaca06d5a7692fbd4bf56e90e66a016f826bf",
+      "references": [
+        "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      ],
+      "nodeHash": "40fffd371ea67bf30c24946c10124269aabfdd69476c6aa741fb07570975742e"
+    },
+    {
+      "schemaVersion": "supplemental-receipt-node-v1",
+      "kind": "interrupt",
+      "receiptHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "references": [
+        "5c8ff6c2695c2cbe7fdf03d94cf7f848848f712aca61128aec67682499de6d54"
+      ],
+      "nodeHash": "e87502c591128190d8fa80a5a9a9258ceceecc63a3d2d5d8cc32e01ecc652273"
+    }
+  ],
+  "fixtureHash": "58aec04d043eed86df5315a5fd725eeb5a7b674dddcb72749ad8ccb88e7c9d80"
+}
