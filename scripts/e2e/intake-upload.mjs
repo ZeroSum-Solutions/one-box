@@ -639,7 +639,10 @@ try {
       })}\n\ndata: [DONE]\n\n`,
     });
   });
-  await recoveryPage.goto(base, { waitUntil: "networkidle" });
+  // The recovery assertions below target the developer timeline. The guided
+  // view is the default and renders from server-side run state, which this
+  // mocked run does not have.
+  await recoveryPage.goto(`${base}/?view=developer`, { waitUntil: "networkidle" });
   const recoveryComposer = recoveryPage.getByRole("textbox", {
     name: "Describe your project",
   });

@@ -70,7 +70,9 @@ try {
     });
   });
 
-  await page.goto(`${base}/?run=${runId}`, { waitUntil: "networkidle" });
+  // Stage groups and cards are developer-timeline elements; the guided view is
+  // the default and polls server-side run state instead.
+  await page.goto(`${base}/?run=${runId}&view=developer`, { waitUntil: "networkidle" });
   const buildGroup = page.locator(".stage-group").filter({ hasText: "Build" });
   await buildGroup.locator("summary").click();
   for (const [outcomeClass, message, nextAction] of outcomes) {
