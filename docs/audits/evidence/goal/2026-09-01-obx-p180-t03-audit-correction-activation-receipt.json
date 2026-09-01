@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "OBX-P180-T03-AUDIT-CORRECTION-ACTIVATION-001",
+  "receiptKind": "owner-solo-finding-bound-correction-activation-v1",
+  "status": "ACTIVE",
+  "authorizationId": "OBX-AUTH-P180-T03-AUDIT-CORRECTION-001",
+  "authorizationHash": "ee2cd288385106690bf088e0a7c9e90192a7cb49ba8fa9db03ebb7f088198976",
+  "ticketId": "OBX-P180-T03",
+  "laneId": "T03",
+  "governanceCommit": "aab649ab8a2f1dc09cd9c3716f795417aa9e43b9",
+  "governanceTree": "864a44a58b6247a8ce3cf959760080e7b8cce6fa",
+  "predecessorCommit": "573b86ee9a06e45e09296dd832115dab128ecf2f",
+  "predecessorTree": "d0e065dfc0996358ca6959a32d16db13ffc54f23",
+  "pairedAuthorizationId": "OBX-AUTH-P180-T04-AUDIT-CORRECTION-001",
+  "pairedAuthorizationHash": "4340f8891a542ac9443a6a260a9a2095e8a4079d2383a6b52c2f9dd64e0b7ec8",
+  "observedAt": "2026-09-01T11:29:04.000Z",
+  "expiresAt": "2026-09-02T09:20:00.000Z",
+  "selfHash": {
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/selfHash/digest"
+    ],
+    "digest": "5b3835033249be0fbbe8f94a99b6358531b3a1575042900c89f1972b5c1cafe8"
+  }
+}
