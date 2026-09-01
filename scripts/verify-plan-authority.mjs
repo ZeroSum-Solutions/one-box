@@ -21,9 +21,13 @@ import {
 import {
   T03_CORRECTION_AUTHORIZATION_ID,
   T04_CORRECTION_AUTHORIZATION_ID,
-  originalVerificationCommitForCorrectionState,
-  verifyPhase1CorrectionAuthorizations,
 } from "./verify-p180-phase1-correction-authorization.mjs";
+import {
+  T03_SUPERSESSION_AUTHORIZATION_ID,
+  T04_SUPERSESSION_AUTHORIZATION_ID,
+  historicalVerificationCommitForSupersessionState,
+  verifyPhase1SupersedingCorrectionAuthorizations,
+} from "./verify-p180-phase1-superseding-correction-authorization.mjs";
 
 const root = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 const failures = [];
@@ -1142,6 +1146,8 @@ if (scopedImplementationAuthority) {
     T04_AUTHORIZATION_ID,
     T03_CORRECTION_AUTHORIZATION_ID,
     T04_CORRECTION_AUTHORIZATION_ID,
+    T03_SUPERSESSION_AUTHORIZATION_ID,
+    T04_SUPERSESSION_AUTHORIZATION_ID,
   ];
   if (JSON.stringify(scopedImplementationAuthority.authorizations?.map((record) => record?.id)) !== JSON.stringify(expectedAuthorizationIds)) {
     fail(`scoped implementation authority: records must be exactly ${expectedAuthorizationIds.join(", ")}`);
@@ -1160,6 +1166,8 @@ if (scopedImplementationAuthority) {
       T04_AUTHORIZATION_ID,
       T03_CORRECTION_AUTHORIZATION_ID,
       T04_CORRECTION_AUTHORIZATION_ID,
+      T03_SUPERSESSION_AUTHORIZATION_ID,
+      T04_SUPERSESSION_AUTHORIZATION_ID,
     ].includes(record.id)) continue;
     if (record.id !== "OBX-AUTH-ATF-001") {
       fail(`scoped implementation authority: unknown authorization ${record.id}`);
@@ -1261,15 +1269,14 @@ if (scopedImplementationAuthority) {
     verifyReceipt: true,
   });
   for (const failure of t02Result.failures) fail(failure);
-  const correctionResult = verifyPhase1CorrectionAuthorizations({
+  const correctionResult = verifyPhase1SupersedingCorrectionAuthorizations({
     repoRoot: root,
     registry: scopedImplementationAuthority,
     mode: "lifecycle",
     verifyRepositoryState: false,
-    verifyOriginalConsumed: false,
   });
   for (const failure of correctionResult.failures) fail(failure);
-  const originalVerificationCommit = originalVerificationCommitForCorrectionState(correctionResult);
+  const originalVerificationCommit = historicalVerificationCommitForSupersessionState(correctionResult);
   for (const ticket of ["T03", "T04"]) {
     const result = verifyP180SiblingAuthorization({
       repoRoot: root,
@@ -1626,9 +1633,13 @@ for (const path of [
   "scripts/verify-plan-authority.mjs",
   "scripts/verify-plan-authority.node.mjs",
   "scripts/verify-p180-phase1-correction-authorization.mjs",
+  "scripts/verify-p180-phase1-superseding-correction-authorization.mjs",
   "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-solo.json",
   "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-solo.json",
   "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-security-review.json",
+  "docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-supersession-solo.json",
+  "docs/governance/risk-exceptions/2026-09-01-obx-p180-t04-audit-correction-supersession-solo.json",
+  "docs/audits/evidence/security/2026-09-01-obx-p180-phase1-audit-correction-supersession-security-review.json",
   "docs/plans/one-box-master/00-authority/plan-register.md",
   ciWorkflowPath,
   ".github/pull_request_template.md",

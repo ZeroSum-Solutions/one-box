@@ -44,6 +44,11 @@ import {
   verifyCorrectionProofMetadata,
   verifyPhase1CorrectionAuthorizations,
 } from "./verify-p180-phase1-correction-authorization.mjs";
+import {
+  SUPERSESSION_HISTORICAL_VERIFICATION_COMMIT,
+  historicalVerificationCommitForSupersessionState,
+  verifyPhase1SupersedingCorrectionAuthorizations,
+} from "./verify-p180-phase1-superseding-correction-authorization.mjs";
 
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 let fixtureRoot;
@@ -53,19 +58,13 @@ let fixtureBaselineBytes;
 before(() => {
   fixtureRoot = mkdtempSync(join(tmpdir(), "one-box-plan-verifier-"));
   for (const path of ["docs", ".github", "src"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path), { recursive: true });
-  for (const path of [
-    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json",
-    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-activation-receipt.json",
-    "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-completion-receipt.json",
-    "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-completion-receipt.json",
-  ]) rmSync(resolve(fixtureRoot, path), { force: true });
   for (const path of ["AGENTS.md", "README.md", "CONTRIBUTING.md", ".env.example", "package.json"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path));
   cpSync(resolve(sourceRoot, "package-lock.json"), resolve(fixtureRoot, "package-lock.json"));
   cpSync(resolve(sourceRoot, ".git"), resolve(fixtureRoot, ".git"));
   symlinkSync(resolve(sourceRoot, "node_modules"), resolve(fixtureRoot, "node_modules"), "dir");
   mkdirSync(resolve(fixtureRoot, ".claude/handoffs"), { recursive: true });
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
-  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-p180-t03-authorization.mjs", "verify-p180-t04-authorization.mjs", "verify-p180-phase1-correction-authorization.mjs", "verify-obx-p180-source-adoption.mjs"]) {
+  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-p180-t03-authorization.mjs", "verify-p180-t04-authorization.mjs", "verify-p180-phase1-correction-authorization.mjs", "verify-p180-phase1-superseding-correction-authorization.mjs", "verify-obx-p180-source-adoption.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/e2e"), { recursive: true });
@@ -219,6 +218,7 @@ const correctionGovernancePaths = [
   "scripts/verify-obx-p180-source-adoption.mjs",
   "docs/research/source-catalog/adoption-ledger.json",
 ].sort();
+const correctionGovernanceCommit = "aab649ab8a2f1dc09cd9c3716f795417aa9e43b9";
 
 function gitCommand(repoRoot, args, extra = {}) {
   const result = spawnSync("git", args, { cwd: repoRoot, encoding: "utf8", ...extra });
@@ -230,6 +230,14 @@ function copyCandidateFile(repoRoot, path) {
   const target = resolve(repoRoot, path);
   mkdirSync(dirname(target), { recursive: true });
   cpSync(resolve(sourceRoot, path), target);
+}
+
+function copyHistoricalCorrectionGovernanceFile(repoRoot, path) {
+  const target = resolve(repoRoot, path);
+  const result = spawnSync("git", ["show", `${correctionGovernanceCommit}:${path}`], { cwd: sourceRoot, encoding: null });
+  assert.equal(result.status, 0, `git show failed for historical correction governance ${path}\n${result.stderr}`);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, result.stdout);
 }
 
 function correctionActivationReceipt({ laneId, governanceCommit, governanceTree }) {
@@ -257,14 +265,49 @@ function correctionActivationReceipt({ laneId, governanceCommit, governanceTree 
 }
 
 function verifyCorrectionRecords() {
+  return withInvalidatedCorrectionPreactivationFixture(() => {
+    const registry = JSON.parse(readFileSync(resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+    return verifyPhase1CorrectionAuthorizations({
+      repoRoot: fixtureRoot,
+      registry,
+      mode: "record",
+      verifySecurity: false,
+      verifyRepositoryState: false,
+      verifyOriginalConsumed: false,
+    });
+  });
+}
+
+const invalidatedCorrectionLifecyclePaths = [
+  "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json",
+  "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-activation-receipt.json",
+  "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-completion-receipt.json",
+  "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-completion-receipt.json",
+];
+
+function withInvalidatedCorrectionPreactivationFixture(callback) {
+  const saved = new Map(invalidatedCorrectionLifecyclePaths.map((path) => {
+    const absolute = resolve(fixtureRoot, path);
+    return [absolute, existsSync(absolute) ? readFileSync(absolute) : null];
+  }));
+  try {
+    for (const absolute of saved.keys()) rmSync(absolute, { force: true });
+    return callback();
+  } finally {
+    for (const [absolute, bytes] of saved) {
+      if (bytes === null) rmSync(absolute, { force: true });
+      else writeFileSync(absolute, bytes);
+    }
+  }
+}
+
+function verifySupersedingCorrectionLifecycle() {
   const registry = JSON.parse(readFileSync(resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
-  return verifyPhase1CorrectionAuthorizations({
+  return verifyPhase1SupersedingCorrectionAuthorizations({
     repoRoot: fixtureRoot,
     registry,
-    mode: "record",
-    verifySecurity: false,
+    mode: "lifecycle",
     verifyRepositoryState: false,
-    verifyOriginalConsumed: false,
   });
 }
 
@@ -1177,6 +1220,36 @@ test("the exact finding-bound Phase 1 correction pair validates before activatio
   assert.equal(result.state, "PRE_ACTIVATION");
 });
 
+test("the superseding correction lifecycle owns aggregate historical routing", () => {
+  const lifecycle = verifySupersedingCorrectionLifecycle();
+  assert.deepEqual(lifecycle.failures, []);
+  assert.equal(lifecycle.state, "ACTIVE");
+  assert.equal(historicalVerificationCommitForSupersessionState(lifecycle), SUPERSESSION_HISTORICAL_VERIFICATION_COMMIT);
+  const aggregate = run();
+  assert.equal(aggregate.status, 0, `${aggregate.stdout}\n${aggregate.stderr}`);
+});
+
+test("the superseding correction records reject scope expansion and stale record mode", () => {
+  withJsonMutation("docs/governance/risk-exceptions/2026-09-01-obx-p180-t03-audit-correction-supersession-solo.json", (record) => {
+    record.allowedCorrectionPaths.push("src/lib/operatingEnvironment/routeState.ts");
+  }, (result) => {
+    assert.match(result.stderr, /record byte drift|allowedCorrectionPaths: exact value drift/);
+  });
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"), "utf8"));
+  const recordMode = verifyPhase1SupersedingCorrectionAuthorizations({ repoRoot: fixtureRoot, registry, mode: "record", verifyRepositoryState: false });
+  assert.match(recordMode.failures.join("\n"), /record verification requires superseding lifecycle receipts absent/);
+});
+
+test("the superseding correction rejects mutation of invalidated receipts and invalid routing", () => {
+  withJsonMutation("docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json", (receipt) => {
+    receipt.status = "REUSED";
+  }, (result) => {
+    assert.match(result.stderr, /immutable old activation drift/);
+  });
+  assert.equal(historicalVerificationCommitForSupersessionState({ failures: ["drift"], state: "ACTIVE" }), null);
+  assert.equal(historicalVerificationCommitForSupersessionState({ failures: [], state: "INVALID" }), null);
+});
+
 test("Phase 1 correction authority rejects implementation path or effect expansion", () => {
   withCorrectionRecordMutation("T03", (record) => {
     record.allowedPaths.push("scripts/eval/obx-p180-contract-fixtures.mjs");
@@ -1231,6 +1304,7 @@ test("the correction registry references cannot redirect or repin the records", 
 });
 
 test("correction lifecycle modes reject stale-phase receipt presence and unknown modes", () => {
+  return withInvalidatedCorrectionPreactivationFixture(() => {
   const activation = [
     "docs/audits/evidence/goal/2026-09-01-obx-p180-t03-audit-correction-activation-receipt.json",
     "docs/audits/evidence/goal/2026-09-01-obx-p180-t04-audit-correction-activation-receipt.json",
@@ -1262,6 +1336,7 @@ test("correction lifecycle modes reject stale-phase receipt presence and unknown
   } finally {
     for (const path of [...activation, ...completion]) rmSync(resolve(fixtureRoot, path), { force: true });
   }
+  });
 });
 
 test("aggregate original-authority routing uses frozen history only for a valid live correction lifecycle", () => {
@@ -1280,7 +1355,7 @@ test("aggregate routing inputs pin original history after an exact T03 correctio
     assert.equal(clone.status, 0, clone.stderr);
     gitCommand(repo, ["checkout", "-q", "-B", "feat/obx-p180-t03-t05-offline-wave-recovery", PHASE1_CORRECTION_BASE_COMMIT]);
     symlinkSync(resolve(sourceRoot, "node_modules"), resolve(repo, "node_modules"), "dir");
-    for (const path of correctionGovernancePaths) copyCandidateFile(repo, path);
+    for (const path of correctionGovernancePaths) copyHistoricalCorrectionGovernanceFile(repo, path);
     gitCommand(repo, ["add", "--", ...correctionGovernancePaths]);
     const commitEnvironment = {
       ...process.env,
