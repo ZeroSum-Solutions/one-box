@@ -67,6 +67,8 @@ Verified false against the pinned revisions.
   `stageBuild()` only calls `runGates()` afterwards (`src/lib/pipeline.ts:2412`,
   gates at 2432). A gate-failing build has already replaced the previous preview.
   The staging directory exists but the transaction boundary is in the wrong place.
+  *Status 2026-09-01:* fixed on `main` by OBX-012 (`status: verified`) in the Page IR
+  safe pipeline (PR #16); the line references above are historical.
 - **DEF-2 — gates are coupled to the frozen template.** The no-JS gate hardcodes
   `hero.headline`, `nav`, and `contact.cta` selectors (`src/lib/gates.ts:523`);
   token drift only parses `--color-*` and `--font-*`, so HSL, gradients, and named
