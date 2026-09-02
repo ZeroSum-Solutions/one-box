@@ -4,7 +4,8 @@ Working board for ONE BOX. Read this first, then the authority it points into.
 An item lives here only while it is open. When one lands, delete the line and
 record the outcome in the plan, spec, or ledger it belongs to.
 
-Last updated: 2026-09-01 (repository-state sweep against `main` at `cb26ae9`).
+Last updated: 2026-09-02 (wave 0 of the `one-box-gauntlet-r1` run, against `main`
+at `4b02f75`).
 
 Authority order when documents disagree:
 
@@ -17,44 +18,56 @@ Authority order when documents disagree:
 Defects go in `docs/ENGINE-LEDGER.md` (append-only). Repository and integration
 defects from this sweep are the `REPO-*` rows there.
 
-## Repository map (2026-09-01)
+## Repository map (2026-09-02)
 
-`main` is `cb26ae9` (PR #16). Verified on that commit: 1275 Vitest tests pass
-(4 skipped), typecheck clean, lint 0 errors / 6 warnings, `test:smoke` passes.
-CI (`.github/workflows/ci.yml`) runs `npm test`, typecheck, lint, build, and
-then the rendered Page IR regressions (`test:e2e:page-ir` against a started
-server) on every PR to `main`.
+`main` is `4b02f75` (the PR #19 merge commit). Verified on the wave-0
+integration branch: 1399 Vitest tests pass (4 skipped), typecheck clean, lint
+0 errors and 0 warnings, `test:smoke` passes with no module-type warning,
+`verify:plans` and `test:plans` pass. CI (`.github/workflows/ci.yml`) runs
+`npm test`, typecheck, lint, build, the plan-authority job
+("Verify plan authority and traceability", `verify:plans` and `test:plans`,
+fail-closed), and then the rendered Page IR regressions
+(`test:e2e:page-ir` against a started server) on every PR to `main`.
 
-Three unmerged lineages branch from `main`. They were built by different agents
-and do not reference each other.
+Two of the three lineages have landed. Lineage B is the only one still out.
 
-| Lineage | Branch(es) | Ahead of `main` | Holds | State on 2026-09-01 |
+| Lineage | Branch(es) | Ahead of `main` | Holds | State on 2026-09-02 |
 |---|---|---|---|---|
-| A — consolidation docs | `docs/studio-consolidation-plan` (local only) | 1 commit, 3 files | `AGENTS.md` pointers, this board, the 2026-08-20 consolidation plan | Cherry-picked into `chore/repo-state-20260901`. Merges onto `main` cleanly. |
-| B — evidence review UI | `codex/onebox-review-evidence-ui` → PR #17 (draft) | 27 commits, 85 files | Evidence-review feedback workflow, guided pipeline mode, Google Maps embed, token specimens, capability roadmap | CI green on head `3643ee5` after the e2e fix (REPO-001). Conflicts with lineage C in `package.json`; both edit `src/lib/contracts.ts`. Rebases after C per the integration order. |
-| C — OBX-P180 operating environment | `research/la-appointment-field-study` (21 commits, pushed) → `feat/obx-p180-t03-t05-offline-wave` → `feat/obx-p180-t03-t05-offline-wave-recovery` → `checkpoint/obx-p180-terminal-correction-handoff-20260901` (pushed, `1c39259`) | up to 44 commits, 380+ files | Master plan library, 29 program tickets, T01/T02 registry and route reducers, T03/T04 provider-offline reducers, correction governance, terminal verifier checkpoint | Governed by `OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003`. No PR. Resume only through the handoff below. |
+| A — consolidation docs | `chore/repo-state-20260901` → PR #18 | landed | `AGENTS.md` pointers, this board, the 2026-08-20 consolidation plan | **Landed 2026-09-02**, squash `c7d1243`. |
+| B — evidence review UI | `wave-0/pr17-rebased` → PR #20 (supersedes #17) | 29 commits | Evidence-review feedback workflow, guided pipeline mode, Google Maps embed, token specimens, capability roadmap | Rebased onto `main` at `4b02f75`; CI green (run 33634877941); ready for review. `package.json` untouched — its four script additions are `node` invocations instead, because the file is hash-pinned. Merge is the owner's; see the typography-specimen gate in the PR body. |
+| C — OBX-P180 operating environment | slice 1 `integrate/lineage-c-slice-1` → PR #19; then `feat/obx-p180-t03-t05-offline-wave-recovery` → `feat/obx-p180-terminal-correction-r1` | slice 1 landed; the terminal wave is still out | Master plan library, 29 program tickets, T01/T02 registry and route reducers, T03/T04 provider-offline reducers, correction governance, terminal verifier checkpoint | **Slice 1 landed 2026-09-02** as true merge commit `4b02f75`. Merge commits needed two repository toggles (`allow_merge_commit`, ruleset `allowed_merge_methods`), changed for the merge and restored after; later C descendants need the same. The terminal wave stays governed by `OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003`; resume only through the handoff below. |
 
 Four branches landed by the PR #15 squash (`feat/ui-overhaul-linear`,
 `spike/refero-baseline`, `spike/layout-ir`, `fix/pause-status-pulse-when-hidden`)
 were deleted on 2026-09-01 after an ancestry re-check.
 
-**Integration order (decided 2026-09-01):** A, then C in reviewed slices, then
-rebase B. C lands with true merge commits only; the OBX-P180 program pins
-`62b7b74` and `c09dfd0` by SHA, and a squash or rebase would orphan its branches
-and the pushed checkpoint. The first mergeable slice of C is
-`research/la-appointment-field-study` through `62b7b74`.
+**Integration order (decided 2026-09-01, executed 2026-09-02):** A, then C in
+reviewed slices, then rebase B. Done in that order: PR #18, PR #19, PR #20. C
+lands with true merge commits only; the OBX-P180 program pins `62b7b74` and
+`c09dfd0` by SHA, and a squash or rebase would orphan its branches and the
+pushed checkpoint.
 
 ### Worktrees
 
 | Path | Branch | Purpose |
 |---|---|---|
-| `~/projects/one-box` | `docs/studio-consolidation-plan` | Primary checkout. Untracked `references/` and `spikes/` are ignored or tracked on `main`; switch this checkout to `main` once lineage A lands. |
+| `~/projects/one-box` | `docs/studio-consolidation-plan` | Primary checkout. Lineage A has landed (PR #18), so switch it to `main` and delete the branch. |
+| `~/projects/one-box-worktrees/gauntlet-r1` | `wave-0/integration` | The `one-box-gauntlet-r1` run's own worktree. Wave-0 integration branch; gates run here. |
 | `~/projects/one-box-worktrees/latest-main-20260825` | detached at `cb26ae9` | Clean mirror of `main` with `node_modules`; use it for gates against `main`. |
-| `~/projects/one-box-worktrees/repo-state-20260901` | `chore/repo-state-20260901` | This sweep. |
+| `~/projects/one-box-worktrees/repo-state-20260901` | `chore/repo-state-20260901` | The 2026-09-01 sweep. Landed as PR #18; removable. |
+| `~/projects/one-box-worktrees/integrate-lineage-c` | `integrate/lineage-c-slice-1` | Lineage C slice 1. Landed as PR #19 (`4b02f75`); **removable**. |
 | `~/projects/one-box-worktrees/la-appointment-field-study` | `research/la-appointment-field-study` | OBX-P180 source worktree. Read-only for the program. Holds the protected untracked handoff; never open it. |
 | `~/projects/one-box-worktrees/obx-p180-t03-t05-offline-wave` | `feat/obx-p180-t03-t05-offline-wave` | Original T03/T04 wave. Superseded by the recovery lineage. |
 | `~/projects/one-box-worktrees/obx-p180-t03-t05-offline-wave-recovery` | `feat/obx-p180-t03-t05-offline-wave-recovery` | `-002` supersession base `c09dfd0`. Clean; the former drafts are archived under `~/Backups/one-box/obx-p180-recovery-drafts-20260901/` (REPO-007). |
-| `~/projects/one-box-worktrees/pr17-evidence-review-ui` | `fix/pr17-intake-e2e` | PR #17 head plus the e2e fix; remove once PR #17 lands. |
+| `~/projects/one-box-worktrees/obx-p180-terminal-correction-r1` | `feat/obx-p180-terminal-correction-r1` | Wave 1 of the run: the OBX-P180 terminal correction, from `c09dfd0` with the `1c39259` checkpoint diff applied. |
+| `~/projects/one-box-worktrees/pr17-evidence-review-ui` | `fix/pr17-intake-e2e` | PR #17 head plus the e2e fix. Superseded by PR #20; remove once #20 lands. |
+| `~/projects/one-box-worktrees/wave-0-eos-001` | `wave-0/eos-001` | Wave 0, EOS-001 authority-chain confirmation. Merged into `wave-0/integration`. |
+| `~/projects/one-box-worktrees/wave-0-eos-003` | `wave-0/eos-003` | Wave 0, EOS-003 outcome baseline. Merged into `wave-0/integration`. |
+| `~/projects/one-box-worktrees/wave-0-hygiene` | `wave-0/hygiene` | Wave 0, REPO-002 and REPO-003 hygiene. Merged into `wave-0/integration`. |
+| `~/projects/one-box-worktrees/wave-0-pr17-rebase` | `wave-0/pr17-rebased` | Wave 0, lineage B rebase. PR #20; keep until the owner merges it. |
+| `~/projects/one-box-worktrees/wave-2-governance` | `wave-2/governance` | Wave 2 authorization mechanism for phases P1 and P2. Not yet in a PR. |
+| `~/projects/one-box-worktrees/wave-3-t2-probe` | `wave-3/t2-probe` | The T-2 probe record. Lands with wave 3. |
+| `~/projects/one-box-worktrees/wave-3-defects` | `wave-3/t3-t4` | Wave 3, T-3 (DEF-2) and T-4 (`perf-budget`). |
 | `~/Documents/Codex/2026-09-01/one-box-obx-p180-terminal-correction/work/one-box-terminal` | `checkpoint/obx-p180-terminal-correction-handoff-20260901` | Codex execution clone for the terminal correction. Holds `task-6-final-review.md` and `task-7-governance-brief.md` under `.superpowers/sdd/implementation-plan/`. |
 
 ### Program state outside the repository
@@ -64,6 +77,16 @@ and the pushed checkpoint. The first mergeable slice of C is
 - OBX-P180 goal state (contract, state, run log, proofs, receipts, censuses):
   `~/.claude/goal-state/obx-p180-t03-t05-offline-wave/`. Status on 2026-09-01:
   `AUTHORIZED_PRE_ACTIVATION`, current task T6, T05 prohibited, T06+ unauthorized.
+- Autonomous run `one-box-gauntlet-r1`:
+  `~/.claude/goal-state/one-box-gauntlet-r1/` (contract with the owner block,
+  `run.log.md`, `decisions.json`, proofs, the owner's 126-site reference library
+  under `bars/`). Waves 0 to 3. Wave 0 closed three items from this board:
+  **T-9** (REPO-002, six lint warnings; lint now reports 0 errors and 0
+  warnings), **T-10** (the contract exists at
+  `~/.claude/goal-state/one-box-gauntlet-r1/contract.md` with the owner block
+  filled, and the run is executing), and **T-2** (the probe record
+  `docs/audits/2026-09-02-t2-probe-auric-clinic-glow.md`, on branch
+  `wave-3/t2-probe`, landing with wave 3).
 - Earlier completed runs: `~/.claude/goal-state/onebox-canvas-upgrade/`,
   `one-box-native-ai-teammate-slice/`, `obx-p180-source-adoption-closure/`,
   `obx-p180-t01-contract-kernel/`, `obx-p180-t02-registry-route/`.
@@ -74,23 +97,15 @@ and the pushed checkpoint. The first mergeable slice of C is
 
 ## Do first
 
-- [ ] **T-2 — Probe run: one design system through the current pipeline.**
-  Take one MishMash design system that already meets the CAT-001 bar (HTML +
-  CSS custom properties + a ONE BOX-shaped DESIGN.md), or strip one until it
-  does. Convert it **by hand**. Run the current pipeline. Record which gates fail
-  and why. The pipeline is now the Page IR safe pipeline (PR #16), so DEF-1 no
-  longer eats the previous preview.
-  *Do not build an ExecutionAdapter to make this work.* If one package cannot
-  get through without a new runtime abstraction, the thesis is already wrong.
-  *Done when:* a written gate-failure record exists in `docs/audits/`.
-
-## Do next
-
 - [ ] **T-3 — Fix DEF-2: gates are coupled to the frozen template.**
   The `no-js` gate hardcodes `hero.headline`, `nav`, `contact.cta`
   (`src/lib/gates.ts:1303`); token drift parses only `--color-*` and `--font-*`
   (`src/lib/gates.ts:991`); the repair loop edits only `index.html` and
-  `tokens.css` (`src/lib/pipeline.ts:2317`). Scope from T-2's failure record.
+  `tokens.css` (`src/lib/pipeline.ts:2317`). Scope from T-2's gate-failure
+  record, `docs/audits/2026-09-02-t2-probe-auric-clinic-glow.md`, which is on
+  branch `wave-3/t2-probe` and lands with wave 3.
+
+## Do next
 
 - [ ] **T-4 — Decide `perf-budget`.** Still advisory (`src/lib/gates.ts:18`,
   `:1406`). Make it blocking or record why not (GATE-001). Until then, "all
@@ -114,27 +129,28 @@ and the pushed checkpoint. The first mergeable slice of C is
   `task-7-governance-brief.md`. T05 stays closed until T03 and T04 are both
   `COMPLETED_VERIFIED`.
 
-- [ ] **T-9 — Clear the six lint warnings on `main`** (REPO-002). Two are unused
-  eslint-disable directives, three are unused symbols, one is `<img>` in
-  `AssistantPanel.tsx`. Zero-risk cleanup; do it in its own commit.
-
-- [ ] **T-10 — Write the gauntlet-loop contract.** The owner's stated goal is a
-  gauntlet loop that drives this repository to completion. Its quality bar must
-  come from the plan register and the Release 1 contract, not from this board.
-  Prerequisite: lineage C on `main`.
-
 ## Owner actions (outward-facing or hook-gated; not for agents)
 
-- Review and merge PR #18 (lineage A), then switch `~/projects/one-box` to
-  `main` and delete `docs/studio-consolidation-plan`.
-- PR #19 (lineage C slice 1, branch `integrate/lineage-c-slice-1` at `62b7b74`)
-  merges with a merge commit only, after two things: `main` merged into it once
-  #18 lands (keep both `AGENTS.md` edits), and CI green. CI is red today because
-  of REPO-010; the verifier fix needs OBX-P180 verifier authority first.
-- Review and merge PR #17 once its CI is green and its own merge gate (the
-  typography specimen note in the PR body) is accepted or narrowed.
-- Autonomous run contract awaiting the owner block:
-  `~/.claude/goal-state/one-box-gauntlet-r1/contract.md`.
+- Review and merge **PR #20** (lineage B rebased, supersedes #17). CI is green
+  and `package.json` is untouched. Its own merge gate stands: typography
+  specimen support is marked Partial, so accept or narrow that criterion first.
+  When it lands, close PR #17 and remove the `pr17-evidence-review-ui` worktree.
+- Three decisions are open in the run's `decisions.json`
+  (`~/.claude/goal-state/one-box-gauntlet-r1/decisions.json`), each with the
+  default the run takes if the owner stays silent:
+  - **D-1** — name a second human as the non-author verifier, or confirm none is
+    available. `docs/governance/reviewer-roles.md` makes that role a named
+    human, and a model cannot fill it. With one human no `OwnerAssignmentV1` can
+    be active, so wave 2 runs on solo-exception records and the P3 client-review
+    surface stays frozen.
+  - **D-2** — the T01 and T02 authorization records carry `renewable: false` and
+    expire 2026-09-14. From that moment `verify:plans` fails on every PR. See
+    the REPO row in `docs/ENGINE-LEDGER.md`.
+  - **D-3** — approve the exact `PageIRV1` and generated-site schema diff before
+    any P4 code that changes schemas. The diff has to exist first, so this one
+    comes later, at the P2 merge.
+- Switch `~/projects/one-box` to `main` and delete `docs/studio-consolidation-plan`
+  (PR #18 landed).
 
 ## Watch list — do not start these
 
@@ -165,4 +181,4 @@ the consolidation plan or the plan register, not by oversight.
 
 None blocking. HTML-first is decided (D5). If PPTX and MP4 must ship in v1, the
 consolidation plan is wrong and the correct move is to stay on MishMash and
-delete its certified dead weight instead — say so before T-2 rather than after.
+delete its certified dead weight instead — say so now rather than later.

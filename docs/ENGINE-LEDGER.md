@@ -317,9 +317,28 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
 | REPO-010 | S1 | **FIXED** | `npm run verify:plans` (CI job "Verify plan authority and traceability" on lineage C) fails on every fresh checkout: `OBX-AUTH-P180-T01-SOLO-001` and `-T02-SOLO-001` pin `preExistingUntrackedBaseline` to the untracked protected handoff `.claude/handoffs/one-box-operating-environment-next-phase.md`, and `scripts/verify-plan-authority.mjs:609` enforces that hash in every mode. CI can never hold that file. First observed on PR #19 run 33591356178 (fails in 10s, before tests run). Fix belongs inside OBX-P180 verifier authority: enforce the untracked baseline only in solo-local modes and report it as skipped under `GITHUB_ACTIONS`. | PR #19 run 33591356178; `scripts/verify-plan-authority.mjs:609`; `scoped-implementation-authorizations.json` T01/T02 `preExistingUntrackedBaseline` |
 | REPO-011 | S1 | **FIXED** | `npm test` fails on lineage C: `scripts/eval/obx-p180-contract-fixtures.test.mjs` is a `node:test` file, but the repo has no Vitest config, so Vitest's default include glob loads it and reports "No test suite found in file" (1 suite failed, 1399 passed). Its 18 assertions run in no npm script either; every other node-test file uses the `.node.mjs` suffix. The file is a frozen T01 artifact with a pinned digest, so renaming it means amending an immutable record. Preferred fix: add a Vitest config that scopes `include` to `src/**`, leaving the frozen file untouched. | 62b7b74; `npx vitest run scripts/eval/obx-p180-contract-fixtures.test.mjs` exit 1 on 2026-09-01; independent review on PR #19 |
 | REPO-012 | S2 | OPEN | Lineage C code paths outside every authorization record: `.github/workflows/ci.yml`, `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/feature.yml`, `package.json` (commit `9d4ddfd`); `scripts/eval/grok-audit.mjs` edited in `8587256` then retro-frozen in T01; three unwired source-adoption scripts added in `62b7b74` (`scripts/eval/obx-p180-source-adoption-fixtures.mjs`, `...-fixtures.node.mjs`, `scripts/verify-obx-p180-source-adoption.mjs`) that no npm script or CI job runs. The manifest's own governing rule says proposed artifacts cannot authorize implementation, so the code and the authority record disagree. Resolution: record explicit exceptions in `scoped-implementation-authorizations.json`, and wire or delete the three scripts. | Independent review on PR #19; `authority-manifest.json` `engineering-operating-system` domain (`authorityClass: proposed`) |
+| REPO-013 | S1 | OPEN | `OBX-AUTH-P180-T01-SOLO-001` and `-T02-SOLO-001` are non-renewable and expire on 2026-09-14 (`renewable: false` at `scoped-implementation-authorizations.json:396` and `:631`; `expiresAt` `2026-09-14T13:33:33Z` at `:395` and `2026-09-14T21:47:59Z` at `:630`). `scripts/verify-plan-authority.mjs:697` fails the whole run with "authorization is expired" once the clock passes either value, and `:563` pins the window to exactly 336 hours, so no record may be written with a longer one. The CI job "Verify plan authority and traceability" runs `verify:plans` first on every PR, so from 2026-09-14 every PR to `main` blocks. Retiring an expired record means either editing an immutable record — which invalidates its own `authorizationHash` and the three byte-pinned T01 receipts — or teaching the verifier an expired-archived status, which changes what the frozen records mean. Owner decision D-2 in the `one-box-gauntlet-r1` run. | `docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json:394-396`, `:629-631`; `scripts/verify-plan-authority.mjs:563`, `:689-697`; `.github/workflows/ci.yml` plan-authority job; `~/.claude/goal-state/one-box-gauntlet-r1/decisions.json` D-2 |
 
 ### Resolutions — 2026-09-02
 
+- **Wave 0 of `one-box-gauntlet-r1` landed the three EOS gap-register
+  records.** EOS-001 (one discoverable authority chain):
+  `docs/audits/evidence/goal/2026-09-02-eos-001-authority-chain-on-main.md`,
+  which also found and fixed the last label residue —
+  `docs/plans/one-box-master/02-canvas/index.md` listed the 2026-08-13 Refero
+  editor requirements under "Canonical sources" while
+  `docs/plans/one-box-master/00-authority/plan-register.md:36` files them under
+  "Supporting and historical plans". EOS-003 (measurable outcomes):
+  `docs/audits/2026-09-02-release-1-outcome-baseline.md`, eight outcomes with
+  the instrument named for each; every one reads "Not yet measurable", because
+  no numeric baseline exists yet. EOS-004 (program board):
+  `docs/audits/evidence/goal/2026-09-02-eos-004-program-board-confirmation.md`,
+  a confirmation rather than a manifest change — the four wave-2 parents are
+  already listed in full, and `humanAssignments.status: unassigned-blocking`
+  keeps every one of them out of `ready`. The two packet-document edits the
+  wave made are re-pinned once in
+  `docs/audits/evidence/security/2026-09-02-wave-0-authority-repin.json`
+  (packet `6abc2156…` → `48999a43…`), which supersedes the ci-oracle re-pin.
 - **REPO-002:** all six warnings cleared — the unused `tokens` and
   `useEffect` symbols and the unused `asOptionalString` helper removed, the
   two unused `eslint-disable` directives in `src/lib/tools/refero.ts` removed,
