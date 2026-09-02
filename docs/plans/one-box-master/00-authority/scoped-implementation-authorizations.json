@@ -637,6 +637,807 @@
         ],
         "digest": "9eb1ae436bb897de1abe572991ede4a38734b1b97a4ccfda7c079a072dfcaa36"
       }
+    },
+    {
+      "id": "OBX-AUTH-R1-P1-SOLO-001",
+      "recordKind": "owner-solo-phase-exception-v3",
+      "status": "authorized-with-solo-exception",
+      "implementationAuthorized": true,
+      "projectId": "one-box",
+      "branch": "main",
+      "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+      "activationBaseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+      "activationWriteSet": [
+        "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+        "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "docs/plans/one-box-master/00-authority/plan-register.md",
+        "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+        "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+        "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+        "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+        "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+        "scripts/verify-plan-authority.mjs",
+        "scripts/verify-plan-authority.node.mjs",
+        "scripts/verify-r1-phase-authorization.mjs",
+        "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+        "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit-raw.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit-raw.json"
+      ],
+      "preExistingUntrackedBaseline": [
+        {
+          "path": ".claude/handoffs/one-box-operating-environment-next-phase.md",
+          "algorithm": "sha256",
+          "digest": "cbbc878aa0691f333b128a71aee43adde89a9691a9ed65880f1f2b41a20643a6"
+        }
+      ],
+      "parentTicketId": "OBX-P200",
+      "parentTicketStatus": "proposed",
+      "childTicketIds": [
+        "OBX-P200-T01",
+        "OBX-P200-T02",
+        "OBX-P200-T03"
+      ],
+      "authorizationProposalId": "OBX-AUTH-R1-P1-PROPOSAL-V1",
+      "ownerActorId": "person:devin-wiggins",
+      "riskOwnerActorId": "person:devin-wiggins",
+      "implementationActorId": "person:devin-wiggins",
+      "authorizedByActorId": "person:devin-wiggins",
+      "ownerDirection": {
+        "actorId": "person:devin-wiggins",
+        "name": "Devin Wiggins",
+        "sourceThreadId": "one-box-gauntlet-r1 Claude Code session, 2026-09-02",
+        "decision": "ACCEPT_EXACT_SOLO_R1_P1_RISK_AND_START",
+        "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1. Number two, I accept the release packet. Number three, let's run zero through three. Number four, please provide me an initialization prompt so that I can fan out, do research, and gather real agency analysis inside of Codex, in a separate session. For visual quality bars I've added 2 different worksheets ... please, any blockers, let's take care of them now so we can run this on a loop.",
+        "pathScopeDerivation": "The exact allowedPaths, ticketScopes, and allowedEffects lists derive from section 4 of the wave-2 authorization path plan and are recorded before the first P1 or P2 task starts, as run contract section 5 requires: Path scopes are written into the run's authorization record before the task starts, never after.",
+        "recordedAt": "2026-09-02T13:00:00Z"
+      },
+      "builderLane": {
+        "kind": "claude-agent",
+        "models": [
+          "claude-opus-5",
+          "claude-sonnet-5"
+        ],
+        "controllerActorId": "person:devin-wiggins"
+      },
+      "ownerAssignmentV1Status": "NOT_AVAILABLE",
+      "roleAvailability": [
+        {
+          "roleId": "implementation-lead",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "website-authority-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "independent-security-verifier",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        }
+      ],
+      "implementationAuthorizationSeparation": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false
+      },
+      "escalation": {
+        "status": "NOT_AVAILABLE",
+        "actorId": null
+      },
+      "independentHumanReview": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false,
+        "actorId": null
+      },
+      "acceptedRisk": {
+        "findingId": "OBX-R1-P1-SOLO-SEPARATION-001",
+        "severity": "MEDIUM",
+        "status": "ACCEPTED",
+        "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE"
+      },
+      "requirementExceptions": [
+        {
+          "requirementId": "OBX-P200-DEFINITION-OF-READY",
+          "exceptionStatus": "EXCEPT_R1_P1_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "named-accountable-owner",
+            "non-author-verifier"
+          ],
+          "preservedClauses": [
+            "exact-grok-or-fallback-packet-review-before-ready"
+          ]
+        }
+      ],
+      "nonWaivableClassesTouched": [],
+      "traceabilityRefs": [
+        "P1",
+        "EOS-002",
+        "PROG-EVAL-LIFE-001"
+      ],
+      "ticketScopes": [
+        {
+          "ticketId": "OBX-P200-T01",
+          "allowedPaths": [
+            "src/lib/contracts.ts",
+            "src/lib/contracts.test.ts",
+            "src/lib/releaseLifecycle.ts",
+            "src/lib/releaseLifecycle.test.ts"
+          ],
+          "allowedEffects": [
+            "add-closed-lifecycle-contracts-and-pure-transitions"
+          ]
+        },
+        {
+          "ticketId": "OBX-P200-T02",
+          "allowedPaths": [
+            "src/lib/runstate.ts",
+            "src/lib/runstate.test.ts",
+            "src/lib/releaseLifecycleStore.ts",
+            "src/lib/releaseLifecycleStore.test.ts",
+            "src/lib/pageIrController.ts",
+            "src/lib/pageIrController.test.ts",
+            "src/lib/pipelineReplay.test.ts"
+          ],
+          "allowedEffects": [
+            "persist-optional-lifecycle-record-under-withRunTransaction",
+            "bind-promoted-page-ir-build-to-canvas-ready"
+          ]
+        },
+        {
+          "ticketId": "OBX-P200-T03",
+          "allowedPaths": [
+            "src/app/api/lifecycle/[id]/route.ts",
+            "src/app/api/lifecycle/[id]/route.test.ts",
+            "src/components/preview/LifecycleStatus.tsx",
+            "src/components/preview/LifecycleStatus.test.tsx",
+            "src/app/preview/[id]/page.tsx",
+            "scripts/e2e/preview-workbench.mjs",
+            "docs/architecture/README.md",
+            "docs/security/local-api-threat-model.md"
+          ],
+          "allowedEffects": [
+            "add-loopback-read-only-lifecycle-projection-route",
+            "add-read-only-canvas-lifecycle-status",
+            "document-lifecycle-module-ownership"
+          ]
+        }
+      ],
+      "allowedPaths": [
+        "src/lib/contracts.ts",
+        "src/lib/contracts.test.ts",
+        "src/lib/releaseLifecycle.ts",
+        "src/lib/releaseLifecycle.test.ts",
+        "src/lib/runstate.ts",
+        "src/lib/runstate.test.ts",
+        "src/lib/releaseLifecycleStore.ts",
+        "src/lib/releaseLifecycleStore.test.ts",
+        "src/lib/pageIrController.ts",
+        "src/lib/pageIrController.test.ts",
+        "src/lib/pipelineReplay.test.ts",
+        "src/app/api/lifecycle/[id]/route.ts",
+        "src/app/api/lifecycle/[id]/route.test.ts",
+        "src/components/preview/LifecycleStatus.tsx",
+        "src/components/preview/LifecycleStatus.test.tsx",
+        "src/app/preview/[id]/page.tsx",
+        "scripts/e2e/preview-workbench.mjs",
+        "docs/architecture/README.md",
+        "docs/security/local-api-threat-model.md"
+      ],
+      "allowedEffects": [
+        "add-closed-lifecycle-contracts-and-pure-transitions",
+        "persist-optional-lifecycle-record-under-withRunTransaction",
+        "bind-promoted-page-ir-build-to-canvas-ready",
+        "add-loopback-read-only-lifecycle-projection-route",
+        "add-read-only-canvas-lifecycle-status",
+        "document-lifecycle-module-ownership"
+      ],
+      "allowedDataClasses": [
+        "public",
+        "project-internal",
+        "synthetic-fixture"
+      ],
+      "forbiddenEffects": [
+        "provider-or-model-call-outside-existing-guarded-paths",
+        "network",
+        "credential-or-environment-access",
+        "new-endpoint-outside-isLocalApiAuthorized-guard",
+        "public-or-remote-origin",
+        "client-invitation",
+        "dependency-or-lockfile-change",
+        "page-ir-v1-or-generated-site-schema-change",
+        "mint-approval-client-lock-qualification-or-release-from-model-client-api-or-ui",
+        "deployment",
+        "release",
+        "rollback-execution",
+        "appointment-field-slot-lease-or-runtime",
+        "browser",
+        "collaboration-realtime-or-crdt",
+        "motion-authoring",
+        "edit-frozen-t01-t02-artifacts",
+        "edit-governance-defaults",
+        "edit-authority-manifest-outside-activation-write-set",
+        "parent-ticket-or-evaluation-promotion",
+        "independent-human-review-claim",
+        "production-readiness-or-release-1-exit-claim",
+        "numeric-quality-threshold"
+      ],
+      "predecessorBinding": null,
+      "activationPrecondition": null,
+      "planBindings": [
+        {
+          "path": "docs/superpowers/plans/2026-08-27-release-lifecycle-foundation.md",
+          "algorithm": "sha256",
+          "digest": "1961867f8d9f8f43242197d238ece793d231f547c9cf75275356020dc31c5120"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-08-27-canvas-to-agency-shipping-design.md",
+          "algorithm": "sha256",
+          "digest": "92cac6f58d899f0686522a5d1898518bb0ca0054d962004e26a148d97a90ea15"
+        },
+        {
+          "path": "docs/plans/one-box-master/01-foundation/release-1-contract.md",
+          "algorithm": "sha256",
+          "digest": "8eb61c66683e5fcdd57cb09b5ce94c71987bbb4a8b83544ba89a91ab23676a81"
+        },
+        {
+          "path": "docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md",
+          "algorithm": "sha256",
+          "digest": "8d27cd2ff8744a304225010f08e8dcd233c8b57e7247b6955e89be286a2a47a4"
+        },
+        {
+          "path": "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+          "algorithm": "sha256",
+          "digest": "af36eaccc62a4fb0825ac7e3d4c22ea61ebaf981461fed8e1307107cf33b7141"
+        }
+      ],
+      "governanceBindings": [
+        {
+          "path": "docs/governance/risk-exceptions/README.md",
+          "algorithm": "sha256",
+          "digest": "c5139be92b42987e70d73b6851530d4917c8716b96cfcfbda1c7e9a685f726c2"
+        },
+        {
+          "path": "docs/governance/reviewer-roles.md",
+          "algorithm": "sha256",
+          "digest": "ea1f4cf440ce3122bf40866c0097c516550d876e9674462bbe61edc7dcb701bc"
+        }
+      ],
+      "dependencyBindings": [
+        {
+          "path": "package.json",
+          "algorithm": "sha256",
+          "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"
+        },
+        {
+          "path": "package-lock.json",
+          "algorithm": "sha256",
+          "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"
+        }
+      ],
+      "amendmentBinding": {
+        "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+        "amendmentId": "OBX-R1-P1-SOLO-AMENDMENT-001",
+        "algorithm": "sha256",
+        "digest": "cc4fbde44e5c6e37511ba6b13a2b2f4d583ccefff4aa25adeaf94092683915ce"
+      },
+      "reviewProtocol": {
+        "exactModel": "x-ai/grok-4.6",
+        "lane": "openrouter-metered",
+        "effort": "high",
+        "auditScript": "scripts/eval/grok-audit.mjs",
+        "modelAuthority": "advisory-only",
+        "testAuthority": "deterministic-fixtures-vitest-node-test-and-e2e",
+        "packetReview": "one-ticket-readiness-packet-before-first-commit-and-one-final-diff-packet-before-merge",
+        "ownerAuthorizedFallbackAllowed": true,
+        "fallbackMustRetainFailedAttempt": true,
+        "fallbackMustIdentifyActualModel": true
+      },
+      "requiredEvidencePaths": [
+        "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json"
+      ],
+      "invalidators": [
+        "authorization-hash-mismatch",
+        "amendment-path-id-schema-or-hash-drift",
+        "predecessor-path-or-hash-drift",
+        "activation-write-set-or-handoff-drift",
+        "timestamp-invalid-expired-or-renewal",
+        "assignment-or-separation-claim",
+        "requirement-exception-drift",
+        "allowed-path-or-effect-drift",
+        "dependency-or-lockfile-change",
+        "governance-default-path-or-hash-drift",
+        "provider-network-credential-or-environment-effect",
+        "public-or-remote-origin-effect",
+        "browser-collaboration-or-motion-authoring-effect",
+        "page-ir-v1-or-generated-site-schema-change",
+        "deployment-release-or-rollback-effect",
+        "parent-ticket-or-evaluation-promotion",
+        "security-receipt-missing-stale-or-malformed",
+        "model-receipt-missing-stale-or-mislabelled",
+        "gate-failure",
+        "additional-unaccepted-finding",
+        "independent-review-or-production-readiness-claim",
+        "non-waivable-class-touched",
+        "package-json-or-lockfile-hash-drift",
+        "parent-ticket-status-drift",
+        "expired-t01-or-t02-record-in-registry",
+        "predecessor-phase-not-merged"
+      ],
+      "recordedAt": "2026-09-02T13:00:00Z",
+      "expiresAt": "2026-09-16T13:00:00Z",
+      "effectiveWindow": {
+        "recordedAt": "2026-09-02T13:00:00Z",
+        "expiresAt": "2026-09-16T13:00:00Z",
+        "effectiveExpiresAt": "2026-09-14T13:33:33Z",
+        "effectiveExpirySource": "OBX-AUTH-P180-T01-SOLO-001",
+        "effectiveExpiryReason": "This record's invalidator expired-t01-or-t02-record-in-registry fails the whole release-1 phase module once OBX-AUTH-P180-T01-SOLO-001 (2026-09-14T13:33:33Z) or OBX-AUTH-P180-T02-SOLO-001 (2026-09-14T21:47:59Z) expires, and both are non-renewable. The recorded 336-hour window therefore ends early, at 2026-09-14T13:33:33Z, unless the owner first decides a retirement mechanism for the frozen records."
+      },
+      "renewable": false,
+      "authorizationHash": {
+        "algorithm": "sha256",
+        "canonicalization": "canonical-json-v1",
+        "excludedJsonPointers": [
+          "/authorizationHash/digest"
+        ],
+        "digest": "60a23140ba8d2afa64a835f3364838be0bcf3bc727095986ffbe2fc7d7f1e6c3"
+      }
+    },
+    {
+      "id": "OBX-AUTH-R1-P2-SOLO-001",
+      "recordKind": "owner-solo-phase-exception-v3",
+      "status": "authorized-with-solo-exception",
+      "implementationAuthorized": true,
+      "projectId": "one-box",
+      "branch": "main",
+      "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+      "activationBaseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+      "activationWriteSet": [
+        "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+        "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "docs/plans/one-box-master/00-authority/plan-register.md",
+        "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+        "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+        "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+        "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+        "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+        "scripts/verify-plan-authority.mjs",
+        "scripts/verify-plan-authority.node.mjs",
+        "scripts/verify-r1-phase-authorization.mjs",
+        "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+        "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit-raw.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit-raw.json"
+      ],
+      "preExistingUntrackedBaseline": [
+        {
+          "path": ".claude/handoffs/one-box-operating-environment-next-phase.md",
+          "algorithm": "sha256",
+          "digest": "cbbc878aa0691f333b128a71aee43adde89a9691a9ed65880f1f2b41a20643a6"
+        }
+      ],
+      "parentTicketId": "OBX-P210",
+      "parentTicketStatus": "proposed",
+      "childTicketIds": [
+        "OBX-P210-T00",
+        "OBX-P210-T01",
+        "OBX-P210-T02",
+        "OBX-P210-T03"
+      ],
+      "authorizationProposalId": "OBX-AUTH-R1-P2-PROPOSAL-V1",
+      "ownerActorId": "person:devin-wiggins",
+      "riskOwnerActorId": "person:devin-wiggins",
+      "implementationActorId": "person:devin-wiggins",
+      "authorizedByActorId": "person:devin-wiggins",
+      "ownerDirection": {
+        "actorId": "person:devin-wiggins",
+        "name": "Devin Wiggins",
+        "sourceThreadId": "one-box-gauntlet-r1 Claude Code session, 2026-09-02",
+        "decision": "ACCEPT_EXACT_SOLO_R1_P2_RISK_AND_START",
+        "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1. Number two, I accept the release packet. Number three, let's run zero through three. Number four, please provide me an initialization prompt so that I can fan out, do research, and gather real agency analysis inside of Codex, in a separate session. For visual quality bars I've added 2 different worksheets ... please, any blockers, let's take care of them now so we can run this on a loop.",
+        "pathScopeDerivation": "The exact allowedPaths, ticketScopes, and allowedEffects lists derive from section 4 of the wave-2 authorization path plan and are recorded before the first P1 or P2 task starts, as run contract section 5 requires: Path scopes are written into the run's authorization record before the task starts, never after.",
+        "recordedAt": "2026-09-02T13:00:00Z"
+      },
+      "builderLane": {
+        "kind": "claude-agent",
+        "models": [
+          "claude-opus-5",
+          "claude-sonnet-5"
+        ],
+        "controllerActorId": "person:devin-wiggins"
+      },
+      "ownerAssignmentV1Status": "NOT_AVAILABLE",
+      "roleAvailability": [
+        {
+          "roleId": "implementation-lead",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "website-authority-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "independent-security-verifier",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "canvas-and-agent-security-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "design-visual-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        }
+      ],
+      "implementationAuthorizationSeparation": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false
+      },
+      "escalation": {
+        "status": "NOT_AVAILABLE",
+        "actorId": null
+      },
+      "independentHumanReview": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false,
+        "actorId": null
+      },
+      "acceptedRisk": {
+        "findingId": "OBX-R1-P2-SOLO-SEPARATION-001",
+        "severity": "MEDIUM",
+        "status": "ACCEPTED",
+        "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE"
+      },
+      "requirementExceptions": [
+        {
+          "requirementId": "OBX-P210-DEFINITION-OF-READY",
+          "exceptionStatus": "EXCEPT_R1_P2_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "named-accountable-owner",
+            "non-author-verifier"
+          ],
+          "preservedClauses": [
+            "exact-grok-or-fallback-packet-review-before-ready"
+          ]
+        }
+      ],
+      "nonWaivableClassesTouched": [],
+      "traceabilityRefs": [
+        "P2",
+        "A0",
+        "A1",
+        "A2",
+        "A3",
+        "PROG-EVAL-CANVAS-001"
+      ],
+      "ticketScopes": [
+        {
+          "ticketId": "OBX-P210-T00",
+          "allowedPaths": [
+            "docs/plans/2026-09-02-release-1-p2-fingerprint-and-lock-order-design.md"
+          ],
+          "allowedEffects": []
+        },
+        {
+          "ticketId": "OBX-P210-T01",
+          "allowedPaths": [
+            "src/lib/pageIrMutation.ts",
+            "src/lib/pageIrMutation.test.ts",
+            "src/lib/siteMutation.ts",
+            "src/lib/siteMutation.test.ts",
+            "src/lib/elementEditor.ts",
+            "src/lib/elementEditor.test.ts",
+            "src/lib/mutationGateMatrix.ts",
+            "src/lib/mutationGateMatrix.test.ts",
+            "src/lib/releaseLifecycleStore.ts",
+            "src/lib/releaseLifecycleStore.test.ts",
+            "src/lib/contracts.ts",
+            "src/lib/contracts.test.ts"
+          ],
+          "allowedEffects": [
+            "emit-design-mutation-accepted-with-presentational-flag",
+            "compute-visual-and-interaction-fingerprints"
+          ]
+        },
+        {
+          "ticketId": "OBX-P210-T02",
+          "allowedPaths": [
+            "src/lib/pageIrController.ts",
+            "src/lib/pageIrController.test.ts",
+            "src/lib/candidatePromotion.ts",
+            "src/lib/candidatePromotion.test.ts",
+            "src/lib/pipelineStaleVisualQa.test.ts",
+            "src/lib/contracts.ts",
+            "src/lib/contracts.test.ts"
+          ],
+          "allowedEffects": [
+            "bind-named-human-visual-decision-to-candidate-hash",
+            "template-v1-promotion-lifecycle-binding"
+          ]
+        },
+        {
+          "ticketId": "OBX-P210-T03",
+          "allowedPaths": [
+            "src/components/preview/LifecycleStatus.tsx",
+            "src/components/preview/LifecycleStatus.test.tsx",
+            "src/components/preview/Workbench.tsx",
+            "src/app/styles/workbench.css",
+            "scripts/e2e/preview-workbench.mjs",
+            "scripts/e2e/canvas-contract.mjs"
+          ],
+          "allowedEffects": [
+            "show-current-approval-state-read-only"
+          ]
+        }
+      ],
+      "allowedPaths": [
+        "docs/plans/2026-09-02-release-1-p2-fingerprint-and-lock-order-design.md",
+        "src/lib/pageIrMutation.ts",
+        "src/lib/pageIrMutation.test.ts",
+        "src/lib/siteMutation.ts",
+        "src/lib/siteMutation.test.ts",
+        "src/lib/elementEditor.ts",
+        "src/lib/elementEditor.test.ts",
+        "src/lib/mutationGateMatrix.ts",
+        "src/lib/mutationGateMatrix.test.ts",
+        "src/lib/releaseLifecycleStore.ts",
+        "src/lib/releaseLifecycleStore.test.ts",
+        "src/lib/contracts.ts",
+        "src/lib/contracts.test.ts",
+        "src/lib/pageIrController.ts",
+        "src/lib/pageIrController.test.ts",
+        "src/lib/candidatePromotion.ts",
+        "src/lib/candidatePromotion.test.ts",
+        "src/lib/pipelineStaleVisualQa.test.ts",
+        "src/components/preview/LifecycleStatus.tsx",
+        "src/components/preview/LifecycleStatus.test.tsx",
+        "src/components/preview/Workbench.tsx",
+        "src/app/styles/workbench.css",
+        "scripts/e2e/preview-workbench.mjs",
+        "scripts/e2e/canvas-contract.mjs"
+      ],
+      "allowedEffects": [
+        "emit-design-mutation-accepted-with-presentational-flag",
+        "compute-visual-and-interaction-fingerprints",
+        "bind-named-human-visual-decision-to-candidate-hash",
+        "template-v1-promotion-lifecycle-binding",
+        "show-current-approval-state-read-only"
+      ],
+      "allowedDataClasses": [
+        "public",
+        "project-internal",
+        "synthetic-fixture"
+      ],
+      "forbiddenEffects": [
+        "provider-or-model-call-outside-existing-guarded-paths",
+        "network",
+        "credential-or-environment-access",
+        "new-endpoint-outside-isLocalApiAuthorized-guard",
+        "public-or-remote-origin",
+        "client-invitation",
+        "dependency-or-lockfile-change",
+        "page-ir-v1-or-generated-site-schema-change",
+        "mint-approval-client-lock-qualification-or-release-from-model-client-api-or-ui",
+        "deployment",
+        "release",
+        "rollback-execution",
+        "appointment-field-slot-lease-or-runtime",
+        "browser",
+        "collaboration-realtime-or-crdt",
+        "motion-authoring",
+        "edit-frozen-t01-t02-artifacts",
+        "edit-governance-defaults",
+        "edit-authority-manifest-outside-activation-write-set",
+        "parent-ticket-or-evaluation-promotion",
+        "independent-human-review-claim",
+        "production-readiness-or-release-1-exit-claim",
+        "numeric-quality-threshold"
+      ],
+      "predecessorBinding": {
+        "ticketId": "OBX-P200",
+        "authorizationId": "OBX-AUTH-R1-P1-SOLO-001",
+        "checkpointCommit": null,
+        "status": "PENDING_PREDECESSOR_MERGE",
+        "files": [
+          "src/lib/contracts.ts",
+          "src/lib/contracts.test.ts",
+          "src/lib/releaseLifecycle.ts",
+          "src/lib/releaseLifecycle.test.ts",
+          "src/lib/runstate.ts",
+          "src/lib/runstate.test.ts",
+          "src/lib/releaseLifecycleStore.ts",
+          "src/lib/releaseLifecycleStore.test.ts",
+          "src/lib/pageIrController.ts",
+          "src/lib/pageIrController.test.ts",
+          "src/lib/pipelineReplay.test.ts",
+          "src/app/api/lifecycle/[id]/route.ts",
+          "src/app/api/lifecycle/[id]/route.test.ts",
+          "src/components/preview/LifecycleStatus.tsx",
+          "src/components/preview/LifecycleStatus.test.tsx",
+          "src/app/preview/[id]/page.tsx",
+          "scripts/e2e/preview-workbench.mjs",
+          "docs/architecture/README.md",
+          "docs/security/local-api-threat-model.md"
+        ],
+        "expectedAbsentFiles": [
+          "src/lib/releaseLifecycle.ts",
+          "src/lib/releaseLifecycle.test.ts",
+          "src/lib/releaseLifecycleStore.ts",
+          "src/lib/releaseLifecycleStore.test.ts",
+          "src/app/api/lifecycle/[id]/route.ts",
+          "src/app/api/lifecycle/[id]/route.test.ts",
+          "src/components/preview/LifecycleStatus.tsx",
+          "src/components/preview/LifecycleStatus.test.tsx"
+        ]
+      },
+      "activationPrecondition": {
+        "predecessorAuthorizationId": "OBX-AUTH-R1-P1-SOLO-001",
+        "predecessorPhase": "P1",
+        "requirement": "No OBX-P210 child ticket may start until the OBX-AUTH-R1-P1-SOLO-001 phase merges to main and this record's predecessorBinding carries that merge commit together with the live digest of every declared P1 file.",
+        "enforcedBy": [
+          "scripts/verify-r1-phase-authorization.mjs validatePredecessorGate",
+          "invalidator predecessor-phase-not-merged"
+        ]
+      },
+      "planBindings": [
+        {
+          "path": "docs/superpowers/specs/2026-08-27-canvas-to-agency-shipping-design.md",
+          "algorithm": "sha256",
+          "digest": "92cac6f58d899f0686522a5d1898518bb0ca0054d962004e26a148d97a90ea15"
+        },
+        {
+          "path": "docs/plans/one-box-master/01-foundation/release-1-contract.md",
+          "algorithm": "sha256",
+          "digest": "8eb61c66683e5fcdd57cb09b5ce94c71987bbb4a8b83544ba89a91ab23676a81"
+        },
+        {
+          "path": "docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md",
+          "algorithm": "sha256",
+          "digest": "8d27cd2ff8744a304225010f08e8dcd233c8b57e7247b6955e89be286a2a47a4"
+        },
+        {
+          "path": "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+          "algorithm": "sha256",
+          "digest": "4bc4a10df2d57db3d564547279ad6352b166754663892dee10f7a03604917f8e"
+        }
+      ],
+      "governanceBindings": [
+        {
+          "path": "docs/governance/risk-exceptions/README.md",
+          "algorithm": "sha256",
+          "digest": "c5139be92b42987e70d73b6851530d4917c8716b96cfcfbda1c7e9a685f726c2"
+        },
+        {
+          "path": "docs/governance/reviewer-roles.md",
+          "algorithm": "sha256",
+          "digest": "ea1f4cf440ce3122bf40866c0097c516550d876e9674462bbe61edc7dcb701bc"
+        }
+      ],
+      "dependencyBindings": [
+        {
+          "path": "package.json",
+          "algorithm": "sha256",
+          "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"
+        },
+        {
+          "path": "package-lock.json",
+          "algorithm": "sha256",
+          "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"
+        }
+      ],
+      "amendmentBinding": {
+        "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+        "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
+        "algorithm": "sha256",
+        "digest": "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e"
+      },
+      "reviewProtocol": {
+        "exactModel": "x-ai/grok-4.6",
+        "lane": "openrouter-metered",
+        "effort": "high",
+        "auditScript": "scripts/eval/grok-audit.mjs",
+        "modelAuthority": "advisory-only",
+        "testAuthority": "deterministic-fixtures-vitest-node-test-and-e2e",
+        "packetReview": "one-ticket-readiness-packet-before-first-commit-and-one-final-diff-packet-before-merge",
+        "ownerAuthorizedFallbackAllowed": true,
+        "fallbackMustRetainFailedAttempt": true,
+        "fallbackMustIdentifyActualModel": true
+      },
+      "requiredEvidencePaths": [
+        "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json"
+      ],
+      "invalidators": [
+        "authorization-hash-mismatch",
+        "amendment-path-id-schema-or-hash-drift",
+        "predecessor-path-or-hash-drift",
+        "activation-write-set-or-handoff-drift",
+        "timestamp-invalid-expired-or-renewal",
+        "assignment-or-separation-claim",
+        "requirement-exception-drift",
+        "allowed-path-or-effect-drift",
+        "dependency-or-lockfile-change",
+        "governance-default-path-or-hash-drift",
+        "provider-network-credential-or-environment-effect",
+        "public-or-remote-origin-effect",
+        "browser-collaboration-or-motion-authoring-effect",
+        "page-ir-v1-or-generated-site-schema-change",
+        "deployment-release-or-rollback-effect",
+        "parent-ticket-or-evaluation-promotion",
+        "security-receipt-missing-stale-or-malformed",
+        "model-receipt-missing-stale-or-mislabelled",
+        "gate-failure",
+        "additional-unaccepted-finding",
+        "independent-review-or-production-readiness-claim",
+        "non-waivable-class-touched",
+        "package-json-or-lockfile-hash-drift",
+        "parent-ticket-status-drift",
+        "expired-t01-or-t02-record-in-registry",
+        "predecessor-phase-not-merged"
+      ],
+      "recordedAt": "2026-09-02T13:00:00Z",
+      "expiresAt": "2026-09-16T13:00:00Z",
+      "effectiveWindow": {
+        "recordedAt": "2026-09-02T13:00:00Z",
+        "expiresAt": "2026-09-16T13:00:00Z",
+        "effectiveExpiresAt": "2026-09-14T13:33:33Z",
+        "effectiveExpirySource": "OBX-AUTH-P180-T01-SOLO-001",
+        "effectiveExpiryReason": "This record's invalidator expired-t01-or-t02-record-in-registry fails the whole release-1 phase module once OBX-AUTH-P180-T01-SOLO-001 (2026-09-14T13:33:33Z) or OBX-AUTH-P180-T02-SOLO-001 (2026-09-14T21:47:59Z) expires, and both are non-renewable. The recorded 336-hour window therefore ends early, at 2026-09-14T13:33:33Z, unless the owner first decides a retirement mechanism for the frozen records."
+      },
+      "renewable": false,
+      "authorizationHash": {
+        "algorithm": "sha256",
+        "canonicalization": "canonical-json-v1",
+        "excludedJsonPointers": [
+          "/authorizationHash/digest"
+        ],
+        "digest": "716906736fe610373c1f8082f4acf1a6c57d52ccb2242b4ba23c712902b5444f"
+      }
     }
   ]
 }

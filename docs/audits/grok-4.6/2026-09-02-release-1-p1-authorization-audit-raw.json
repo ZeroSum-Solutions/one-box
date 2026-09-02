@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-02T16:22:26.639Z",
+  "request": {
+    "task": "Certify OBX-AUTH-R1-P1-SOLO-001 inside the complete wave-2 Release 1 governance change",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+    "head": "528dfd36f31c90673e0a466ca196ffd6311a0b3f",
+    "files": [
+      "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+      "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+      "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+      "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+      "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+      "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+      "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/plan-register.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "scripts/verify-r1-phase-authorization.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 272868,
+    "timeoutMs": 900000,
+    "maxOutputTokens": 12000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 81851,
+      "completion_tokens": 36502,
+      "total_tokens": 118353,
+      "cost": 0.382714,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.382714,
+        "upstream_inference_prompt_cost": 0.163702,
+        "upstream_inference_completions_cost": 0.219012
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 36193,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "No proof artifacts were supplied; assessment is from the diff only. Hash pins (frozen first-three slice, P1 self-hash, amendment/receipt digests, without-packetDigest) are internally consistent with each other and with live-hash checks in scripts/verify-r1-phase-authorization.mjs, but they were not independently recomputed here. New node tests encode fail-closed oracles for (1)-(5) and were not executed in this review.",
+    "residual_risks": [
+      "Frozen first-three byte pin cannot be compared to git show BASE_COMMIT at verify time (copied fixture, no git); a wrong pin that matches the current slice would still pass.",
+      "No source-scope walk of the tree or diff; later P1 work that edits files outside allowedPaths is not caught by this module.",
+      "Effect/forbidden-effect lists are not enforced against actual code.",
+      "Grok receipts are required by the module and tests but are not in the supplied git diff; a clean checkout fails closed if they are absent.",
+      "unavailableControls row bodies and owner-acceptance extra keys are weakly checked; contradiction there is still blocked by pinned independentHumanReview/grants and by receipt target hashes.",
+      "T02 receipt re-pin (four targetHashes) is a follow-up; P1 receipts omit that file and bind authority-manifest.json only via canonical-json-v1 without /packetDigest."
+    ]
+  }
+}

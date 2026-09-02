@@ -28,7 +28,7 @@
       "targetChangeInvalidatesReceipt": true
     }
   },
-  "packetDigest": "67623504e5856e9fc445f2d8bcb9bd0608f3fab3bb17e7f7368614541202fbef",
+  "packetDigest": "61afa7b8893f6c5bf5ad6a52b7d558856b8809a5943c82a5e0f8d76b34826397",
   "forbiddenPrimaryPathPrefixes": ["docs/audits/"],
   "authorityClassDefinitions": {
     "owner-approved": "Accepted normative product contract for its exact boundary; execution still follows its named ticket and authorization state.",
@@ -139,17 +139,31 @@
     "release-1": {
       "label": "Narrow Release 1 and re-delivery contract",
       "primaryPath": "docs/plans/one-box-master/01-foundation/release-1-contract.md",
-      "authorityClass": "proposed",
+      "authorityClass": "owner-approved",
       "implementationAuthorized": false,
+      "acceptanceRecord": {
+        "acceptedBy": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product owner",
+        "recordedAt": "2026-09-02",
+        "evidence": "Owner acceptance of the Release 1 packet recorded 2026-09-02 in docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json; grants for implementation, provider selection, deployment, client invitation, and appointment activation are all withheld."
+      },
       "relatedPaths": ["docs/security/local-api-threat-model.md"],
-      "boundary": "Planning contract pending owner acceptance and unresolved selection tickets."
+      "boundary": "Owner-approved Release 1 and re-delivery contract, accepted 2026-09-02 with every grant withheld. This manifest still grants no implementation permission; implementation follows the scoped registry at docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json. The section 10 unresolved decisions stay open: the deployment adapter, the client-review authentication and session mechanism, the hosting origin and system-of-record boundary, the frozen browser and device set, the first admitted Page IR and template-v1 fixture corpus, the named owner and independent verifier for each gate, the first-adapter monitor observations, and the accepted Release 1 qualification tool set."
     },
     "compatibility": {
       "label": "Release 1 compatibility and capability support",
       "primaryPath": "docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md",
-      "authorityClass": "proposed",
+      "authorityClass": "owner-approved",
       "implementationAuthorized": false,
-      "boundary": "Support matrix pending owner acceptance and baseline evidence."
+      "acceptanceRecord": {
+        "acceptedBy": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product owner",
+        "recordedAt": "2026-09-02",
+        "evidence": "Owner acceptance of the Release 1 packet recorded 2026-09-02 in docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json; grants for implementation, provider selection, deployment, client invitation, and appointment activation are all withheld."
+      },
+      "boundary": "Owner-approved Release 1 support and capability matrix, accepted 2026-09-02 with every grant withheld. Implementation follows the scoped registry. The unresolved compatibility decisions stay open: the exact Apple-silicon OS, runtime, and browser versions with the supported client-review browser set; the first admitted Page IR and template-v1 fixture corpus; the review-session transport and authentication mechanism; the unselected deployment provider and its adapter; monitor probes and the manual-operator boundary; and numeric accessibility, SEO, and performance targets, which remain unset until baseline evidence."
     },
     "target-topology": {
       "label": "Target desktop/cloud topology",
