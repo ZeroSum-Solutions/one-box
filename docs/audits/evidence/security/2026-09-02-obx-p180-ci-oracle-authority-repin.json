@@ -1,7 +1,7 @@
 {
   "schemaVersion": "obx-p180-authority-repin-review-v1",
   "reviewId": "obx-p180-ci-oracle-authority-repin-2026-09-02",
-  "reviewedAt": "2026-09-02T05:29:45-07:00",
+  "reviewedAt": "2026-09-02T06:40:00-07:00",
   "namedOwner": "Devin Wiggins",
   "scope": "Integrity re-pin after the plan-authority verifier learned to run on CI checkouts that cannot hold the untracked baseline (ENGINE-LEDGER REPO-010)",
   "ownerDirection": {
@@ -29,7 +29,8 @@
       "solo T01 structure keeps the exact baseline record but skips the file read under GITHUB_ACTIONS",
       "the full verifier passes under GITHUB_ACTIONS without the untracked baseline"
     ],
-    "localNote": "On a machine that does not hold the baseline, run GITHUB_ACTIONS=true npm run test:plans; the solo-local mode still requires the file."
+    "localNote": "On a machine that does not hold the baseline, run GITHUB_ACTIONS=true npm run test:plans; the solo-local mode still requires the file.",
+    "reviewAmendment": "Independent review (Opus, fresh context, PR #19) found that the record-binding assertion in the GITHUB_ACTIONS test ran under the ambient environment, so outside CI it re-proved the local mode. The node test now passes GITHUB_ACTIONS=true through the mutation helpers, and a red check against a verifier that skips the exact record comparison under CI fails on that assertion. Only scripts/verify-plan-authority.node.mjs changed; the verifier is byte-identical to the first re-pin."
   },
   "priorAuthorityManifest": {
     "packetDigest": "a09ed88d14c6070213e1c52164a2e606bd8c29e7fbe0ff833e546743907b3a38",
@@ -37,18 +38,18 @@
   },
   "currentAuthorityManifest": {
     "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
-    "packetDigest": "8871ecc2c700aec49407902e2573d79590f415b8f81b02819b1fac6fb4f87f38",
-    "sha256": "ef38ba67daab6720b1f8d036638f19b79682c5cac3c92429dd0abe43ae0dbece"
+    "packetDigest": "6abc215646fd239feb001fc3d94e8f3cf9ca39bdf7ab756763639178487e66ab",
+    "sha256": "10f67653302854aa76ba7944ec797c04dbaa799f4af26c04e1c1557f82b0d6c9"
   },
   "refreshedT02SecurityReceipt": {
     "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
     "priorSha256": "f2c0dfffe5dbe6ae65a111a59c9ec444da6165902351322c41b44141c10e3c83",
-    "sha256": "826bcafb269720ed869f0e12cfe25b5cbf74f3ca88186206ac8c3543879c7c1a",
+    "sha256": "c81a49c3129c5169409c5e3515cecf4d0962caa73c82c7f4d3eff8cda93b4510",
     "refreshedTargets": [
       {
         "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
         "priorDigest": "7a09999ccb21d81cd2dc5d9b98c5a055d8e52ec4073f70e45c1ae0f3f4aee5af",
-        "digest": "ef38ba67daab6720b1f8d036638f19b79682c5cac3c92429dd0abe43ae0dbece"
+        "digest": "10f67653302854aa76ba7944ec797c04dbaa799f4af26c04e1c1557f82b0d6c9"
       },
       {
         "path": "scripts/verify-plan-authority.mjs",
@@ -58,7 +59,7 @@
       {
         "path": "scripts/verify-plan-authority.node.mjs",
         "priorDigest": "cef45537e5f5dda202a879871041b95fc197f5c3ccd4653e89438bf5cab51ba3",
-        "digest": "565d46bdb5d2ed1650b9b1fefb0710d993e5a03fccbce89912b273ff18d58997"
+        "digest": "06a6bccc06301e33f98ff53f15372e42c8ad83f442e0d35671e597ee07c9139e"
       }
     ]
   },
@@ -72,9 +73,12 @@
     "npm run verify:plans without the baseline (fails only on the two baseline reads, by design)",
     "GITHUB_ACTIONS=true npm run test:plans (88 pass)",
     "npm test with vitest.config.ts (1399 pass)",
-    "npm run typecheck, npm run lint (0 errors, 6 pre-existing warnings), npm run build"
+    "npm run typecheck, npm run lint (0 errors, 6 pre-existing warnings), npm run build",
+    "independent code review of d74f3c0..ed811d8 (Opus, fresh context): ready with fixes; both Important findings addressed in this record's amendment and in ENGINE-LEDGER REPO-012",
+    "red check: a verifier that skips the exact record comparison under GITHUB_ACTIONS fails the strengthened test on the exact-value-drift assertion; restored verifier passes",
+    "second re-pin: node test digest, packet digest, manifest sha256, and T02 receipt sha256 refreshed; scripts/verify-plan-authority.mjs unchanged since the first re-pin"
   ],
-  "reEndorsement": "The T02 receipt target-hash refresh is an integrity re-pin after an owner-directed verifier behaviour change. It does not re-approve, broaden, or add implementation authority, and it does not weaken any gate outside GitHub Actions.",
+  "reEndorsement": "The T02 receipt target-hash refresh is an integrity re-pin after an owner-directed verifier behaviour change. It does not re-approve, broaden, or add implementation authority, and it does not weaken any gate outside GitHub Actions. Residual property, stated on purpose: GITHUB_ACTIONS is an environment variable, so a local operator can set it to skip the baseline file read; the recorded digest binding still holds in that case, only the local-file proof is skipped. Every environment-based CI detection shares this property; the sanctioned local use is the documented GITHUB_ACTIONS=true npm run test:plans on a machine that does not hold the baseline.",
   "invariants": {
     "implementationAuthorized": false,
     "authorityExpansion": false,
@@ -87,6 +91,7 @@
   "findingCount": 0,
   "ledgerRefs": [
     "REPO-010",
-    "REPO-011"
+    "REPO-011",
+    "REPO-012"
   ]
 }

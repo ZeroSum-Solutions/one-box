@@ -85,13 +85,13 @@ function runSoloT02Receipt() {
   return run(["--verify-solo-t02-receipt-only"]);
 }
 
-function withFileMutation(path, mutate, assertion, args = []) {
+function withFileMutation(path, mutate, assertion, args = [], extraEnv = {}) {
   const absolute = resolve(fixtureRoot, path);
   const original = readFileSync(absolute, "utf8");
   try {
     const replacement = mutate(original);
     if (typeof replacement === "string") writeFileSync(absolute, replacement);
-    const result = run(args);
+    const result = run(args, extraEnv);
     assert.notEqual(result.status, 0, `mutation unexpectedly passed\n${result.stdout}\n${result.stderr}`);
     assertion(result);
   } finally {
@@ -99,12 +99,12 @@ function withFileMutation(path, mutate, assertion, args = []) {
   }
 }
 
-function withJsonMutation(path, mutate, assertion, args = []) {
+function withJsonMutation(path, mutate, assertion, args = [], extraEnv = {}) {
   withFileMutation(path, (text) => {
     const value = JSON.parse(text);
     mutate(value);
     return `${JSON.stringify(value, null, 2)}\n`;
-  }, assertion, args);
+  }, assertion, args, extraEnv);
 }
 
 function canonicalJson(value) {
@@ -122,12 +122,12 @@ function rehashSoloRecord(registry) {
   record.authorizationHash.digest = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
 }
 
-function withSoloRecordMutation(mutate, assertion, { rehash = true, args = ["--verify-solo-structure-only"] } = {}) {
+function withSoloRecordMutation(mutate, assertion, { rehash = true, args = ["--verify-solo-structure-only"], env = {} } = {}) {
   withJsonMutation("docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", (registry) => {
     const record = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T01-SOLO-001");
     mutate(record, registry);
     if (rehash) rehashSoloRecord(registry);
-  }, assertion, args);
+  }, assertion, args, env);
 }
 
 function rehashSoloT02Record(registry) {
@@ -906,7 +906,7 @@ test("solo T01 structure keeps the exact baseline record but skips the file read
   });
   withSoloRecordMutation((record) => {
     record.preExistingUntrackedBaseline[0].digest = "0".repeat(64);
-  }, (result) => assert.match(result.stderr, /preExistingUntrackedBaseline: exact value drift/), ["--verify-solo-structure-only"]);
+  }, (result) => assert.match(result.stderr, /preExistingUntrackedBaseline: exact value drift/), { env: { GITHUB_ACTIONS: "true" } });
 });
 
 test("the full verifier passes under GITHUB_ACTIONS without the untracked baseline", () => {
