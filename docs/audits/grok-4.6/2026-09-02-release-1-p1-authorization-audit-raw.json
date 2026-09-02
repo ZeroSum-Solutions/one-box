@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-09-02T15:35:43.340Z",
+  "capturedAt": "2026-09-02T15:49:47.506Z",
   "request": {
     "task": "Certify OBX-AUTH-R1-P1-SOLO-001 inside the complete wave-2 Release 1 governance change",
     "model": "x-ai/grok-4.6",
     "effort": "high",
     "base": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
-    "head": "226c21b72dd59dc8b04065433a33e6615a523166",
+    "head": "bc2fb8b8f1ee6b15977d597d080871458e5b8e0a",
     "files": [
       "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
       "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
@@ -23,7 +23,7 @@
       "scripts/verify-r1-phase-authorization.mjs"
     ],
     "proofs": [],
-    "diffBytes": 265917,
+    "diffBytes": 268681,
     "timeoutMs": 900000,
     "maxOutputTokens": 12000
   },
@@ -31,10 +31,10 @@
     "id": "xAI",
     "model": "x-ai/grok-4.6",
     "usage": {
-      "prompt_tokens": 79826,
-      "completion_tokens": 40812,
-      "total_tokens": 120638,
-      "cost": 0.404332,
+      "prompt_tokens": 80658,
+      "completion_tokens": 39715,
+      "total_tokens": 120373,
+      "cost": 0.399414,
       "is_byok": false,
       "prompt_tokens_details": {
         "cached_tokens": 128,
@@ -43,12 +43,12 @@
         "video_tokens": 0
       },
       "cost_details": {
-        "upstream_inference_cost": 0.404332,
-        "upstream_inference_prompt_cost": 0.15946,
-        "upstream_inference_completions_cost": 0.244872
+        "upstream_inference_cost": 0.399414,
+        "upstream_inference_prompt_cost": 0.161124,
+        "upstream_inference_completions_cost": 0.23829
       },
       "completion_tokens_details": {
-        "reasoning_tokens": 39989,
+        "reasoning_tokens": 38469,
         "image_tokens": 0,
         "audio_tokens": 0
       }
@@ -58,27 +58,41 @@
     "verdict": "FINDINGS",
     "findings": [
       {
-        "severity": "HIGH",
+        "severity": "MEDIUM",
         "file": "scripts/verify-r1-phase-authorization.mjs",
         "line": "validateOwnerAcceptance",
-        "scenario": "Criterion (2)+(4) require this module to fail closed if implementationAuthorized is true in authority-manifest.json or the program ticket manifest. validateOwnerAcceptance only checks that the release-1 and compatibility domains stay false. Concrete input: set the manifest root implementationAuthorized to true (leave every domain false) and refresh authorityManifestWithoutPacketDigest plus expectedAuthorityWithoutDigestSha256; or set docs/tickets/one-box-program/manifest.json implementationAuthorized to true. Wrong behavior: verifyRelease1PhaseAuthorizations reports no failure for either flag, so a global implementation grant the owner withheld can ride through the named module.",
-        "remediation": "In validateOwnerAcceptance, fail unless authority.implementationAuthorized === false. Fail if ticketManifest.implementationAuthorized === true. Add node tests that flip each flag by itself and assert the R1 error string."
+        "scenario": "Criterion (2)+(4) require the R1 module to fail closed if implementationAuthorized is true on the authority manifest at the top level or on any domain. The module only checks authority.implementationAuthorized and domains.release-1 / domains.compatibility. Input: set authority.domains.canvas.implementationAuthorized (or website-source, operating-environment, target-topology, etc.) to true and leave release-1/compatibility false. Wrong behavior: node scripts/verify-r1-phase-authorization.mjs reports PASS and still treats OBX-AUTH-R1-P1-SOLO-001 as live. The parent verifier catches this only when it is the caller; the module's own main entry does not.",
+        "remediation": "In validateOwnerAcceptance, iterate every authority.domains.* (and keep the top-level check) and fail unless implementationAuthorized === false. Add a node test that flips a non-release-1 domain and asserts the R1 module failure string."
       },
       {
         "severity": "MEDIUM",
         "file": "scripts/verify-r1-phase-authorization.mjs",
-        "line": "GOVERNANCE_BINDINGS / DEPENDENCY_BINDINGS",
-        "scenario": "Criterion (3)+(4) require P1 governanceBindings and dependencyBindings to be byte-identical to the T02 record, with this module failing closed. The module exact()-compares those arrays to copied constants, not to the live OBX-AUTH-P180-T02-SOLO-001 record. Concrete input: change GOVERNANCE_BINDINGS (or DEPENDENCY_BINDINGS) and the P1 record to a new live file digest while leaving T02's bindings untouched. Wrong behavior: node scripts/verify-r1-phase-authorization.mjs passes even though P1 is no longer identical to T02.",
-        "remediation": "Load OBX-AUTH-P180-T02-SOLO-001 from the registry and exact() P1 governanceBindings and dependencyBindings to that record's arrays (still live-hash the files). Keep the frozen first-three-records byte pin. Add a test that diverges only the P1 copy."
+        "line": "validateOwnerAcceptance / acceptance.acceptedPaths",
+        "scenario": "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json attests release-1-contract.md and release-1-compatibility-matrix.md with SHA-256 digests, but the module never live-hashes those acceptedPaths. Input: rewrite the two contract files on disk while leaving acceptance.acceptedPaths and the P1 record untouched, then also refresh P1 planBindings+self-hash+module pin (or, cheaper, only corrupt the digests inside the acceptance file so it no longer matches the bytes it names). Wrong behavior: the acceptance record still PASSES R1 validation while the artefacts it attests have drifted or were never bound. planBindings protect the same paths only when the authorization record itself is updated; the acceptance object can lie independently.",
+        "remediation": "checkBindings(repoRoot, acceptance.acceptedPaths, 'release-1 owner packet acceptance.acceptedPaths', failures) and exact() those paths to the two contract files already named in PHASES P1 planPaths."
+      },
+      {
+        "severity": "LOW",
+        "file": "scripts/verify-r1-phase-authorization.mjs",
+        "line": "validateAmendment",
+        "scenario": "The amendment is not key-allowlisted. Input: add amendment.scope.allowedPathPrefixes=['src/'] or amendment.globalImplementationAuthorized=true while keeping the checked scalars identical. Wrong behavior: SHA-256 pin fails only if the file bytes change and then are not re-pinned; if an attacker updates P1_AMENDMENT_SHA256, amendmentBinding, and the record self-hash together, extra grant-shaped fields in the amendment are ignored. The registry record remains the code grant, but the amendment is the owner-solo instrument and can carry unaudited grants.",
+        "remediation": "checkKeys() the amendment and amendment.scope against an explicit allowlist; reject any extra grant field."
+      },
+      {
+        "severity": "LOW",
+        "file": "scripts/verify-r1-phase-authorization.mjs",
+        "line": "validateEffectiveWindow",
+        "scenario": "effectiveExpiryReason is only required to be a non-empty string; effectiveExpiresAt/source are exact, but the reason can be 'ok'. Also if T01/T02 expiresAt is unparseable, frozen.length!==2 and the function returns without pushing an effectiveWindow failure (other functions usually still fail).",
+        "remediation": "exact() the reason to the recorded sentence; if frozen.length!==2 push an explicit effectiveWindow failure instead of return."
       }
     ],
-    "proof_assessment": "No proof artifacts were supplied. Review is static against the diff only. The P1 record shape in scoped-implementation-authorizations.json matches the listed (3) fields (single-file paths, closed effects, empty nonWaivableClassesTouched, null predecessorBinding/activationPrecondition, 336-hour non-renewable window with effectiveExpiresAt 2026-09-14T13:33:33Z sourced from T01, canonical-json-v1 self-hash field). First three registry records are not edited except a trailing comma outside the frozen slice. Manifest top-level and domain implementationAuthorized remain false. Receipts bind the manifest via canonical-json-v1 without /packetDigest, which is the intended stability mechanism for the follow-on re-pin. Hashes themselves were not recomputed here.",
+    "proof_assessment": "No proof artifacts were supplied. SHA-256 pins (P1 self-hash 60a23140…, frozen-registry slice 18c6e7ee…, amendment cc4fbde4…, receipt targetHashes, without-packetDigest 8bbf07e6…) were not recomputed. The diff text shows the first three registry records were not in the changed hunk, P1 allowedPaths are all single files, allowedEffects are a closed six-member list, nonWaivableClassesTouched is [], predecessorBinding and activationPrecondition are null, governanceBindings/dependencyBindings match the T02 values in the same file, the recorded window is 336 hours non-renewable, and effectiveWindow.effectiveExpiresAt/source name T01 at 2026-09-14T13:33:33Z. Receipts omit authority-manifest.json from targetHashes and bind it via canonical-json-v1 without /packetDigest, which is the mechanism for criterion (5). Tests in verify-plan-authority.node.mjs are claims, not executed evidence.",
     "residual_risks": [
-      "Grok receipts are in activationWriteSet/requiredEvidencePaths and the new node tests mutate them, but they are not in this git slice; this review cannot attest they exist or that they only allow the documented T02 targetHashes re-pin.",
-      "ownerDirection (record and amendment) is not exact-key-checked; extra keys would pass the module.",
-      "validateEffectiveWindow returns without checking the window if either frozen T01/T02 expiresAt is unparsable; the sibling frozen-record check still fails closed in that case.",
-      "The R1 module never inspects the T02 security receipt to prove a re-pin changed only four targetHashes digests.",
-      "Duplicate JSON key authorizations could desync frozenRegistrySlice (first key) from JSON.parse (last key); ATF/T01/T02 canonical pins in the parent verifier would still need to be beaten."
+      "Module has no git: frozen-slice hash cannot be independently compared to base 4b02f75… at verify time; auditedHeadCommit and allowedPaths-vs-tree are not checkable in the copied fixture.",
+      "Grok receipts listed in activationWriteSet/requiredEvidencePaths are not in this git slice; a green run depends on unaudited files that can change without moving the P1 self-hash.",
+      "The follow-up re-pin rewrites T02 receipt targetHashes; this HEAD may already make T02 live receipt checks fail, or those checks do not bind the four changed files.",
+      "P2 implementationAuthorized true with PENDING_PREDECESSOR_MERGE only blocks expectedAbsentFiles and child tickets; existing P2 allowedPaths can be edited before P1 merges.",
+      "The verifier is self-attesting: weakening scripts/verify-r1-phase-authorization.mjs plus rewriting the security receipt targetHashes does not move P1_AUTHORIZATION_SHA256."
     ]
   }
 }

@@ -174,6 +174,27 @@ const FORBIDDEN_EFFECTS = [
   "numeric-quality-threshold",
 ];
 
+const ACCEPTED_CONTRACT_PATHS = [
+  "docs/plans/one-box-master/01-foundation/release-1-contract.md",
+  "docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md",
+];
+
+const EFFECTIVE_EXPIRY_REASON = "This record's invalidator expired-t01-or-t02-record-in-registry fails the whole release-1 phase module once OBX-AUTH-P180-T01-SOLO-001 (2026-09-14T13:33:33Z) or OBX-AUTH-P180-T02-SOLO-001 (2026-09-14T21:47:59Z) expires, and both are non-renewable. The recorded 336-hour window therefore ends early, at 2026-09-14T13:33:33Z, unless the owner first decides a retirement mechanism for the frozen records.";
+
+const AMENDMENT_KEYS = [
+  "schemaVersion", "amendmentId", "recordKind", "status", "authorizationId", "projectId",
+  "branch", "baseCommit", "activationBaseCommit", "parentTicketId", "childTicketIds",
+  "implementationAuthorized", "predecessor", "activationPrecondition", "ownerDirection",
+  "standardWaiverEligible", "nonWaivableDefaultPreserved", "nonWaivableClassesTouched",
+  "unavailableControls", "requirementExceptions", "acceptedRisk", "scope", "reviewProtocol",
+  "requiredEvidencePaths", "compensatingControls", "independentHumanReview", "recordedAt",
+  "expiresAt", "effectiveWindow", "renewable",
+];
+const AMENDMENT_SCOPE_KEYS = [
+  "denyUnlistedPathsAndEffects", "allowedPaths", "allowedEffects", "allowedDataClasses",
+  "forbiddenEffects",
+];
+
 const ALLOWED_DATA_CLASSES = ["public", "project-internal", "synthetic-fixture"];
 
 const REVIEW_PROTOCOL = {
@@ -721,6 +742,11 @@ function validateAmendment(repoRoot, phase, record, failures) {
     digest: phase.amendmentSha256,
   }, `${record.id}.amendmentBinding`, failures);
   if (!amendment) return;
+  // The amendment is the owner instrument. An unlisted key here could read as a
+  // grant to a human even though the registry record is the only code authority,
+  // so the shape is allowlisted rather than merely spot-checked.
+  checkKeys(amendment, AMENDMENT_KEYS, label, failures);
+  checkKeys(amendment.scope, AMENDMENT_SCOPE_KEYS, `${label}.scope`, failures);
   const scalars = {
     schemaVersion: 1,
     amendmentId: phase.amendmentId,
@@ -1140,7 +1166,10 @@ function validateEffectiveWindow(record, registry, failures) {
   const frozen = ["OBX-AUTH-P180-T01-SOLO-001", "OBX-AUTH-P180-T02-SOLO-001"]
     .map((id) => (registry?.authorizations ?? []).find((candidate) => candidate?.id === id))
     .filter((candidate) => candidate && Number.isFinite(Date.parse(candidate.expiresAt)));
-  if (frozen.length !== 2) return;
+  if (frozen.length !== 2) {
+    failures.push(`${label}: both frozen registry records must carry a parsable expiry before an effective window can be checked`);
+    return;
+  }
   const earliest = frozen.reduce((soonest, candidate) => (
     Date.parse(candidate.expiresAt) < Date.parse(soonest.expiresAt) ? candidate : soonest
   ));
@@ -1160,7 +1189,7 @@ function validateEffectiveWindow(record, registry, failures) {
   } else if (effective > Date.parse(record.expiresAt)) {
     failures.push(`${label}: effectiveExpiresAt cannot outlast the recorded expiry`);
   }
-  if (typeof window?.effectiveExpiryReason !== "string" || window.effectiveExpiryReason.length === 0) {
+  if (window?.effectiveExpiryReason !== EFFECTIVE_EXPIRY_REASON) {
     failures.push(`${label}: effectiveExpiryReason must state why the window closes early`);
   }
 }
@@ -1170,6 +1199,8 @@ function validateOwnerAcceptance(repoRoot, authority, ticketManifest, failures) 
   const acceptance = readJson(repoRoot, ACCEPTANCE_PATH, label, failures);
   if (acceptance) {
     if (acceptance.recordKind !== "owner-packet-acceptance-v1") failures.push(`${label}: recordKind drift`);
+    exact(acceptance.acceptedPaths?.map((binding) => binding?.path), ACCEPTED_CONTRACT_PATHS, `${label}.acceptedPaths`, failures);
+    checkBindings(repoRoot, acceptance.acceptedPaths, `${label}.acceptedPaths`, failures);
     if (acceptance.ownerResponse !== OWNER_RESPONSE) failures.push(`${label}: ownerResponse is not the owner's verbatim words`);
     for (const [grant, value] of Object.entries(acceptance.grants ?? {})) {
       if (value !== false) failures.push(`${label}: grant ${grant} must be false`);
@@ -1205,6 +1236,11 @@ function validateOwnerAcceptance(repoRoot, authority, ticketManifest, failures) 
   // granted implementation on its own.
   if (authority?.implementationAuthorized !== false) {
     failures.push("authority manifest: release-1 phase authorizations require implementationAuthorized false at the top level");
+  }
+  for (const [domainId, domain] of Object.entries(authority?.domains ?? {})) {
+    if (domain?.implementationAuthorized !== false) {
+      failures.push(`${domainId}: release-1 phase authorizations require implementationAuthorized false on every domain`);
+    }
   }
   if (ticketManifest?.implementationAuthorized !== false) {
     failures.push("program ticket manifest: release-1 phase authorizations require implementationAuthorized false");

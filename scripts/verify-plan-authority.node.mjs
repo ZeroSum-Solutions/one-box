@@ -1269,6 +1269,41 @@ test("a phase record cannot drift from the frozen T02 dependency and governance 
   });
 });
 
+test("a phase record refuses a grant on any other planning domain", () => {
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.domains.canvas.implementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /canvas: release-1 phase authorizations require implementationAuthorized false on every domain/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("the owner packet acceptance must hash the contracts it accepts", () => {
+  const acceptancePath = "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json";
+  withJsonMutation(acceptancePath, (acceptance) => {
+    acceptance.acceptedPaths[0].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /acceptedPaths\[0\]: current hash drift docs\/plans\/one-box-master\/01-foundation\/release-1-contract\.md/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(acceptancePath, (acceptance) => {
+    acceptance.acceptedPaths = [acceptance.acceptedPaths[0]];
+  }, (result) => {
+    assert.match(result.stderr, /acceptedPaths: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a phase amendment cannot carry an unlisted grant field", () => {
+  withJsonMutation("docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json", (amendment) => {
+    amendment.globalImplementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /amendment\.keys: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation("docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json", (amendment) => {
+    amendment.scope.allowedPathPrefixes = ["src/"];
+  }, (result) => {
+    assert.match(result.stderr, /amendment\.scope\.keys: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
 test("re-pinning the packet digest cannot invalidate a phase receipt", () => {
   withJsonMutation(authorityManifestPath, (authority) => {
     authority.packetDigest = "0".repeat(64);
