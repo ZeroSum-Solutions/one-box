@@ -276,6 +276,7 @@ const expectedSoloActivationWriteSet = [
   "scripts/verify-plan-authority.node.mjs",
   ...expectedSoloEvidencePaths,
 ];
+const isGithubActions = process.env.GITHUB_ACTIONS === "true";
 const expectedSoloUntrackedBaseline = [{
   path: ".claude/handoffs/one-box-operating-environment-next-phase.md",
   algorithm: "sha256",
@@ -606,7 +607,10 @@ function validateSoloAuthorization(record, authority, ticketManifest, evalManife
   }
 
   exactJson(record.activationWriteSet, expectedSoloActivationWriteSet, `${label}.activationWriteSet`);
-  validateHashBindings(record.preExistingUntrackedBaseline, expectedSoloUntrackedBaseline, `${label}.preExistingUntrackedBaseline`);
+  // The untracked baseline is a local-machine file that CI checkouts cannot hold. Under
+  // GITHUB_ACTIONS the exact record binding is still enforced but the file is not read.
+  validateHashBindings(record.preExistingUntrackedBaseline, expectedSoloUntrackedBaseline, `${label}.preExistingUntrackedBaseline`, !isGithubActions);
+  if (isGithubActions) console.log("NOTE untracked baseline read skipped under GITHUB_ACTIONS; exact record binding still enforced");
   exactJson(record.childTicketIds, ["OBX-P180-T01"], `${label}.childTicketIds`);
 
   if (!Array.isArray(record.roleAvailability) || record.roleAvailability.length !== expectedSoloRoleIds.length) {

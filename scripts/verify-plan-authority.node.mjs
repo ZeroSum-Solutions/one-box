@@ -8,6 +8,7 @@ import {
 } from "node:test";
 import {
   cpSync,
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -20,6 +21,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const untrackedBaselinePath = ".claude/handoffs/one-box-operating-environment-next-phase.md";
 let fixtureRoot;
 let verifier;
 
@@ -29,10 +31,10 @@ before(() => {
   for (const path of ["AGENTS.md", "README.md", "CONTRIBUTING.md", ".env.example", "package.json"]) cpSync(resolve(sourceRoot, path), resolve(fixtureRoot, path));
   cpSync(resolve(sourceRoot, "package-lock.json"), resolve(fixtureRoot, "package-lock.json"));
   mkdirSync(resolve(fixtureRoot, ".claude/handoffs"), { recursive: true });
-  cpSync(
-    resolve(sourceRoot, ".claude/handoffs/one-box-operating-environment-next-phase.md"),
-    resolve(fixtureRoot, ".claude/handoffs/one-box-operating-environment-next-phase.md"),
-  );
+  // The untracked baseline is a local-machine file; CI checkouts do not hold it.
+  if (existsSync(resolve(sourceRoot, untrackedBaselinePath))) {
+    cpSync(resolve(sourceRoot, untrackedBaselinePath), resolve(fixtureRoot, untrackedBaselinePath));
+  }
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
   for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
@@ -847,4 +849,70 @@ test("owner-approved acceptance records use a durable human identity reference",
   withJsonMutation("docs/plans/one-box-master/00-authority/authority-manifest.json", (authority) => {
     delete authority.domains.canvas.acceptanceRecord.identityRef;
   }, (result) => assert.match(result.stderr, /canvas: owner-approved class requires durable human identityRef and role/));
+});
+
+function runWithEnvironment(args, mutateEnvironment) {
+  const environment = { ...process.env };
+  mutateEnvironment(environment);
+  return spawnSync(process.execPath, [verifier, ...args], { cwd: fixtureRoot, encoding: "utf8", env: environment });
+}
+
+function runOutsideGithubActions(args = []) {
+  return runWithEnvironment(args, (environment) => {
+    delete environment.GITHUB_ACTIONS;
+  });
+}
+
+function runInsideGithubActions(args = []) {
+  return runWithEnvironment(args, (environment) => {
+    environment.GITHUB_ACTIONS = "true";
+  });
+}
+
+function withUntrackedBaseline(content, callback) {
+  const absolute = resolve(fixtureRoot, untrackedBaselinePath);
+  const original = existsSync(absolute) ? readFileSync(absolute) : null;
+  try {
+    if (content === null) rmSync(absolute, { force: true });
+    else writeFileSync(absolute, content);
+    callback();
+  } finally {
+    if (original === null) rmSync(absolute, { force: true });
+    else writeFileSync(absolute, original);
+  }
+}
+
+test("solo T01 structure reads the untracked baseline outside GitHub Actions", () => {
+  withUntrackedBaseline(null, () => {
+    const result = runOutsideGithubActions(["--verify-solo-structure-only"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /preExistingUntrackedBaseline: current hash drift/);
+  });
+});
+
+test("a drifted untracked baseline fails outside GitHub Actions", () => {
+  withUntrackedBaseline("drifted baseline\n", () => {
+    const result = runOutsideGithubActions(["--verify-solo-structure-only"]);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /preExistingUntrackedBaseline: current hash drift/);
+  });
+});
+
+test("solo T01 structure keeps the exact baseline record but skips the file read under GITHUB_ACTIONS", () => {
+  withUntrackedBaseline(null, () => {
+    const result = runInsideGithubActions(["--verify-solo-structure-only"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /NOTE untracked baseline read skipped under GITHUB_ACTIONS/);
+  });
+  withSoloRecordMutation((record) => {
+    record.preExistingUntrackedBaseline[0].digest = "0".repeat(64);
+  }, (result) => assert.match(result.stderr, /preExistingUntrackedBaseline: exact value drift/), ["--verify-solo-structure-only"]);
+});
+
+test("the full verifier passes under GITHUB_ACTIONS without the untracked baseline", () => {
+  withUntrackedBaseline(null, () => {
+    const result = runInsideGithubActions([]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Plan authority verification passed/);
+  });
 });

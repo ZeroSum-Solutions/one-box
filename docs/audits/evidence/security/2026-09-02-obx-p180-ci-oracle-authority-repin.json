@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "obx-p180-authority-repin-review-v1",
+  "reviewId": "obx-p180-ci-oracle-authority-repin-2026-09-02",
+  "reviewedAt": "2026-09-02T05:29:45-07:00",
+  "namedOwner": "Devin Wiggins",
+  "scope": "Integrity re-pin after the plan-authority verifier learned to run on CI checkouts that cannot hold the untracked baseline (ENGINE-LEDGER REPO-010)",
+  "ownerDirection": {
+    "actorId": "person:devin-wiggins",
+    "channel": "Claude Code session, 2026-09-02",
+    "request": "Merge PR 18 now, and authorize W0.0 so PR 19 can go green and merge. During the run: you merge between waves, or you grant ZS_ALLOW_GIT=1 for this session.",
+    "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1 ... please, any blockers, let's take care of them now so we can run this on a loop."
+  },
+  "derivedWriteAuthorization": {
+    "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-packet-digest-derived-write-authorization.json",
+    "algorithm": "sha256",
+    "digest": "5aa48df3c780dc530a48bf6c699c185dc257510c9e76bb2638dbcad46b8a5fa2"
+  },
+  "verifierBehaviorChange": {
+    "files": [
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "switch": "process.env.GITHUB_ACTIONS === \"true\"",
+    "retained": "exact preExistingUntrackedBaseline record binding in every mode; every other gate unchanged",
+    "skipped": "the local file read of the untracked baseline, only under GITHUB_ACTIONS, announced on stdout as NOTE",
+    "tests": [
+      "solo T01 structure reads the untracked baseline outside GitHub Actions",
+      "a drifted untracked baseline fails outside GitHub Actions",
+      "solo T01 structure keeps the exact baseline record but skips the file read under GITHUB_ACTIONS",
+      "the full verifier passes under GITHUB_ACTIONS without the untracked baseline"
+    ],
+    "localNote": "On a machine that does not hold the baseline, run GITHUB_ACTIONS=true npm run test:plans; the solo-local mode still requires the file."
+  },
+  "priorAuthorityManifest": {
+    "packetDigest": "a09ed88d14c6070213e1c52164a2e606bd8c29e7fbe0ff833e546743907b3a38",
+    "sha256": "7a09999ccb21d81cd2dc5d9b98c5a055d8e52ec4073f70e45c1ae0f3f4aee5af"
+  },
+  "currentAuthorityManifest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "packetDigest": "8871ecc2c700aec49407902e2573d79590f415b8f81b02819b1fac6fb4f87f38",
+    "sha256": "ef38ba67daab6720b1f8d036638f19b79682c5cac3c92429dd0abe43ae0dbece"
+  },
+  "refreshedT02SecurityReceipt": {
+    "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+    "priorSha256": "f2c0dfffe5dbe6ae65a111a59c9ec444da6165902351322c41b44141c10e3c83",
+    "sha256": "826bcafb269720ed869f0e12cfe25b5cbf74f3ca88186206ac8c3543879c7c1a",
+    "refreshedTargets": [
+      {
+        "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "priorDigest": "7a09999ccb21d81cd2dc5d9b98c5a055d8e52ec4073f70e45c1ae0f3f4aee5af",
+        "digest": "ef38ba67daab6720b1f8d036638f19b79682c5cac3c92429dd0abe43ae0dbece"
+      },
+      {
+        "path": "scripts/verify-plan-authority.mjs",
+        "priorDigest": "8eb7ae72a3d441f0002a635bcce14f7c317eaa25eb551a59ee4c9d90721e7782",
+        "digest": "72ce3aac6b8b396db58184bad6220ad42abff10186d303c74bef88fffdb0c5d2"
+      },
+      {
+        "path": "scripts/verify-plan-authority.node.mjs",
+        "priorDigest": "cef45537e5f5dda202a879871041b95fc197f5c3ccd4653e89438bf5cab51ba3",
+        "digest": "565d46bdb5d2ed1650b9b1fefb0710d993e5a03fccbce89912b273ff18d58997"
+      }
+    ]
+  },
+  "manifestChangedFields": [
+    "packetDigest"
+  ],
+  "reReviewMethod": [
+    "structural comparison against HEAD authority-manifest JSON (only /packetDigest changed)",
+    "derived-write authorization validation",
+    "GITHUB_ACTIONS=true npm run verify:plans (PASS, NOTE line present)",
+    "npm run verify:plans without the baseline (fails only on the two baseline reads, by design)",
+    "GITHUB_ACTIONS=true npm run test:plans (88 pass)",
+    "npm test with vitest.config.ts (1399 pass)",
+    "npm run typecheck, npm run lint (0 errors, 6 pre-existing warnings), npm run build"
+  ],
+  "reEndorsement": "The T02 receipt target-hash refresh is an integrity re-pin after an owner-directed verifier behaviour change. It does not re-approve, broaden, or add implementation authority, and it does not weaken any gate outside GitHub Actions.",
+  "invariants": {
+    "implementationAuthorized": false,
+    "authorityExpansion": false,
+    "runtimeOrDependencyChange": false,
+    "providerBackedProductRoute": false,
+    "persistenceBrowserCollaborationDeploymentRelease": false,
+    "pageIrMutation": false
+  },
+  "verdict": "PASS",
+  "findingCount": 0,
+  "ledgerRefs": [
+    "REPO-010",
+    "REPO-011"
+  ]
+}
