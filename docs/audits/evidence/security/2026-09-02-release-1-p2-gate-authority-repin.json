@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "obx-p180-authority-repin-review-v1",
+  "reviewId": "one-box-release-1-p2-gate-authority-repin-2026-09-02",
+  "reviewedAt": "2026-09-02T12:40:00-07:00",
+  "namedOwner": "Devin Wiggins",
+  "scope": "Integrity re-pin after correcting the OBX-AUTH-R1-P2-SOLO-001 pending-predecessor gate on branch wave-2/p2-gate-fix, cut from origin/main at 1e5b12e. The changed packet bytes are scripts/verify-r1-phase-authorization.mjs (validatePredecessorGate) and scripts/verify-plan-authority.node.mjs (five tests replace one). Both phase security receipts and both Grok 4.6 phase model receipts are regenerated because they hash those two files. No authorization record changed: OBX-AUTH-R1-P1-SOLO-001 and OBX-AUTH-R1-P2-SOLO-001 are byte-identical to origin/main, expectedAbsentFiles included, and the three frozen records are untouched. No other packet input changed.",
+  "ownerDirection": {
+    "actorId": "person:devin-wiggins",
+    "channel": "Claude Code session, 2026-09-02",
+    "request": "Approve the autonomous run one-box-gauntlet-r1, merge PR #18, accept the Release 1 packet, and say which waves to run.",
+    "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1. Number two, I accept the release packet. Number three, let's run zero through three. Number four, please provide me an initialization prompt so that I can fan out, do research, and gather real agency analysis inside of Codex, in a separate session. For visual quality bars I've added 2 different worksheets ... please, any blockers, let's take care of them now so we can run this on a loop.",
+    "ownerResponseSource": "~/.claude/goal-state/one-box-gauntlet-r1/contract.md section 7, lines 179-184. Quoted byte-for-byte from that record. The ellipsis is the contract's own elision of the owner's message, made when the owner block was filled; it is not this record's abridgement. That contract file is outside the repository, so it is not hash-pinned here.",
+    "pathListDerivation": "The owner named no file. His words authorize the run's waves ('let's run zero through three') and end with 'any blockers, let's take care of them now so we can run this on a loop'. The blocker this change removes is REPO-014: the P2 pending-predecessor gate failed every P1 branch that created a file the live P1 record authorizes it to create, so wave 2 could not proceed on a loop. The two changed files are the verifier module that carries the defect and the node test file that proves the corrected semantics. No authorization record, governance default, dependency or lockfile is touched.",
+    "authorizationBoundaryStatedPlainly": "This is a mechanism correction, not a grant. The owner authorized running waves 0 through 3 and accepted the Release 1 packet; he did not name a verifier change and no owner ever names a packet re-pin. This record must not be read as owner approval of either. It grants no implementation authority of its own and widens none: the implementation grants live in OBX-AUTH-R1-P1-SOLO-001 and OBX-AUTH-R1-P2-SOLO-001, whose bytes this change does not touch, and their allowedPaths, allowedEffects, forbiddenEffects and expiry are exactly what origin/main already carried. What changes is only when the verifier calls the P2 activation precondition violated."
+  },
+  "ownerDirectionAuthorization": {
+    "packetDigestWrite": {
+      "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-packet-digest-derived-write-authorization.json",
+      "algorithm": "sha256",
+      "digest": "5aa48df3c780dc530a48bf6c699c185dc257510c9e76bb2638dbcad46b8a5fa2",
+      "covers": "/packetDigest only",
+      "note": "This re-pin writes nothing else in the authority manifest. manifestChangedFields below is the single field /packetDigest, so the derived-write authorization covers the whole manifest change this time, unlike the wave-2 re-pin it supersedes."
+    },
+    "domainClassEdits": {
+      "path": "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+      "algorithm": "sha256",
+      "digest": "082556497e99c6725c150887b02ce757f75fe5455077da89ee5bfcd084308a59",
+      "covers": "nothing in this re-pin; recorded so the superseded record's authorization chain stays readable",
+      "note": "domains.release-1 and domains.compatibility keep the owner-approved class this acceptance authorized in the wave-2 re-pin. No domain field moves here."
+    },
+    "phaseAuthorizationAmendments": [
+      {
+        "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+        "amendmentId": "OBX-R1-P1-SOLO-AMENDMENT-001",
+        "algorithm": "sha256",
+        "digest": "cc4fbde44e5c6e37511ba6b13a2b2f4d583ccefff4aa25adeaf94092683915ce",
+        "covers": "OBX-AUTH-R1-P1-SOLO-001, unchanged by this re-pin and re-hashed here as evidence that it is unchanged"
+      },
+      {
+        "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+        "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
+        "algorithm": "sha256",
+        "digest": "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e",
+        "covers": "OBX-AUTH-R1-P2-SOLO-001, unchanged by this re-pin and re-hashed here as evidence that it is unchanged. Its scope, activation precondition and predecessor block, expectedAbsentFiles included, are byte-identical to origin/main"
+      }
+    ],
+    "notWaived": "docs/governance/reviewer-roles.md, docs/governance/risk-exceptions/README.md, package.json and package-lock.json are byte-identical to origin/main at 1e5b12e; git diff --stat origin/main over those four paths is empty, exit 0. The eight non-waivable high-risk classes are untouched: both phase records still carry nonWaivableClassesTouched: [] and the release-1 phase module still fails any record that names one. Independent human review stays NOT_AVAILABLE in both records."
+  },
+  "verifierBehaviorChange": {
+    "files": [
+      "scripts/verify-r1-phase-authorization.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "switch": "validatePredecessorGate no longer treats OBX-AUTH-R1-P2-SOLO-001.predecessorBinding.expectedAbsentFiles as a claim about the current tree. Those eight paths are exactly the files the live OBX-AUTH-R1-P1-SOLO-001 record authorizes P1 to create, so the old existence check failed every P1 branch that did its authorized work (REPO-014; observed on wave-2/p1 at 05fe84c with src/lib/releaseLifecycle.ts and src/lib/releaseLifecycle.test.ts present: two FAIL lines from verify:plans and nine failing node tests). The field is now read as the record of what was absent when the record was written; its shape is still checked, and every entry must still be a declared predecessor file.",
+    "added": "Two refusals replace the one that was removed. First, a path OBX-AUTH-R1-P2-SOLO-001 authorizes that no P1 ticket scope names, and that does not exist at 4b02f75f, may not exist in the tree; the thirteen phase-only paths that do exist at that commit are pinned in the module as P2_PRE_EXISTING_PHASE_ONLY_PATHS, and each is checked to be a phase-only path and to still exist, so an early P2 file cannot be laundered into the pin without changing a hashed verifier file and both receipt sets. Second, a predecessor record that no longer carries implementationAuthorized true is refused, because a pending phase waits on a live grant.",
+    "retained": "The checkpoint-commit refusal, the exact binding.files-against-predecessor-allowedPaths comparison, the disjoint-effects check, the missing-predecessor and expired-predecessor refusals, the OBX-P210 child-ticket refusal in the program manifest, and the COMPLETED_VERIFIED branch are unchanged. Every other check in the module, in scripts/verify-plan-authority.mjs, in the T01 validator and in the T02 module is unchanged; scripts/verify-plan-authority.mjs is byte-identical to origin/main. implementationAuthorized stays forced false on the authority manifest and the program ticket manifest, and no ticket status moved.",
+    "tests": "scripts/verify-plan-authority.node.mjs replaces the single test that encoded the defect ('a pending predecessor fails closed once the predecessor phase lands') with five: a positive test that creates all eight declared P1 files in the fixture tree and requires the full verifier to exit 0, and four negative tests covering a path only OBX-AUTH-R1-P2-SOLO-001 authorizes appearing early, a binding file list that is not the predecessor's allowedPaths, a predecessor that no longer authorizes implementation, and an expired predecessor. The file now holds 119 tests, 115 before, all passing under GITHUB_ACTIONS=true npm run test:plans."
+  },
+  "priorAuthorityManifest": {
+    "commit": "1e5b12e28d89fc1dba6e826e65f0aee3d9d656d6",
+    "packetDigest": "61afa7b8893f6c5bf5ad6a52b7d558856b8809a5943c82a5e0f8d76b34826397",
+    "sha256": "3fde4060c310b7c7fd9d237a07d996ec140e6d89f0106c70cf44b2482a851fea"
+  },
+  "currentAuthorityManifest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "packetDigest": "d3178d00061781dab42d945e4f682552abade49a70b9e38aa13935b3ac5e9e63",
+    "sha256": "4d74be12a9a16c18d4279a8c2c85fbea086b8893e6c724a24b64fafa5aaea5cf"
+  },
+  "refreshedT02SecurityReceipt": {
+    "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+    "priorSha256": "02871b1f7c7a82857756c2692e34a8ddde286a8cf0c19b7ccfca61778d0e362e",
+    "sha256": "42ace32d53746aed1005a4682f1bb35b98165dc5162e7dad76054a73eab651bd",
+    "refreshedTargets": [
+      {
+        "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "priorDigest": "3fde4060c310b7c7fd9d237a07d996ec140e6d89f0106c70cf44b2482a851fea",
+        "digest": "4d74be12a9a16c18d4279a8c2c85fbea086b8893e6c724a24b64fafa5aaea5cf",
+        "refreshedBy": "this re-pin, after the packet digest was written"
+      },
+      {
+        "path": "scripts/verify-plan-authority.node.mjs",
+        "priorDigest": "cbe797dfb575d0586a6ec24b5289bbf452d19eb9ac7db7ad8883d2f5ee08d516",
+        "digest": "5488f8eb6a53a43cb252926057887ddf52b4c8d5bcc5c71862f8da0ec9bcfad6",
+        "refreshedBy": "commit 5b6bf76, the five predecessor-gate tests"
+      }
+    ],
+    "unchangedTargets": "The scoped registry, the risk-exception amendment, both T02 plan documents, scripts/verify-plan-authority.mjs and scripts/verify-p180-t02-authorization.mjs keep their recorded digests. targetPaths order and every other receipt field are unchanged; the file differs from origin/main by exactly two lines."
+  },
+  "refreshedPhaseReceipts": [
+    {
+      "path": "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+      "sha256": "f3dfcd0240ad53bb79195d4dd1f9270ad53a554ab2b8598bdce9fa7a7aa3bd14",
+      "refreshedTargets": ["scripts/verify-plan-authority.node.mjs", "scripts/verify-r1-phase-authorization.mjs"],
+      "note": "Two digest lines. targetPaths order, the accepted separation finding and every other field are unchanged."
+    },
+    {
+      "path": "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+      "sha256": "db6a3142934462ce8fa8d1d8d5be0caca3183e3e0a8a329506c6cb7a7d4f1dd3",
+      "refreshedTargets": ["scripts/verify-plan-authority.node.mjs", "scripts/verify-r1-phase-authorization.mjs"],
+      "note": "Two digest lines. targetPaths order, the accepted separation finding and every other field are unchanged."
+    },
+    {
+      "path": "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json",
+      "auditedHeadCommit": "ea2eccba6e3e0f4acba447226b5d96b41e1394f1",
+      "verdict": "CLEAN",
+      "findingCount": 0,
+      "note": "Regenerated, not edited. The wrapper hashes scripts/verify-r1-phase-authorization.mjs through AUDIT_HASHED_PATHS, so a stale wrapper cannot survive a module change."
+    },
+    {
+      "path": "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json",
+      "auditedHeadCommit": "ea2eccba6e3e0f4acba447226b5d96b41e1394f1",
+      "verdict": "CLEAN",
+      "findingCount": 0,
+      "note": "Regenerated, not edited, over the same thirteen-file slice as the P1 audit."
+    }
+  ],
+  "manifestChangedFields": [
+    "packetDigest"
+  ],
+  "reReviewMethod": [
+    "red first: the five new tests were committed before the module change (5b6bf76). GITHUB_ACTIONS=true npm run test:plans at that commit: exit 1, 119 tests, 106 pass, 13 fail. Three of the failures are the gate itself - the positive test reported eight 'predecessor-phase-not-merged is stale' lines, one per declared P1 file; the phase-only-path test and the non-authorizing-predecessor test found no such failure. The other ten are the receipt and packet-digest drift this re-pin closes",
+    "green after: GITHUB_ACTIONS=true npm run test:plans on the delivered tree: exit 0, 119 tests, 119 pass, 0 fail",
+    "byte invariants: git diff --stat origin/main -- package.json package-lock.json docs/governance/reviewer-roles.md docs/governance/risk-exceptions/README.md is empty, exit 0. git diff --stat origin/main -- docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json scripts/verify-plan-authority.mjs is empty, exit 0, so all five authorization records and the top-level verifier are byte-identical",
+    "GITHUB_ACTIONS=true node scripts/verify-plan-authority.mjs before the re-pin, at 1257e2b: exit 1 with exactly two issues, 'OBX-AUTH-P180-T02-SOLO-001.securityReceipt.targetHashes[6]: current hash drift scripts/verify-plan-authority.node.mjs' and 'authority manifest: packetDigest mismatch; expected current d3178d00061781dab42d945e4f682552abade49a70b9e38aa13935b3ac5e9e63'. Nothing else",
+    "GITHUB_ACTIONS=true node scripts/verify-plan-authority.mjs after writing the digest: exit 1 with exactly two issues, the same node.mjs drift row and 'OBX-AUTH-P180-T02-SOLO-001.securityReceipt.targetHashes[1]: current hash drift docs/plans/one-box-master/00-authority/authority-manifest.json'",
+    "GITHUB_ACTIONS=true npm run verify:plans after the receipt refresh: exit 0, PASS, NOTE line present, 17 domains, 29 tickets, 21 program evaluations, packet SHA-256 d3178d00",
+    "node scripts/verify-p180-t02-authorization.mjs: exit 0",
+    "node scripts/verify-r1-phase-authorization.mjs: exit 0, 'PASS Release 1 phase authorizations: OBX-AUTH-R1-P1-SOLO-001, OBX-AUTH-R1-P2-SOLO-001'",
+    "simulation of a P1 branch: the delivered tree was copied to a scratch directory, the eight files OBX-AUTH-R1-P1-SOLO-001 declares as expectedAbsentFiles were created as empty stubs, and GITHUB_ACTIONS=true node scripts/verify-plan-authority.mjs was run there: exit 0, PASS. Adding src/lib/candidatePromotion.ts, a path only OBX-AUTH-R1-P2-SOLO-001 authorizes and that does not exist at 4b02f75f, then failed with 'OBX-AUTH-R1-P2-SOLO-001.predecessorBinding: predecessor-phase-not-merged; src/lib/candidatePromotion.ts is authorized only by OBX-AUTH-R1-P2-SOLO-001 and cannot exist while OBX-AUTH-R1-P1-SOLO-001 is unmerged'",
+    "independent advisory audits: x-ai/grok-4.6 via scripts/eval/grok-audit.mjs, effort high, timeout 900000 ms, one per phase record, both at auditedHeadCommit ea2eccb over the same thirteen reviewed files against base 4b02f75f, 278815 diff bytes. Both returned CLEAN with zero findings and reported x-ai/grok-4.6 as requested and provider-reported model. Artifacts docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json and -p2-, with their -raw.json harness outputs. Ordering, stated because it is not self-evident: the audits read the tree at ea2eccb, which cannot contain them, so the wrappers land in the next commit and the packet-digest and T02-receipt writes recorded in each wrapper's auditedTreeDelta follow after that",
+    "the P1 audit's residual risks are recorded as accepted, not closed: the gate is presence-only, so P2 may still edit the thirteen pre-existing phase-only paths and the shared P1/P2 paths before P1 merges; the pinned baseline is checked with existsSync rather than proven against git at 4b02f75f; the child-ticket refusal is inert while no OBX-P210 row exists in the program manifest; and a broken symlink at a new phase-only path would not trip the gate. None of these is created by this change; the first three are properties the wave-2 mechanism already had",
+    "the literal reading of 'any path in P2 allowedPaths but not in P1 allowedPaths existing in the tree' is not implementable and was not implemented: thirteen of the fifteen such paths already exist at 4b02f75f, so that rule would fail verify:plans on origin/main itself. The delivered rule refuses exactly the phase-only paths that do not exist at the base commit, and pins the other thirteen in the module rather than deriving them from the tree",
+    "re-pin checklist item from ENGINE-LEDGER REPO-012: scripts/verify-obx-p180-source-adoption.mjs is still the only script that asserts a prior re-pin record before refreshing a digest, and it is still unwired and red (see knownRedUnwiredScript)"
+  ],
+  "knownRedUnwiredScript": {
+    "path": "scripts/verify-obx-p180-source-adoption.mjs",
+    "wired": false,
+    "state": "red before and after this re-pin",
+    "failure": "FAIL authority-manifest derived re-pin receipt drift",
+    "cause": "Line 28 hard-codes docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json and lines 130-139 assert that record's currentAuthorityManifest and refreshedT02SecurityReceipt digests against the live files. The ci-oracle, wave-0 and wave-2 re-pins already moved those digests; this re-pin moves them again. No npm script or CI job runs this file.",
+    "disposition": "unchanged and still OPEN per ENGINE-LEDGER REPO-012. Re-point it at the newest obx-p180-authority-repin-review-v1 record, or add a supersededBy pointer to the 2026-08-31 record, before wiring it. Do not wire it red."
+  },
+  "reEndorsement": "This re-pin is an integrity refresh over a mechanism correction, not a new grant. It writes one packet digest and two T02 receipt digest lines so the tree's recorded hashes match its bytes. The correction itself removes a false refusal: OBX-AUTH-R1-P2-SOLO-001 declared that the eight P1 files were absent when it was written, and the verifier read that declaration as a standing claim about the tree, so P1 doing exactly the work OBX-AUTH-R1-P1-SOLO-001 authorizes made the P2 record look stale and blocked every P1 branch. Removing a false refusal is not widening authority, and none was widened: no record's allowedPaths, allowedEffects, forbiddenEffects, expiry, invalidators or acceptedRisk changed, because no record changed at all. The P2 activation precondition still stands in the record, in the amendment and in the module: no OBX-P210 child ticket may start before the P1 phase merges, and the gate now enforces that against the two things that would actually show P2 starting early - an OBX-P210 child ticket in the program manifest, or a path only the P2 record authorizes appearing before the merge. Two properties are recorded on purpose. First, this record is not in the release-1 phase module's activationWriteSet constant, by design: the module lists the seventeen files an activation pull request may write, docs/audits/ is excluded from the packet digest, and a re-pin record that named itself in its own governed write set would be circular. It is therefore unpinned by the phase records and stands on the verification evidence above. Second, the delivered phase-only rule is narrower than the literal criterion it answers, and the reason is recorded in reReviewMethod rather than left for a reader to discover.",
+  "invariants": {
+    "implementationAuthorized": false,
+    "authorityExpansion": false,
+    "runtimeOrDependencyChange": false,
+    "providerBackedProductRoute": false,
+    "persistenceBrowserCollaborationDeploymentRelease": false,
+    "pageIrMutation": false,
+    "nonWaivableClassTouched": false
+  },
+  "verdict": "PASS",
+  "findingCount": 0,
+  "ledgerRefs": [
+    "REPO-014",
+    "REPO-012",
+    "REPO-013"
+  ],
+  "supersedes": "one-box-release-1-wave2-authority-repin-2026-09-02"
+}

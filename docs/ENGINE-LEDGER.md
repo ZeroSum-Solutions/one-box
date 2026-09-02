@@ -318,6 +318,7 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
 | REPO-011 | S1 | **FIXED** | `npm test` fails on lineage C: `scripts/eval/obx-p180-contract-fixtures.test.mjs` is a `node:test` file, but the repo has no Vitest config, so Vitest's default include glob loads it and reports "No test suite found in file" (1 suite failed, 1399 passed). Its 18 assertions run in no npm script either; every other node-test file uses the `.node.mjs` suffix. The file is a frozen T01 artifact with a pinned digest, so renaming it means amending an immutable record. Preferred fix: add a Vitest config that scopes `include` to `src/**`, leaving the frozen file untouched. | 62b7b74; `npx vitest run scripts/eval/obx-p180-contract-fixtures.test.mjs` exit 1 on 2026-09-01; independent review on PR #19 |
 | REPO-012 | S2 | OPEN | Lineage C code paths outside every authorization record: `.github/workflows/ci.yml`, `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/feature.yml`, `package.json` (commit `9d4ddfd`); `scripts/eval/grok-audit.mjs` edited in `8587256` then retro-frozen in T01; three unwired source-adoption scripts added in `62b7b74` (`scripts/eval/obx-p180-source-adoption-fixtures.mjs`, `...-fixtures.node.mjs`, `scripts/verify-obx-p180-source-adoption.mjs`) that no npm script or CI job runs. The manifest's own governing rule says proposed artifacts cannot authorize implementation, so the code and the authority record disagree. Resolution: record explicit exceptions in `scoped-implementation-authorizations.json`, and wire or delete the three scripts. | Independent review on PR #19; `authority-manifest.json` `engineering-operating-system` domain (`authorityClass: proposed`) |
 | REPO-013 | S1 | OPEN | `OBX-AUTH-P180-T01-SOLO-001` and `-T02-SOLO-001` are non-renewable and expire on 2026-09-14 (`renewable: false` at `scoped-implementation-authorizations.json:396` and `:631`; `expiresAt` `2026-09-14T13:33:33Z` at `:395` and `2026-09-14T21:47:59Z` at `:630`). `scripts/verify-plan-authority.mjs:697` fails the whole run with "authorization is expired" once the clock passes either value, and `:563` pins the window to exactly 336 hours, so no record may be written with a longer one. The CI job "Verify plan authority and traceability" runs `verify:plans` first on every PR, so from 2026-09-14 every PR to `main` blocks. Retiring an expired record means either editing an immutable record — which invalidates its own `authorizationHash` and the three byte-pinned T01 receipts — or teaching the verifier an expired-archived status, which changes what the frozen records mean. Owner decision D-2 in the `one-box-gauntlet-r1` run. | `docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json:394-396`, `:629-631`; `scripts/verify-plan-authority.mjs:693 (record) and :563 (amendment)`, `:689-697`; `.github/workflows/ci.yml` plan-authority job; `~/.claude/goal-state/one-box-gauntlet-r1/decisions.json` D-2 |
+| REPO-014 | S1 | **FIXED** | `scripts/verify-r1-phase-authorization.mjs` `validatePredecessorGate` fails a `PENDING_PREDECESSOR_MERGE` binding whenever any path in `OBX-AUTH-R1-P2-SOLO-001.predecessorBinding.expectedAbsentFiles` exists in the working tree. Those eight paths are exactly the files the live `OBX-AUTH-R1-P1-SOLO-001` record authorizes P1 to create, so every P1 feature branch fails `GITHUB_ACTIONS=true npm run verify:plans` and `npm run test:plans` the moment it does its authorized work: the gate reads P1 succeeding as P2's binding being stale. Observed on `wave-2/p1` at `05fe84c` with `src/lib/releaseLifecycle.ts` and `src/lib/releaseLifecycle.test.ts` present: 2 `FAIL` lines from `verify:plans` and 9 failing node tests. Fix: while the predecessor record is present, unexpired and authorizing implementation, the gate tolerates the predecessor's declared files either way and instead refuses a path only the pending record authorizes that did not exist at `4b02f75f`, or an `OBX-P210` child ticket in the program manifest. Neither registry record changed. | `wave-2/p1` at `05fe84c`; `scripts/verify-r1-phase-authorization.mjs` `validatePredecessorGate`; `scripts/verify-plan-authority.node.mjs` "a pending predecessor tolerates the predecessor's own declared files"; re-pin `docs/audits/evidence/security/2026-09-02-release-1-p2-gate-authority-repin.json` |
 
 ### Resolutions — 2026-09-02
 
@@ -409,6 +410,33 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
   `docs/audits/evidence/security/2026-09-02-release-1-wave2-authority-repin.json`,
   which supersedes the wave-0 re-pin. No ticket status moved and REPO-013 still
   bounds the effective window at 2026-09-14.
+
+- **REPO-014 (predecessor gate):** `validatePredecessorGate` treated every
+  declared predecessor file as a file that must be absent, so
+  `OBX-AUTH-R1-P2-SOLO-001` raised `predecessor-phase-not-merged` as soon as
+  `OBX-AUTH-R1-P1-SOLO-001` created a file it is authorized to create, and every
+  P1 branch turned `verify:plans` and `test:plans` red. `expectedAbsentFiles`
+  now records what was absent when the record was written and its shape is still
+  checked, but presence in the current tree is no longer a failure while the
+  predecessor record is present, unexpired and authorizing implementation. What
+  the gate refuses instead is the pending phase's own work appearing first: any
+  path `OBX-AUTH-R1-P2-SOLO-001` authorizes that no P1 ticket scope names and
+  that does not exist at `4b02f75f`. The thirteen such paths that do exist there
+  are pinned in the module as `P2_PRE_EXISTING_PHASE_ONLY_PATHS`, each required
+  to be phase-only and to still exist, so an early P2 file cannot pass itself off
+  as pre-existing. A predecessor that no longer authorizes implementation is now
+  refused as well; the checkpoint-commit, file-list, child-ticket, missing and
+  expired refusals and the `COMPLETED_VERIFIED` branch are unchanged. Both
+  registry records stay byte-identical to `origin/main`, `expectedAbsentFiles`
+  included. `scripts/verify-plan-authority.node.mjs` replaces the test that
+  encoded the defect with a positive test that creates all eight declared P1
+  files and requires the full verifier to pass, plus four negative tests (119
+  tests, 115 before). Both phase security receipts and both Grok 4.6 wrapper
+  receipts are regenerated because they hash the module; the audits ran at
+  `ea2eccb` over the same thirteen-file slice and returned CLEAN. The packet is
+  re-pinned once (`61afa7b8…` → `d3178d00…`) in
+  `docs/audits/evidence/security/2026-09-02-release-1-p2-gate-authority-repin.json`,
+  which supersedes the wave-2 re-pin.
 
 ### Resolutions — 2026-09-01
 
