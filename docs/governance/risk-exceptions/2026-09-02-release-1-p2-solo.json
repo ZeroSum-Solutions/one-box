@@ -15,6 +15,13 @@
     "OBX-P210-T02",
     "OBX-P210-T03"
   ],
+  "implementationAuthorized": false,
+  "predecessor": {
+    "ticketId": "OBX-P200",
+    "authorizationId": "OBX-AUTH-R1-P1-SOLO-001",
+    "status": "PENDING_PREDECESSOR_MERGE",
+    "checkpointCommit": null
+  },
   "ownerDirection": {
     "actorId": "person:devin-wiggins",
     "name": "Devin Wiggins",

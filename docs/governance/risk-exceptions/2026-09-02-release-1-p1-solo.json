@@ -14,6 +14,8 @@
     "OBX-P200-T02",
     "OBX-P200-T03"
   ],
+  "implementationAuthorized": true,
+  "predecessor": null,
   "ownerDirection": {
     "actorId": "person:devin-wiggins",
     "name": "Devin Wiggins",

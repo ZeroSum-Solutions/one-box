@@ -6,9 +6,16 @@
 - Amendment: `docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json`
 - Parent ticket: `OBX-P210` (stays `proposed`; this packet moves no ticket status)
 - Predecessor: `OBX-P200` under `OBX-AUTH-R1-P1-SOLO-001`. P2 code may not start
-  until P1 merges; the record's `predecessorBinding` stays
-  `PENDING_PREDECESSOR_MERGE` and names P1's exact file list.
-- Status: planning packet. It authorizes nothing on its own.
+  until P1 merges. The record's `predecessorBinding` stays
+  `PENDING_PREDECESSOR_MERGE` and names P1's exact file list, and while that status
+  holds the record carries `implementationAuthorized: false`. The phase module
+  enforces both directions: a pending predecessor may not authorize implementation,
+  and a `COMPLETED_VERIFIED` predecessor must name a 40-character checkpoint commit
+  with live SHA-256 bindings of P1's merged files. P2 therefore becomes an
+  implementation authorization only when a later governance change re-issues this
+  record against the P1 merge commit.
+- Status: planning packet. It authorizes nothing on its own, and the P2 record
+  authorizes no code until the predecessor gate closes.
 
 ## 1. Scope
 

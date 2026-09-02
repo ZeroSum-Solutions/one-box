@@ -660,7 +660,11 @@
         "scripts/verify-plan-authority.node.mjs",
         "scripts/verify-r1-phase-authorization.mjs",
         "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
-        "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json"
+        "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit-raw.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit-raw.json"
       ],
       "preExistingUntrackedBaseline": [
         {
@@ -930,7 +934,7 @@
         "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
         "amendmentId": "OBX-R1-P1-SOLO-AMENDMENT-001",
         "algorithm": "sha256",
-        "digest": "ec8e4c20ecf2b49caf5261a0b83faf8adf9c0d0991ead773a09d1e67567ca685"
+        "digest": "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147"
       },
       "reviewProtocol": {
         "exactModel": "x-ai/grok-4.6",
@@ -984,14 +988,14 @@
         "excludedJsonPointers": [
           "/authorizationHash/digest"
         ],
-        "digest": "b3bd8ac09c369b3472c76c2712e2e7349c67f198f9068124bc4b1b08a39a021e"
+        "digest": "26f7ff8f9051560d7798f11b4a5b86f69cc8024e74d067f1f826e66716ec3a27"
       }
     },
     {
       "id": "OBX-AUTH-R1-P2-SOLO-001",
       "recordKind": "owner-solo-phase-exception-v3",
       "status": "authorized-with-solo-exception",
-      "implementationAuthorized": true,
+      "implementationAuthorized": false,
       "projectId": "one-box",
       "branch": "main",
       "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
@@ -1009,7 +1013,11 @@
         "scripts/verify-plan-authority.node.mjs",
         "scripts/verify-r1-phase-authorization.mjs",
         "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
-        "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json"
+        "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit-raw.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json",
+        "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit-raw.json"
       ],
       "preExistingUntrackedBaseline": [
         {
@@ -1307,7 +1315,7 @@
         {
           "path": "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
           "algorithm": "sha256",
-          "digest": "b9c5b01e64494035b06910f4e6686b1c54132edeba530873516432e03d53a73e"
+          "digest": "6a38f2d98d77bc14b60d5f87d770b2146bf8b91b611faaaa6bec430cb094467b"
         }
       ],
       "governanceBindings": [
@@ -1338,7 +1346,7 @@
         "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
         "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
         "algorithm": "sha256",
-        "digest": "9091f40bb7e30fbf12366ecd61dda25be3e76f9429a7239248c9362ca5ca5a77"
+        "digest": "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51"
       },
       "reviewProtocol": {
         "exactModel": "x-ai/grok-4.6",
@@ -1392,7 +1400,7 @@
         "excludedJsonPointers": [
           "/authorizationHash/digest"
         ],
-        "digest": "ea6b625d5c7a6815d44136caa1d181fc081ee730a4a29a5359d43abcfdda04ac"
+        "digest": "5a97296f2f7298c2839e092bbe77fcb1b5dd9995c8dcb164485e36ceede66e26"
       }
     }
   ]
