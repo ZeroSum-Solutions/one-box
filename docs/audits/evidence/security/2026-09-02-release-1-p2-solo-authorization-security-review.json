@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "receiptKind": "solo-phase-security-review-v3",
   "authorizationId": "OBX-AUTH-R1-P2-SOLO-001",
-  "authorizationHash": "5a97296f2f7298c2839e092bbe77fcb1b5dd9995c8dcb164485e36ceede66e26",
+  "authorizationHash": "07a26233aea4f599139b3919880e1de035f677f275c162d65c10fbab2957e9f5",
   "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
-  "amendmentHash": "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51",
+  "amendmentHash": "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e",
   "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
   "targetPaths": [
     "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
@@ -22,7 +22,7 @@
     {
       "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
       "algorithm": "sha256",
-      "digest": "39f193a31e70988dcab212664c5ce9399164d5824e0e9b275c2be230e9ca35fe"
+      "digest": "c145a6471f9c18ed5eadf0a3702bca5e312eef633b2543d745760df94a3c1faa"
     },
     {
       "path": "docs/plans/one-box-master/00-authority/plan-register.md",
@@ -37,22 +37,22 @@
     {
       "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
       "algorithm": "sha256",
-      "digest": "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147"
+      "digest": "cc4fbde44e5c6e37511ba6b13a2b2f4d583ccefff4aa25adeaf94092683915ce"
     },
     {
       "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
       "algorithm": "sha256",
-      "digest": "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51"
+      "digest": "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e"
     },
     {
       "path": "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
       "algorithm": "sha256",
-      "digest": "9c117486271d89eb9a758e4805dfa2334ceb353f8bd3353df0fef3cf47f3bbfb"
+      "digest": "af36eaccc62a4fb0825ac7e3d4c22ea61ebaf981461fed8e1307107cf33b7141"
     },
     {
       "path": "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
       "algorithm": "sha256",
-      "digest": "6a38f2d98d77bc14b60d5f87d770b2146bf8b91b611faaaa6bec430cb094467b"
+      "digest": "4bc4a10df2d57db3d564547279ad6352b166754663892dee10f7a03604917f8e"
     },
     {
       "path": "scripts/verify-plan-authority.mjs",
@@ -62,18 +62,21 @@
     {
       "path": "scripts/verify-plan-authority.node.mjs",
       "algorithm": "sha256",
-      "digest": "ca28d53ba1707d230c894a9812f08da8a83aba226e77be0b1be71e8330cf7b60"
+      "digest": "dc054fb0b112fdd0471ff977ddcc771b919b0a3818a5d2c4a8b17038ce587aeb"
     },
     {
       "path": "scripts/verify-r1-phase-authorization.mjs",
       "algorithm": "sha256",
-      "digest": "74ff7229635025daa18d8b6e427c145e51c59e7c94b9edd8318c66806ce3ab55"
+      "digest": "2883b87fe7eb1ec834b30a61f1969a34c9d4569aca7b232b7cafd8de3ffac18f"
     }
   ],
   "authorityManifestWithoutPacketDigest": {
     "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
     "algorithm": "sha256",
     "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/packetDigest"
+    ],
     "digest": "8bbf07e6de63d9c70234e775ac2eed077e468643346e2bc302cecd0dcdff2f25"
   },
   "verdict": "PASS-WITH-ACCEPTED-RISK",
@@ -82,7 +85,7 @@
       "findingId": "OBX-R1-P2-SOLO-SEPARATION-001",
       "severity": "MEDIUM",
       "status": "ACCEPTED",
-      "summary": "One human holds the owner, risk-owner, implementation, and authorizer roles, so no OwnerAssignmentV1 record can be active and no independent human security review is available for this phase.",
+      "summary": "One human holds the owner, risk-owner, implementation, and authorizer roles, so no OwnerAssignmentV1 record can be active and no independent human security review is available for this phase. The recorded 336-hour window also ends early in practice, at 2026-09-14T13:33:33Z, because this module fails closed once the non-renewable OBX-AUTH-P180-T01-SOLO-001 record expires; the record's effectiveWindow states that date and the module checks it.",
       "surfaceDisposition": [
         {
           "surface": "prompt-injection",
@@ -145,5 +148,5 @@
     "status": "NOT_AVAILABLE",
     "satisfied": false
   },
-  "capturedAt": "2026-09-02T13:41:00Z"
+  "capturedAt": "2026-09-02T15:10:00Z"
 }
