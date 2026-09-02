@@ -306,8 +306,8 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
 | ID | Sev | Status | Issue | Evidence |
 |---|---|---|---|---|
 | REPO-001 | S2 | **FIXED** | PR #17 (`codex/onebox-review-evidence-ui`, head `0e806a0`) fails the CI `verify` job: the rendered Page IR step's `test:e2e:intake` times out after 30 s waiting for `getByRole('button', { name: 'Edit prompt and settings' })`. The PR body reports every local gate as passed. | `scripts/e2e/intake-upload.mjs:663`; Actions run 32935846188 |
-| REPO-002 | S3 | OPEN | Six ESLint warnings on `main`: unused `tokens` (`spikes/layout-ir/compile.mjs:467`); unused `useEffect` (`src/components/EvidenceWorkspace.tsx:4`); `<img>` in `src/components/preview/AssistantPanel.tsx:273`; two unused `eslint-disable` directives and unused `asOptionalString` in `src/lib/tools/refero.ts:75,77,250`. | `npm run lint` on `cb26ae9` |
-| REPO-003 | S3 | OPEN | `npm run test:smoke` emits `MODULE_TYPELESS_PACKAGE_JSON`: Node reparses `src/lib/tools/maps.ts` as ESM because the smoke harness loads a TypeScript source through a typeless package. Harmless today; it buries real module warnings. | `scripts/smoke/gates-smoke.mjs` output on `cb26ae9` |
+| REPO-002 | S3 | **FIXED** | Six ESLint warnings on `main`: unused `tokens` (`spikes/layout-ir/compile.mjs:467`); unused `useEffect` (`src/components/EvidenceWorkspace.tsx:4`); `<img>` in `src/components/preview/AssistantPanel.tsx:273`; two unused `eslint-disable` directives and unused `asOptionalString` in `src/lib/tools/refero.ts:75,77,250`. | `npm run lint` on `cb26ae9` |
+| REPO-003 | S3 | **FIXED** | `npm run test:smoke` emits `MODULE_TYPELESS_PACKAGE_JSON`: Node reparses `src/lib/tools/maps.ts` as ESM because the smoke harness loads a TypeScript source through a typeless package. Harmless today; it buries real module warnings. | `scripts/smoke/gates-smoke.mjs` output on `cb26ae9` |
 | REPO-004 | S2 | OPEN | Lineage B (PR #17) and lineage C (`research/la-appointment-field-study`) conflict: a read-only `git merge-tree` reports a content conflict in `package.json`; both also edit `src/lib/contracts.ts`, `src/lib/contracts.test.ts`, `README.md`, and `docs/architecture/README.md`. Neither branch references the other. | `git merge-tree --write-tree origin/codex/onebox-review-evidence-ui research/la-appointment-field-study` exit 1 |
 | REPO-005 | S2 | **FIXED** | Unpushed work: `research/la-appointment-field-study` is 9 commits ahead of `origin` (OBX-P180 planning closure, T01, T02). `docs/studio-consolidation-plan` (this board and the consolidation plan) existed only on one machine until this sweep. | `git branch -vv`, 2026-09-01 |
 | REPO-006 | S3 | **FIXED** | Four local branches are fully landed by the PR #15 squash and hold no unlanded work: `feat/ui-overhaul-linear` (tip `3f5ecda` equals the PR #15 head), `spike/refero-baseline`, `spike/layout-ir`, `fix/pause-status-pulse-when-hidden` (all ancestors of `3f5ecda`). Squash merges hide this from `git branch --merged`; deletion needs `-D`. | `git merge-base --is-ancestor <tip> 3f5ecda` |
@@ -320,6 +320,20 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
 
 ### Resolutions — 2026-09-02
 
+- **REPO-002:** all six warnings cleared — the unused `tokens` and
+  `useEffect` symbols and the unused `asOptionalString` helper removed, the
+  two unused `eslint-disable` directives in `src/lib/tools/refero.ts` removed,
+  and the `<img>` in `src/components/preview/AssistantPanel.tsx` kept as-is
+  (a local run-artifact thumbnail served by the guarded `/api/sites` route,
+  same justification `EvidenceWorkspace.tsx` already uses, where `next/image`
+  would change runtime behavior) with a scoped, justified
+  `eslint-disable-next-line @next/next/no-img-element`. `npm run lint`: 0
+  errors, 0 warnings.
+- **REPO-003:** `scripts/smoke/gates-smoke.mjs` and
+  `scripts/smoke/scan-filter-smoke.mjs` add a `load` hook that declares
+  `.ts` files as `module-typescript` up front, so Node no longer guesses
+  CommonJS first and reparses as ESM. `npm run test:smoke 2>&1 | grep -c
+  MODULE_TYPELESS_PACKAGE_JSON` reports 0.
 - **REPO-010:** `scripts/verify-plan-authority.mjs` keeps the exact
   `preExistingUntrackedBaseline` record binding in every mode and skips only the
   local file read when `GITHUB_ACTIONS=true`, announced on stdout as `NOTE`. The
