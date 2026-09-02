@@ -130,7 +130,10 @@ non-renewable. That is REPO-013 and owner decision D-2.
   until the P1 phase merges to `main` and the P2 record's `predecessorBinding`
   carries that merge commit together with the live digest of every declared P1
   file. `validatePredecessorGate` in the phase module enforces it, with the
-  invalidator `predecessor-phase-not-merged`.
+  invalidator `predecessor-phase-not-merged`. Since REPO-014 that gate tolerates
+  the P1 files existing while P1 does its authorized work and instead refuses an
+  `OBX-P210` child ticket or a path only the P2 record authorizes appearing
+  first.
 - **The P3 client-review surface is frozen.** Invitation exchange, session
   cookies, hashed secrets, and revocation fall in the non-waivable classes of
   `docs/governance/reviewer-roles.md`, which no risk exception can waive, and a

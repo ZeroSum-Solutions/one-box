@@ -343,6 +343,28 @@ const P2_TICKET_SCOPES = [
   },
 ];
 
+// Every path OBX-AUTH-R1-P2-SOLO-001 authorizes that no P1 ticket scope names,
+// and that already exists at BASE_COMMIT. Those files predate the phase, so
+// their presence says nothing about when P2 started. Any other P2-only path
+// appearing in the tree does: only P2 can create it. The list is pinned here
+// rather than derived from the tree, so a P2 file created early cannot make
+// itself look pre-existing.
+const P2_PRE_EXISTING_PHASE_ONLY_PATHS = [
+  "scripts/e2e/canvas-contract.mjs",
+  "src/app/styles/workbench.css",
+  "src/components/preview/Workbench.tsx",
+  "src/lib/candidatePromotion.test.ts",
+  "src/lib/elementEditor.test.ts",
+  "src/lib/elementEditor.ts",
+  "src/lib/mutationGateMatrix.test.ts",
+  "src/lib/mutationGateMatrix.ts",
+  "src/lib/pageIrMutation.test.ts",
+  "src/lib/pageIrMutation.ts",
+  "src/lib/pipelineStaleVisualQa.test.ts",
+  "src/lib/siteMutation.test.ts",
+  "src/lib/siteMutation.ts",
+];
+
 function unionPaths(ticketScopes) {
   const seen = [];
   for (const scope of ticketScopes) {
@@ -443,6 +465,7 @@ const PHASES = {
     }],
     predecessorBinding: null,
     activationPrecondition: null,
+    preExistingPhaseOnlyPaths: [],
   },
   "OBX-AUTH-R1-P2-SOLO-001": {
     phase: "P2",
@@ -503,6 +526,7 @@ const PHASES = {
       ],
     },
     activationPrecondition: P2_ACTIVATION_PRECONDITION,
+    preExistingPhaseOnlyPaths: P2_PRE_EXISTING_PHASE_ONLY_PATHS,
   },
 };
 
@@ -632,8 +656,16 @@ function checkAuthorizedPath(path, label, failures) {
  * precondition, declare the predecessor's exact file list, and keep its own
  * effects disjoint from the predecessor's live grant; the binding turns
  * COMPLETED_VERIFIED only when that merge commit and every live file digest are
- * recorded. The predecessor's own authorization record must be present and live
- * in the registry either way.
+ * recorded. The predecessor's own authorization record must be present, live,
+ * and still authorizing implementation either way.
+ *
+ * A pending binding says this phase has not started. It does not say the
+ * predecessor has not started: the predecessor's declared files may be present
+ * or absent while the predecessor phase does its own authorized work, and the
+ * gate tolerates both. What the gate refuses is this phase's own work appearing
+ * first - a path this record authorizes that the predecessor's grant does not
+ * cover and that did not already exist at BASE_COMMIT, or a child ticket of
+ * this phase in the program manifest.
  */
 function validatePredecessorGate(repoRoot, phase, record, registry, ticketManifest, failures) {
   const label = `${record.id}.predecessorBinding`;
@@ -668,6 +700,12 @@ function validatePredecessorGate(repoRoot, phase, record, registry, ticketManife
     if (!Number.isFinite(predecessorExpiry) || Date.now() > predecessorExpiry) {
       failures.push(`${label}: predecessor authorization ${binding.authorizationId} is expired`);
     }
+    // A pending phase waits on a live predecessor grant. If the predecessor no
+    // longer authorizes implementation there is nothing left to wait for, and
+    // the predecessor's files appearing would no longer be authorized work.
+    if (predecessor.implementationAuthorized !== true) {
+      failures.push(`${label}: predecessor authorization ${binding.authorizationId} does not authorize implementation`);
+    }
     if (predecessor.parentTicketId !== binding.ticketId) {
       failures.push(`${label}: predecessor authorization ${binding.authorizationId} does not own ticket ${binding.ticketId}`);
     }
@@ -678,10 +716,12 @@ function validatePredecessorGate(repoRoot, phase, record, registry, ticketManife
     if (shared.length > 0) {
       failures.push(`${label}: pending effects ${shared.join(", ")} also sit inside the live ${binding.authorizationId} grant`);
     }
-    // "Pending" is a claim about the tree, so the module checks it. Every
-    // predecessor file the predecessor phase still has to create must be absent,
-    // and no child ticket of this phase may exist in the program manifest yet.
-    // Either one appearing means the predecessor landed and the binding is stale.
+    // expectedAbsentFiles records which declared predecessor files the
+    // predecessor phase had still to create when this record was written. It is
+    // a statement about the recording moment, not about the current tree: while
+    // the predecessor record is present, live and authorizing, those files
+    // appearing is the predecessor doing its own authorized work, so the gate
+    // tolerates them either way. Only the shape is checked here.
     const absentFiles = binding.expectedAbsentFiles;
     if (!Array.isArray(absentFiles) || absentFiles.length === 0
       || absentFiles.some((file) => typeof file !== "string")) {
@@ -690,13 +730,31 @@ function validatePredecessorGate(repoRoot, phase, record, registry, ticketManife
       for (const path of absentFiles) {
         if (!(binding.files ?? []).includes(path)) {
           failures.push(`${label}.expectedAbsentFiles: ${path} is not a declared predecessor file`);
-          continue;
-        }
-        if (existsSync(resolve(repoRoot, path))) {
-          failures.push(`${label}: predecessor-phase-not-merged is stale; ${path} exists, so the binding must record the predecessor merge commit and the live digest of every declared file`);
         }
       }
     }
+    // What "pending" does claim about the tree is that this phase has not
+    // started. A path this record authorizes and the predecessor does not is a
+    // path only this phase can create, so its presence - unless it already
+    // existed at BASE_COMMIT - is this phase starting early.
+    const predecessorPaths = Array.isArray(predecessor.allowedPaths) ? predecessor.allowedPaths : [];
+    const preExisting = phase.preExistingPhaseOnlyPaths ?? [];
+    for (const path of preExisting) {
+      if (predecessorPaths.includes(path) || !(record.allowedPaths ?? []).includes(path)) {
+        failures.push(`${label}: ${path} is pinned as pre-existing but is not a path only ${record.id} authorizes`);
+        continue;
+      }
+      if (!existsSync(resolve(repoRoot, path))) {
+        failures.push(`${label}: ${path} is pinned as existing at ${BASE_COMMIT} but is missing, so the pinned baseline is stale`);
+      }
+    }
+    for (const path of record.allowedPaths ?? []) {
+      if (predecessorPaths.includes(path) || preExisting.includes(path)) continue;
+      if (existsSync(resolve(repoRoot, path))) {
+        failures.push(`${label}: predecessor-phase-not-merged; ${path} is authorized only by ${record.id} and cannot exist while ${binding.authorizationId} is unmerged`);
+      }
+    }
+    // No child ticket of this phase may exist in the program manifest yet.
     for (const ticket of ticketManifest?.tickets ?? []) {
       if (typeof ticket?.id === "string" && ticket.id.startsWith(`${record.parentTicketId}-`)) {
         failures.push(`${label}: predecessor-phase-not-merged; child ticket ${ticket.id} cannot exist in the program manifest while ${binding.authorizationId} is unmerged`);

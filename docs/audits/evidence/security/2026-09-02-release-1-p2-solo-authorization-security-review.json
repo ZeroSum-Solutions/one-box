@@ -62,12 +62,12 @@
     {
       "path": "scripts/verify-plan-authority.node.mjs",
       "algorithm": "sha256",
-      "digest": "cbe797dfb575d0586a6ec24b5289bbf452d19eb9ac7db7ad8883d2f5ee08d516"
+      "digest": "5488f8eb6a53a43cb252926057887ddf52b4c8d5bcc5c71862f8da0ec9bcfad6"
     },
     {
       "path": "scripts/verify-r1-phase-authorization.mjs",
       "algorithm": "sha256",
-      "digest": "361cdc72da8c39f6eb060bfafa7036705c8f678493289198d5374714206b2d70"
+      "digest": "07eefebc9c50f14bacd638f528f11a6158e77c5021738d4b2886c8625b9042d5"
     }
   ],
   "authorityManifestWithoutPacketDigest": {
