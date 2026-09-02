@@ -30,6 +30,17 @@ registerHooks({
       throw err;
     }
   },
+  // The repo's package.json carries no "type" field, so Node cannot tell a
+  // .ts file's module system without parsing it — it guesses CommonJS
+  // first, fails, then reparses as ESM and warns (MODULE_TYPELESS_
+  // PACKAGE_JSON) every time. Every .ts file this harness loads is ESM
+  // (matches the tsconfig), so declare that up front and skip the guess.
+  load(url, context, nextLoad) {
+    if (url.endsWith(".ts")) {
+      return nextLoad(url, { ...context, format: "module-typescript" });
+    }
+    return nextLoad(url, context);
+  },
 });
 
 const { classifyResult } = await import("../../src/lib/tools/maps.ts");

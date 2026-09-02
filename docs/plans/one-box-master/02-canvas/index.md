@@ -3,9 +3,12 @@
 ## Canonical sources
 
 - [Approved Canvas upgrade](../../../specs/2026-08-16-canvas-upgrade.md)
-- [Refero editor requirements](../../../specs/2026-08-13-refero-editor-requirements.md)
 - [Canvas-to-agency lifecycle](../../../superpowers/specs/2026-08-27-canvas-to-agency-shipping-design.md)
 - [Page IR safe pipeline](../../../specs/2026-08-22-page-ir-safe-pipeline-prd.md)
+
+## Supporting and historical
+
+- [Refero editor requirements](../../../specs/2026-08-13-refero-editor-requirements.md) — Retain unsuperseded editor, evidence, motion, accessibility, and benchmark requirements. Ignore older multi-target production assumptions.
 
 ## Supporting review evidence
 

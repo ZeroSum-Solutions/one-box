@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-02T14:17:48.567Z",
+  "request": {
+    "task": "Wave 0 integration of the ONE BOX autonomous run one-box-gauntlet-r1, on branch wave-0/integration: task W0.2 (EOS-004 program board confirmation) and the single authority-packet re-pin covering the wave's two packet-document edits, following the 2026-09-02 ci-oracle re-pin precedent. This is a SLICE: the second packet edit (docs/plans/one-box-master/02-canvas/index.md) and the board and ledger updates are on the same branch outside this allowlist; the branch-scope proof carries the full commit list and that file's diff.",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "origin/main",
+    "head": "e1f2d91d05817bedfe8d9f8dc0ed5f3f7b655bb1",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/audits/evidence/goal/2026-09-02-eos-004-program-board-confirmation.md",
+      "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+      "docs/audits/evidence/security/2026-09-02-wave-0-authority-repin.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json"
+    ],
+    "proofs": [
+      "docs/eval/baseline/runs/wave-0-proof/plans.txt",
+      "docs/eval/baseline/runs/wave-0-proof/branch-scope.txt"
+    ],
+    "diffBytes": 43236,
+    "timeoutMs": 900000,
+    "maxOutputTokens": 12000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15538,
+      "completion_tokens": 13435,
+      "total_tokens": 28973,
+      "cost": 0.111494,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.111494,
+        "upstream_inference_prompt_cost": 0.030884,
+        "upstream_inference_completions_cost": 0.08061
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 13036,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Allowlist diff: authority-manifest.json changes only packetDigest 6abc2156…→48999a43…; T02 receipt changes only that file's target hash 10f67653…→fac46d96…. HEAD GITHUB_ACTIONS=true verify:plans exits 0 and prints packet SHA-256 48999a43…, matching currentAuthorityManifest.packetDigest and the pre-re-pin single-issue mismatch. test:plans 88/88 and verify-p180-t02-authorization exit 0. Branch-scope canvas edit is a heading move plus register wording. README insert is the 13-line reviewFeedback paragraph plus blank-line spacing. W0.2 record attributes the ready-block to empty humanAssignments.records plus activeTicketStatuses and done-dependency gates, and states that unassigned-blocking is unread by the oracle. Owner ellipsis is attributed to the contract, not this receipt. Invariants are all false; verdict PASS; manifestChangedFields is only packetDigest. This slice does not contain ticket-manifest bytes, verify-plan-authority.mjs, PR #17 3643ee5, contract.md, or wave-2/governance, so file:line quotes and 'verbatim' are not replayable here. reReviewMethod's npm test/lint/build/smoke lines are not in the supplied proof.",
+    "residual_risks": [
+      "README paragraph vs PR #17 3643ee5:84-96 is asserted, not hashed in this slice",
+      "ticket-manifest and verifier line citations are not checkable from the allowlist",
+      "P1/P2 child-ledger citations live on wave-2/governance, off this tree",
+      "reReviewMethod extra commands are unproven in this proof bundle",
+      "stated in the re-pin: reviewFeedback.ts is absent until PR #20"
+    ]
+  }
+}

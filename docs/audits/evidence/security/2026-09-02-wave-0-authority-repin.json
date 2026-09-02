@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "obx-p180-authority-repin-review-v1",
+  "reviewId": "one-box-wave-0-authority-repin-2026-09-02",
+  "reviewedAt": "2026-09-02T07:05:00-07:00",
+  "namedOwner": "Devin Wiggins",
+  "scope": "Integrity re-pin after two wave-0 packet-document edits on branch wave-0/integration: docs/plans/one-box-master/02-canvas/index.md moves the 2026-08-13 Refero editor requirements out of 'Canonical sources' into a new 'Supporting and historical' list carrying the plan register's own wording (EOS-001 label residue recorded in the run log [W0 RESULTS]); docs/architecture/README.md gains PR #17's deferred paragraph documenting src/lib/reviewFeedback.ts module ownership and the review-feedback evidence boundary, which PR #20 could not apply because the file is a hash-pinned relatedPaths entry. No other packet input changed.",
+  "ownerDirection": {
+    "actorId": "person:devin-wiggins",
+    "channel": "Claude Code session, 2026-09-02",
+    "request": "Approve the autonomous run one-box-gauntlet-r1, merge PR #18, accept the Release 1 packet, and say which waves to run.",
+    "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1. Number two, I accept the release packet. Number three, let's run zero through three. Number four, please provide me an initialization prompt so that I can fan out, do research, and gather real agency analysis inside of Codex, in a separate session. For visual quality bars I've added 2 different worksheets ... please, any blockers, let's take care of them now so we can run this on a loop.",
+    "ownerResponseSource": "~/.claude/goal-state/one-box-gauntlet-r1/contract.md section 7, lines 179-184. Quoted byte-for-byte from that record. The ellipsis is the contract's own elision of the owner's message, made when the owner block was filled; it is not this record's abridgement. That contract file is outside the repository, so it is not hash-pinned here.",
+    "authorizationBoundaryStatedPlainly": "The owner authorized running waves 0 through 3 of this contract. He did not name a packet re-pin; no owner ever does. This record must not be read as owner approval of a re-pin."
+  },
+  "derivationFromOwnerDirection": [
+    "The owner's words authorize the run's waves, not any specific file edit: 'let's run zero through three'.",
+    "Contract section 5, wave 0, sets the wave's scope: W0.2 (EOS-004 program board), W0.6 (board and ledger current), and the EOS-001 authority chain, whose confirmation record left one label residue in a packet document.",
+    "The run's own governance rule decides who re-pins and how often. Run log entry [W0 GOVERNANCE], 2026-09-02: plan files, ticket manifests, .github/ and the verifier scripts are packet inputs; docs/audits/ is excluded; package.json and package-lock.json are hash-pinned and off limits; builders do not re-pin; the wave-0 integrator re-pins once on the integration branch with a single wave-0 re-pin record following the ci-oracle precedent.",
+    "Two wave-0 edits land in packet inputs, so exactly one re-pin is required and exactly one is made. The derived write authority for a packet-digest refresh is the 2026-08-30 record named in derivedWriteAuthorization, not the owner's message."
+  ],
+  "packetDocumentEdits": [
+    {
+      "path": "docs/plans/one-box-master/02-canvas/index.md",
+      "change": "The 'Refero editor requirements' bullet leaves '## Canonical sources' and becomes the single entry of a new '## Supporting and historical' list, annotated with the plan register's own wording: 'Retain unsuperseded editor, evidence, motion, accessibility, and benchmark requirements. Ignore older multi-target production assumptions.'",
+      "authority": "docs/plans/one-box-master/00-authority/plan-register.md:36, '## Supporting and historical plans' table",
+      "effect": "label only; no authority class, domain, ownership, or gate changes"
+    },
+    {
+      "path": "docs/architecture/README.md",
+      "change": "Adds PR #17's review-feedback boundary paragraph verbatim, documenting that src/lib/reviewFeedback.ts writes bound feedback receipts beneath the closed sites/<id>/evidence/review-feedback/ root and that src/lib/uploads.ts claims selected upload IDs into it. PR #17's separate module-map line is not applied.",
+      "authority": "PR #20 body, 'Deferred to the integrator'; source docs/architecture/README.md at PR #17 head 3643ee5, lines 84-96",
+      "effect": "documentation of module ownership; no runtime, contract, or gate change. The module it documents lands with PR #20."
+    }
+  ],
+  "derivedWriteAuthorization": {
+    "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-packet-digest-derived-write-authorization.json",
+    "algorithm": "sha256",
+    "digest": "5aa48df3c780dc530a48bf6c699c185dc257510c9e76bb2638dbcad46b8a5fa2"
+  },
+  "priorAuthorityManifest": {
+    "packetDigest": "6abc215646fd239feb001fc3d94e8f3cf9ca39bdf7ab756763639178487e66ab",
+    "sha256": "10f67653302854aa76ba7944ec797c04dbaa799f4af26c04e1c1557f82b0d6c9"
+  },
+  "currentAuthorityManifest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "packetDigest": "67623504e5856e9fc445f2d8bcb9bd0608f3fab3bb17e7f7368614541202fbef",
+    "sha256": "f883c5ccfbb3e377da22fea1b6115f7ade7260c542a561abea1eb467588fec1b"
+  },
+  "refreshedT02SecurityReceipt": {
+    "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+    "priorSha256": "c81a49c3129c5169409c5e3515cecf4d0962caa73c82c7f4d3eff8cda93b4510",
+    "sha256": "d3faf77f0ab54534a5e7e2428479fb56801be433129a04ed91aaf76b884f3876",
+    "refreshedTargets": [
+      {
+        "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "priorDigest": "10f67653302854aa76ba7944ec797c04dbaa799f4af26c04e1c1557f82b0d6c9",
+        "digest": "f883c5ccfbb3e377da22fea1b6115f7ade7260c542a561abea1eb467588fec1b"
+      }
+    ]
+  },
+  "manifestChangedFields": [
+    "packetDigest"
+  ],
+  "reReviewMethod": [
+    "structural comparison against HEAD authority-manifest JSON (git diff shows only /packetDigest changed)",
+    "derived-write authorization validation: sha256 of the 2026-08-30 packet-digest derived-write authorization unchanged at 5aa48df3...",
+    "GITHUB_ACTIONS=true node scripts/verify-plan-authority.mjs before the re-pin: exit 1 with exactly one issue, 'authority manifest: packetDigest mismatch; expected current 48999a437bc127f7c4e27066a0c2ab344c91c09f0940f43d114f09c204faef36'",
+    "GITHUB_ACTIONS=true npm run verify:plans after the re-pin: exit 0, PASS, NOTE line present, 17 domains, 29 tickets, 21 program evaluations",
+    "node scripts/verify-p180-t02-authorization.mjs: exit 0",
+    "GITHUB_ACTIONS=true npm run test:plans: exit 0, 88 pass, 0 fail",
+    "npm test: exit 0, 1399 passed, 4 skipped, 109 files",
+    "npm run typecheck: exit 0",
+    "npm run lint: exit 0, 0 errors and 0 warnings (REPO-002 closed by the wave-0 hygiene merge)",
+    "npm run build: exit 0",
+    "npm run test:smoke: exit 0, no MODULE_TYPELESS_PACKAGE_JSON line (REPO-003 closed by the wave-0 hygiene merge)",
+    "re-pin checklist item from ENGINE-LEDGER REPO-012: grepped for scripts that assert a prior re-pin record before refreshing any digest; scripts/verify-obx-p180-source-adoption.mjs is the only one and is unwired (see knownRedUnwiredScript)",
+    "independent advisory audit: x-ai/grok-4.6 via scripts/eval/grok-audit.mjs, artifact docs/audits/grok-4.6/2026-09-02-wave-0-integration.json",
+    "independent code review of PR #21 (Opus, fresh context): one Important finding, the architecture README paragraph described src/lib/reviewFeedback.ts in the present tense with the forward reference disclosed only in audit files; the paragraph now states in place that the module lands with PR #20 and is not yet in this tree; packet digest, manifest sha256 and T02 receipt refreshed a second time for that one clause"
+  ],
+  "knownRedUnwiredScript": {
+    "path": "scripts/verify-obx-p180-source-adoption.mjs",
+    "wired": false,
+    "state": "red before and after this re-pin",
+    "failure": "FAIL authority-manifest derived re-pin receipt drift",
+    "cause": "Line 28 hard-codes docs/audits/evidence/security/2026-08-31-obx-p180-source-adoption-authority-repin.json and lines 130-139 assert that record's currentAuthorityManifest and refreshedT02SecurityReceipt digests against the live files. The 2026-09-02 ci-oracle re-pin already moved those digests; this re-pin moves them again. No npm script or CI job runs this file.",
+    "disposition": "unchanged and still OPEN per ENGINE-LEDGER REPO-012. Re-point it at the newest obx-p180-authority-repin-review-v1 record, or add a supersededBy pointer to the 2026-08-31 record, before wiring it. Do not wire it red."
+  },
+  "reEndorsement": "The T02 receipt target-hash refresh is an integrity re-pin after two owner-scoped wave-0 documentation edits inside the authority packet. It does not re-approve, broaden, or add implementation authority; it changes no gate, no runtime path, no dependency, and no ticket status. Both edits are labels and prose: one aligns a Canvas index heading with the wording the plan register already carries for the same document, the other records module ownership PR #17 authored and PR #20 could not land. Residual property, stated on purpose: the architecture paragraph documents src/lib/reviewFeedback.ts, which does not exist in this tree; it arrives with PR #20, which the owner reviews. Until PR #20 merges, that paragraph describes a module the repository does not yet hold. It grants nothing and gates nothing, and the alternative was leaving PR #20 unable to document its own module at all.",
+  "invariants": {
+    "implementationAuthorized": false,
+    "authorityExpansion": false,
+    "runtimeOrDependencyChange": false,
+    "providerBackedProductRoute": false,
+    "persistenceBrowserCollaborationDeploymentRelease": false,
+    "pageIrMutation": false
+  },
+  "verdict": "PASS",
+  "findingCount": 0,
+  "ledgerRefs": [
+    "REPO-002",
+    "REPO-003",
+    "REPO-012"
+  ],
+  "supersedes": "obx-p180-ci-oracle-authority-repin-2026-09-02"
+}

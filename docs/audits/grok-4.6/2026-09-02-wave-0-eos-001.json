@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-02T14:22:58.108Z",
+  "request": {
+    "task": "Wave 0 task W0.1 (EOS-001, one discoverable authority chain) of the ONE BOX autonomous run one-box-gauntlet-r1, plus the label residue the wave-0 integrator fixed at integration and the wave-0 board update (W0.6). This is a SLICE of branch wave-0/integration: the authority-manifest re-pin and the T02 receipt refresh are on the same branch but outside this allowlist by design; see the branch-scope proof for the full commit list and the re-pin diff.",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "origin/main",
+    "head": "e1f2d91d05817bedfe8d9f8dc0ed5f3f7b655bb1",
+    "files": [
+      "docs/NEXT-SESSION.md",
+      "docs/audits/evidence/goal/2026-09-02-eos-001-authority-chain-on-main.md",
+      "docs/plans/one-box-master/02-canvas/index.md"
+    ],
+    "proofs": [
+      "docs/eval/baseline/runs/wave-0-proof/branch-scope.txt",
+      "docs/eval/baseline/runs/wave-0-proof/plans.txt"
+    ],
+    "diffBytes": 45713,
+    "timeoutMs": 900000,
+    "maxOutputTokens": 12000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 16600,
+      "completion_tokens": 16730,
+      "total_tokens": 33330,
+      "cost": 0.13358,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.13358,
+        "upstream_inference_prompt_cost": 0.0332,
+        "upstream_inference_completions_cost": 0.10038
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 16343,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The allowlist diff matches the canvas-index rule (refero removed from Canonical sources; sole new Supporting and historical entry; remainder untouched) and the addendum’s index.md:9/:11 and :3-7/:13-15 citations. NEXT-SESSION authority order, PR #20, D-1–D-3, T-2/T-9/T-10 closures with pointers, and non-landing of B/T-8 are internally consistent with the addendum’s moved-line table (:15→:16, :11-13→:12-13). Proof at e1f2d91 shows verify:plans exit 0 with packet SHA 48999a… (matching 7.2), test:plans 88/88, and t02 authorization exit 0. AGENTS.md, README.md, ci.yml, and plan-register.md:36 are not in the slice or proof, so those file:line claims are unchecked here.",
+    "residual_risks": [
+      "AGENTS.md/README.md routing and ci.yml:30-34 fail-closed-before-npm-ci are attested only by the confirmation record, not by an independent tree dump in the proof.",
+      "docs/architecture/README.md gained 14 lines on the branch (outside allowlist); §2’s architecture/README.md:12 citation may have shifted without an addendum row.",
+      "T-2 outcome file is only pointed at on wave-3/t2-probe, not present on this tree.",
+      "verify-obx-p180-source-adoption.mjs is red on re-pin receipt drift (unwired/REPO-012); NEXT-SESSION’s 1399-test/lint/typecheck/smoke claims are not in the supplied proof."
+    ]
+  }
+}
