@@ -17,13 +17,13 @@
     "scripts/verify-p180-t02-authorization.mjs"
   ],
   "targetHashes": [
-    {"path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", "algorithm": "sha256", "digest": "b18a127eb0dd0b30ea58dae59506e4260adbba0207cc3274bd5f1479996407f9"},
-    {"path": "docs/plans/one-box-master/00-authority/authority-manifest.json", "algorithm": "sha256", "digest": "10f67653302854aa76ba7944ec797c04dbaa799f4af26c04e1c1557f82b0d6c9"},
+    {"path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", "algorithm": "sha256", "digest": "39f193a31e70988dcab212664c5ce9399164d5824e0e9b275c2be230e9ca35fe"},
+    {"path": "docs/plans/one-box-master/00-authority/authority-manifest.json", "algorithm": "sha256", "digest": "20df55276d786dc44538ff3a3e5cb69cd0bca42072da7a44a09a01c12fd282da"},
     {"path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t02-solo.json", "algorithm": "sha256", "digest": "986a1fb8466a564ab41fffa90ed2337a76ef9196ce36b6ba32cbfb582ebbcbd3"},
     {"path": "docs/plans/2026-08-31-obx-p180-t02-solo-authorization-design.md", "algorithm": "sha256", "digest": "7fb1dfbc5cb984ce60121c6fa3edabf168cb87abf77d59b7d24f893b2e61fd2a"},
     {"path": "docs/plans/2026-08-31-obx-p180-t02-registry-route-reducers.md", "algorithm": "sha256", "digest": "3d89de03533aba40d9e1780058242c4b6a0716b0c150323d6ff7605eddc5125a"},
-    {"path": "scripts/verify-plan-authority.mjs", "algorithm": "sha256", "digest": "72ce3aac6b8b396db58184bad6220ad42abff10186d303c74bef88fffdb0c5d2"},
-    {"path": "scripts/verify-plan-authority.node.mjs", "algorithm": "sha256", "digest": "06a6bccc06301e33f98ff53f15372e42c8ad83f442e0d35671e597ee07c9139e"},
+    {"path": "scripts/verify-plan-authority.mjs", "algorithm": "sha256", "digest": "3fa1b9cd6bba5c69ce5cb2881b690ada2b56854d90229670b12bdcbffc2e1a07"},
+    {"path": "scripts/verify-plan-authority.node.mjs", "algorithm": "sha256", "digest": "ca28d53ba1707d230c894a9812f08da8a83aba226e77be0b1be71e8330cf7b60"},
     {"path": "scripts/verify-p180-t02-authorization.mjs", "algorithm": "sha256", "digest": "cd770f38d12682277f8b1f984adcda39395faf4ea37c98d2194b59660ca4c331"}
   ],
   "verdict": "PASS-WITH-ACCEPTED-RISK",
