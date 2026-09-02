@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-02T14:05:36.236Z",
+  "request": {
+    "task": "Wave 0 task W0.4 (lint and smoke hygiene) of the ONE BOX autonomous run one-box-gauntlet-r1: close ENGINE-LEDGER REPO-002 (six ESLint warnings) and REPO-003 (MODULE_TYPELESS_PACKAGE_JSON from the smoke harness).",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "origin/main",
+    "head": "68f9239bb12b3c2a8fd4d27650f2006ab31f1713",
+    "files": [
+      "docs/ENGINE-LEDGER.md",
+      "scripts/smoke/gates-smoke.mjs",
+      "scripts/smoke/scan-filter-smoke.mjs",
+      "spikes/layout-ir/compile.mjs",
+      "src/components/EvidenceWorkspace.tsx",
+      "src/components/preview/AssistantPanel.tsx",
+      "src/lib/tools/refero.ts"
+    ],
+    "proofs": [
+      "docs/eval/baseline/runs/wave-0-proof/gates.txt",
+      "docs/eval/baseline/runs/wave-0-proof/smoke.txt"
+    ],
+    "diffBytes": 66132,
+    "timeoutMs": 900000,
+    "maxOutputTokens": 12000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 19701,
+      "completion_tokens": 8492,
+      "total_tokens": 28193,
+      "cost": 0.090162,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.090162,
+        "upstream_inference_prompt_cost": 0.03921,
+        "upstream_inference_completions_cost": 0.050952
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 8180,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The slice addresses the six REPO-002 diagnostics by deleting unused symbols/directives and a one-rule eslint-disable-next-line on the retained <img>, and REPO-003 by delegating .ts loads to nextLoad with format module-typescript (no shortCircuit, no source rewrite, non-.ts URLs unmodified). Ledger rows are FIXED and match those edits. Proof is not for this HEAD: gates.txt/smoke.txt are from wave-0/integration 4cd9912, not 68f9239; lint/smoke zeros are therefore corroboration of a later/other tree, not an oracle for this commit. smoke.txt is also truncated (starts at scan-filter [2]; gates-smoke body absent).",
+    "residual_risks": [
+      "Proof SHA mismatch and truncated smoke log; lint/MODULE_TYPELESS cleanliness of 68f9239 is inferred from the diff, not measured on this HEAD.",
+      "Load hooks only special-case url.endsWith(\".ts\"), so a .tsx (scan-filter resolve list) or .d.ts URL would not get the format pin; current smoke graph appears not to load those.",
+      "AssistantPanel/ledger cite an EvidenceWorkspace no-img precedent not visible in this slice.",
+      "Forcing module-typescript would change execution if a harness-loaded .ts were actually CJS; the prior Node reparse path implies these sources already run as ESM."
+    ]
+  }
+}

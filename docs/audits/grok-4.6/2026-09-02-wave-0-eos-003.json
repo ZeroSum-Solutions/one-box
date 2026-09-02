@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-02T14:38:50.286Z",
+  "request": {
+    "task": "Wave 0 task W0.3 (EOS-003, measurable outcomes) of the ONE BOX autonomous run one-box-gauntlet-r1: record the Release 1 outcome baseline as numbers, not targets. The record now carries a post-integration addendum that pins the counts wave 0 itself moved to the commits that moved them and names the row behind the compound ledger status. This is a SLICE of branch wave-0/integration: docs/ENGINE-LEDGER.md is on the same branch but outside this allowlist; the ledger proof carries its commit list, diff stat, moved rows, the REF-006 status row, and both awk runs at 4b02f75 and at HEAD.",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "origin/main",
+    "head": "3c9a9d054e0ce72244d94e24aff36aa1559a1f09",
+    "files": [
+      "docs/audits/2026-09-02-release-1-outcome-baseline.md"
+    ],
+    "proofs": [
+      "docs/eval/baseline/runs/wave-0-proof/ledger.txt",
+      "docs/eval/baseline/runs/wave-0-proof/branch-scope.txt"
+    ],
+    "diffBytes": 21514,
+    "timeoutMs": 900000,
+    "maxOutputTokens": 12000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 9530,
+      "completion_tokens": 14316,
+      "total_tokens": 23846,
+      "cost": 0.104764,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.104764,
+        "upstream_inference_prompt_cost": 0.018868,
+        "upstream_inference_completions_cost": 0.085896
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 13929,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Allowlisted record states all six required outcomes (plus two extras) as not yet measurable, with methods, named commands, and no numeric targets. Addendum A quotes the awk/prose mismatch and names REF-006; B pins moved ledger counts to 21add30/4cd9912 and keeps 4b02f75 as the original pin; C notes the wide vs Claude trailer grep. Ledger proof awk at origin/main (S1 19, OPEN 3) and at proof HEAD (S1 20, OPEN 4), diff stat, REPO-002/003/013 rows, REF-006 line, and both trailer greps matching 11 are consistent with the addendum. Proof HEAD e1f2d91 is not worktree 3c9a9d05; that does not by itself falsify the quoted ledger outputs.",
+    "residual_risks": [
+      "Citations outside the slice (contracts.ts line ids, gates.ts grep shape, ab-run.mjs:167 “three times”, e2e 22/22 and ISO timestamps, results.md/scoresheet.md advisory figures, .gitignore:45) are not reproduced in the supplied proof.",
+      "Outcome 4’s 74/11/26/8 commands are pinned in prose to 4b02f75; replaying them at integration HEAD would not match and is only guarded by the addendum’s general pin sentence.",
+      "§3 still contains the folded “2 CONFIRMED” sentence; correction lives only in addendum A, while B’s “§3 figures are correct at their own pin” is broader than the 53/19/OPEN 3 subset it then lists.",
+      "Advisory visual averages are transcribed from a sed range, not emitted as command output beside the prose."
+    ]
+  }
+}
