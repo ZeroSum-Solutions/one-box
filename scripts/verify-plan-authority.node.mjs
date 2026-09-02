@@ -983,6 +983,25 @@ test("a release-1 phase record rejects broad path scope", () => {
   }, (result) => {
     assert.match(result.stderr, /authorized path must be explicit and repository-relative/);
   });
+  for (const bareDirectory of ["src/lib", "src/app/api", "docs/plans", "src"]) {
+    withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+      record.allowedPaths[0] = bareDirectory;
+      record.ticketScopes[0].allowedPaths[0] = bareDirectory;
+    }, (result) => {
+      assert.match(result.stderr, /authorized path must be explicit and repository-relative/);
+    });
+  }
+});
+
+test("a release-1 phase record fails closed when a frozen registry record expires", () => {
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, registryPath), "utf8"));
+  const t02 = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T02-SOLO-001");
+  const result = run([], {
+    ...fixedEvaluationTimeEnvironment(Date.parse(t02.expiresAt) + 1),
+    GITHUB_ACTIONS: "true",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /frozen record OBX-AUTH-P180-T02-SOLO-001 in the registry is expired/);
 });
 
 test("a release-1 phase record cannot re-pin the frozen dependency graph", () => {
@@ -1030,6 +1049,109 @@ test("the first three authorization records cannot be removed or reordered", () 
   }, (result) => {
     assert.match(result.stderr, /records must begin with OBX-AUTH-ATF-001/);
   }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a release-1 phase record fails closed on a missing or stale security receipt", () => {
+  const receiptPath = "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json";
+  withJsonMutation(receiptPath, (receipt) => {
+    receipt.targetHashes[0].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /securityReceipt\.targetHashes\[0\]: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(receiptPath, (receipt) => {
+    receipt.receiptKind = "solo-t02-security-review-v1";
+  }, (result) => {
+    assert.match(result.stderr, /securityReceipt: receiptKind drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(receiptPath, (receipt) => {
+    receipt.authorityManifestWithoutPacketDigest.digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /authorityManifestWithoutPacketDigest: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a release-1 phase record fails closed on a stale or mislabelled model receipt", () => {
+  const modelReceiptPath = "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json";
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.providerReportedModel = "openai/gpt-5.6";
+  }, (result) => {
+    assert.match(result.stderr, /exact model x-ai\/grok-4\.6 required, or a labelled owner-authorized fallback block/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.targetHashes[0].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.targetHashes\[0\]: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.rawAuditSha256 = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /raw audit hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  for (const severity of ["HIGH", "Critical", "Important", "unheard-of"]) {
+    withJsonMutation(modelReceiptPath, (receipt) => {
+      receipt.verdict = "FINDINGS";
+      receipt.findings = [{ severity, file: "x", line: "1", scenario: "s", remediation: "r" }];
+    }, (result) => {
+      assert.match(result.stderr, /modelReceipt\.findings\[0\]/);
+    }, [], { GITHUB_ACTIONS: "true" });
+  }
+});
+
+test("a missing release-1 model receipt fails closed", () => {
+  const modelReceiptPath = "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json";
+  const absolute = resolve(fixtureRoot, modelReceiptPath);
+  const original = readFileSync(absolute);
+  try {
+    rmSync(absolute, { force: true });
+    const result = run([], { GITHUB_ACTIONS: "true" });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /modelReceipt: missing non-symlink regular file/);
+  } finally {
+    writeFileSync(absolute, original);
+  }
+});
+
+test("a pending predecessor cannot authorize implementation", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.implementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /implementation cannot be authorized while the predecessor merge is pending/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.predecessorBinding.checkpointCommit = "0".repeat(40);
+  }, (result) => {
+    assert.match(result.stderr, /a pending predecessor cannot name a checkpoint commit/);
+  });
+  withJsonMutation(registryPath, (registry) => {
+    registry.authorizations = registry.authorizations.filter((record) => record.id !== "OBX-AUTH-R1-P1-SOLO-001");
+  }, (result) => {
+    assert.match(result.stderr, /predecessor authorization OBX-AUTH-R1-P1-SOLO-001 is missing from the registry/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a release-1 phase amendment cannot drift from its record", () => {
+  const amendmentPath = "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json";
+  withJsonMutation(amendmentPath, (amendment) => {
+    amendment.renewable = true;
+  }, (result) => {
+    assert.match(result.stderr, /amendment: renewable drift/);
+    assert.match(result.stderr, /amendment: SHA-256 drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(amendmentPath, (amendment) => {
+    amendment.ownerDirection.recordedAt = "2026-09-01T13:00:00Z";
+  }, (result) => {
+    assert.match(result.stderr, /amendment\.ownerDirection: exact owner decision drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.renewable = true;
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P1-SOLO-001: renewable drift/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.expiresAt = "2026-09-17T13:00:00Z";
+  }, (result) => {
+    assert.match(result.stderr, /expiry must be exactly 336 hours/);
+  });
 });
 
 test("release-1 cannot fall back to proposed while the phase records stand", () => {

@@ -29,10 +29,10 @@ const RECORDED_AT = "2026-09-02T13:00:00Z";
 const EXPIRES_AT = "2026-09-16T13:00:00Z";
 const THREE_HUNDRED_THIRTY_SIX_HOURS_MS = 1_209_600_000;
 
-const P1_AUTHORIZATION_SHA256 = "b3bd8ac09c369b3472c76c2712e2e7349c67f198f9068124bc4b1b08a39a021e";
-const P2_AUTHORIZATION_SHA256 = "ea6b625d5c7a6815d44136caa1d181fc081ee730a4a29a5359d43abcfdda04ac";
-const P1_AMENDMENT_SHA256 = "ec8e4c20ecf2b49caf5261a0b83faf8adf9c0d0991ead773a09d1e67567ca685";
-const P2_AMENDMENT_SHA256 = "9091f40bb7e30fbf12366ecd61dda25be3e76f9429a7239248c9362ca5ca5a77";
+const P1_AUTHORIZATION_SHA256 = "26f7ff8f9051560d7798f11b4a5b86f69cc8024e74d067f1f826e66716ec3a27";
+const P2_AUTHORIZATION_SHA256 = "5a97296f2f7298c2839e092bbe77fcb1b5dd9995c8dcb164485e36ceede66e26";
+const P1_AMENDMENT_SHA256 = "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147";
+const P2_AMENDMENT_SHA256 = "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51";
 
 const P1_AMENDMENT_PATH = "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json";
 const P2_AMENDMENT_PATH = "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json";
@@ -42,6 +42,7 @@ const P1_SECURITY_RECEIPT_PATH = "docs/audits/evidence/security/2026-09-02-relea
 const P2_SECURITY_RECEIPT_PATH = "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json";
 const P1_GROK_RECEIPT_PATH = "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json";
 const P2_GROK_RECEIPT_PATH = "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json";
+const rawAuditPath = (receiptPath) => receiptPath.replace(/\.json$/, "-raw.json");
 
 // Exactly the governance files this activation pull request writes. The wave-2
 // re-pin record is written by the integrator after the wave-0 merge, so it is not
@@ -60,16 +61,19 @@ const ACTIVATION_WRITE_SET = [
   "scripts/verify-r1-phase-authorization.mjs",
   P1_SECURITY_RECEIPT_PATH,
   P2_SECURITY_RECEIPT_PATH,
+  P1_GROK_RECEIPT_PATH,
+  rawAuditPath(P1_GROK_RECEIPT_PATH),
+  P2_GROK_RECEIPT_PATH,
+  rawAuditPath(P2_GROK_RECEIPT_PATH),
 ];
 
-// The security receipts attest every activation target except the receipts
-// themselves and the authority manifest. The manifest carries the packetDigest
-// field, which is re-pinned after the receipts are written, so the receipts bind
-// the manifest through its canonical without-packetDigest hash instead.
+// The security receipts attest every activation target except the evidence files
+// themselves and the authority manifest. A receipt cannot hash a file that hashes
+// it back, and the manifest carries the packetDigest field, which is re-pinned
+// after the receipts are written, so the receipts bind the manifest through its
+// canonical without-packetDigest hash instead.
 const RECEIPT_TARGET_PATHS = ACTIVATION_WRITE_SET.filter((path) => (
-  path !== AUTHORITY_PATH
-  && path !== P1_SECURITY_RECEIPT_PATH
-  && path !== P2_SECURITY_RECEIPT_PATH
+  path !== AUTHORITY_PATH && !path.startsWith("docs/audits/")
 ));
 
 const UNTRACKED_BASELINE = [{
@@ -328,6 +332,7 @@ export const EXPECTED_RECORD_KEYS = [
 const PHASES = {
   "OBX-AUTH-R1-P1-SOLO-001": {
     phase: "P1",
+    implementationAuthorized: true,
     authorizationSha256: P1_AUTHORIZATION_SHA256,
     amendmentPath: P1_AMENDMENT_PATH,
     amendmentId: "OBX-R1-P1-SOLO-AMENDMENT-001",
@@ -363,6 +368,10 @@ const PHASES = {
   },
   "OBX-AUTH-R1-P2-SOLO-001": {
     phase: "P2",
+    // P1 has not merged, so P2 authorizes no implementation yet. The record is
+    // recorded now, before any task starts, and a later change re-issues it with
+    // a COMPLETED_VERIFIED predecessor checkpoint.
+    implementationAuthorized: false,
     authorizationSha256: P2_AUTHORIZATION_SHA256,
     amendmentPath: P2_AMENDMENT_PATH,
     amendmentId: "OBX-R1-P2-SOLO-AMENDMENT-001",
@@ -495,14 +504,17 @@ function checkBindings(repoRoot, bindings, label, failures) {
 }
 
 /**
- * An authorized path names one file. Globs, traversal, absolute paths, and the
- * broad prefixes rejected by the plan-authority verifier are refused here too.
- * A bracketed segment is allowed only as a whole Next.js dynamic segment, which
- * is how the App Router spells a single concrete route file.
+ * An authorized path names one file. Globs, traversal, absolute paths, and any
+ * directory - broad or narrow, with or without a trailing slash - are refused.
+ * The last segment must carry a file extension, so a bare directory such as
+ * "src/lib" or "docs/plans" can never stand in for a file list. A bracketed
+ * segment is allowed only as a whole Next.js dynamic segment, which is how the
+ * App Router spells a single concrete route file.
  */
 function checkAuthorizedPath(path, label, failures) {
-  const broadPaths = new Set(["src/", "src/lib/", "src/app/", "src/components/", "docs/", "scripts/"]);
   const dynamicSegment = /^\[[A-Za-z0-9_]+\]$/;
+  const fileSegment = /^[A-Za-z0-9_][A-Za-z0-9_.-]*\.[A-Za-z0-9]+$/;
+  const segments = typeof path === "string" ? path.split("/") : [];
   if (
     typeof path !== "string"
     || path.length === 0
@@ -511,13 +523,83 @@ function checkAuthorizedPath(path, label, failures) {
     || normalize(path) !== path
     || normalize(path).startsWith("..")
     || /[*?{}]/.test(path)
-    || broadPaths.has(path)
-    || path.split("/").some((segment) => segment.includes("[") || segment.includes("]") ? !dynamicSegment.test(segment) : false)
+    || segments.length < 2
+    || !fileSegment.test(segments[segments.length - 1])
+    || segments.slice(0, -1).some((segment) => (
+      segment.length === 0
+      || segment === "."
+      || segment === ".."
+      || (/[[\]]/.test(segment) && !dynamicSegment.test(segment))
+    ))
   ) {
     failures.push(`${label}: authorized path must be explicit and repository-relative`);
     return false;
   }
   return true;
+}
+
+/**
+ * A phase may authorize implementation only when it has no predecessor, or when
+ * that predecessor is recorded COMPLETED_VERIFIED at a real checkpoint commit
+ * with live hashes of its exact file list. While the predecessor is pending, the
+ * record exists but authorizes nothing, and the predecessor's own authorization
+ * record must still be present and live in the registry.
+ */
+function validatePredecessorGate(repoRoot, record, registry, failures) {
+  const label = `${record.id}.predecessorBinding`;
+  const binding = record.predecessorBinding;
+  if (binding === null || binding === undefined) {
+    if (record.implementationAuthorized !== true) {
+      failures.push(`${record.id}: a phase with no predecessor must authorize implementation`);
+    }
+    return;
+  }
+  if (binding.status === "PENDING_PREDECESSOR_MERGE") {
+    if (record.implementationAuthorized !== false) {
+      failures.push(`${record.id}: implementation cannot be authorized while the predecessor merge is pending`);
+    }
+    if (binding.checkpointCommit !== null) {
+      failures.push(`${label}: a pending predecessor cannot name a checkpoint commit`);
+    }
+    if (!Array.isArray(binding.files) || binding.files.length === 0
+      || binding.files.some((file) => typeof file !== "string")) {
+      failures.push(`${label}: a pending predecessor must declare its file list as repository-relative paths`);
+    }
+    for (const path of Array.isArray(binding.files) ? binding.files : []) {
+      checkAuthorizedPath(path, `${label}.files`, failures);
+    }
+    const predecessor = (registry?.authorizations ?? []).find((candidate) => candidate?.id === binding.authorizationId);
+    if (!predecessor) {
+      failures.push(`${label}: predecessor authorization ${binding.authorizationId} is missing from the registry`);
+      return;
+    }
+    const predecessorExpiry = Date.parse(predecessor.expiresAt);
+    if (!Number.isFinite(predecessorExpiry) || Date.now() > predecessorExpiry) {
+      failures.push(`${label}: predecessor authorization ${binding.authorizationId} is expired`);
+    }
+    if (predecessor.parentTicketId !== binding.ticketId) {
+      failures.push(`${label}: predecessor authorization ${binding.authorizationId} does not own ticket ${binding.ticketId}`);
+    }
+    exact(predecessor.allowedPaths, binding.files, `${label}.files against ${binding.authorizationId}.allowedPaths`, failures);
+    // The two records share files, so the effect lists are what keep pending work
+    // from riding the predecessor's live grant. They must stay disjoint.
+    const shared = (record.allowedEffects ?? []).filter((effect) => (predecessor.allowedEffects ?? []).includes(effect));
+    if (shared.length > 0) {
+      failures.push(`${label}: pending effects ${shared.join(", ")} also sit inside the live ${binding.authorizationId} grant`);
+    }
+    return;
+  }
+  if (binding.status === "COMPLETED_VERIFIED") {
+    if (record.implementationAuthorized !== true) {
+      failures.push(`${record.id}: a verified predecessor must authorize implementation`);
+    }
+    if (!/^[a-f0-9]{40}$/.test(binding.checkpointCommit ?? "")) {
+      failures.push(`${label}: a verified predecessor must name a 40-character checkpoint commit`);
+    }
+    checkBindings(repoRoot, binding.files, `${label}.files`, failures);
+    return;
+  }
+  failures.push(`${label}: unknown predecessor status ${binding.status}`);
 }
 
 function validateAmendment(repoRoot, phase, record, failures) {
@@ -556,6 +638,15 @@ function validateAmendment(repoRoot, phase, record, failures) {
   for (const [field, expected] of Object.entries(scalars)) {
     if (amendment[field] !== expected) failures.push(`${label}: ${field} drift`);
   }
+  if (amendment.implementationAuthorized !== record.implementationAuthorized) {
+    failures.push(`${label}: implementationAuthorized drift against the registry record`);
+  }
+  exact(amendment.predecessor, record.predecessorBinding === null ? null : {
+    ticketId: record.predecessorBinding?.ticketId,
+    authorizationId: record.predecessorBinding?.authorizationId,
+    status: record.predecessorBinding?.status,
+    checkpointCommit: record.predecessorBinding?.checkpointCommit,
+  }, `${label}.predecessor`, failures);
   exact(amendment.childTicketIds, phase.childTicketIds, `${label}.childTicketIds`, failures);
   exact(amendment.nonWaivableClassesTouched, [], `${label}.nonWaivableClassesTouched`, failures);
   exact(amendment.scope?.allowedPaths, unionPaths(phase.ticketScopes), `${label}.scope.allowedPaths`, failures);
@@ -647,31 +738,82 @@ function validateSecurityReceipt(repoRoot, phase, record, authority, failures) {
   }
 }
 
+const BLOCKING_SEVERITIES = new Set(["BLOCK", "CRITICAL", "HIGH", "IMPORTANT", "MAJOR", "SEV0", "SEV1"]);
+const NON_BLOCKING_SEVERITIES = new Set(["MEDIUM", "LOW", "INFO", "NIT", "MINOR"]);
+
+/**
+ * The model receipt wraps the scripts/eval/grok-audit.mjs output. It is checked
+ * for the exact model labels, the effort, and - the point of the wrapper - live
+ * hash bindings to the authorization record, the amendment, the raw audit file,
+ * and every governance file the audit reviewed. A stale or reused audit fails.
+ */
 function validateGrokReceipt(repoRoot, phase, record, failures) {
   const label = `${record.id}.modelReceipt`;
   const receipt = readJson(repoRoot, phase.grokReceiptPath, label, failures);
   if (!receipt) return;
-  const requestedModel = receipt.requestedModel ?? receipt.request?.model;
-  const providerReportedModel = receipt.providerReportedModel ?? receipt.provider?.model;
-  const effort = receipt.effort ?? receipt.request?.effort;
-  const audit = receipt.audit ?? receipt;
-  if (effort !== REVIEW_PROTOCOL.effort) failures.push(`${label}: effort drift`);
-  if (requestedModel !== REVIEW_PROTOCOL.exactModel || providerReportedModel !== REVIEW_PROTOCOL.exactModel) {
+  const modelReceiptKeys = [
+    "schemaVersion", "receiptKind", "authorizationId", "authorizationHash", "amendmentId",
+    "amendmentHash", "baseCommit", "requestedModel", "providerReportedModel", "effort", "lane",
+    "auditScript", "rawAuditPath", "rawAuditSha256", "reviewedFiles", "targetHashes", "verdict",
+    "findings", "residualRisks", "proofAssessment", "capturedAt",
+  ];
+  checkKeys(
+    receipt,
+    "ownerAuthorizedFallback" in receipt ? [...modelReceiptKeys, "ownerAuthorizedFallback"] : modelReceiptKeys,
+    label,
+    failures,
+  );
+  const scalars = {
+    schemaVersion: 1,
+    receiptKind: "solo-phase-model-audit-v3",
+    authorizationId: record.id,
+    authorizationHash: phase.authorizationSha256,
+    amendmentId: phase.amendmentId,
+    amendmentHash: phase.amendmentSha256,
+    baseCommit: BASE_COMMIT,
+    effort: REVIEW_PROTOCOL.effort,
+    lane: REVIEW_PROTOCOL.lane,
+    auditScript: REVIEW_PROTOCOL.auditScript,
+  };
+  for (const [field, expected] of Object.entries(scalars)) {
+    if (receipt[field] !== expected) failures.push(`${label}: ${field} drift`);
+  }
+  if (receipt.requestedModel !== REVIEW_PROTOCOL.exactModel
+    || receipt.providerReportedModel !== REVIEW_PROTOCOL.exactModel) {
     const fallback = receipt.ownerAuthorizedFallback;
-    if (!fallback || typeof fallback.primaryAttempt !== "object" || fallback.primaryAttempt === null
+    if (!fallback || typeof fallback !== "object"
       || typeof fallback.ownerAuthorizationRef !== "string" || fallback.ownerAuthorizationRef.length === 0
       || typeof fallback.actualModel !== "string" || fallback.actualModel.length === 0
-      || fallback.primaryAttempt.requestedModel !== REVIEW_PROTOCOL.exactModel) {
-      failures.push(`${label}: exact model ${REVIEW_PROTOCOL.exactModel} required, or a labelled owner-authorized fallback block`);
+      || typeof fallback.primaryAttempt !== "object" || fallback.primaryAttempt === null
+      || fallback.primaryAttempt.requestedModel !== REVIEW_PROTOCOL.exactModel
+      || typeof fallback.primaryAttempt.failure !== "string" || fallback.primaryAttempt.failure.length === 0) {
+      failures.push(`${label}: exact model ${REVIEW_PROTOCOL.exactModel} required, or a labelled owner-authorized fallback block that retains the failed attempt and names the actual model`);
     }
   }
-  if (!["CLEAN", "FINDINGS"].includes(audit?.verdict) || !Array.isArray(audit?.findings)) {
+  const required = [REGISTRY_PATH, phase.amendmentPath, phase.packetPath, "scripts/verify-r1-phase-authorization.mjs"];
+  if (!Array.isArray(receipt.reviewedFiles) || required.some((path) => !receipt.reviewedFiles.includes(path))) {
+    failures.push(`${label}: the audited file set must name the registry, the amendment, the phase packet, and the phase module`);
+  }
+  exact(receipt.targetHashes?.map((binding) => binding?.path), receipt.reviewedFiles, `${label}.targetHashes.paths`, failures);
+  checkBindings(repoRoot, receipt.targetHashes, `${label}.targetHashes`, failures);
+  if (receipt.rawAuditPath !== rawAuditPath(phase.grokReceiptPath)) {
+    failures.push(`${label}: rawAuditPath drift`);
+  } else if (sha256File(repoRoot, receipt.rawAuditPath, `${label}.rawAudit`, failures) !== receipt.rawAuditSha256) {
+    failures.push(`${label}: raw audit hash drift ${receipt.rawAuditPath}`);
+  }
+  if (!["CLEAN", "FINDINGS"].includes(receipt.verdict) || !Array.isArray(receipt.findings)) {
     failures.push(`${label}: audit verdict schema drift`);
     return;
   }
-  const blocking = audit.findings.filter((finding) => ["BLOCK", "HIGH"].includes(finding?.severity));
-  if (blocking.length > 0) {
-    failures.push(`${label}: ${blocking.length} unresolved BLOCK or HIGH model finding(s)`);
+  for (const [index, finding] of receipt.findings.entries()) {
+    const severity = typeof finding?.severity === "string" ? finding.severity.toUpperCase() : null;
+    if (severity === null || (!BLOCKING_SEVERITIES.has(severity) && !NON_BLOCKING_SEVERITIES.has(severity))) {
+      failures.push(`${label}.findings[${index}]: unknown severity is treated as blocking`);
+      continue;
+    }
+    if (BLOCKING_SEVERITIES.has(severity)) {
+      failures.push(`${label}.findings[${index}]: unresolved ${severity} model finding`);
+    }
   }
 }
 
@@ -683,7 +825,7 @@ function validatePhaseRecord(repoRoot, phase, record, context, failures) {
   const scalars = {
     recordKind: "owner-solo-phase-exception-v3",
     status: "authorized-with-solo-exception",
-    implementationAuthorized: true,
+    implementationAuthorized: phase.implementationAuthorized,
     projectId: "one-box",
     branch: "main",
     baseCommit: BASE_COMMIT,
@@ -728,6 +870,7 @@ function validatePhaseRecord(repoRoot, phase, record, context, failures) {
   exact(record.reviewProtocol, REVIEW_PROTOCOL, `${record.id}.reviewProtocol`, failures);
   exact(record.requiredEvidencePaths, [phase.securityReceiptPath, phase.grokReceiptPath], `${record.id}.requiredEvidencePaths`, failures);
   exact(record.predecessorBinding, phase.predecessorBinding, `${record.id}.predecessorBinding`, failures);
+  validatePredecessorGate(repoRoot, record, context.registry, failures);
 
   if (record.ownerDirection?.actorId !== "person:devin-wiggins"
     || record.ownerDirection?.ownerResponse !== OWNER_RESPONSE
@@ -857,6 +1000,29 @@ function validateOwnerAcceptance(repoRoot, authority, failures) {
   }
 }
 
+/**
+ * The phase records name "expired-t01-or-t02-record-in-registry" as an
+ * invalidator, so the frozen grants they sit beside must still be live.
+ */
+function validatePredecessorRegistryRecords(registry, failures) {
+  for (const id of ["OBX-AUTH-P180-T01-SOLO-001", "OBX-AUTH-P180-T02-SOLO-001"]) {
+    const record = (registry?.authorizations ?? []).find((candidate) => candidate?.id === id);
+    if (!record) {
+      failures.push(`release-1 phase authorizations: frozen record ${id} is missing from the registry`);
+      continue;
+    }
+    if (record.renewable !== false) {
+      failures.push(`release-1 phase authorizations: frozen record ${id} must stay non-renewable`);
+    }
+    const expiresAt = Date.parse(record.expiresAt);
+    if (!Number.isFinite(expiresAt)) {
+      failures.push(`release-1 phase authorizations: frozen record ${id} has an invalid expiresAt`);
+    } else if (Date.now() > expiresAt) {
+      failures.push(`release-1 phase authorizations: frozen record ${id} in the registry is expired`);
+    }
+  }
+}
+
 export function verifyRelease1PhaseAuthorizations({
   repoRoot = ROOT,
   registry,
@@ -876,6 +1042,7 @@ export function verifyRelease1PhaseAuthorizations({
   if (present.length === 0) return { failures, verified: [] };
 
   validateOwnerAcceptance(repoRoot, authorityManifest, failures);
+  validatePredecessorRegistryRecords(source, failures);
   const verified = [];
   for (const record of present) {
     const phase = PHASES[record.id];
@@ -884,6 +1051,7 @@ export function verifyRelease1PhaseAuthorizations({
       continue;
     }
     validatePhaseRecord(repoRoot, phase, record, {
+      registry: source,
       ticketManifest: tickets,
       evalManifest: evaluations,
       authority: authorityManifest,

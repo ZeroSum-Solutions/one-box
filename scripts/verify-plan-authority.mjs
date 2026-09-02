@@ -271,7 +271,7 @@ const expectedSoloGovernanceHashes = new Map([
 const soloAuthorizationId = "OBX-AUTH-P180-T01-SOLO-001";
 const expectedAtfCanonicalSha256 = "1d46a9476b9cda04727e02cd171bf7d700352deec045cd673011b23034315a3f";
 const expectedSoloAuthorizationSha256 = "7dc3ab642004bdb8980c0f9d63dc1631ce89252783aeee1883f1b2a55be8e7ce";
-const expectedAuthorityWithoutDigestSha256 = "e3e465714c5426aa6cb900b9892ea07946a8fdc24b4f0c4cdcb6411331b95597";
+const expectedAuthorityWithoutDigestSha256 = "8bbf07e6de63d9c70234e775ac2eed077e468643346e2bc302cecd0dcdff2f25";
 const expectedSoloActivationWriteSet = [
   "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
   "docs/plans/one-box-master/00-authority/authority-manifest.json",
