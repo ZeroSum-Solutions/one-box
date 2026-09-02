@@ -1212,11 +1212,19 @@ test("a recorded phase authorization cannot be deleted back to silence", () => {
   }
 });
 
-test("a pending predecessor fails closed once the predecessor phase lands", () => {
+test("a pending predecessor tolerates the predecessor's own declared files", () => {
+  // Exactly the eight files OBX-AUTH-R1-P1-SOLO-001 authorises P1 to create.
+  // While P1 does its authorised work they appear one by one on a P1 branch.
+  // That is the predecessor working, not a stale pending claim.
   const created = [
     "src/lib/releaseLifecycle.ts",
+    "src/lib/releaseLifecycle.test.ts",
+    "src/lib/releaseLifecycleStore.ts",
+    "src/lib/releaseLifecycleStore.test.ts",
     "src/app/api/lifecycle/[id]/route.ts",
+    "src/app/api/lifecycle/[id]/route.test.ts",
     "src/components/preview/LifecycleStatus.tsx",
+    "src/components/preview/LifecycleStatus.test.tsx",
   ];
   const absolutes = created.map((path) => resolve(fixtureRoot, path));
   try {
@@ -1225,11 +1233,66 @@ test("a pending predecessor fails closed once the predecessor phase lands", () =
       writeFileSync(absolute, "export {};\n");
     }
     const result = run([], { GITHUB_ACTIONS: "true" });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /predecessor-phase-not-merged is stale; src\/lib\/releaseLifecycle\.ts exists/);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Plan authority verification passed/);
   } finally {
     for (const absolute of absolutes) rmSync(absolute, { force: true });
   }
+});
+
+test("a pending predecessor refuses a path only the pending phase authorizes", () => {
+  // src/lib/candidatePromotion.ts sits in OBX-AUTH-R1-P2-SOLO-001.allowedPaths
+  // and in no P1 scope, and it does not exist at the base commit. Its presence
+  // is P2 work started before P1 merged.
+  const absolute = resolve(fixtureRoot, "src/lib/candidatePromotion.ts");
+  try {
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, "export {};\n");
+    const result = run([], { GITHUB_ACTIONS: "true" });
+    assert.notEqual(result.status, 0);
+    assert.match(
+      result.stderr,
+      /predecessor-phase-not-merged; src\/lib\/candidatePromotion\.ts is authorized only by OBX-AUTH-R1-P2-SOLO-001/,
+    );
+  } finally {
+    rmSync(absolute, { force: true });
+  }
+});
+
+test("a pending predecessor refuses a file list that is not the predecessor's grant", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.predecessorBinding.files = record.predecessorBinding.files.slice(1);
+  }, (result) => {
+    assert.match(
+      result.stderr,
+      /predecessorBinding\.files against OBX-AUTH-R1-P1-SOLO-001\.allowedPaths: exact value drift/,
+    );
+  });
+});
+
+test("a pending predecessor refuses a predecessor that no longer authorizes implementation", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.implementationAuthorized = false;
+  }, (result) => {
+    assert.match(
+      result.stderr,
+      /predecessorBinding: predecessor authorization OBX-AUTH-R1-P1-SOLO-001 does not authorize implementation/,
+    );
+  });
+});
+
+test("a pending predecessor refuses an expired predecessor record", () => {
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, registryPath), "utf8"));
+  const record = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-R1-P1-SOLO-001");
+  const result = run([], {
+    ...fixedEvaluationTimeEnvironment(Date.parse(record.expiresAt) + 1),
+    GITHUB_ACTIONS: "true",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /predecessorBinding: predecessor authorization OBX-AUTH-R1-P1-SOLO-001 is expired/,
+  );
 });
 
 test("a pending predecessor refuses a child ticket in the program manifest", () => {
