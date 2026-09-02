@@ -15,6 +15,13 @@ engine. Intake starts at `/`; generated sites are edited at `/preview/<id>`.
 
 ## Sources of truth
 
+- **Open to-dos — read first:** `docs/NEXT-SESSION.md`. The working queue, plus a
+  watch list of work that is deliberately not started.
+- **Active consolidation plan:**
+  `docs/plans/2026-08-20-studio-consolidation-extraction.md`. Decides that ONE BOX
+  is the spine, MishMash is a quarry for specs and content, and OpenWork is not a
+  base. Records nine corrected facts, three pre-existing defects (DEF-1 to DEF-3),
+  the extraction manifest, and the first action for the next session.
 - Program authority manifest: `docs/plans/one-box-master/00-authority/authority-manifest.json`
 - Human-readable plan register: `docs/plans/one-box-master/00-authority/plan-register.md`
 - Website source/candidate requirements: `docs/specs/2026-08-22-page-ir-safe-pipeline-prd.md`
