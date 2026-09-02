@@ -36,7 +36,7 @@ before(() => {
     cpSync(resolve(sourceRoot, untrackedBaselinePath), resolve(fixtureRoot, untrackedBaselinePath));
   }
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
-  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs"]) {
+  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-r1-phase-authorization.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/e2e"), { recursive: true });

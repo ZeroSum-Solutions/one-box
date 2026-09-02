@@ -12,6 +12,10 @@ import {
   T02_AUTHORIZATION_ID,
   verifyP180T02Authorization,
 } from "./verify-p180-t02-authorization.mjs";
+import {
+  R1_PHASE_AUTHORIZATION_ID_PATTERN,
+  verifyRelease1PhaseAuthorizations,
+} from "./verify-r1-phase-authorization.mjs";
 
 const root = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
 const failures = [];
@@ -63,8 +67,8 @@ const expectedDomains = {
   "program-order": ["docs/superpowers/plans/2026-08-27-canvas-to-agency-shipping-roadmap.md", "owner-approved-direction"],
   "appointment-acquisition": ["docs/specs/2026-08-27-appointment-acquisition-v1-prd.md", "owner-approved-architecture"],
   "engineering-operating-system": ["docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md", "proposed"],
-  "release-1": ["docs/plans/one-box-master/01-foundation/release-1-contract.md", "proposed"],
-  compatibility: ["docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md", "proposed"],
+  "release-1": ["docs/plans/one-box-master/01-foundation/release-1-contract.md", "owner-approved"],
+  compatibility: ["docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md", "owner-approved"],
   "target-topology": ["docs/adr/0002-target-desktop-cloud-topology.md", "proposed"],
   "program-security": ["docs/security/2026-08-29-program-threat-model.md", "proposed"],
   "program-evaluation": ["docs/eval/one-box-program/evaluation-strategy.md", "proposed"],
@@ -1091,8 +1095,14 @@ if (scopedImplementationAuthority) {
   if (!Array.isArray(scopedImplementationAuthority.authorizations) || scopedImplementationAuthority.authorizations.length === 0) {
     fail("scoped implementation authority: authorizations must be a non-empty array");
   }
-  if (JSON.stringify(scopedImplementationAuthority.authorizations?.map((record) => record?.id)) !== JSON.stringify(["OBX-AUTH-ATF-001", soloAuthorizationId, T02_AUTHORIZATION_ID])) {
-    fail(`scoped implementation authority: records must be exactly OBX-AUTH-ATF-001, ${soloAuthorizationId}, and ${T02_AUTHORIZATION_ID}`);
+  const scopedAuthorizationIds = (scopedImplementationAuthority.authorizations ?? []).map((record) => record?.id);
+  if (JSON.stringify(scopedAuthorizationIds.slice(0, 3)) !== JSON.stringify(["OBX-AUTH-ATF-001", soloAuthorizationId, T02_AUTHORIZATION_ID])) {
+    fail(`scoped implementation authority: records must begin with OBX-AUTH-ATF-001, ${soloAuthorizationId}, and ${T02_AUTHORIZATION_ID} in that order`);
+  }
+  for (const id of scopedAuthorizationIds.slice(3)) {
+    if (typeof id !== "string" || !R1_PHASE_AUTHORIZATION_ID_PATTERN.test(id)) {
+      fail(`scoped implementation authority: later authorization ids must match ${R1_PHASE_AUTHORIZATION_ID_PATTERN}; found ${id}`);
+    }
   }
   for (const record of scopedImplementationAuthority.authorizations ?? []) {
     if (!isPlainObject(record) || typeof record.id !== "string" || record.id.length === 0) {
@@ -1101,7 +1111,7 @@ if (scopedImplementationAuthority) {
     }
     if (scopedAuthorizations.has(record.id)) fail(`scoped implementation authority: duplicate ${record.id}`);
     scopedAuthorizations.set(record.id, record);
-    if (record.id === soloAuthorizationId || record.id === T02_AUTHORIZATION_ID) continue;
+    if (record.id === soloAuthorizationId || record.id === T02_AUTHORIZATION_ID || R1_PHASE_AUTHORIZATION_ID_PATTERN.test(record.id)) continue;
     if (record.id !== "OBX-AUTH-ATF-001") {
       fail(`scoped implementation authority: unknown authorization ${record.id}`);
       continue;
@@ -1202,6 +1212,14 @@ if (scopedImplementationAuthority) {
     verifyReceipt: true,
   });
   for (const failure of t02Result.failures) fail(failure);
+  const r1PhaseResult = verifyRelease1PhaseAuthorizations({
+    repoRoot: root,
+    registry: scopedImplementationAuthority,
+    ticketManifest,
+    evalManifest,
+    authority,
+  });
+  for (const failure of r1PhaseResult.failures) fail(failure);
 
   if (process.argv.includes("--verify-solo-source-scope-only")) {
     let committedChangedPaths = [];
