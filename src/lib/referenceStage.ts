@@ -8,11 +8,13 @@ import {
   PipelineEvent,
   ReferenceLockSchema,
   ReferenceMode,
+  ReferenceSelectionStateSchema,
   ReferenceSelectionState,
   ReferenceSelectionVersionSchema,
   type ReferenceLock,
 } from "./contracts";
 import { generateJson } from "./openrouter";
+import { normalizeReferencePreferences } from "./referenceSelection";
 import { sitePaths } from "./runstate";
 import { searchStyles, type StyleSummary } from "./tools/refero";
 import { getStylesCached } from "./tools/referoStyleCache";
@@ -347,15 +349,34 @@ export async function finalizeReferenceLock(
   selection: ReferenceSelectionState,
   emit: Emit
 ): Promise<ReferenceLock> {
-  const checked = z.object({
-    status: z.literal("selected"),
-    selection: z.object({ selectedId: z.string(), version: z.number(), at: z.string() }),
-    versions: z.array(ReferenceSelectionVersionSchema),
-  }).parse(selection);
-  const version = checked.versions.find((entry) => entry.version === checked.selection.version);
-  const primary = version?.candidates.find((candidate) => candidate.referoId === checked.selection.selectedId);
+  const checked = ReferenceSelectionStateSchema.parse(selection);
+  if (checked.status !== "selected" || !checked.selection) {
+    throw new Error("reference selection is not complete");
+  }
+  const committedSelection = checked.selection;
+  const normalized = normalizeReferencePreferences(checked);
+  const selectedCandidates = normalized.preferences.map((preference) => {
+    const selectedVersion = checked.versions.find(
+      (entry) => entry.version === preference.version,
+    );
+    const candidate = selectedVersion?.candidates.find(
+      (entry) => entry.referoId === preference.referoId,
+    );
+    if (!candidate) throw new Error("selected reference candidate is unavailable");
+    return { preference, candidate };
+  });
+  const version = checked.versions.find(
+    (entry) => entry.version === committedSelection.version,
+  );
+  const primary = selectedCandidates[0]?.candidate;
   if (!version || !primary) throw new Error("selected reference candidate is unavailable");
-  const candidates = version.candidates.map((candidate) => ({
+  const provenanceCandidates = [...version.candidates];
+  for (const { candidate } of selectedCandidates.slice(1)) {
+    if (!provenanceCandidates.some((entry) => entry.referoId === candidate.referoId)) {
+      provenanceCandidates.push(candidate);
+    }
+  }
+  const candidates = provenanceCandidates.map((candidate) => ({
     referoId: candidate.referoId,
     kind: candidate.kind,
     name: candidate.name,
@@ -372,9 +393,18 @@ export async function finalizeReferenceLock(
       name: primary.name,
       why: `The owner chose this direction: ${primary.plainLanguageProfile.headline}.`,
     },
-    borrowedDetails: [],
+    borrowedDetails: selectedCandidates.slice(1, 3).map(({ preference }) => ({
+      referoId: preference.referoId,
+      detail: preference.note,
+      why: `The owner ranked this direction ${preference.rank === 2 ? "second" : "third"}.`,
+    })),
     rejected: version.candidates
-      .filter((candidate) => candidate.referoId !== primary.referoId)
+      .filter(
+        (candidate) =>
+          !selectedCandidates.some(
+            (selection) => selection.candidate.referoId === candidate.referoId,
+          ),
+      )
       .map((candidate) => ({
         referoId: candidate.referoId,
         name: candidate.name,
@@ -386,7 +416,19 @@ export async function finalizeReferenceLock(
         source: "owner choice",
       },
       { decision: "The page layout comes from the standard business-website format for now.", source: "picker disclosure" },
+      ...(normalized.overallNote
+        ? [{ decision: normalized.overallNote, source: "owner overall preference" }]
+        : []),
     ],
+      ...(committedSelection.ranked
+      ? {
+          preferenceLedger: {
+            schemaVersion: 1 as const,
+            preferences: normalized.preferences,
+            overallNote: normalized.overallNote,
+          },
+        }
+      : {}),
     provenance: {
       primary: candidates.find((candidate) => candidate.referoId === primary.referoId),
       candidates,

@@ -5,10 +5,12 @@ import { useEffect, useRef, useState } from "react";
 import type {
   CandidateProfile,
   ReferenceSelectionState,
+  UploadMetadata,
 } from "@/lib/contracts";
 import { consumePipelineRunStream } from "./resumeRun";
+import { UploadPanel } from "./UploadPanel";
 
-type PickerAction = "select" | "reroll" | null;
+type PickerAction = "select" | "reroll" | "feedback" | null;
 
 interface ReferenceResponse {
   error?: string;
@@ -67,12 +69,80 @@ export function ReferenceSelectionPanel({
   const [action, setAction] = useState<PickerAction>(null);
   const [error, setError] = useState<string | null>(null);
   const [rerollNote, setRerollNote] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [feedbackUploads, setFeedbackUploads] = useState<UploadMetadata[]>([]);
+  const [feedbackUploadSession, setFeedbackUploadSession] = useState<string | null>(null);
+  const [feedbackId, setFeedbackId] = useState<string | null>(null);
+  const [feedbackStatus, setFeedbackStatus] = useState<string | null>(null);
+  const [feedbackSessionError, setFeedbackSessionError] = useState<string | null>(null);
   // Synchronous lock (review finding): two clicks can both pass the React
   // disabled state before the re-render lands; the ref closes that window.
   const inFlight = useRef(false);
   const version = latestVersion(selection);
   const recommendation = version?.candidates.find((candidate) => candidate.recommended);
   const selected = selectedCandidate(selection);
+  const feedbackDecisionBlocked = feedbackUploads.length > 0 && feedback.trim().length === 0;
+
+  function clearFeedback() {
+    setFeedback("");
+    setFeedbackUploads([]);
+    setFeedbackUploadSession(null);
+    setFeedbackId(null);
+    setFeedbackSessionError(null);
+  }
+
+  function recoverFeedbackAttachments(status: number, message: string | undefined) {
+    if (
+      feedbackUploads.length > 0 &&
+      (status === 401 || /upload session|uploaded file|staged file/i.test(message ?? ""))
+    ) {
+      setFeedbackUploads([]);
+      setFeedbackUploadSession(null);
+      setFeedbackSessionError(
+        "Those attachments expired or were already used. Choose the files again; your feedback text is still here.",
+      );
+    }
+  }
+
+  async function recordFeedback() {
+    const id = feedbackId ?? crypto.randomUUID();
+    if (!feedbackId) setFeedbackId(id);
+    const response = await fetch("/api/reference/" + runId, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "record-feedback",
+        feedbackId: id,
+        text: feedback.trim(),
+        uploadSession: feedbackUploadSession,
+        uploadIds: feedbackUploads.map((upload) => upload.id),
+      }),
+    });
+    const result = (await response.json()) as ReferenceResponse;
+    if (!response.ok) recoverFeedbackAttachments(response.status, result.error);
+    if (!response.ok || !result.referenceSelection) {
+      throw new Error(result.error ?? "We couldn't save that feedback.");
+    }
+    setSelection(result.referenceSelection);
+  }
+
+  async function sendFeedback() {
+    if (!feedback.trim() || inFlight.current) return;
+    inFlight.current = true;
+    setAction("feedback");
+    setError(null);
+    setFeedbackStatus(null);
+    try {
+      await recordFeedback();
+      clearFeedback();
+      setFeedbackStatus("Feedback and attachments were saved with this review.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "We couldn't save that feedback.");
+    } finally {
+      inFlight.current = false;
+      setAction(null);
+    }
+  }
 
   async function refresh(): Promise<ReferenceSelectionState | undefined> {
     const response = await fetch("/api/reference/" + runId, { cache: "no-store" });
@@ -114,6 +184,7 @@ export function ReferenceSelectionPanel({
     setError(null);
     setRerollNote(null);
     try {
+      if (feedback.trim()) await recordFeedback();
       const response = await fetch("/api/reference/" + runId, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -125,6 +196,7 @@ export function ReferenceSelectionPanel({
       }
 
       setSelection(result.referenceSelection);
+      clearFeedback();
 
       // Only the known resume endpoint may be followed, always as POST
       // (review finding: a response body must not be able to steer the
@@ -157,11 +229,13 @@ export function ReferenceSelectionPanel({
 
   async function reroll() {
     if (inFlight.current) return;
+    const savedFeedback = feedback.trim().length > 0;
     inFlight.current = true;
     setAction("reroll");
     setError(null);
     setRerollNote(null);
     try {
+      if (savedFeedback) await recordFeedback();
       const response = await fetch("/api/reference/" + runId, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -178,17 +252,26 @@ export function ReferenceSelectionPanel({
       if (result.reason === "no-fresh-directions") {
         setRerollNote("We couldn't find enough new directions — these are still your options.");
         await refresh();
+        if (savedFeedback) {
+          clearFeedback();
+          setFeedbackStatus("Your feedback was saved, but no new directions were available.");
+        }
         return;
       }
       if (response.status === 409) {
         setRerollNote("You've seen all the different directions we can offer — every look shown is still yours to pick.");
         await refresh();
+        if (savedFeedback) {
+          clearFeedback();
+          setFeedbackStatus("Your feedback was saved, but every direction has already been shown.");
+        }
         return;
       }
       if (!response.ok || !result.referenceSelection) {
         throw new Error("We couldn't find different directions right now. Please try again.");
       }
       setSelection(result.referenceSelection);
+      clearFeedback();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn't find different directions.");
     } finally {
@@ -268,7 +351,7 @@ export function ReferenceSelectionPanel({
             <figcaption>A real business site with this feel — for inspiration, not a preview of your site</figcaption>
           </figure>
         )}
-        <button className="btn-ghost" type="button" disabled={action !== null} onClick={() => void choose(candidate)}>
+        <button className="btn-ghost" type="button" disabled={action !== null || feedbackDecisionBlocked} onClick={() => void choose(candidate)}>
           {action === "select" ? "Choosing this look…" : "Choose this look"}
         </button>
       </article>
@@ -282,13 +365,19 @@ export function ReferenceSelectionPanel({
       <p className="reference-selection__framing">
         We found a few different looks for your site. Pick the one that feels most like your business — or let us pick for you.
       </p>
+      <dl className="review-overview__answers">
+        <div><dt>What are we deciding?</dt><dd>Which visual direction should guide the site?</dd></div>
+        <div><dt>What did OneBox learn?</dt><dd>OneBox found {version.candidates.length} current direction{version.candidates.length === 1 ? "" : "s"} that fit the brief.</dd></div>
+        <div><dt>What does the proposed choice look like?</dt><dd>The cards show the colors, mood, strengths, and tradeoffs of each direction.</dd></div>
+        <div><dt>What do you need to do next?</dt><dd>Choose a direction, or add feedback and request different options.</dd></div>
+      </dl>
       {/* Contract guarantees exactly one recommended candidate, but a picker
           with cards and no shortcut beats a blank panel if that ever breaks. */}
       {recommendation && (
         <button
           type="button"
-          className="btn-primary"
-          disabled={action !== null}
+          className="btn-ghost"
+          disabled={action !== null || feedbackDecisionBlocked}
           onClick={() => void choose(recommendation)}
         >
           {action === "select" ? "Choosing this look…" : "Not sure? Use our recommendation"}
@@ -304,7 +393,7 @@ export function ReferenceSelectionPanel({
       </p>
 
       {selection.rerollsUsed < 2 && (
-        <button className="btn-ghost" type="button" disabled={action !== null} onClick={() => void reroll()}>
+        <button className="btn-ghost" type="button" disabled={action !== null || feedbackDecisionBlocked} onClick={() => void reroll()}>
           {action === "reroll" ? "Finding different directions…" : "Show me different directions"}
         </button>
       )}
@@ -318,6 +407,65 @@ export function ReferenceSelectionPanel({
           </div>
         </div>
       )}
+      <section className="review-feedback-composer" aria-labelledby="reference-feedback-title">
+        <div className="review-feedback-composer__head">
+          <div>
+            <p className="eyebrow">{"{ your decision }"}</p>
+            <h3 id="reference-feedback-title">Add feedback or evidence</h3>
+          </div>
+          <p>Attach a brand kit, logo, screenshot, reference image, or document. Files stay private and do not change the site by themselves.</p>
+        </div>
+        <label className="review-feedback-composer__field">
+          Feedback
+          <textarea
+            value={feedback}
+            onChange={(event) => {
+              setFeedback(event.target.value);
+              setFeedbackStatus(null);
+            }}
+            maxLength={2_000}
+            aria-describedby="reference-feedback-help"
+            placeholder="Tell OneBox what works or what needs to change…"
+          />
+        </label>
+        <p id="reference-feedback-help" className="sr-only">Feedback is required before attached evidence can be saved.</p>
+        <UploadPanel
+          uploads={feedbackUploads}
+          onChange={setFeedbackUploads}
+          uploadSession={feedbackUploadSession}
+          onUploadSessionChange={setFeedbackUploadSession}
+          externalSessionError={feedbackSessionError}
+          onExternalSessionErrorClear={() => setFeedbackSessionError(null)}
+          disabled={action !== null}
+          review
+        />
+        <div className="review-feedback-composer__status" aria-live="polite">
+          {feedbackDecisionBlocked
+            ? "Add feedback text before saving attached evidence with a decision."
+            : feedbackStatus}
+        </div>
+        <div className="review-feedback-composer__actions">
+          <button className="btn-ghost" type="button" disabled={action !== null || !feedback.trim()} onClick={() => void sendFeedback()}>
+            {action === "feedback" ? "Sending…" : "Send feedback"}
+          </button>
+          <button
+            className="btn-primary"
+            type="button"
+            disabled={action !== null || feedbackDecisionBlocked || !recommendation}
+            onClick={() => recommendation && void choose(recommendation)}
+          >
+            Approve to Continue
+          </button>
+          <button
+            className="btn-coral"
+            type="button"
+            disabled={action !== null || !feedback.trim() || selection.rerollsUsed >= 2}
+            onClick={() => void reroll()}
+          >
+            Request Changes
+          </button>
+        </div>
+      </section>
       {rerollNote && <p className="reference-selection__message" role="status">{rerollNote}</p>}
       {error && <p className="chat-error" role="alert">{error}</p>}
     </section>

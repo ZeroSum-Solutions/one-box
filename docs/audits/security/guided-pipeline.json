@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-08-25T21:23:58-07:00",
+  "scope": "Guided OneBox pipeline projection, ranked reference selection, competitor analysis, and local test discovery",
+  "verdict": "PASS",
+  "checks": [
+    {
+      "area": "authorization",
+      "result": "pass",
+      "evidence": "GET /api/guided/[id] and POST /api/reference/[id] use the existing same-origin local API authorization boundary; route tests cover forbidden requests."
+    },
+    {
+      "area": "cache and data exposure",
+      "result": "pass",
+      "evidence": "The guided read endpoint sends private, no-store and nosniff headers and returns only typed run projections."
+    },
+    {
+      "area": "untrusted reference input",
+      "result": "pass",
+      "evidence": "Ranked IDs and notes are strictly bounded, candidate membership is checked server-side, writes are serialized per run, and conflicting checkpoints return 409 without mutation."
+    },
+    {
+      "area": "preference provenance",
+      "result": "pass",
+      "evidence": "ReferenceLockDraftSchema omits preferenceLedger, so model-authored lock drafts cannot fabricate owner preference provenance; only the atomic server selection path writes the ledger."
+    },
+    {
+      "area": "prompt injection and ranking integrity",
+      "result": "pass",
+      "evidence": "Only verified business sites with first-party crawl artifacts reach analysis; model input excludes ratings, review counts, directory rank, and social popularity; uncited rubric criteria are forced to zero."
+    },
+    {
+      "area": "owner-facing links and paths",
+      "result": "pass",
+      "evidence": "Competitor URLs are restricted to HTTP(S), screenshot paths are constrained to research-relative artifacts, React escapes all prose, and external links use noopener noreferrer."
+    },
+    {
+      "area": "client persistence",
+      "result": "pass",
+      "evidence": "Local draft JSON is validated against the current run/version candidate set, bounded, and never sent until the user confirms."
+    },
+    {
+      "area": "backward compatibility",
+      "result": "pass",
+      "evidence": "Existing developer rendering is unchanged, historical selections normalize in memory, and guided market reads fall back to legacy scan.json when the new artifact is absent."
+    },
+    {
+      "area": "completion integrity",
+      "result": "pass",
+      "evidence": "Evidence-gated runs cannot surface Website ready until the current visual-qa artifact has a valid human approval; built=done without that checkpoint remains workflow-running or approval-pending."
+    }
+  ],
+  "verification": {
+    "unit": "109 files passed, 1346 tests passed, 4 skipped",
+    "build": "Next.js 16.3.0 production build passed",
+    "browser": "Desktop, 390px, and 320px; no horizontal overflow or console errors; 44px switch target; developer toggle verified",
+    "independentReview": "PASS after verifying visual-QA completion gating, SSE resume, model provenance isolation, and local draft validation"
+  },
+  "knownNonBlocking": [
+    "Next.js reports six pre-existing Turbopack dynamic-filesystem tracing warnings in contrastGate.ts, cssVars.ts, gates.ts, and siteAuthority.ts."
+  ]
+}

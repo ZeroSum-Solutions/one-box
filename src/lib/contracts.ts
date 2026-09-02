@@ -1768,6 +1768,29 @@ export const ReferenceSelectionVersionSchema = z
     }
   });
 
+export const RankedReferencePreferenceSchema = z
+  .object({
+    referoId: z.string().min(1).max(80),
+    version: z.number().int().min(1).max(3),
+    rank: z.number().int().min(1).max(3),
+    note: z.string().trim().min(3).max(1_000),
+  })
+  .strict();
+export type RankedReferencePreference = z.infer<
+  typeof RankedReferencePreferenceSchema
+>;
+
+const RankedReferenceSelectionMetadataSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    checkpointId: z.string().min(1).max(160),
+    preferences: z.array(RankedReferencePreferenceSchema).min(1).max(3),
+    overallNote: z.string().trim().max(2_000).optional(),
+    sourceMode: z.literal("guided"),
+    fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
+
 export const ReferenceSelectionStateSchema = z
   .object({
     status: z.enum(["pending", "selected"]),
@@ -1786,6 +1809,7 @@ export const ReferenceSelectionStateSchema = z
         version: z.number().int().min(1).max(3),
         at: z.string(),
         note: z.string().max(2_000).optional(),
+        ranked: RankedReferenceSelectionMetadataSchema.optional(),
       })
       .optional(),
   })
@@ -1854,6 +1878,53 @@ export const ReferenceSelectionStateSchema = z
             code: "custom",
             path: ["selection", "selectionKind"],
             message: `selectionKind must be ${expectedKind} for this candidate`,
+          });
+        }
+      }
+      const ranked = state.selection.ranked;
+      if (ranked) {
+        const ids = new Set<string>();
+        for (const [index, preference] of ranked.preferences.entries()) {
+          if (preference.rank !== index + 1) {
+            context.addIssue({
+              code: "custom",
+              path: ["selection", "ranked", "preferences", index, "rank"],
+              message: "ranked preferences must be contiguous and ordered from 1",
+            });
+          }
+          if (ids.has(preference.referoId)) {
+            context.addIssue({
+              code: "custom",
+              path: ["selection", "ranked", "preferences", index, "referoId"],
+              message: "ranked preferences must name unique candidates",
+            });
+          }
+          ids.add(preference.referoId);
+          const preferenceVersion = state.versions.find(
+            (entry) => entry.version === preference.version,
+          );
+          if (
+            !preferenceVersion?.candidates.some(
+              (entry) => entry.referoId === preference.referoId,
+            )
+          ) {
+            context.addIssue({
+              code: "custom",
+              path: ["selection", "ranked", "preferences", index, "referoId"],
+              message: "ranked preference must name a shown candidate in its version",
+            });
+          }
+        }
+        const primaryPreference = ranked.preferences[0];
+        if (
+          primaryPreference.referoId !== state.selection.selectedId ||
+          primaryPreference.version !== state.selection.version ||
+          primaryPreference.note !== state.selection.note
+        ) {
+          context.addIssue({
+            code: "custom",
+            path: ["selection", "ranked"],
+            message: "rank one must match the legacy compatibility fields",
           });
         }
       }
@@ -2015,7 +2086,7 @@ export type Intake = z.infer<typeof IntakeSchema>;
 // ---------- Stage 2: competitive scan ----------
 
 /** A competitor resolved against Google Maps Platform. Present only when the
- * Maps lane is configured (GOOGLE_MAPS_API_KEY); its absence is a normal
+ * Places lane is configured (GOOGLE_PLACES_API_KEY); its absence is a normal
  * degraded state, never a scan failure — see tools/places.ts. */
 export const PlaceSchema = z.object({
   placeId: z.string(),
@@ -2103,6 +2174,145 @@ export const ScanResultSchema = z.object({
 });
 export type ScanResult = z.infer<typeof ScanResultSchema>;
 
+const MarketEvidenceSchema = z
+  .object({
+    kind: z.literal("first-party-crawl"),
+    path: z.string().regex(/^research\/[a-zA-Z0-9._/-]+$/),
+    summary: z.string().trim().min(1).max(320),
+  })
+  .strict();
+
+const MarketAnalysisClaimSchema = z
+  .object({
+    text: z.string().trim().min(1).max(500),
+    basis: z.enum(["observed", "inferred"]),
+    evidence: z.array(MarketEvidenceSchema).min(1).max(4),
+  })
+  .strict();
+
+export const MARKET_RUBRIC_CRITERIA = [
+  "category-buyer-relevance",
+  "proof-authority",
+  "offer-conversion-maturity",
+  "information-architecture",
+  "market-differentiation",
+] as const;
+
+const MarketRubricScoreSchema = z
+  .object({
+    criterion: z.enum(MARKET_RUBRIC_CRITERIA),
+    score: z.number().int().min(0).max(3),
+    evidence: z.array(MarketEvidenceSchema).max(4),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.score > 0 && value.evidence.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["evidence"],
+        message: "positive rubric scores require first-party evidence",
+      });
+    }
+  });
+
+export const MarketAnalysisCompetitorSchema = z
+  .object({
+    id: z.string().min(1).max(120),
+    name: z.string().trim().min(1).max(200),
+    url: z
+      .string()
+      .url()
+      .max(2_048)
+      .refine((value) => /^https?:\/\//i.test(value), {
+        message: "competitor URLs must use http or https",
+      }),
+    rank: z.number().int().min(1).max(8),
+    totalScore: z.number().int().min(0).max(15),
+    confidence: z.enum(["high", "medium", "low"]),
+    screenshots: z
+      .object({
+        desktop: z.string().regex(/^research\/[a-zA-Z0-9._/-]+$/).optional(),
+        mobile: z.string().regex(/^research\/[a-zA-Z0-9._/-]+$/).optional(),
+      })
+      .strict(),
+    selectedBecause: z.array(MarketAnalysisClaimSchema).min(1).max(4),
+    strengths: z.array(MarketAnalysisClaimSchema).min(1).max(5),
+    gaps: z.array(MarketAnalysisClaimSchema).max(5),
+    rubric: z.array(MarketRubricScoreSchema).length(MARKET_RUBRIC_CRITERIA.length),
+  })
+  .strict()
+  .superRefine((competitor, context) => {
+    const criteria = competitor.rubric.map((entry) => entry.criterion);
+    if (
+      new Set(criteria).size !== MARKET_RUBRIC_CRITERIA.length ||
+      MARKET_RUBRIC_CRITERIA.some((criterion) => !criteria.includes(criterion))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["rubric"],
+        message: "rubric must contain every criterion exactly once",
+      });
+    }
+    const total = competitor.rubric.reduce((sum, entry) => sum + entry.score, 0);
+    if (competitor.totalScore !== total) {
+      context.addIssue({
+        code: "custom",
+        path: ["totalScore"],
+        message: "totalScore must equal the rubric score sum",
+      });
+    }
+  });
+export type MarketAnalysisCompetitor = z.infer<
+  typeof MarketAnalysisCompetitorSchema
+>;
+
+export const MarketAnalysisSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    status: z.enum(["ready", "disabled"]),
+    generatedAt: z.string(),
+    displayCutoff: z.literal(4),
+    competitors: z.array(MarketAnalysisCompetitorSchema).max(8),
+    commonPatterns: z.array(z.string().trim().min(1).max(240)).max(12),
+    gaps: z.array(z.string().trim().min(1).max(240)).max(12),
+  })
+  .strict()
+  .superRefine((analysis, context) => {
+    if (analysis.status === "disabled" && analysis.competitors.length > 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["competitors"],
+        message: "disabled analysis cannot contain competitors",
+      });
+    }
+    const ids = new Set<string>();
+    for (const [index, competitor] of analysis.competitors.entries()) {
+      if (competitor.rank !== index + 1) {
+        context.addIssue({
+          code: "custom",
+          path: ["competitors", index, "rank"],
+          message: "competitor ranks must be contiguous and ordered from 1",
+        });
+      }
+      if (index > 0 && competitor.totalScore > analysis.competitors[index - 1].totalScore) {
+        context.addIssue({
+          code: "custom",
+          path: ["competitors", index, "totalScore"],
+          message: "competitors must be sorted by descending score",
+        });
+      }
+      if (ids.has(competitor.id)) {
+        context.addIssue({
+          code: "custom",
+          path: ["competitors", index, "id"],
+          message: "competitor ids must be unique",
+        });
+      }
+      ids.add(competitor.id);
+    }
+  });
+export type MarketAnalysis = z.infer<typeof MarketAnalysisSchema>;
+
 // ---------- Stage 3: Refero reference lock ----------
 
 /** One candidate as Refero returned it — id, human name, and the two links
@@ -2154,6 +2364,14 @@ export const ReferenceLockSchema = z.object({
   decisionLedger: z.array(
     z.object({ decision: z.string(), source: z.string() }) // every choice traces
   ),
+  preferenceLedger: z
+    .object({
+      schemaVersion: z.literal(1),
+      preferences: z.array(RankedReferencePreferenceSchema).min(1).max(3),
+      overallNote: z.string().trim().max(2_000).optional(),
+    })
+    .strict()
+    .optional(),
   /** Clickable provenance, filled DETERMINISTICALLY after generation — never
    * by the model, which would invent URLs. Refero's search results carry a
    * sourceUrl and previewImageUrl per candidate; without this the lock records
@@ -2167,6 +2385,7 @@ export type ReferenceLock = z.infer<typeof ReferenceLockSchema>;
 export const ReferenceLockDraftSchema = ReferenceLockSchema.omit({
   searchAngles: true,
   provenance: true,
+  preferenceLedger: true,
 });
 
 // ---------- Stage 4: synthesis ----------
@@ -4240,11 +4459,12 @@ export interface CardLink {
   external?: boolean;
 }
 
-/** Map payload for the competitive-scan card. `embedUrl` is present only when
- * the Maps lane is configured; `note` explains its absence so a missing map
- * reads as "not wired" rather than "broken". */
+/** Map payload for the competitive-scan card. `embedQuery` is a key-free
+ * descriptor present only when the Maps Embed lane is configured; `note`
+ * explains its absence so a missing map reads as "not wired" rather than
+ * "broken". */
 export interface CardMap {
-  embedUrl?: string;
+  embedQuery?: string;
   /** Key-free Google Maps link — always usable. */
   fallbackUrl: string;
   pins: Array<{ name: string; lat: number; lng: number }>;
@@ -4392,6 +4612,7 @@ export const UPLOADS_DIR = "uploads"; // server-claimed intake blobs + manifest
 export const ARTIFACTS = {
   intake: "intake.json",
   scan: "scan.json",
+  marketAnalysis: "market-analysis.json",
   lock: "reference-lock.json",
   designMd: "DESIGN.md",
   referenceStyleDigest: "reference-style-digest.json",

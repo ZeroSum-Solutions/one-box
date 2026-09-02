@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-26T03:23:45.662Z",
+  "request": {
+    "task": "Verify the last OneBox guided pipeline architecture blocker is closed",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "HEAD",
+    "head": "e43513363384c3583034c0505c91184535918ef1",
+    "files": [
+      "docs/specs/2026-08-25-guided-pipeline-mode.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/guided-pipeline-architecture-final.json"
+    ],
+    "diffBytes": 35001
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 9291,
+      "completion_tokens": 5308,
+      "total_tokens": 14599,
+      "cost": 0.050238,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.050238,
+        "upstream_inference_prompt_cost": 0.01839,
+        "upstream_inference_completions_cost": 0.031848
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 5059,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The supplied final proof still reports the prior HIGH (table first-match plus a sticky `scanned=done`/market-analysis row overriding complete/gates). That does not match this slice: §5.4 now requires server `deriveGuidedSurface` → one `GuidedSurfaceKind`, forbids client first-match, orders durable terminal/error/parked/fallback then human gates, and treats `market-analysis.json` only as step-2 reopenability. Research-disabled is an explicit matrix surface. Proof is stale relative to the spec text.",
+    "residual_risks": [
+      "Intra-tier terminal/human-gate collisions (e.g. built-failed vs fallback vs cost-cap, or evidence-paused vs revision-requested) are not totally ordered beyond the five-level precedence list.",
+      "Table row order still lists early journey states before `complete`; only the helper/precedence prose prevents a careless first-match port.",
+      "Out of criterion: persist-then-POST `/api/run` crash window, event-timeline oracles, ranked-vs-legacy 409, URL eligibility classifier."
+    ]
+  }
+}

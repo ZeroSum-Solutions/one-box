@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-26T03:21:52.400Z",
+  "request": {
+    "task": "Final focused architecture audit for the OneBox guided pipeline mode",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "HEAD",
+    "head": "e43513363384c3583034c0505c91184535918ef1",
+    "files": [
+      "docs/specs/2026-08-25-guided-pipeline-mode.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/guided-pipeline-architecture-revised.json",
+      "src/lib/referenceStage.ts",
+      "src/app/api/reference/[id]/route.ts",
+      "src/components/RunTimeline.tsx"
+    ],
+    "diffBytes": 33763
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 21792,
+      "completion_tokens": 8552,
+      "total_tokens": 30344,
+      "cost": 0.094704,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.094704,
+        "upstream_inference_prompt_cost": 0.043392,
+        "upstream_inference_completions_cost": 0.051312
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 7889,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§5.4 L118–L130 (matrix eval + `scanned=done, market analysis ready`)",
+        "scenario": "The matrix is 'evaluated top-to-bottom' while also saying durable terminals/errors take precedence, but complete/cost-cap/lifecycle/fallback rows sit below a weakly predicated `scanned=done, market analysis ready` row whose primary action is Continue automatically. After scan, that row matches for the rest of the run (including `complete`, cost-cap, reference-paused, locked/synthesized/built, evidence pauses). A first-match implementer never reaches later guided surfaces; a complete run would show Understanding the leaders instead of Website ready. This reopens the Grok BLOCK that known controller states must actually be selectable, not merely listed.",
+        "remediation": "Make rows mutually exclusive current-checkpoint matches. Evaluate durable terminals/errors/human pauses first (complete, stage failed, cost cap, evidence/reference/source/visual pauses, parked/fallback). Treat market-analysis.json only as step-2 availability (reopenable after scan), with a current-surface predicate such as `scanned=done AND locked not started AND no later stage/terminal`. Keep unknown-state fail-closed only after those exclusive predicates miss."
+      }
+    ],
+    "proof_assessment": "The draft text does close the Grok BLOCK/HIGH contract items: untagged historical selection remains a first-class parse arm with in-memory normalize only; ranked records keep rank-1 `selectedId`/`selectionKind`/`version`/`note`; new runs set immutable `referencePickerEnabled=true` independent of view; analysis lives in additive `market-analysis.json` (scan.json stays max-4); rubric inputs strip directory popularity fields; `at`/`checkpointId`/`sourceMode`/`fingerprint` are server-derived; ReferenceLock `preferenceLedger` is optional and Page IR uses the same rank1-primary / rank2–3-supporting normalizer. Grok MEDIUMs on research status and Page IR bounds are also written closed. Deterministic proof (`finalizeReferenceLock` requiring `selectedId`, `ScanResultSchema` not shown but cited max-4, picker default false) still justifies those closures as spec, not as implemented code. The remaining MEDIUM+ defect is the §5.4 matching rule, which makes the enumerated surfaces unreachable under the stated evaluation order.",
+    "residual_risks": [
+      "Two-step persist-then-POST `/api/run` crash window; reconnect must resume from `status=selected` with no second confirm.",
+      "Home still passing the event timeline into GuidedPipeline unless tests forbid event-card oracles.",
+      "Research-disabled / non-refero runs are not an exclusive matrix row; they could still fail closed to Review required.",
+      "Evidence-workspace picker vs guided `select-ranked` must 409 in both directions as the only cross-mode lock.",
+      "Canonical first-party vs directory/social URL eligibility still has no deterministic classifier."
+    ]
+  }
+}

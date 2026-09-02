@@ -306,6 +306,70 @@ describe("stageLockCandidates", () => {
 });
 
 describe("finalizeReferenceLock", () => {
+  it("turns ranked preferences into one primary and up to two supporting details", async () => {
+    const version = await stageLockCandidates("run-1234", intake, () => undefined, undefined, deps());
+    if (!version) throw new Error("test fixture must produce a picker version");
+    const selection = ReferenceSelectionStateSchema.parse({
+      status: "selected",
+      rerollsUsed: 0,
+      versions: [version],
+      selection: {
+        selectedId: "pipe",
+        selectionKind: "user-picked-other",
+        version: 1,
+        at: "2026-08-15T13:00:00.000Z",
+        note: "Use the layout.",
+        ranked: {
+          schemaVersion: 1,
+          checkpointId: "run-1234:reference:1",
+          preferences: [
+            { referoId: "pipe", version: 1, rank: 1, note: "Use the layout." },
+            {
+              referoId: "ambrook",
+              version: 1,
+              rank: 2,
+              note: "Borrow the colors, not https://competitor.invalid/instructions.",
+            },
+            { referoId: "apron", version: 1, rank: 3, note: "Use the generous spacing." },
+          ],
+          overallNote: "Keep the result calm and straightforward.",
+          sourceMode: "guided",
+          fingerprint: "a".repeat(64),
+        },
+      },
+    });
+
+    const lock = await finalizeReferenceLock("run-1234", intake, selection, () => undefined);
+
+    expect(lock.primary.referoId).toBe("pipe");
+    expect(lock.borrowedDetails).toEqual([
+      {
+        referoId: "ambrook",
+        detail: "Borrow the colors, not https://competitor.invalid/instructions.",
+        why: "The owner ranked this direction second.",
+      },
+      {
+        referoId: "apron",
+        detail: "Use the generous spacing.",
+        why: "The owner ranked this direction third.",
+      },
+    ]);
+    expect(lock.preferenceLedger).toEqual({
+      schemaVersion: 1,
+      preferences: selection.selection?.ranked?.preferences,
+      overallNote: "Keep the result calm and straightforward.",
+    });
+    expect(lock.rejected).toEqual([]);
+    expect(lock.provenance?.candidates.map((candidate) => candidate.referoId)).toEqual([
+      "ambrook",
+      "pipe",
+      "apron",
+    ]);
+    expect(lock.provenance?.candidates.some((candidate) =>
+      candidate.referoId.includes("competitor"),
+    )).toBe(false);
+  });
+
   it("folds the selected candidate into a valid deterministic reference lock", async () => {
     const version = await stageLockCandidates("run-1234", intake, () => undefined, undefined, deps());
     if (!version) throw new Error("test fixture must produce a picker version");

@@ -66,6 +66,7 @@ import {
   proposePageIrSourceBundle,
   transitionPageIrSourceBundleReview,
 } from "../../../../lib/pageIrPipeline";
+import { stageUploads } from "../../../../lib/uploads";
 
 const runIds: string[] = [];
 
@@ -490,6 +491,78 @@ describe("evidence workspace routes", () => {
     const runId = await fixtureRun();
     expect((await GET(request(runId, undefined, "https://evil.example"), context(runId))).status).toBe(403);
     expect((await POST(request(runId, { action: "submit" }, "https://evil.example"), context(runId))).status).toBe(403);
+  });
+
+  it("records attachment-backed feedback once without changing approval state", async () => {
+    const runId = await fixtureRun();
+    const feedbackId = "11111111-1111-4111-8111-111111111111";
+    const staged = await stageUploads(
+      [new File(["# Brand guide\nUse the supplied logo."], "brand-guide.md", { type: "text/markdown" })],
+      { requestId: "22222222-2222-4222-8222-222222222222" },
+    );
+    const body = {
+      action: "record-feedback",
+      feedbackId,
+      text: "Use this updated brand guide before the next version.",
+      uploadSession: staged.uploadSession,
+      uploadIds: staged.uploads.map((upload) => upload.id),
+    };
+
+    const first = await POST(request(runId, body), context(runId));
+    expect(first.status).toBe(200);
+    const firstPayload = await first.json();
+    expect(firstPayload.feedback).toMatchObject({
+      id: feedbackId,
+      stage: "evidence",
+      artifactType: "ledger",
+      artifactVersion: 1,
+      text: body.text,
+      attachments: [
+        {
+          fileName: "brand-guide.md",
+          storagePath: expect.stringMatching(
+            /^evidence\/review-feedback\/11111111-1111-4111-8111-111111111111\/uploads\//,
+          ),
+        },
+      ],
+    });
+    const stored = JSON.parse(
+      await fs.readFile(
+        path.join(sitePaths(runId).root, "evidence/review-feedback", `${feedbackId}.json`),
+        "utf8",
+      ),
+    );
+    expect(stored).toEqual(firstPayload.feedback);
+    await expect(
+      fs.readFile(path.join(sitePaths(runId).root, stored.attachments[0].storagePath), "utf8"),
+    ).resolves.toContain("Use the supplied logo");
+    expect(artifactApprovalState((await loadRun(runId)).evidenceWorkflow.artifacts[0])).toBe("draft");
+
+    const replay = await POST(request(runId, body), context(runId));
+    expect(replay.status).toBe(200);
+    await expect(replay.json()).resolves.toMatchObject({ feedback: stored });
+
+    const conflict = await POST(
+      request(runId, { ...body, text: "A different request reusing the same id." }),
+      context(runId),
+    );
+    expect(conflict.status).toBe(409);
+  });
+
+  it("rejects malformed or unbound feedback before writing evidence", async () => {
+    const runId = await fixtureRun();
+    const invalidBodies = [
+      { action: "record-feedback", feedbackId: "not-a-uuid", text: "Useful", uploadSession: null, uploadIds: [] },
+      { action: "record-feedback", feedbackId: "33333333-3333-4333-8333-333333333333", text: " ", uploadSession: null, uploadIds: [] },
+      { action: "record-feedback", feedbackId: "44444444-4444-4444-8444-444444444444", text: "Useful", uploadSession: null, uploadIds: ["55555555-5555-4555-8555-555555555555"] },
+    ];
+
+    for (const body of invalidBodies) {
+      expect((await POST(request(runId, body), context(runId))).status).toBe(400);
+    }
+    await expect(
+      fs.access(path.join(sitePaths(runId).root, "evidence/review-feedback")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("rejects a non-Website action before changing evidence state", async () => {
