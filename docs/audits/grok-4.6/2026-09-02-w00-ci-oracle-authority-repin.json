@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-02T12:51:52.646Z",
+  "request": {
+    "task": "W0.0: plan-authority verifier runs on CI checkouts; vitest scoped to src; review fixes",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "d74f3c0",
+    "head": "de76d476876f61010691820a81aaa4c47a5bbb65",
+    "files": [
+      "docs/ENGINE-LEDGER.md",
+      "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+      "docs/audits/evidence/security/2026-09-02-obx-p180-ci-oracle-authority-repin.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "vitest.config.ts"
+    ],
+    "proofs": [
+      "docs/audits/evidence/.w00-proof.tmp.md"
+    ],
+    "diffBytes": 77009,
+    "timeoutMs": 900000,
+    "maxOutputTokens": 12000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 23552,
+      "completion_tokens": 18291,
+      "total_tokens": 41843,
+      "cost": 0.156658,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.156658,
+        "upstream_inference_prompt_cost": 0.046912,
+        "upstream_inference_completions_cost": 0.109746
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 17945,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "In-tree node tests are the actual oracle: they delete GITHUB_ACTIONS for local fail-closed cases, force GITHUB_ACTIONS=true through the mutation helper for record-binding, and run the full verifier with the untracked file removed. The markdown proof is only a command log; its packet prefix 8871ecc2 does not match authority-manifest packetDigest 6abc2156…, so it cannot authenticate hashes. Diff evidence matches the criterion: only T01 validateHashBindings gains !isGithubActions, manifest diff is only /packetDigest, T02 receipt diff is only the three target digests, vitest include is the default filename pattern scoped to src/**, and ENGINE-LEDGER REPO-012 records the unwired source-adoption verifier asserting the 2026-08-31 re-pin.",
+    "residual_risks": [
+      "GITHUB_ACTIONS is a spoofable env var; local operators can skip the untracked-file read (documented in the re-pin). Record digest binding still holds.",
+      "T02 preExistingUntrackedBaseline file-read skip is not in the diff; CI-without-baseline is only proven if that path does not sha256 the handoff (the new full-verifier test would fail if it did).",
+      "Ledger claim that verify-obx-p180-source-adoption.mjs lines 128-139 now fail is not in this slice.",
+      "T02 security receipt is rewritten in place (capturedAt unchanged); integrity depends on the new 2026-09-02 re-pin, not on the original review bytes."
+    ]
+  }
+}
