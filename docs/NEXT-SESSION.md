@@ -32,14 +32,18 @@ and do not reference each other.
 | Lineage | Branch(es) | Ahead of `main` | Holds | State on 2026-09-01 |
 |---|---|---|---|---|
 | A — consolidation docs | `docs/studio-consolidation-plan` (local only) | 1 commit, 3 files | `AGENTS.md` pointers, this board, the 2026-08-20 consolidation plan | Cherry-picked into `chore/repo-state-20260901`. Merges onto `main` cleanly. |
-| B — evidence review UI | `codex/onebox-review-evidence-ui` → PR #17 (draft) | 27 commits, 85 files | Evidence-review feedback workflow, guided pipeline mode, Google Maps embed, token specimens, capability roadmap | CI `verify` fails on `test:e2e:intake` (REPO-001). Conflicts with lineage C in `package.json`; both edit `src/lib/contracts.ts`. |
-| C — OBX-P180 operating environment | `research/la-appointment-field-study` (21 commits, 9 unpushed) → `feat/obx-p180-t03-t05-offline-wave` → `feat/obx-p180-t03-t05-offline-wave-recovery` → `checkpoint/obx-p180-terminal-correction-handoff-20260901` (pushed, `1c39259`) | up to 44 commits, 380+ files | Master plan library, 29 program tickets, T01/T02 registry and route reducers, T03/T04 provider-offline reducers, correction governance, terminal verifier checkpoint | Governed by `OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003`. No PR. Resume only through the handoff below. |
+| B — evidence review UI | `codex/onebox-review-evidence-ui` → PR #17 (draft) | 27 commits, 85 files | Evidence-review feedback workflow, guided pipeline mode, Google Maps embed, token specimens, capability roadmap | CI green on head `3643ee5` after the e2e fix (REPO-001). Conflicts with lineage C in `package.json`; both edit `src/lib/contracts.ts`. Rebases after C per the integration order. |
+| C — OBX-P180 operating environment | `research/la-appointment-field-study` (21 commits, pushed) → `feat/obx-p180-t03-t05-offline-wave` → `feat/obx-p180-t03-t05-offline-wave-recovery` → `checkpoint/obx-p180-terminal-correction-handoff-20260901` (pushed, `1c39259`) | up to 44 commits, 380+ files | Master plan library, 29 program tickets, T01/T02 registry and route reducers, T03/T04 provider-offline reducers, correction governance, terminal verifier checkpoint | Governed by `OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003`. No PR. Resume only through the handoff below. |
 
-Branches verified landed by the PR #15 squash (each tip is an ancestor of PR #15
-head `3f5ecda`): `feat/ui-overhaul-linear`, `spike/refero-baseline`,
-`spike/layout-ir`, `fix/pause-status-pulse-when-hidden`. They hold no unlanded
-work. Deleting them needs `git branch -D`, which is an owner action on this
-machine.
+Four branches landed by the PR #15 squash (`feat/ui-overhaul-linear`,
+`spike/refero-baseline`, `spike/layout-ir`, `fix/pause-status-pulse-when-hidden`)
+were deleted on 2026-09-01 after an ancestry re-check.
+
+**Integration order (decided 2026-09-01):** A, then C in reviewed slices, then
+rebase B. C lands with true merge commits only; the OBX-P180 program pins
+`62b7b74` and `c09dfd0` by SHA, and a squash or rebase would orphan its branches
+and the pushed checkpoint. The first mergeable slice of C is
+`research/la-appointment-field-study` through `62b7b74`.
 
 ### Worktrees
 
@@ -50,7 +54,8 @@ machine.
 | `~/projects/one-box-worktrees/repo-state-20260901` | `chore/repo-state-20260901` | This sweep. |
 | `~/projects/one-box-worktrees/la-appointment-field-study` | `research/la-appointment-field-study` | OBX-P180 source worktree. Read-only for the program. Holds the protected untracked handoff; never open it. |
 | `~/projects/one-box-worktrees/obx-p180-t03-t05-offline-wave` | `feat/obx-p180-t03-t05-offline-wave` | Original T03/T04 wave. Superseded by the recovery lineage. |
-| `~/projects/one-box-worktrees/obx-p180-t03-t05-offline-wave-recovery` | `feat/obx-p180-t03-t05-offline-wave-recovery` | `-002` supersession base `c09dfd0`. Carries stale uncommitted drafts (REPO-007). |
+| `~/projects/one-box-worktrees/obx-p180-t03-t05-offline-wave-recovery` | `feat/obx-p180-t03-t05-offline-wave-recovery` | `-002` supersession base `c09dfd0`. Clean; the former drafts are archived under `~/Backups/one-box/obx-p180-recovery-drafts-20260901/` (REPO-007). |
+| `~/projects/one-box-worktrees/pr17-evidence-review-ui` | `fix/pr17-intake-e2e` | PR #17 head plus the e2e fix; remove once PR #17 lands. |
 | `~/Documents/Codex/2026-09-01/one-box-obx-p180-terminal-correction/work/one-box-terminal` | `checkpoint/obx-p180-terminal-correction-handoff-20260901` | Codex execution clone for the terminal correction. Holds `task-6-final-review.md` and `task-7-governance-brief.md` under `.superpowers/sdd/implementation-plan/`. |
 
 ### Program state outside the repository
@@ -70,13 +75,6 @@ machine.
 
 ## Do first
 
-- [ ] **T-0 — Decide the integration order for lineages B and C (owner).**
-  The `package.json` conflict and the shared `src/lib/contracts.ts` edits mean
-  whichever lands second must rebase. Lineage C carries the plan authority that
-  lineage B's roadmap does not know about. Recommendation: land A, then C in
-  reviewed slices, then rebase B. *Done when:* the order is written in
-  `docs/plans/one-box-master/00-authority/plan-register.md` or this file.
-
 - [ ] **T-2 — Probe run: one design system through the current pipeline.**
   Take one MishMash design system that already meets the CAT-001 bar (HTML +
   CSS custom properties + a ONE BOX-shaped DESIGN.md), or strip one until it
@@ -86,12 +84,6 @@ machine.
   *Do not build an ExecutionAdapter to make this work.* If one package cannot
   get through without a new runtime abstraction, the thesis is already wrong.
   *Done when:* a written gate-failure record exists in `docs/audits/`.
-
-- [ ] **T-7 — Make PR #17 green or narrow it.** CI run 32935846188 fails in
-  `scripts/e2e/intake-upload.mjs:663` waiting for the "Edit prompt and settings"
-  button (REPO-001). The PR body claims local e2e passed. Reproduce locally on
-  `codex/onebox-review-evidence-ui`, fix the selector or the UI, and re-run CI.
-  *Done when:* the `verify` check passes on the PR head.
 
 ## Do next
 
@@ -130,16 +122,14 @@ machine.
 - [ ] **T-10 — Write the gauntlet-loop contract.** The owner's stated goal is a
   gauntlet loop that drives this repository to completion. Its quality bar must
   come from the plan register and the Release 1 contract, not from this board.
-  Prerequisite: T-0 decided and lineage C on `main`.
+  Prerequisite: lineage C on `main`.
 
 ## Owner actions (outward-facing or hook-gated; not for agents)
 
-- Push `research/la-appointment-field-study` (9 commits ahead of origin). The
-  commits are backed up transitively through the pushed checkpoint branch, but
-  the branch itself is not.
-- Delete the four landed branches listed in the repository map (`-D`).
-- Discard or reset the stale drafts in the recovery worktree (REPO-007).
-- Merge or close PR #17 after T-7.
+- Review and merge PR #18 (lineage A), then switch `~/projects/one-box` to
+  `main` and delete `docs/studio-consolidation-plan`.
+- Review and merge PR #17 once its CI is green and its own merge gate (the
+  typography specimen note in the PR body) is accepted or narrowed.
 
 ## Watch list — do not start these
 
@@ -168,6 +158,6 @@ the consolidation plan or the plan register, not by oversight.
 
 ## Open question for the owner
 
-T-0 only. HTML-first is decided (D5). If PPTX and MP4 must ship in v1, the
+None blocking. HTML-first is decided (D5). If PPTX and MP4 must ship in v1, the
 consolidation plan is wrong and the correct move is to stay on MishMash and
 delete its certified dead weight instead — say so before T-2 rather than after.
