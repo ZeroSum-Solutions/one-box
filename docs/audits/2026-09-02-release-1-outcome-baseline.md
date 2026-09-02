@@ -306,9 +306,40 @@ is an unstated normalization.
 
 ### B. Wave 0 moved the ledger this record counts
 
-Wave 0 flipped `REPO-002` and `REPO-003` from `OPEN` to `FIXED` (both `S3`) and
-added `REPO-013` (`S1`, `OPEN`, the 2026-09-14 T01/T02 expiry cliff). On the
-integration tree the same two commands print:
+**The §3 figures are correct at their own pin and wrong on the integration
+tree.** Everything in §1 to §8 was measured against `main` at `4b02f75`, where
+`docs/ENGINE-LEDGER.md` holds 53 severity-bearing rows, 19 of them `S1`, split
+`OPEN 3`. Do not run §3's commands on `wave-0/integration` and expect those
+numbers; run them at `4b02f75`.
+
+Two commits on `wave-0/integration` change the file, and no later commit
+touches it, so the ledger content below is fixed by them:
+
+```
+$ git log --oneline origin/main..HEAD -- docs/ENGINE-LEDGER.md
+4cd9912 docs: wave 0 board and ledger
+21add30 docs: close repo-002 and repo-003 in engine ledger
+
+$ git log --oneline -1 -- docs/ENGINE-LEDGER.md
+4cd9912 docs: wave 0 board and ledger
+
+$ git diff --stat origin/main -- docs/ENGINE-LEDGER.md
+ docs/ENGINE-LEDGER.md | 37 +++++++++++++++++++++++++++++++++++--
+ 1 file changed, 35 insertions(+), 2 deletions(-)
+```
+
+The three rows those commits moved, quoted from the file at `4cd9912`
+(`grep -nE '^\| REPO-(002|003|013) ' docs/ENGINE-LEDGER.md`, first field of each
+row shown):
+
+```
+309:| REPO-002 | S3 | **FIXED** | Six ESLint warnings on `main`: ...
+310:| REPO-003 | S3 | **FIXED** | `npm run test:smoke` emits `MODULE_TYPELESS_PACKAGE_JSON`: ...
+320:| REPO-013 | S1 | OPEN | `OBX-AUTH-P180-T01-SOLO-001` and `-T02-SOLO-001` are non-renewable and expire on 2026-09-14 ...
+```
+
+Two `S3` rows flipped `OPEN` to `FIXED`, which changes no `S1` count, and one
+new `S1 OPEN` row was added. At `4cd9912` the same two commands print:
 
 ```
 $ awk -F'|' '$2 ~ /^ [A-Z0-9]+-[0-9]+ $/ { s=$3; gsub(/[ *]/,"",s); if (s ~ /^S[123]$/) c[s]++ } END { for (k in c) print k, c[k] }' docs/ENGINE-LEDGER.md | sort
@@ -324,10 +355,24 @@ OPEN 4
 TRACKED 2
 ```
 
-So §3's adjacent measurable reads, on the integration tree: **54**
-severity-bearing rows, **20** of them `S1`, split as printed above. Outcome 3
-itself is unchanged — the denominator is still zero releases, so no escape rate
-exists either way.
+So §3's adjacent measurable reads, at `4cd9912` and any later commit on this
+branch: **54** severity-bearing rows, **20** of them `S1`, split as printed
+above. Outcome 3 itself is unchanged either way — the denominator is still zero
+releases, so no escape rate exists at either pin.
+
+### B1. §3's date bounds, with the instrument they were missing
+
+§3 bounds its adjacent inventory "2026-08-15 (ledger opened) to 2026-09-02
+(last commit touching the ledger)" without quoting a command for either date.
+Both are checkable:
+
+```
+$ sed -n '7p' docs/ENGINE-LEDGER.md
+Opened 2026-08-15. Covers the sameness investigation, the layout-IR spike, and
+
+$ git log -1 --format=%cs -- docs/ENGINE-LEDGER.md
+2026-09-02
+```
 
 ### C. Outcome 4's trailer grep is wider than its claim
 
