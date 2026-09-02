@@ -36,7 +36,7 @@ before(() => {
     cpSync(resolve(sourceRoot, untrackedBaselinePath), resolve(fixtureRoot, untrackedBaselinePath));
   }
   mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
-  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs"]) {
+  for (const path of ["verify-plan-authority.mjs", "verify-plan-authority.node.mjs", "verify-p180-t02-authorization.mjs", "verify-r1-phase-authorization.mjs"]) {
     cpSync(resolve(sourceRoot, `scripts/${path}`), resolve(fixtureRoot, `scripts/${path}`));
   }
   mkdirSync(resolve(fixtureRoot, "scripts/e2e"), { recursive: true });
@@ -195,6 +195,11 @@ test("the frozen solo T01 receipt chain survives later verifier evolution", () =
   const result = run(["--verify-solo-receipts-only"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /PASS Solo T01 exact receipt chain/);
+  const verifierSource = readFileSync(resolve(fixtureRoot, "scripts/verify-plan-authority.mjs"), "utf8");
+  for (const path of [securityReceiptPath, grokReceiptPath, fableReceiptPath]) {
+    const digest = createHash("sha256").update(readFileSync(resolve(fixtureRoot, path))).digest("hex");
+    assert.ok(verifierSource.includes(digest), `${path} is no longer the byte-pinned T01 receipt`);
+  }
 });
 
 test("the solo T02 authorization rejects path, order, and effect expansion", () => {
@@ -583,7 +588,10 @@ test("the authorized foundation record cannot disappear", () => {
 test("an unknown scoped authorization cannot piggyback on the foundation packet", () => {
   withJsonMutation("docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json", (registry) => {
     registry.authorizations.push({ ...registry.authorizations[0], id: "OBX-AUTH-UNREVIEWED-001" });
-  }, (result) => assert.match(result.stderr, /exactly OBX-AUTH-ATF-001/));
+  }, (result) => {
+    assert.match(result.stderr, /later authorization ids must match/);
+    assert.match(result.stderr, /unknown authorization OBX-AUTH-UNREVIEWED-001/);
+  });
 });
 
 test("scoped implementation paths reject traversal and glob expansion", () => {
@@ -915,4 +923,431 @@ test("the full verifier passes under GITHUB_ACTIONS without the untracked baseli
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Plan authority verification passed/);
   });
+});
+
+const registryPath = "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json";
+const authorityManifestPath = "docs/plans/one-box-master/00-authority/authority-manifest.json";
+const r1PhaseIds = ["OBX-AUTH-R1-P1-SOLO-001", "OBX-AUTH-R1-P2-SOLO-001"];
+
+function rehashR1PhaseRecord(registry, id) {
+  const record = registry.authorizations.find((candidate) => candidate.id === id);
+  const unhashed = structuredClone(record);
+  delete unhashed.authorizationHash.digest;
+  record.authorizationHash.digest = createHash("sha256").update(canonicalJson(unhashed)).digest("hex");
+}
+
+function withR1PhaseRecordMutation(id, mutate, assertion, { rehash = true, env = {} } = {}) {
+  withJsonMutation(registryPath, (registry) => {
+    const record = registry.authorizations.find((candidate) => candidate.id === id);
+    mutate(record, registry);
+    if (rehash) rehashR1PhaseRecord(registry, id);
+  }, assertion, [], { GITHUB_ACTIONS: "true", ...env });
+}
+
+test("the release-1 phase authorization records pass the full verifier", () => {
+  const result = run([], { GITHUB_ACTIONS: "true" });
+  assert.equal(result.status, 0, result.stderr);
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, registryPath), "utf8"));
+  assert.deepEqual(
+    registry.authorizations.map((record) => record.id),
+    ["OBX-AUTH-ATF-001", "OBX-AUTH-P180-T01-SOLO-001", "OBX-AUTH-P180-T02-SOLO-001", ...r1PhaseIds],
+  );
+});
+
+test("a fourth authorization with a non-pattern id cannot join the registry", () => {
+  withJsonMutation(registryPath, (registry) => {
+    const phase = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-R1-P1-SOLO-001");
+    registry.authorizations.push({ ...structuredClone(phase), id: "OBX-AUTH-R1-P9-SOLO-001" });
+  }, (result) => {
+    assert.match(result.stderr, /later authorization ids must match/);
+    assert.match(result.stderr, /unknown authorization OBX-AUTH-R1-P9-SOLO-001/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a release-1 phase record cannot touch a non-waivable class", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.nonWaivableClassesTouched = ["secrets-privacy"];
+  }, (result) => {
+    assert.match(result.stderr, /nonWaivableClassesTouched: non-waivable class secrets-privacy cannot be waived/);
+  });
+});
+
+test("a release-1 phase record rejects broad path scope", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.allowedPaths[0] = "src/lib/";
+  }, (result) => {
+    assert.match(result.stderr, /authorized path must be explicit and repository-relative/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.ticketScopes[1].allowedPaths[0] = "src/**/*.ts";
+  }, (result) => {
+    assert.match(result.stderr, /authorized path must be explicit and repository-relative/);
+  });
+  for (const bareDirectory of ["src/lib", "src/app/api", "docs/plans", "src"]) {
+    withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+      record.allowedPaths[0] = bareDirectory;
+      record.ticketScopes[0].allowedPaths[0] = bareDirectory;
+    }, (result) => {
+      assert.match(result.stderr, /authorized path must be explicit and repository-relative/);
+    });
+  }
+});
+
+test("a release-1 phase record fails closed when a frozen registry record expires", () => {
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, registryPath), "utf8"));
+  const t02 = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T02-SOLO-001");
+  const result = run([], {
+    ...fixedEvaluationTimeEnvironment(Date.parse(t02.expiresAt) + 1),
+    GITHUB_ACTIONS: "true",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /frozen record OBX-AUTH-P180-T02-SOLO-001 in the registry is expired/);
+});
+
+test("a release-1 phase record cannot re-pin the frozen dependency graph", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.dependencyBindings[0].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /dependencyBindings: exact value drift/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.governanceBindings[1].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /governanceBindings: exact value drift/);
+  });
+});
+
+test("an expired release-1 phase record cannot authorize implementation", () => {
+  const registry = JSON.parse(readFileSync(resolve(fixtureRoot, registryPath), "utf8"));
+  const record = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-R1-P1-SOLO-001");
+  const result = run([], {
+    ...fixedEvaluationTimeEnvironment(Date.parse(record.expiresAt) + 1),
+    GITHUB_ACTIONS: "true",
+  });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /OBX-AUTH-R1-P1-SOLO-001: authorization is expired/);
+  assert.match(result.stderr, /OBX-AUTH-R1-P2-SOLO-001: authorization is expired/);
+});
+
+test("a forged release-1 phase self-hash fails", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.authorizationHash.digest = "f".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P1-SOLO-001: authorization self-hash mismatch/);
+  }, { rehash: false });
+});
+
+test("the first three authorization records cannot be removed or reordered", () => {
+  withJsonMutation(registryPath, (registry) => {
+    registry.authorizations = registry.authorizations.filter((record) => record.id !== "OBX-AUTH-P180-T01-SOLO-001");
+  }, (result) => {
+    assert.match(result.stderr, /records must begin with OBX-AUTH-ATF-001/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(registryPath, (registry) => {
+    const [atf, t01, t02, ...rest] = registry.authorizations;
+    registry.authorizations = [t01, atf, t02, ...rest];
+  }, (result) => {
+    assert.match(result.stderr, /records must begin with OBX-AUTH-ATF-001/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a release-1 phase record fails closed on a missing or stale security receipt", () => {
+  const receiptPath = "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json";
+  withJsonMutation(receiptPath, (receipt) => {
+    receipt.targetHashes[0].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /securityReceipt\.targetHashes\[0\]: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(receiptPath, (receipt) => {
+    receipt.receiptKind = "solo-t02-security-review-v1";
+  }, (result) => {
+    assert.match(result.stderr, /securityReceipt: receiptKind drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(receiptPath, (receipt) => {
+    receipt.authorityManifestWithoutPacketDigest.digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /authorityManifestWithoutPacketDigest: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a release-1 phase record fails closed on a stale or mislabelled model receipt", () => {
+  const modelReceiptPath = "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json";
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.providerReportedModel = "openai/gpt-5.6";
+  }, (result) => {
+    assert.match(result.stderr, /exact model x-ai\/grok-4\.6 required, or a labelled owner-authorized fallback block/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.targetHashes[0].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.targetHashes\[0\]: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.rawAuditSha256 = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /raw audit hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  for (const severity of ["HIGH", "Critical", "Important", "unheard-of"]) {
+    withJsonMutation(modelReceiptPath, (receipt) => {
+      receipt.verdict = "FINDINGS";
+      receipt.findings = [{ severity, file: "x", line: "1", scenario: "s", remediation: "r" }];
+    }, (result) => {
+      assert.match(result.stderr, /modelReceipt\.findings\[0\]/);
+    }, [], { GITHUB_ACTIONS: "true" });
+  }
+});
+
+test("a missing release-1 model receipt fails closed", () => {
+  const modelReceiptPath = "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json";
+  const absolute = resolve(fixtureRoot, modelReceiptPath);
+  const original = readFileSync(absolute);
+  try {
+    rmSync(absolute, { force: true });
+    const result = run([], { GITHUB_ACTIONS: "true" });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /modelReceipt: missing non-symlink regular file/);
+  } finally {
+    writeFileSync(absolute, original);
+  }
+});
+
+test("a recorded phase authorization must carry the grant and its activation gate", () => {
+  for (const id of r1PhaseIds) {
+    withR1PhaseRecordMutation(id, (record) => {
+      record.implementationAuthorized = false;
+    }, (result) => {
+      assert.match(result.stderr, new RegExp(`${id}: a recorded phase authorization must authorize implementation`));
+    });
+  }
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.activationPrecondition = null;
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P2-SOLO-001\.activationPrecondition: exact value drift/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.activationPrecondition = { predecessorAuthorizationId: "OBX-AUTH-R1-P2-SOLO-001" };
+  }, (result) => {
+    assert.match(result.stderr, /a phase with no predecessor must record null/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.predecessorBinding.checkpointCommit = "0".repeat(40);
+  }, (result) => {
+    assert.match(result.stderr, /a pending predecessor cannot name a checkpoint commit/);
+  });
+  withJsonMutation(registryPath, (registry) => {
+    registry.authorizations = registry.authorizations.filter((record) => record.id !== "OBX-AUTH-R1-P1-SOLO-001");
+  }, (result) => {
+    assert.match(result.stderr, /predecessor authorization OBX-AUTH-R1-P1-SOLO-001 is missing from the registry/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a non-renewable phase record must disclose the earlier effective expiry", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.effectiveWindow.effectiveExpiresAt = record.expiresAt;
+  }, (result) => {
+    assert.match(result.stderr, /effectiveExpiresAt must equal the earliest frozen registry expiry 2026-09-14T13:33:33Z/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.effectiveWindow.effectiveExpirySource = "OBX-AUTH-P180-T02-SOLO-001";
+  }, (result) => {
+    assert.match(result.stderr, /effectiveExpirySource must name OBX-AUTH-P180-T01-SOLO-001/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.effectiveWindow.effectiveExpiryReason = "";
+  }, (result) => {
+    assert.match(result.stderr, /effectiveExpiryReason must state why the window closes early/);
+  });
+});
+
+test("a model receipt must be a faithful derivation of the raw audit it wraps", () => {
+  const modelReceiptPath = "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json";
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.capturedAt = "2026-09-02T00:00:00.000Z";
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt: capturedAt does not match the raw audit/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.diffBytes += 1;
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt: diffBytes does not match the raw audit/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.auditedHeadCommit = "0".repeat(40);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt: auditedHeadCommit does not match the raw audit/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.reviewedFiles = receipt.reviewedFiles.slice(1);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.reviewedFiles: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.auditedTreeDelta = [];
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.auditedTreeDelta: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.authorityManifestWithoutPacketDigest.digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.authorityManifestWithoutPacketDigest: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("the first three authorization records are pinned as bytes, not only as hashes", () => {
+  withFileMutation(registryPath, (text) => {
+    const registry = JSON.parse(text);
+    return `${JSON.stringify(registry, null, 2)}\n`;
+  }, (result) => {
+    assert.match(result.stderr, /the first three records are no longer byte-identical to 4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a recorded phase authorization cannot be deleted back to silence", () => {
+  for (const id of r1PhaseIds) {
+    withJsonMutation(registryPath, (registry) => {
+      registry.authorizations = registry.authorizations.filter((record) => record.id !== id);
+    }, (result) => {
+      assert.match(result.stderr, new RegExp(`recorded phase authorization ${id} is missing from the registry`));
+    }, [], { GITHUB_ACTIONS: "true" });
+  }
+});
+
+test("a pending predecessor fails closed once the predecessor phase lands", () => {
+  const created = [
+    "src/lib/releaseLifecycle.ts",
+    "src/app/api/lifecycle/[id]/route.ts",
+    "src/components/preview/LifecycleStatus.tsx",
+  ];
+  const absolutes = created.map((path) => resolve(fixtureRoot, path));
+  try {
+    for (const absolute of absolutes) {
+      mkdirSync(dirname(absolute), { recursive: true });
+      writeFileSync(absolute, "export {};\n");
+    }
+    const result = run([], { GITHUB_ACTIONS: "true" });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /predecessor-phase-not-merged is stale; src\/lib\/releaseLifecycle\.ts exists/);
+  } finally {
+    for (const absolute of absolutes) rmSync(absolute, { force: true });
+  }
+});
+
+test("a pending predecessor refuses a child ticket in the program manifest", () => {
+  withJsonMutation("docs/tickets/one-box-program/manifest.json", (manifest) => {
+    const parent = manifest.tickets.find((ticket) => ticket.id === "OBX-P210");
+    manifest.tickets.push({ ...structuredClone(parent), id: "OBX-P210-T01" });
+  }, (result) => {
+    assert.match(result.stderr, /child ticket OBX-P210-T01 cannot exist in the program manifest while OBX-AUTH-R1-P1-SOLO-001 is unmerged/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a phase record cannot stand beside a global implementation grant", () => {
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.implementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /authority manifest: release-1 phase authorizations require implementationAuthorized false at the top level/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation("docs/tickets/one-box-program/manifest.json", (manifest) => {
+    manifest.implementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /program ticket manifest: release-1 phase authorizations require implementationAuthorized false/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a phase record cannot drift from the frozen T02 dependency and governance pin", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record, registry) => {
+    const t02 = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T02-SOLO-001");
+    record.governanceBindings = [...record.governanceBindings].reverse();
+    t02.governanceBindings = structuredClone(record.governanceBindings);
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P1-SOLO-001\.governanceBindings: exact value drift/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.dependencyBindings = [record.dependencyBindings[0]];
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P2-SOLO-001\.dependencyBindings against OBX-AUTH-P180-T02-SOLO-001: exact value drift/);
+  });
+});
+
+test("a phase record refuses a grant on any other planning domain", () => {
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.domains.canvas.implementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /canvas: release-1 phase authorizations require implementationAuthorized false on every domain/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("the owner packet acceptance must hash the contracts it accepts", () => {
+  const acceptancePath = "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json";
+  withJsonMutation(acceptancePath, (acceptance) => {
+    acceptance.acceptedPaths[0].digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /acceptedPaths\[0\]: current hash drift docs\/plans\/one-box-master\/01-foundation\/release-1-contract\.md/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(acceptancePath, (acceptance) => {
+    acceptance.acceptedPaths = [acceptance.acceptedPaths[0]];
+  }, (result) => {
+    assert.match(result.stderr, /acceptedPaths: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a phase amendment cannot carry an unlisted grant field", () => {
+  withJsonMutation("docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json", (amendment) => {
+    amendment.globalImplementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /amendment\.keys: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation("docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json", (amendment) => {
+    amendment.scope.allowedPathPrefixes = ["src/"];
+  }, (result) => {
+    assert.match(result.stderr, /amendment\.scope\.keys: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("re-pinning the packet digest cannot invalidate a phase receipt", () => {
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.packetDigest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /packetDigest mismatch/);
+    assert.doesNotMatch(result.stderr, /authorityManifestWithoutPacketDigest: current hash drift/);
+    assert.doesNotMatch(result.stderr, /modelReceipt\.targetHashes\[\d+\]: current hash drift docs\/plans\/one-box-master\/00-authority\/authority-manifest\.json/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a release-1 phase amendment cannot drift from its record", () => {
+  const amendmentPath = "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json";
+  withJsonMutation(amendmentPath, (amendment) => {
+    amendment.renewable = true;
+  }, (result) => {
+    assert.match(result.stderr, /amendment: renewable drift/);
+    assert.match(result.stderr, /amendment: SHA-256 drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(amendmentPath, (amendment) => {
+    amendment.ownerDirection.recordedAt = "2026-09-01T13:00:00Z";
+  }, (result) => {
+    assert.match(result.stderr, /amendment\.ownerDirection: exact owner decision drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.renewable = true;
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P1-SOLO-001: renewable drift/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.expiresAt = "2026-09-17T13:00:00Z";
+  }, (result) => {
+    assert.match(result.stderr, /expiry must be exactly 336 hours/);
+  });
+});
+
+test("release-1 cannot fall back to proposed while the phase records stand", () => {
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.domains["release-1"].authorityClass = "proposed";
+  }, (result) => {
+    assert.match(result.stderr, /release-1: authorityClass drift; expected owner-approved/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.domains.compatibility.authorityClass = "proposed";
+  }, (result) => {
+    assert.match(result.stderr, /compatibility: authorityClass drift; expected owner-approved/);
+  }, [], { GITHUB_ACTIONS: "true" });
 });
