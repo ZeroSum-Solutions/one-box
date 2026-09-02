@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "receiptKind": "solo-phase-security-review-v3",
+  "authorizationId": "OBX-AUTH-R1-P1-SOLO-001",
+  "authorizationHash": "26f7ff8f9051560d7798f11b4a5b86f69cc8024e74d067f1f826e66716ec3a27",
+  "amendmentId": "OBX-R1-P1-SOLO-AMENDMENT-001",
+  "amendmentHash": "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147",
+  "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+  "targetPaths": [
+    "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+    "docs/plans/one-box-master/00-authority/plan-register.md",
+    "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+    "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+    "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+    "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+    "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+    "scripts/verify-plan-authority.mjs",
+    "scripts/verify-plan-authority.node.mjs",
+    "scripts/verify-r1-phase-authorization.mjs"
+  ],
+  "targetHashes": [
+    {
+      "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "algorithm": "sha256",
+      "digest": "39f193a31e70988dcab212664c5ce9399164d5824e0e9b275c2be230e9ca35fe"
+    },
+    {
+      "path": "docs/plans/one-box-master/00-authority/plan-register.md",
+      "algorithm": "sha256",
+      "digest": "8039db66e508f0ba36484afdff7206aa8888d162703a74479aeb6b36b55a7bc3"
+    },
+    {
+      "path": "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+      "algorithm": "sha256",
+      "digest": "082556497e99c6725c150887b02ce757f75fe5455077da89ee5bfcd084308a59"
+    },
+    {
+      "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+      "algorithm": "sha256",
+      "digest": "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147"
+    },
+    {
+      "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+      "algorithm": "sha256",
+      "digest": "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51"
+    },
+    {
+      "path": "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+      "algorithm": "sha256",
+      "digest": "9c117486271d89eb9a758e4805dfa2334ceb353f8bd3353df0fef3cf47f3bbfb"
+    },
+    {
+      "path": "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+      "algorithm": "sha256",
+      "digest": "6a38f2d98d77bc14b60d5f87d770b2146bf8b91b611faaaa6bec430cb094467b"
+    },
+    {
+      "path": "scripts/verify-plan-authority.mjs",
+      "algorithm": "sha256",
+      "digest": "3fa1b9cd6bba5c69ce5cb2881b690ada2b56854d90229670b12bdcbffc2e1a07"
+    },
+    {
+      "path": "scripts/verify-plan-authority.node.mjs",
+      "algorithm": "sha256",
+      "digest": "ca28d53ba1707d230c894a9812f08da8a83aba226e77be0b1be71e8330cf7b60"
+    },
+    {
+      "path": "scripts/verify-r1-phase-authorization.mjs",
+      "algorithm": "sha256",
+      "digest": "74ff7229635025daa18d8b6e427c145e51c59e7c94b9edd8318c66806ce3ab55"
+    }
+  ],
+  "authorityManifestWithoutPacketDigest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "digest": "8bbf07e6de63d9c70234e775ac2eed077e468643346e2bc302cecd0dcdff2f25"
+  },
+  "verdict": "PASS-WITH-ACCEPTED-RISK",
+  "findings": [
+    {
+      "findingId": "OBX-R1-P1-SOLO-SEPARATION-001",
+      "severity": "MEDIUM",
+      "status": "ACCEPTED",
+      "summary": "One human holds the owner, risk-owner, implementation, and authorizer roles, so no OwnerAssignmentV1 record can be active and no independent human security review is available for this phase.",
+      "surfaceDisposition": [
+        {
+          "surface": "prompt-injection",
+          "disposition": "REVIEWED",
+          "note": "No model output reaches an authority decision. The Grok lane is advisory-only and its receipt is parsed for exact model labels, effort, reviewed file set, and blocking findings; a model verdict cannot grant a path or an effect.",
+          "changedPathEvidence": [
+            "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+            "scripts/verify-r1-phase-authorization.mjs"
+          ]
+        },
+        {
+          "surface": "secrets",
+          "disposition": "REVIEWED",
+          "note": "No credential, token, or environment value appears in any record, amendment, packet document, or receipt. The allowed data classes are public, project-internal, and synthetic-fixture only, and credential-or-environment-access is a forbidden effect.",
+          "changedPathEvidence": [
+            "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+            "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json"
+          ]
+        },
+        {
+          "surface": "authentication",
+          "disposition": "NOT_APPLICABLE",
+          "note": "This change adds no authentication surface. The P3 review-origin surface stays frozen because authentication and secrets are non-waivable classes, and nonWaivableClassesTouched is empty and machine-checked.",
+          "changedPathEvidence": [
+            "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+            "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json"
+          ]
+        },
+        {
+          "surface": "authorization",
+          "disposition": "REVIEWED",
+          "note": "The registry is the only surface that can authorize code. The first three records stay byte-identical, implementationAuthorized stays false in the authority manifest and the ticket manifest, and every phase path and effect is denied unless it is listed in the record and validated by the new module.",
+          "changedPathEvidence": [
+            "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+            "scripts/verify-plan-authority.mjs",
+            "scripts/verify-r1-phase-authorization.mjs"
+          ]
+        },
+        {
+          "surface": "untrusted-input",
+          "disposition": "REVIEWED",
+          "note": "The module treats every record, amendment, and receipt as untrusted input: exact key sets, exact scalars, repository-relative single-file paths with no globs or bare directories, live SHA-256 hashing through a symlink-safe reader, and a recomputed canonical self-hash.",
+          "changedPathEvidence": [
+            "scripts/verify-r1-phase-authorization.mjs",
+            "scripts/verify-plan-authority.node.mjs"
+          ]
+        },
+        {
+          "surface": "export",
+          "disposition": "NOT_APPLICABLE",
+          "note": "No data leaves the repository. The Grok audit sends only the bounded governance diff already committed here, and the audit script redacts the key from any error text.",
+          "changedPathEvidence": [
+            "docs/plans/one-box-master/00-authority/plan-register.md"
+          ]
+        }
+      ]
+    }
+  ],
+  "independentHumanReview": {
+    "status": "NOT_AVAILABLE",
+    "satisfied": false
+  },
+  "capturedAt": "2026-09-02T13:40:00Z"
+}

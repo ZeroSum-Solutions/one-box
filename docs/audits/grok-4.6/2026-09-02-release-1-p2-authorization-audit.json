@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "receiptKind": "solo-phase-model-audit-v3",
+  "authorizationId": "OBX-AUTH-R1-P2-SOLO-001",
+  "authorizationHash": "5a97296f2f7298c2839e092bbe77fcb1b5dd9995c8dcb164485e36ceede66e26",
+  "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
+  "amendmentHash": "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51",
+  "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+  "requestedModel": "x-ai/grok-4.6",
+  "providerReportedModel": "x-ai/grok-4.6",
+  "effort": "high",
+  "lane": "openrouter-metered",
+  "auditScript": "scripts/eval/grok-audit.mjs",
+  "rawAuditPath": "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit-raw.json",
+  "rawAuditSha256": "2e8959ff904dc8b5ad48e86807b3b64b15c06beff6ee31c0d15e7e6ed5011036",
+  "reviewedFiles": [
+    "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+    "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+    "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+    "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+    "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+    "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+    "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+    "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "docs/plans/one-box-master/00-authority/plan-register.md",
+    "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+    "scripts/verify-plan-authority.mjs",
+    "scripts/verify-plan-authority.node.mjs",
+    "scripts/verify-r1-phase-authorization.mjs"
+  ],
+  "targetHashes": [
+    {
+      "path": "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+      "algorithm": "sha256",
+      "digest": "93d260dc505526d0b4335ccaf502618ad483816f7f8cbc14285343beae1a1716"
+    },
+    {
+      "path": "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+      "algorithm": "sha256",
+      "digest": "9fe386d22a11a9ebb73f88dd38c84da3dce595918f38f0a92132d17140f878e3"
+    },
+    {
+      "path": "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+      "algorithm": "sha256",
+      "digest": "082556497e99c6725c150887b02ce757f75fe5455077da89ee5bfcd084308a59"
+    },
+    {
+      "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+      "algorithm": "sha256",
+      "digest": "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147"
+    },
+    {
+      "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+      "algorithm": "sha256",
+      "digest": "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51"
+    },
+    {
+      "path": "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+      "algorithm": "sha256",
+      "digest": "9c117486271d89eb9a758e4805dfa2334ceb353f8bd3353df0fef3cf47f3bbfb"
+    },
+    {
+      "path": "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+      "algorithm": "sha256",
+      "digest": "6a38f2d98d77bc14b60d5f87d770b2146bf8b91b611faaaa6bec430cb094467b"
+    },
+    {
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "algorithm": "sha256",
+      "digest": "20df55276d786dc44538ff3a3e5cb69cd0bca42072da7a44a09a01c12fd282da"
+    },
+    {
+      "path": "docs/plans/one-box-master/00-authority/plan-register.md",
+      "algorithm": "sha256",
+      "digest": "8039db66e508f0ba36484afdff7206aa8888d162703a74479aeb6b36b55a7bc3"
+    },
+    {
+      "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "algorithm": "sha256",
+      "digest": "39f193a31e70988dcab212664c5ce9399164d5824e0e9b275c2be230e9ca35fe"
+    },
+    {
+      "path": "scripts/verify-plan-authority.mjs",
+      "algorithm": "sha256",
+      "digest": "3fa1b9cd6bba5c69ce5cb2881b690ada2b56854d90229670b12bdcbffc2e1a07"
+    },
+    {
+      "path": "scripts/verify-plan-authority.node.mjs",
+      "algorithm": "sha256",
+      "digest": "ca28d53ba1707d230c894a9812f08da8a83aba226e77be0b1be71e8330cf7b60"
+    },
+    {
+      "path": "scripts/verify-r1-phase-authorization.mjs",
+      "algorithm": "sha256",
+      "digest": "74ff7229635025daa18d8b6e427c145e51c59e7c94b9edd8318c66806ce3ab55"
+    }
+  ],
+  "verdict": "CLEAN",
+  "findings": [],
+  "residualRisks": [
+    "P2-only paths are not tree-enforced; unauthorized P2 edits would not fail this verifier",
+    "Shared P1/P2 files (contracts, releaseLifecycleStore, pageIrController, LifecycleStatus, preview-workbench) can absorb P2 work under P1 effects",
+    "COMPLETED_VERIFIED does not resolve checkpointCommit in git or hash files at that commit",
+    "ownerAuthorizedFallback accepts any nonempty ownerAuthorizationRef without binding a real owner record",
+    "Grok receipts are excluded from security-receipt targetHashes by design; only live structural checks bind them",
+    "Effective P1/P2 window ends when frozen T02 expires (2026-09-14), ~1.5 days before the phase expiresAt"
+  ],
+  "proofAssessment": "Wave-2 delivers both phase records without widening the frozen ATF/T01/T02 objects, without touching package.json, package-lock.json, reviewer-roles.md, risk-exceptions/README.md, or the program ticket manifest, and without setting implementationAuthorized on the planning manifest. P1 is the only new live grant; its allowedPaths/allowedEffects are exact-pinned in the record, amendment, packet ledger, and PHASES constants, with deny-unlisted and the common forbiddenEffects floor exact-matched. P2 is recorded with implementationAuthorized false, predecessorBinding.status PENDING_PREDECESSOR_MERGE, files equal to P1 allowedPaths, disjoint effects, expiresAt = recordedAt + 336h, renewable false, and amendment.ownerDirection.recordedAt equal to the record timestamp. release-1/compatibility become owner-approved with an acceptanceRecord naming Devin Wiggins and citing the acceptance file; their boundary text still lists the unresolved decisions and is additionally pinned by the security-receipt without-packetDigest manifest hash. target-topology and program-security stay proposed. The module fails closed on non-waivable classes, glob/traversal/absolute/bare-directory/prefix paths, pin drift, expiry of the phase record or of frozen T01/T02, forged self-hash, amendment drift, and missing/stale/mislabelled/BLOCK-HIGH receipts. Predecessor gate: strong enough to stop this wave from authorizing P2 implementation (bit pinned false, flip fails, module hash-bound by security receipts, P1 must still sit unexpired in the registry). It is not a code-start interlock: verify:plans never inspects the tree, so P2-only files can be edited while the verifier still passes; shared P1/P2 paths can take P2-shaped edits under P1's live grant; and the dormant COMPLETED_VERIFIED branch accepts any 40-hex checkpointCommit and hashes current working-tree bytes rather than git show <commit>:path, so a later re-issue can claim completion without proving P1 merged.",
+  "capturedAt": "2026-09-02T14:29:14.651Z"
+}

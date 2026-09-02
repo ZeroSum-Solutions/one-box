@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-09-02T14:29:14.651Z",
+  "request": {
+    "task": "Certify OBX-AUTH-R1-P2-SOLO-001 inside the complete wave-2 Release 1 governance change, with attention to the predecessor gate",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "origin/main",
+    "head": "ecdd4780af39f8c8678c4dfe133b8f127b29ccbd",
+    "files": [
+      "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
+      "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+      "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
+      "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
+      "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
+      "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
+      "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/plan-register.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "scripts/verify-r1-phase-authorization.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 227047,
+    "timeoutMs": 900000,
+    "maxOutputTokens": 12000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 68652,
+      "completion_tokens": 23436,
+      "total_tokens": 92088,
+      "cost": 0.277728,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.277728,
+        "upstream_inference_prompt_cost": 0.137112,
+        "upstream_inference_completions_cost": 0.140616
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 22836,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Wave-2 delivers both phase records without widening the frozen ATF/T01/T02 objects, without touching package.json, package-lock.json, reviewer-roles.md, risk-exceptions/README.md, or the program ticket manifest, and without setting implementationAuthorized on the planning manifest. P1 is the only new live grant; its allowedPaths/allowedEffects are exact-pinned in the record, amendment, packet ledger, and PHASES constants, with deny-unlisted and the common forbiddenEffects floor exact-matched. P2 is recorded with implementationAuthorized false, predecessorBinding.status PENDING_PREDECESSOR_MERGE, files equal to P1 allowedPaths, disjoint effects, expiresAt = recordedAt + 336h, renewable false, and amendment.ownerDirection.recordedAt equal to the record timestamp. release-1/compatibility become owner-approved with an acceptanceRecord naming Devin Wiggins and citing the acceptance file; their boundary text still lists the unresolved decisions and is additionally pinned by the security-receipt without-packetDigest manifest hash. target-topology and program-security stay proposed. The module fails closed on non-waivable classes, glob/traversal/absolute/bare-directory/prefix paths, pin drift, expiry of the phase record or of frozen T01/T02, forged self-hash, amendment drift, and missing/stale/mislabelled/BLOCK-HIGH receipts. Predecessor gate: strong enough to stop this wave from authorizing P2 implementation (bit pinned false, flip fails, module hash-bound by security receipts, P1 must still sit unexpired in the registry). It is not a code-start interlock: verify:plans never inspects the tree, so P2-only files can be edited while the verifier still passes; shared P1/P2 paths can take P2-shaped edits under P1's live grant; and the dormant COMPLETED_VERIFIED branch accepts any 40-hex checkpointCommit and hashes current working-tree bytes rather than git show <commit>:path, so a later re-issue can claim completion without proving P1 merged.",
+    "residual_risks": [
+      "P2-only paths are not tree-enforced; unauthorized P2 edits would not fail this verifier",
+      "Shared P1/P2 files (contracts, releaseLifecycleStore, pageIrController, LifecycleStatus, preview-workbench) can absorb P2 work under P1 effects",
+      "COMPLETED_VERIFIED does not resolve checkpointCommit in git or hash files at that commit",
+      "ownerAuthorizedFallback accepts any nonempty ownerAuthorizationRef without binding a real owner record",
+      "Grok receipts are excluded from security-receipt targetHashes by design; only live structural checks bind them",
+      "Effective P1/P2 window ends when frozen T02 expires (2026-09-14), ~1.5 days before the phase expiresAt"
+    ]
+  }
+}
