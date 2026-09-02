@@ -128,8 +128,14 @@ and the pushed checkpoint. The first mergeable slice of C is
 
 - Review and merge PR #18 (lineage A), then switch `~/projects/one-box` to
   `main` and delete `docs/studio-consolidation-plan`.
+- PR #19 (lineage C slice 1, branch `integrate/lineage-c-slice-1` at `62b7b74`)
+  merges with a merge commit only, after two things: `main` merged into it once
+  #18 lands (keep both `AGENTS.md` edits), and CI green. CI is red today because
+  of REPO-010; the verifier fix needs OBX-P180 verifier authority first.
 - Review and merge PR #17 once its CI is green and its own merge gate (the
   typography specimen note in the PR body) is accepted or narrowed.
+- Autonomous run contract awaiting the owner block:
+  `~/.claude/goal-state/one-box-gauntlet-r1/contract.md`.
 
 ## Watch list — do not start these
 
