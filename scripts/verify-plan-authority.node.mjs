@@ -1111,11 +1111,23 @@ test("a missing release-1 model receipt fails closed", () => {
   }
 });
 
-test("a pending predecessor cannot authorize implementation", () => {
+test("a recorded phase authorization must carry the grant and its activation gate", () => {
+  for (const id of r1PhaseIds) {
+    withR1PhaseRecordMutation(id, (record) => {
+      record.implementationAuthorized = false;
+    }, (result) => {
+      assert.match(result.stderr, new RegExp(`${id}: a recorded phase authorization must authorize implementation`));
+    });
+  }
   withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
-    record.implementationAuthorized = true;
+    record.activationPrecondition = null;
   }, (result) => {
-    assert.match(result.stderr, /implementation cannot be authorized while the predecessor merge is pending/);
+    assert.match(result.stderr, /OBX-AUTH-R1-P2-SOLO-001\.activationPrecondition: exact value drift/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.activationPrecondition = { predecessorAuthorizationId: "OBX-AUTH-R1-P2-SOLO-001" };
+  }, (result) => {
+    assert.match(result.stderr, /a phase with no predecessor must record null/);
   });
   withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
     record.predecessorBinding.checkpointCommit = "0".repeat(40);
@@ -1126,6 +1138,68 @@ test("a pending predecessor cannot authorize implementation", () => {
     registry.authorizations = registry.authorizations.filter((record) => record.id !== "OBX-AUTH-R1-P1-SOLO-001");
   }, (result) => {
     assert.match(result.stderr, /predecessor authorization OBX-AUTH-R1-P1-SOLO-001 is missing from the registry/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a non-renewable phase record must disclose the earlier effective expiry", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.effectiveWindow.effectiveExpiresAt = record.expiresAt;
+  }, (result) => {
+    assert.match(result.stderr, /effectiveExpiresAt must equal the earliest frozen registry expiry 2026-09-14T13:33:33Z/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.effectiveWindow.effectiveExpirySource = "OBX-AUTH-P180-T02-SOLO-001";
+  }, (result) => {
+    assert.match(result.stderr, /effectiveExpirySource must name OBX-AUTH-P180-T01-SOLO-001/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record) => {
+    record.effectiveWindow.effectiveExpiryReason = "";
+  }, (result) => {
+    assert.match(result.stderr, /effectiveExpiryReason must state why the window closes early/);
+  });
+});
+
+test("a model receipt must be a faithful derivation of the raw audit it wraps", () => {
+  const modelReceiptPath = "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json";
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.capturedAt = "2026-09-02T00:00:00.000Z";
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt: capturedAt does not match the raw audit/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.diffBytes += 1;
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt: diffBytes does not match the raw audit/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.auditedHeadCommit = "0".repeat(40);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt: auditedHeadCommit does not match the raw audit/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.reviewedFiles = receipt.reviewedFiles.slice(1);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.reviewedFiles: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.auditedTreeDelta = [];
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.auditedTreeDelta: exact value drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation(modelReceiptPath, (receipt) => {
+    receipt.authorityManifestWithoutPacketDigest.digest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /modelReceipt\.authorityManifestWithoutPacketDigest: current hash drift/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("re-pinning the packet digest cannot invalidate a phase receipt", () => {
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.packetDigest = "0".repeat(64);
+  }, (result) => {
+    assert.match(result.stderr, /packetDigest mismatch/);
+    assert.doesNotMatch(result.stderr, /authorityManifestWithoutPacketDigest: current hash drift/);
+    assert.doesNotMatch(result.stderr, /modelReceipt\.targetHashes\[\d+\]: current hash drift docs\/plans\/one-box-master\/00-authority\/authority-manifest\.json/);
   }, [], { GITHUB_ACTIONS: "true" });
 });
 
