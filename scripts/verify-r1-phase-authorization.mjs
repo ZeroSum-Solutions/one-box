@@ -1077,6 +1077,11 @@ function validatePhaseRecord(repoRoot, phase, record, context, failures) {
   checkBindings(repoRoot, record.governanceBindings, `${record.id}.governanceBindings`, failures);
   exact(record.dependencyBindings, DEPENDENCY_BINDINGS, `${record.id}.dependencyBindings`, failures);
   checkBindings(repoRoot, record.dependencyBindings, `${record.id}.dependencyBindings`, failures);
+  // The constants above are a copy, so the copy is also compared to the live
+  // frozen record. A phase record and the module cannot drift together.
+  const frozenT02 = (context.registry?.authorizations ?? []).find((candidate) => candidate?.id === "OBX-AUTH-P180-T02-SOLO-001");
+  exact(record.governanceBindings, frozenT02?.governanceBindings, `${record.id}.governanceBindings against OBX-AUTH-P180-T02-SOLO-001`, failures);
+  exact(record.dependencyBindings, frozenT02?.dependencyBindings, `${record.id}.dependencyBindings against OBX-AUTH-P180-T02-SOLO-001`, failures);
 
   const parentTicket = ticketManifest?.tickets?.find((ticket) => ticket?.id === phase.parentTicketId);
   if (!parentTicket) {
@@ -1160,7 +1165,7 @@ function validateEffectiveWindow(record, registry, failures) {
   }
 }
 
-function validateOwnerAcceptance(repoRoot, authority, failures) {
+function validateOwnerAcceptance(repoRoot, authority, ticketManifest, failures) {
   const label = "release-1 owner packet acceptance";
   const acceptance = readJson(repoRoot, ACCEPTANCE_PATH, label, failures);
   if (acceptance) {
@@ -1194,6 +1199,15 @@ function validateOwnerAcceptance(repoRoot, authority, failures) {
     if (authority?.domains?.[domainId]?.authorityClass !== "proposed") {
       failures.push(`${domainId}: must stay proposed while no OwnerAssignmentV1 record exists`);
     }
+  }
+  // The scoped registry is the only surface that may authorize code. A phase
+  // record cannot stand beside a planning packet or a ticket backlog that has
+  // granted implementation on its own.
+  if (authority?.implementationAuthorized !== false) {
+    failures.push("authority manifest: release-1 phase authorizations require implementationAuthorized false at the top level");
+  }
+  if (ticketManifest?.implementationAuthorized !== false) {
+    failures.push("program ticket manifest: release-1 phase authorizations require implementationAuthorized false");
   }
 }
 
@@ -1305,7 +1319,7 @@ export function verifyRelease1PhaseAuthorizations({
   }
 
   validateFrozenRegistryBytes(repoRoot, failures);
-  validateOwnerAcceptance(repoRoot, authorityManifest, failures);
+  validateOwnerAcceptance(repoRoot, authorityManifest, tickets, failures);
   validatePredecessorRegistryRecords(source, failures);
   const verified = [];
   for (const record of present) {

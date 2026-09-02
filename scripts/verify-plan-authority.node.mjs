@@ -1241,6 +1241,34 @@ test("a pending predecessor refuses a child ticket in the program manifest", () 
   }, [], { GITHUB_ACTIONS: "true" });
 });
 
+test("a phase record cannot stand beside a global implementation grant", () => {
+  withJsonMutation(authorityManifestPath, (authority) => {
+    authority.implementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /authority manifest: release-1 phase authorizations require implementationAuthorized false at the top level/);
+  }, [], { GITHUB_ACTIONS: "true" });
+  withJsonMutation("docs/tickets/one-box-program/manifest.json", (manifest) => {
+    manifest.implementationAuthorized = true;
+  }, (result) => {
+    assert.match(result.stderr, /program ticket manifest: release-1 phase authorizations require implementationAuthorized false/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a phase record cannot drift from the frozen T02 dependency and governance pin", () => {
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P1-SOLO-001", (record, registry) => {
+    const t02 = registry.authorizations.find((candidate) => candidate.id === "OBX-AUTH-P180-T02-SOLO-001");
+    record.governanceBindings = [...record.governanceBindings].reverse();
+    t02.governanceBindings = structuredClone(record.governanceBindings);
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P1-SOLO-001\.governanceBindings: exact value drift/);
+  });
+  withR1PhaseRecordMutation("OBX-AUTH-R1-P2-SOLO-001", (record) => {
+    record.dependencyBindings = [record.dependencyBindings[0]];
+  }, (result) => {
+    assert.match(result.stderr, /OBX-AUTH-R1-P2-SOLO-001\.dependencyBindings against OBX-AUTH-P180-T02-SOLO-001: exact value drift/);
+  });
+});
+
 test("re-pinning the packet digest cannot invalidate a phase receipt", () => {
   withJsonMutation(authorityManifestPath, (authority) => {
     authority.packetDigest = "0".repeat(64);
