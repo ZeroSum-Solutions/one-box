@@ -5,17 +5,25 @@
   `docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json`
 - Amendment: `docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json`
 - Parent ticket: `OBX-P210` (stays `proposed`; this packet moves no ticket status)
-- Predecessor: `OBX-P200` under `OBX-AUTH-R1-P1-SOLO-001`. P2 code may not start
-  until P1 merges. The record's `predecessorBinding` stays
-  `PENDING_PREDECESSOR_MERGE` and names P1's exact file list, and while that status
-  holds the record carries `implementationAuthorized: false`. The phase module
-  enforces both directions: a pending predecessor may not authorize implementation,
-  and a `COMPLETED_VERIFIED` predecessor must name a 40-character checkpoint commit
-  with live SHA-256 bindings of P1's merged files. P2 therefore becomes an
-  implementation authorization only when a later governance change re-issues this
-  record against the P1 merge commit.
-- Status: planning packet. It authorizes nothing on its own, and the P2 record
-  authorizes no code until the predecessor gate closes.
+- Predecessor: `OBX-P200` under `OBX-AUTH-R1-P1-SOLO-001`. The P2 record carries the
+  owner's grant now (`implementationAuthorized: true`), and its
+  `activationPrecondition` states what still gates the work: no `OBX-P210` child
+  ticket may start until the P1 phase merges to `main` and the record's
+  `predecessorBinding` carries that merge commit with the live digest of every
+  declared P1 file. The binding stays `PENDING_PREDECESSOR_MERGE` and names P1's
+  exact file list until then. The phase module enforces the shape in both
+  directions: a pending predecessor must record the activation precondition, name
+  no checkpoint commit, declare exactly the P1 record's `allowedPaths`, and keep its
+  effect list disjoint from P1's live grant; a `COMPLETED_VERIFIED` predecessor must
+  name a 40-character checkpoint commit with live SHA-256 bindings of P1's merged
+  files. `predecessor-phase-not-merged` is a recorded invalidator.
+- Recorded window: 336 hours, `2026-09-02T13:00:00Z` to `2026-09-16T13:00:00Z`,
+  non-renewable. The record's `effectiveWindow` also states the earlier effective
+  end, `2026-09-14T13:33:33Z`, because the module fails closed once
+  `OBX-AUTH-P180-T01-SOLO-001` expires.
+- Status: planning packet. It authorizes nothing on its own; the registry record is
+  the only artifact that authorizes code, and only inside the paths and effects
+  below.
 
 ## 1. Scope
 

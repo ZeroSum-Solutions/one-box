@@ -5,6 +5,12 @@
   `docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json`
 - Amendment: `docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json`
 - Parent ticket: `OBX-P200` (stays `proposed`; this packet moves no ticket status)
+- Predecessor: none. `predecessorBinding` and `activationPrecondition` are `null`,
+  so P1 work starts when the governance change merges.
+- Recorded window: 336 hours, `2026-09-02T13:00:00Z` to `2026-09-16T13:00:00Z`,
+  non-renewable. The record's `effectiveWindow` also states the earlier effective
+  end, `2026-09-14T13:33:33Z`, because the phase module fails closed once
+  `OBX-AUTH-P180-T01-SOLO-001` expires.
 - Status: planning packet. This document authorizes nothing on its own. Only the
   registry record authorizes code, and only inside the exact paths and effects below.
 

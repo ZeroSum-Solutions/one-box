@@ -15,12 +15,21 @@
     "OBX-P210-T02",
     "OBX-P210-T03"
   ],
-  "implementationAuthorized": false,
+  "implementationAuthorized": true,
   "predecessor": {
     "ticketId": "OBX-P200",
     "authorizationId": "OBX-AUTH-R1-P1-SOLO-001",
     "status": "PENDING_PREDECESSOR_MERGE",
     "checkpointCommit": null
+  },
+  "activationPrecondition": {
+    "predecessorAuthorizationId": "OBX-AUTH-R1-P1-SOLO-001",
+    "predecessorPhase": "P1",
+    "requirement": "No OBX-P210 child ticket may start until the OBX-AUTH-R1-P1-SOLO-001 phase merges to main and this record's predecessorBinding carries that merge commit together with the live digest of every declared P1 file.",
+    "enforcedBy": [
+      "scripts/verify-r1-phase-authorization.mjs validatePredecessorGate",
+      "invalidator predecessor-phase-not-merged"
+    ]
   },
   "ownerDirection": {
     "actorId": "person:devin-wiggins",
@@ -221,7 +230,8 @@
     "grok-4.6-exact-packet-review-before-first-commit-and-before-merge",
     "deterministic-tests-remain-authoritative",
     "ci-verify-plans-and-test-plans-fail-closed",
-    "independent-human-review-remains-not-available"
+    "independent-human-review-remains-not-available",
+    "p2-tasks-blocked-until-the-p1-phase-merges-and-its-digests-are-recorded"
   ],
   "independentHumanReview": {
     "status": "NOT_AVAILABLE",
@@ -230,5 +240,12 @@
   },
   "recordedAt": "2026-09-02T13:00:00Z",
   "expiresAt": "2026-09-16T13:00:00Z",
+  "effectiveWindow": {
+    "recordedAt": "2026-09-02T13:00:00Z",
+    "expiresAt": "2026-09-16T13:00:00Z",
+    "effectiveExpiresAt": "2026-09-14T13:33:33Z",
+    "effectiveExpirySource": "OBX-AUTH-P180-T01-SOLO-001",
+    "effectiveExpiryReason": "This record's invalidator expired-t01-or-t02-record-in-registry fails the whole release-1 phase module once OBX-AUTH-P180-T01-SOLO-001 (2026-09-14T13:33:33Z) or OBX-AUTH-P180-T02-SOLO-001 (2026-09-14T21:47:59Z) expires, and both are non-renewable. The recorded 336-hour window therefore ends early, at 2026-09-14T13:33:33Z, unless the owner first decides a retirement mechanism for the frozen records."
+  },
   "renewable": false
 }
