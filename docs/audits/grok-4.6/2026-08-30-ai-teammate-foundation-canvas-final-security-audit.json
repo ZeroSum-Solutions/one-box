@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:54:58.069Z",
+  "request": {
+    "task": "Final security gate exact receipt audit",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-closure-receipt.json"
+    ],
+    "proofs": [],
+    "diffBytes": 3683
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 2083,
+      "completion_tokens": 8803,
+      "total_tokens": 10886,
+      "cost": 0.056792,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.056792,
+        "upstream_inference_prompt_cost": 0.003974,
+        "upstream_inference_completions_cost": 0.052818
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 8514,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Receipt internally binds all required closure fields with no contradiction among them: report path+sha256, validator exited 0 with security-review-report OK, verdict PASS, findings 0, two-dot gitleaks on base..syntheticTarget exited 0 with no leaks, six coverage keys, exports NONE, sourceSha256 map, 32 tests passed, and invariants for auth-before-body, bounded read/propose-only input with empty parent/child grants, fail-closed parsing, display-only selection exclusion, and no provider/persistence/filesystem/shell/export/Page IR mutation. Sibling report and command-evidence files are absent from this slice, so hashes were not recomputed.",
+    "residual_risks": [
+      "Validator is an unpinned local script path and uses a --report <report> placeholder rather than the bound path.",
+      "focusedTests and capabilityScan are summaries without exact argv/exit transcripts.",
+      "sourceSha256 pins 3 paths while focusedTests refers to 4 sensitive-surface files; the fourth path is not hash-bound here.",
+      "prompt-injection NOT-APPLICABLE holds only if the no-provider invariant is true of the hashed sources.",
+      "Referenced review JSON and command-evidence markdown are not in the supplied git slice, so those sha256 values cannot be checked from this input."
+    ]
+  }
+}

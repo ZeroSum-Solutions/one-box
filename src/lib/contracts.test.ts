@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  AiTeammateJobV1Schema,
+  AiTeammateRegistryV1Schema,
+  AiTeammateRunReceiptV1Schema,
   CandidateManifestV1Schema,
   CandidateProvenanceV1Schema,
   CandidateGateReceiptV1Schema,
@@ -447,6 +450,204 @@ describe("candidate contracts", () => {
         ),
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("AI teammate registry contracts", () => {
+  const roster = [
+    ["researcher", "Researcher", "Evidence research"],
+    ["prd-planner", "PRD Planner", "Product requirements"],
+    ["architecture-analyst", "Architecture Analyst", "System architecture"],
+    ["canvas-designer", "Canvas Designer", "Canvas experience design"],
+    ["implementation-producer", "Implementation Producer", "Implementation proposals"],
+    ["qa-challenger", "QA Challenger", "Quality challenges"],
+    ["security-challenger", "Security Challenger", "Security challenges"],
+    ["seo-qualifier", "SEO Qualifier", "SEO qualification"],
+  ].map(([id, displayName, specialty]) => ({
+    schemaVersion: 1,
+    id,
+    displayName,
+    specialty,
+    brief: `${displayName} returns a bounded proposal.`,
+    skills: [id],
+    dataClasses: ["public", "project-internal"],
+    effectClasses: ["read", "propose"],
+    availability: "idle",
+  }));
+
+  it("accepts exactly the eight closed read/propose teammate roles", () => {
+    expect(AiTeammateRegistryV1Schema.parse(roster)).toEqual(roster);
+    expect(
+      AiTeammateRegistryV1Schema.safeParse([
+        ...roster.slice(0, -1),
+        { ...roster[0] },
+      ]).success,
+    ).toBe(false);
+    expect(AiTeammateRegistryV1Schema.safeParse([]).success).toBe(false);
+    expect(
+      AiTeammateRegistryV1Schema.safeParse(
+        roster.map((teammate, index) =>
+          index === 0 ? { ...teammate, provider: "not-authorized" } : teammate,
+        ),
+      ).success,
+    ).toBe(false);
+    expect(
+      AiTeammateRegistryV1Schema.safeParse(
+        roster.map((teammate, index) =>
+          index === 0
+            ? { ...teammate, dataClasses: ["client-sensitive"] }
+            : teammate,
+        ),
+      ).success,
+    ).toBe(false);
+    expect(
+      AiTeammateRegistryV1Schema.safeParse(
+        roster.map((teammate, index) =>
+          index === 0 ? { ...teammate, effectClasses: ["execute"] } : teammate,
+        ),
+      ).success,
+    ).toBe(false);
+  });
+});
+
+describe("AI teammate job contracts", () => {
+  const job = {
+    schemaVersion: 1,
+    jobId: "job-001",
+    projectId: "project-001",
+    taskId: "task-001",
+    actorId: "actor-001",
+    teammateId: "researcher",
+    inputSha256: HASH_A,
+    expectedProposalSchemaId: "one-box.proposal.research.v1",
+    effectClasses: ["read", "propose"],
+    toolGrants: [],
+    childToolGrants: [],
+    dataClasses: ["public", "project-internal"],
+    maxInputBytes: 64_000,
+    maxProposalBytes: 64_000,
+    maxDurationMs: 5_000,
+    maxAttempts: 1,
+    maxDelegationDepth: 0,
+    deadlineAt: "2026-08-30T00:00:00.000Z",
+    cancellationPolicy: "caller-signal-only",
+    retentionPolicy: "process-only",
+    fallback: "none",
+    executionLane: "deterministic-local",
+  };
+
+  it("accepts an explicit bounded deterministic-local no-grant job", () => {
+    const parsed = AiTeammateJobV1Schema.parse(job);
+    expect(parsed).toEqual(job);
+    expect(Object.isFrozen(parsed)).toBe(true);
+    expect(Object.isFrozen(parsed.toolGrants)).toBe(true);
+    expect(Object.isFrozen(parsed.childToolGrants)).toBe(true);
+  });
+
+  it("fails closed on missing grants or any authority/data widening", () => {
+    const { toolGrants: _toolGrants, ...missingToolGrants } = job;
+    const { childToolGrants: _childToolGrants, ...missingChildToolGrants } =
+      job;
+    void _toolGrants;
+    void _childToolGrants;
+    for (const invalid of [
+      missingToolGrants,
+      missingChildToolGrants,
+      { ...job, toolGrants: null },
+      { ...job, toolGrants: ["filesystem"] },
+      { ...job, childToolGrants: null },
+      { ...job, childToolGrants: ["delegate"] },
+      { ...job, maxAttempts: 2 },
+      { ...job, maxDelegationDepth: 1 },
+      { ...job, fallback: "provider" },
+      { ...job, dataClasses: ["client-sensitive"] },
+      { ...job, effectClasses: ["execute"] },
+      { ...job, provider: "not-authorized" },
+      { ...job, authority: "owner" },
+    ]) {
+      expect(AiTeammateJobV1Schema.safeParse(invalid).success).toBe(false);
+    }
+  });
+});
+
+describe("AI teammate receipt contracts", () => {
+  const completeReceipt = {
+    schemaVersion: 1,
+    jobId: "job-001",
+    jobSha256: HASH_B,
+    teammateId: "researcher",
+    inputSha256: HASH_A,
+    outputSha256: HASH_C,
+    partialOutputSha256: null,
+    startedAt: "2026-08-29T20:00:00.000Z",
+    stoppedAt: "2026-08-29T20:00:01.000Z",
+    status: "complete",
+    stoppingCondition: "proposal-complete",
+    retryEligible: false,
+    effectClasses: ["read", "propose"],
+    outputSchemaId: "one-box.proposal.research.v1",
+    providerCostUsd: 0,
+    executionLane: "deterministic-local",
+  };
+
+  it("accepts every closed terminal receipt state with explicit hashes", () => {
+    const terminalReceipts = [
+      completeReceipt,
+      {
+        ...completeReceipt,
+        outputSha256: null,
+        status: "failed",
+        stoppingCondition: "proposal-threw",
+      },
+      {
+        ...completeReceipt,
+        outputSha256: null,
+        status: "cancelled",
+        stoppingCondition: "cancelled",
+      },
+      {
+        ...completeReceipt,
+        outputSha256: null,
+        status: "rejected",
+        stoppingCondition: "job-invalid",
+      },
+      {
+        ...completeReceipt,
+        outputSha256: null,
+        partialOutputSha256: HASH_D,
+        status: "budget-exhausted",
+        stoppingCondition: "duration-exceeded",
+      },
+    ];
+
+    for (const receipt of terminalReceipts) {
+      const parsed = AiTeammateRunReceiptV1Schema.parse(receipt);
+      expect(parsed).toEqual(receipt);
+      expect(Object.isFrozen(parsed)).toBe(true);
+      expect(Object.isFrozen(parsed.effectClasses)).toBe(true);
+    }
+  });
+
+  it("rejects non-terminal, inconsistent, charged, or authority-bearing receipts", () => {
+    for (const invalid of [
+      { ...completeReceipt, status: "running" },
+      { ...completeReceipt, outputSha256: null },
+      {
+        ...completeReceipt,
+        status: "failed",
+        stoppingCondition: "proposal-threw",
+      },
+      { ...completeReceipt, partialOutputSha256: HASH_D },
+      { ...completeReceipt, providerCostUsd: 0.01 },
+      { ...completeReceipt, retryEligible: true },
+      {
+        ...completeReceipt,
+        stoppedAt: "2026-08-29T19:59:59.000Z",
+      },
+      { ...completeReceipt, provider: "not-authorized" },
+    ]) {
+      expect(AiTeammateRunReceiptV1Schema.safeParse(invalid).success).toBe(false);
+    }
   });
 });
 

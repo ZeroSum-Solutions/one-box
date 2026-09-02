@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:42:01Z",
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "boundary": "deterministic local read and propose only",
+    "bindingNote": "The hashes below bind the post-T4, pre-F5-final candidate. They intentionally remain historical after the separately receipted T5 corrections."
+  },
+  "candidateSha256": {
+    "scripts/e2e/canvas-contract.mjs": "fe83fcedd849ec97753ac94cfba991fd45bce46d2494ae747f6b7be0e5e0c46c",
+    "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx": "5a537f2da5ea750e85d871e69cfe71c31f3cfc8d213f15a038f1632920e28cf8",
+    "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx": "680aa80fd11bac06fc83d0766fb2aab901281021080f7275f87923549ef4a84a",
+    "src/app/api/ai-teammates/[id]/route.ts": "d9a512f0bfe53f9d4ed96fb8be30c6b2a4db922c04b7898d572f1156f285d7b5",
+    "src/app/api/ai-teammates/[id]/route.test.ts": "f69ba64037ad49680291d19dfda6671f0ded69c40fd535775152393daa39738d"
+  },
+  "exactGrok46Closures": [
+    {
+      "area": "component accessibility and retry state",
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4a1-component-accessibility-closure-reaudit.json",
+      "verdict": "CLEAN",
+      "findings": 0
+    },
+    {
+      "area": "live Canvas accessibility and browser oracles",
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4a2-live-e2e-closure-reaudit.json",
+      "verdict": "CLEAN",
+      "findings": 0
+    },
+    {
+      "area": "route validation and no-store boundary",
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4b-route-closure-audit.json",
+      "verdict": "CLEAN",
+      "findings": 0
+    },
+    {
+      "area": "evidence governance and proof binding",
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t4c-evidence-governance-closure-reaudit.json",
+      "verdict": "CLEAN",
+      "findings": 0
+    }
+  ],
+  "verification": {
+    "focusedTests": "4 files, 32 tests passed",
+    "selectionBoundaryTests": "2 files, 23 tests passed",
+    "typecheck": "passed",
+    "liveCanvas1440": "passed; no contract or serious/critical accessibility problems detected"
+  },
+  "remaining": [
+    "exact Fable 5 final re-audit",
+    "same-target full plan, code, visual, and security gates",
+    "independent verification",
+    "conventional commit, push, and remote parity"
+  ]
+}

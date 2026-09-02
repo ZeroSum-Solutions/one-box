@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:52:02Z",
+  "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+  "syntheticTarget": "edaa6c751d99d38c7f04e5421751028ff78b009d",
+  "syntheticTree": "458506282dcdd56e7dc461da82c64ce5b5771348",
+  "report": {
+    "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-review.json",
+    "sha256": "9fcbe08cb3d1c4b0aca7df3432eac2b181af47de2696f2786bfecb26b3d08b92",
+    "validator": "python3 /Users/zero-suminc./.codex/skills/security-review/scripts/validate_report.py --report <report> exited 0 with security-review-report: OK",
+    "verdict": "PASS",
+    "findings": 0
+  },
+  "commandEvidence": {
+    "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-command-evidence.md",
+    "sha256": "c405d8013acf291154e8d8c44a149e203e042d8244ae8467624489888333e48c"
+  },
+  "commands": {
+    "rangeDiff": "git diff --name-only 899b39433c4be242b4b3adcd39f3e6cd53df99c0...edaa6c751d99d38c7f04e5421751028ff78b009d exited 0 and produced the exact 83-path report census",
+    "gitleaks": "gitleaks detect --source . --no-banner --redact --log-opts 899b39433c4be242b4b3adcd39f3e6cd53df99c0..edaa6c751d99d38c7f04e5421751028ff78b009d exited 0 after one commit and 376758 bytes; no leaks found",
+    "currentWorktreeSecretsScan": "git ls-files -m -o --exclude-standard copied the exact 86 changed and untracked candidate files other than this receipt to an isolated temporary directory; gitleaks detect --source <candidate-directory> --no-banner --redact --no-git exited 0 after scanning 654361 bytes; no leaks found",
+    "finalReceiptSecretsScan": "gitleaks detect --no-banner --redact --pipe over this final receipt exited 0; no leaks found",
+    "focusedTests": "four changed sensitive-surface files, 32 tests passed",
+    "capabilityScan": "only two same-origin fetches in production and node:fs in static tests; no provider, environment, shell, raw HTML, storage, socket, or external-export sink"
+  },
+  "coverage": {
+    "prompt-injection": "NOT-APPLICABLE",
+    "secrets": "REVIEWED",
+    "authentication": "REVIEWED",
+    "authorization": "REVIEWED",
+    "untrusted-input": "REVIEWED",
+    "export": "NOT-APPLICABLE"
+  },
+  "exports": "NONE",
+  "sourceIntegrity": [
+    {
+      "path": "src/app/api/ai-teammates/[id]/route.ts",
+      "algorithm": "SHA-256",
+      "value": "d9a512f0bfe53f9d4ed96fb8be30c6b2a4db922c04b7898d572f1156f285d7b5"
+    },
+    {
+      "path": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "algorithm": "SHA-256",
+      "value": "5a537f2da5ea750e85d871e69cfe71c31f3cfc8d213f15a038f1632920e28cf8"
+    },
+    {
+      "path": "docs/security/local-api-threat-model.md",
+      "algorithm": "SHA-256",
+      "value": "cc502382d4253190d6d949f2842ffb5e88b6d26c130ec68897013c6df13e881c"
+    }
+  ],
+  "invariants": [
+    "isLocalApiAuthorized executes before route params and before consuming the POST body",
+    "the strict assignment accepts only one known teammate, one 1-to-2000-character task, public or project-internal data, exact read/propose effects, and empty parent/child tool grants",
+    "run ID, assignment, exact response envelope, proposal, and receipt parsing fail closed",
+    "Canvas selection is display-only context and is absent from the assignment component, request body, headers, query, and path",
+    "execution is deterministic, process-only, one attempt, zero delegation, no fallback, no external cost, and no apply control",
+    "no provider, credential, filesystem, shell, persistence, background task, external export, or Page IR mutation capability is introduced"
+  ],
+  "transportNote": "Two broader exact-Grok security requests were rejected before inference by the OpenRouter remaining-credit output and prompt caps. This compact receipt preserves the completed local security review evidence for an exact-model bounded audit."
+}

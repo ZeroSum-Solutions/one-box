@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:59:47.903Z",
+  "request": {
+    "task": "OBX-P180-S2-DEFINITIVE-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-clean-closure-findings-v4.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "diffBytes": 31919,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 16006,
+      "completion_tokens": 29694,
+      "total_tokens": 45700,
+      "cost": 0.209984,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.209984,
+        "upstream_inference_prompt_cost": 0.03182,
+        "upstream_inference_completions_cost": 0.178164
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 28945,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "373-375 `interrupted -> cancelled` vs 488-493",
+        "scenario": "Segment is `interrupted` with write-once hashes H1/P1/E1/C1. A duplicate interrupt delivery CASes `active -> interrupted` or rewrites hashes to H2 (or any payload that does not equal the stored four hashes). Lines 488-490 require reject/replay-attach with zero mutation and say duplicate interrupt delivery cannot cancel. Lines 373-375 still list `any bound-hash mismatch` as a first-class `interrupted -> cancelled` trigger, so the same CAS can emit a terminal cancelled receipt and drop HITL without a unique accept/reject decision. That races the human decision and violates duplicate-delivery-only-attaches plus only-unique-decision-or-failed-live-gate-compare terminals.",
+        "remediation": "Delete `any bound-hash mismatch` from the `interrupted -> cancelled` allowed-transition bullet. Keep that bullet as rejection, expiry, revocation, or stale expected state. Leave hash mismatch as cancel only on a failed live-gate/hash compare while processing the unique `accept-proposal` decision (already at 491-493). Duplicate/self CASes and any rewrite of the four hashes must remain reject-or-attach with zero mutation."
+      }
+    ],
+    "proof_assessment": "HEAD equals BASE; only the existing S2 planning contract is in scope. The v4 Grok FINDINGS are prior evidence, not authority: finding 1 quotes a HITL ban on `retryable-failure` that is not in these bytes (current 358-362 and 517-518 require attempt 0 to CAS to terminal `failed`/`transient-retry-consumed` before index one is claimed, and HITL then evaluates the completed current attempt). Finding 2 is only half-closed: 488-493 splits duplicate attach from accept-path mismatch, but 373-375 still authorizes cancel on any bound-hash mismatch. Typed-proposal mutex (351-355) still blocks `active -> completed` without unique `accept-proposal`.",
+    "residual_risks": [
+      "`active -> interrupted` is a multi-record CAS (segment, settled attempt, interrupt, proposal, expected state, held reservation) with no single closed transaction record; in-memory fixtures cannot prove durable atomicity.",
+      "RouteSegmentStateV1 has no decisionHash; unique `accept-proposal` uniqueness is deferred to the S3 slot CAS.",
+      "`interrupted -> completed` requires the reservation still held and never reconciles it, so accept can leak budget.",
+      "Kill-switch on or reservation loss during `interrupted` fails the accept live-gate but is not an independent `interrupted -> cancelled` trigger unless an accept is processed or expiry fires.",
+      "Line 484 leftover `Resume or cancellation` can be misread as `interrupted -> active` even though that transition is unlisted and the four hashes are forbidden outside `interrupted`.",
+      "Claim-index-one preconditions at 498-501 still describe attempt 0 as `retryable-failure` without restating the atomic terminalizing CAS; implementers must not treat that paragraph as a claim API separate from 517-518.",
+      "Acceptance criterion 8 does not mention retry-then-HITL or duplicate-interrupt attach, so AC-only tests can miss both."
+    ]
+  }
+}

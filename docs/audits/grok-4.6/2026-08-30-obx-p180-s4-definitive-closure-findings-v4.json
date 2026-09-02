@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T03:00:44.971Z",
+  "request": {
+    "task": "OBX-P180-S4-DEFINITIVE-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-clean-closure-findings-v3.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "diffBytes": 23238,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 21278,
+      "completion_tokens": 28534,
+      "total_tokens": 49812,
+      "cost": 0.213568,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.213568,
+        "upstream_inference_prompt_cost": 0.042364,
+        "upstream_inference_completions_cost": 0.171204
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 27179,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "failure table: transient failure with known billing; provider/model/effort mismatch; cap reached; operational/user stop; over-reserve; owner/kill-switch revocation",
+        "scenario": "Non-compare segment, attempt 0 classified transient with known billing, maxAttempts=1 (or other Step 2 retry gates fail). The row only names held/claimed when gates pass, so reservation and lease have no terminal disposition. Adjacent rows then write bare 'hold' (collides with reservation `held`), mismatch 'or -> reconciliation-hold while stop is uncertain' with no defined predicate, and kill-switch 'then settle/release' without choosing `settled` vs `released` or binding the lease CAS to this segment's terminal receipt hash. Wrong behavior: a terminal failure can leave the slot `claimed` and budget `held`; or an implementer treats 'hold' as `held` and returns capacity/budget while the segment is still live; or kill-switch releases a claimed lease without that segment's terminal receipt.",
+        "remediation": "For every non-compare row pick exactly one reservation state from {held,settled,released,reconciliation-hold} and one lease state from the lease CAS diagram, each gated by a named proof (no-dispatch proof, owner/fixture-proven usage, this-segment terminal receipt hash, dispatch-uncertainty). Add the retry-gates-fail branch: reservation `settled` only with fixture/owner-proven usage else `reconciliation-hold`; lease `released` only with a failed terminal receipt hash else `reconciliation-hold`. Replace every bare 'hold'/'settle/release' with those enums."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "QueueStateV1 offered->queued / Claim/cancel/expiry decrements depth exactly once; CapacityLeaseV1 `offered|queued -> expired` may release the held queue allocation",
+        "scenario": "maximumQueueDepth=1. Lease L1 CASes offered->queued (depth=1) then queued->expired. 'may release' allows skipping the QueueStateV1 decrement while the ticket can remain in ordered ticket IDs. Every later offered lease sees depth not below maximum and CASes to cancelled, so the queue is permanently full. Separately, offered->claimed never increments depth, but 'Claim/cancel/expiry decrements depth exactly once' still fires: depth underflows or the claim CAS rolls back and a never-queued segment cannot dispatch.",
+        "remediation": "Make QueueStateV1 the only admission counter. queued->claimed|expired|cancelled MUST remove that ticket and decrement current depth by one in the same CAS. offered->claimed|expired|cancelled MUST NOT change depth. Drop 'may'; observations stay read-only."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "Lease claim is one transaction across the held budget reservation, all hierarchy balances...",
+        "scenario": "Compare parent already inserted one held reservation and decremented every hierarchy BudgetBalanceStateV1 for both arms, retries, evaluator, and reviewer. Arm A then claims. If 'all hierarchy balances' are amount-mutating CASes, remaining/held change while arm B is still offered/queued. Sibling claim can fail on remaining, and a concurrent job can reserve against a remaining that no longer covers the still-live compare worst case—violating unchanged parent/hierarchy balances until both arms terminal.",
+        "remediation": "Claim may only verify reservation.state==held and unchanged balance revisions/hashes (zero amount movement). Mutate only rate-window remaining, the capacity slot, queue ticket if present, lease state, and attempt claim. Hierarchy amount CAS remains exclusive to reserve and the single both-arms-terminal parent CAS."
+      }
+    ],
+    "proof_assessment": "v3 correctly named four holes against an earlier reading, but these bytes already close the core of that list: parent reservation stays held until both arms terminal; per-arm ArmCostAnnotationV1 is non-restoring and cannot move hierarchy remaining/held; QueueStateV1 is the queue CAS; claimed|reconciliation-hold -> released requires a terminal segment receipt hash. v3 is evidence, not authority that those four remain as written. Residual contradictions still break the closure criterion: several non-compare rows do not select one exact reservation+lease state; queue expiry/claim decrement is not a single authoritative CAS; claim is specified as mutating hierarchy balances and can move compare remaining before both arms terminal. No executable CAS/replay oracle exists; acceptance item 8 stays unmet while MEDIUM findings remain.",
+    "residual_risks": [
+      "Parent-deadline sentence uses 'both arms terminal or the parent deadline/cancellation settles their outstanding reservations', which can be misread as a parent money CAS before both arm terminal receipts exist",
+      "Evaluator and reviewer runs are inside the one parent reserve, but the parent CAS is keyed only on both arms terminal, so those runs can execute after held budget is settled/released",
+      "Step 2 reserved|queued -> cancelled still 'releases or reconciles its reservation' with no compare-sibling liveness join on the shared budgetReservationId",
+      "compare-evidence-only is prose; Step 3 completed RouteSegmentReceiptV1/ProposalEnvelopeV1 remain apply-eligible without a compare-intent/manifest/receipt rejection oracle",
+      "CapacityReceiptV1 is hashed from CompareReceiptV1 but has no closed schema; ArmCostAnnotationV1 is named only",
+      "BudgetBalanceStateV1 remaining invariant is only 0<=held and remaining<=limit-settled, which does not prevent remaining+held+settled>limit",
+      "Reservation expiresAt has no CAS; only ambiguous holds are barred from silent expiry release",
+      "claimed->released does not explicitly require the terminal receipt to bind the same segmentId/manifestHash as CapacityLeaseV1",
+      "Mixed synthetic/metered compare arms are not forbidden; rate-window epoch identity at interval boundaries is unspecified; OwnerAssignmentV1 labels wait on Step 6; in-memory fixtures cannot prove durable CAS/replay"
+    ]
+  }
+}

@@ -1,0 +1,642 @@
+{
+  "schemaVersion": 2,
+  "program": "ONE BOX",
+  "status": "active",
+  "globalImplementationAuthorized": false,
+  "authorizations": [
+    {
+      "id": "OBX-AUTH-ATF-001",
+      "status": "authorized",
+      "implementationAuthorized": true,
+      "authorizedBy": {
+        "name": "Devin Wiggins",
+        "identityRef": "person:devin-wiggins",
+        "role": "Product and architecture owner"
+      },
+      "recordedAt": "2026-08-29",
+      "evidence": "The owner explicitly accepted the proposed first implementation slice and instructed Codex to run it to completion with /goal.",
+      "sourceSpec": "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "implementationPlan": "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "ticketManifest": "docs/tickets/ai-teammate-foundation/manifest.json",
+      "ticketIds": ["OBX-AT-001"],
+      "requirements": ["E1"],
+      "scope": {
+        "fullProgramAuthorization": false,
+        "productionReleaseAuthorized": false,
+        "deploymentAuthorized": false,
+        "newRuntimeDependenciesAllowed": false,
+        "runtimeDependencies": [],
+        "allowedEffectClasses": ["read", "propose"],
+        "allowedDataClasses": ["public", "project-internal"],
+        "allowedPathPrefixes": [
+          "src/lib/aiTeammates/",
+          "src/app/api/ai-teammates/",
+          "src/components/preview/AiTeammate/"
+        ],
+        "allowedExactPaths": [
+          "src/lib/contracts.ts",
+          "src/lib/contracts.test.ts",
+          "src/components/preview/Workbench.tsx",
+          "src/app/styles/workbench.css",
+          "docs/architecture/README.md",
+          "docs/security/local-api-threat-model.md",
+          "scripts/e2e/canvas-contract.mjs",
+          "scripts/e2e/canvas-coverage.mjs",
+          "scripts/e2e/preview-workbench.mjs"
+        ],
+        "supportingEvidencePrefixes": [
+          "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-",
+          "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-",
+          "docs/verification/2026-08-29-ai-teammate-foundation-",
+          "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-",
+          "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-",
+          "docs/audits/evidence/2026-08-30-ai-teammate-foundation-",
+          "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-",
+          "docs/verification/2026-08-30-ai-teammate-foundation-"
+        ],
+        "prohibitedCapabilities": [
+          "provider-call",
+          "network",
+          "credentials",
+          "filesystem",
+          "shell",
+          "browser",
+          "mutate",
+          "external-effect",
+          "authority",
+          "background-process",
+          "persistent-storage",
+          "deep-agents",
+          "langgraph",
+          "langsmith",
+          "deployment",
+          "release"
+        ]
+      },
+      "requiredReview": {
+        "exactModel": "x-ai/grok-4.6",
+        "securityReview": true,
+        "independentVerification": true,
+        "targetChangeInvalidatesReview": true,
+        "dependencyDiffMustRemainEmpty": true,
+        "prohibitedCapabilityScanRequired": true,
+        "sharedFileDiffReviewRequired": true
+      },
+      "invalidators": [
+        "scope-expansion",
+        "prohibited-effect",
+        "runtime-dependency-addition",
+        "provider-or-network-connection",
+        "deployment-or-release-target"
+      ]
+    },
+    {
+      "id": "OBX-AUTH-P180-T01-SOLO-001",
+      "recordKind": "owner-solo-child-ticket-exception-v1",
+      "status": "authorized-with-solo-exception",
+      "implementationAuthorized": true,
+      "projectId": "one-box",
+      "branch": "research/la-appointment-field-study",
+      "baseCommit": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+      "activationBaseCommit": "66f9afeaaf1e9b37d4bd1ef5437a88e1f6a425bd",
+      "activationWriteSet": [
+        "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+        "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "docs/governance/risk-exceptions/2026-08-30-obx-p180-t01-solo.json",
+        "scripts/verify-plan-authority.mjs",
+        "scripts/verify-plan-authority.node.mjs",
+        "docs/audits/evidence/security/2026-08-30-obx-p180-t01-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json",
+        "docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json"
+      ],
+      "preExistingUntrackedBaseline": [
+        {
+          "path": ".claude/handoffs/one-box-operating-environment-next-phase.md",
+          "algorithm": "sha256",
+          "digest": "cbbc878aa0691f333b128a71aee43adde89a9691a9ed65880f1f2b41a20643a6"
+        }
+      ],
+      "parentTicketId": "OBX-P180",
+      "parentTicketStatus": "proposed",
+      "childTicketIds": [
+        "OBX-P180-T01"
+      ],
+      "authorizationProposalId": "OBX-AUTH-P180-OFFLINE-V1",
+      "ownerActorId": "person:devin-wiggins",
+      "riskOwnerActorId": "person:devin-wiggins",
+      "implementationActorId": "person:devin-wiggins",
+      "authorizedByActorId": "person:devin-wiggins",
+      "ownerAssignmentV1Status": "NOT_AVAILABLE",
+      "roleAvailability": [
+        {
+          "roleId": "implementation-lead",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "model-skill-security-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "job-sandbox-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        }
+      ],
+      "implementationAuthorizationSeparation": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false
+      },
+      "escalation": {
+        "status": "NOT_AVAILABLE",
+        "actorId": null
+      },
+      "independentHumanReview": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false,
+        "actorId": null
+      },
+      "acceptedRisk": {
+        "findingId": "OBX-P180-T01-SOLO-SEPARATION-001",
+        "severity": "MEDIUM",
+        "status": "ACCEPTED",
+        "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE"
+      },
+      "requirementExceptions": [
+        {
+          "requirementId": "P180-R014",
+          "exceptionStatus": "EXCEPT_T01_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "named-human-operating-role-coverage-for-three-t01-roles",
+            "accepted-current-owner-assignment-v1-records",
+            "distinct-per-role-escalation-humans"
+          ]
+        },
+        {
+          "requirementId": "P180-R015",
+          "exceptionStatus": "EXCEPT_T01_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "t01-current-owner-assignment-entry-gate"
+          ]
+        },
+        {
+          "requirementId": "P180-R016",
+          "exceptionStatus": "EXCEPT_T01_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "implementation-lead-authorizer-separation",
+            "ordinary-exact-owner-roster"
+          ]
+        }
+      ],
+      "traceabilityRefs": [
+        "EOS-006",
+        "EOS-012",
+        "PROG-EVAL-COST-001",
+        "PROG-EVAL-SEC-AGENT-001"
+      ],
+      "allowedPaths": [
+        "src/lib/operatingEnvironment/canonical.ts",
+        "src/lib/operatingEnvironment/canonical.test.ts",
+        "src/lib/operatingEnvironment/contracts.ts",
+        "src/lib/operatingEnvironment/contracts.test.ts",
+        "src/lib/operatingEnvironment/reasonCodes.ts",
+        "src/lib/operatingEnvironment/reasonCodes.test.ts"
+      ],
+      "allowedEffects": [
+        "add-pure-closed-contract-types-and-validators"
+      ],
+      "forbiddenEffects": [
+        "product-runtime-import-or-effect",
+        "provider-or-model-call",
+        "network",
+        "credential-or-environment-access",
+        "filesystem-or-shell-io",
+        "persistence-or-durable-state",
+        "queue-or-background-worker",
+        "browser",
+        "ui",
+        "collaboration",
+        "canvas-or-page-ir-read-write-or-mutation",
+        "deployment",
+        "release",
+        "dependency-or-lockfile-change",
+        "mutable-global-state",
+        "clock-or-randomness",
+        "authority-outside-exact-solo-record",
+        "t02-through-t08",
+        "parent-evaluation-completion-claim",
+        "independent-human-review-claim",
+        "production-readiness-claim"
+      ],
+      "frozenArtifacts": [
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/README.md",
+          "algorithm": "sha256",
+          "digest": "a7f6ec197adebdc935b5e01251da4735d471c0fc443453f9aeeaca284464a017"
+        },
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+          "algorithm": "sha256",
+          "digest": "f7bd960de6efc56185ff974a5078ade94bb0dbd28d188978d1001e133c546604"
+        },
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+          "algorithm": "sha256",
+          "digest": "61ab80eb579df514a5627f4d5ecb4133c61497c6e0a7895fb22e6581729be13d"
+        },
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+          "algorithm": "sha256",
+          "digest": "7755dee982a321a318843d6ce41d24b087032f533d4796283d8096c68227d31d"
+        },
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+          "algorithm": "sha256",
+          "digest": "e67002acfeea154a8376513fdf16add713af6ad436d68813e7c7158fd614d31b"
+        },
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/05-security-and-executable-evaluations.md",
+          "algorithm": "sha256",
+          "digest": "13f99c0d6bd5a165625fbaf614ab4d9e67055570dd1d96c71d348bdec444314c"
+        },
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+          "algorithm": "sha256",
+          "digest": "385e3c046528abe7f9a7307421741386fa0abf032f06e094745833feaa3370af"
+        },
+        {
+          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/07-closure-and-disposition.md",
+          "algorithm": "sha256",
+          "digest": "ce4bb95623bc4c3eaef29475f7b582e5feec266063da0cfc0753483e00cc8420"
+        },
+        {
+          "path": "docs/eval/one-box-program/fixtures/capacity-and-cost-fixture-v1.json",
+          "algorithm": "sha256",
+          "digest": "81ab1796a7f706d84ceae54c0539e725b1b95c821ebe56d02af6b1c85c1fc738"
+        },
+        {
+          "path": "docs/eval/one-box-program/fixtures/obx-p180-security-fixture-v1.json",
+          "algorithm": "sha256",
+          "digest": "ce368d420953f6f8996f2b4902c2fd7e3916f2f43e0bd3a0d578c07580091940"
+        },
+        {
+          "path": "docs/eval/one-box-program/fixtures/obx-p180-human-decision-fixture-v1.json",
+          "algorithm": "sha256",
+          "digest": "3d32ec35ee532b8acb15de1ab780bebdd828e371dc65fef491cbe491fabc6d11"
+        },
+        {
+          "path": "docs/eval/one-box-program/fixtures/obx-p180-apply-eligibility-fixture-v1.json",
+          "algorithm": "sha256",
+          "digest": "ad5116d85ac2ecc8ded78f209aee16c8a58adb3c569f58a7a1fdfb2c810ff0cf"
+        },
+        {
+          "path": "scripts/eval/obx-p180-contract-fixtures.mjs",
+          "algorithm": "sha256",
+          "digest": "19567521a37d524f654c6e241879a349a7c522f8a40681d08fd706ff6b36dfab"
+        },
+        {
+          "path": "scripts/eval/obx-p180-contract-fixtures.test.mjs",
+          "algorithm": "sha256",
+          "digest": "141ed3114269cb88c8725dc9b56c736914b38a7c8abcc8dce7523eb2bbd1f4a6"
+        },
+        {
+          "path": "scripts/eval/grok-audit.mjs",
+          "algorithm": "sha256",
+          "digest": "400238ae208ce5b2c426303ead6500a1049b9b94ced45934796a3c1f67d8f473"
+        }
+      ],
+      "planPacketBinding": {
+        "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/07-closure-and-disposition.md",
+        "algorithm": "sha256",
+        "digest": "ce4bb95623bc4c3eaef29475f7b582e5feec266063da0cfc0753483e00cc8420"
+      },
+      "sourcePlanBinding": {
+        "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+        "algorithm": "sha256",
+        "digest": "385e3c046528abe7f9a7307421741386fa0abf032f06e094745833feaa3370af"
+      },
+      "governanceBindings": [
+        {
+          "path": "docs/governance/risk-exceptions/README.md",
+          "algorithm": "sha256",
+          "digest": "c5139be92b42987e70d73b6851530d4917c8716b96cfcfbda1c7e9a685f726c2"
+        },
+        {
+          "path": "docs/governance/reviewer-roles.md",
+          "algorithm": "sha256",
+          "digest": "ea1f4cf440ce3122bf40866c0097c516550d876e9674462bbe61edc7dcb701bc"
+        }
+      ],
+      "dependencyBindings": [
+        {
+          "path": "package.json",
+          "algorithm": "sha256",
+          "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"
+        },
+        {
+          "path": "package-lock.json",
+          "algorithm": "sha256",
+          "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"
+        }
+      ],
+      "amendmentBinding": {
+        "path": "docs/governance/risk-exceptions/2026-08-30-obx-p180-t01-solo.json",
+        "amendmentId": "OBX-P180-T01-SOLO-AMENDMENT-001",
+        "algorithm": "sha256",
+        "digest": "eb932d7e0a6cd12fa2cfa6570afbcad452bbdf8481047c700aaf3eec4075d202"
+      },
+      "requiredEvidencePaths": [
+        "docs/audits/evidence/security/2026-08-30-obx-p180-t01-solo-authorization-security-review.json",
+        "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json",
+        "docs/audits/fable-5/2026-08-30-obx-p180-solo-t01-authorization-final-audit.json"
+      ],
+      "invalidators": [
+        "base-commit-mismatch",
+        "authorization-hash-mismatch",
+        "packet-artifact-path-or-hash-drift",
+        "source-plan-path-or-hash-drift",
+        "governance-default-path-or-hash-drift",
+        "amendment-path-id-schema-or-hash-drift",
+        "receipt-path-schema-target-or-hash-drift",
+        "timestamp-invalid-expired-or-renewal",
+        "assignment-or-separation-claim",
+        "requirement-exception-drift",
+        "allowed-path-or-effect-drift",
+        "dependency-or-lockfile-change",
+        "product-runtime-or-io-effect",
+        "provider-network-credential-or-environment-effect",
+        "persistence-queue-or-background-effect",
+        "browser-ui-or-collaboration-effect",
+        "canvas-or-page-ir-effect",
+        "deployment-or-release-effect",
+        "parent-ticket-or-evaluation-promotion",
+        "t02-through-t08-authority",
+        "gate-failure",
+        "additional-unaccepted-finding",
+        "independent-review-or-production-readiness-claim"
+      ],
+      "recordedAt": "2026-08-31T13:33:33Z",
+      "expiresAt": "2026-09-14T13:33:33Z",
+      "renewable": false,
+      "authorizationHash": {
+        "algorithm": "sha256",
+        "canonicalization": "canonical-json-v1",
+        "excludedJsonPointers": [
+          "/authorizationHash/digest"
+        ],
+        "digest": "7dc3ab642004bdb8980c0f9d63dc1631ce89252783aeee1883f1b2a55be8e7ce"
+      }
+    },
+    {
+      "id": "OBX-AUTH-P180-T02-SOLO-001",
+      "recordKind": "owner-solo-child-ticket-exception-v2",
+      "status": "authorized-with-solo-exception",
+      "implementationAuthorized": true,
+      "projectId": "one-box",
+      "branch": "research/la-appointment-field-study",
+      "baseCommit": "07864a45d414db0998cc7cfb2731010d0d4cbe8b",
+      "activationBaseCommit": "07864a45d414db0998cc7cfb2731010d0d4cbe8b",
+      "activationWriteSet": [
+        "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+        "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "docs/governance/risk-exceptions/2026-08-31-obx-p180-t02-solo.json",
+        "docs/plans/2026-08-31-obx-p180-t02-solo-authorization-design.md",
+        "docs/plans/2026-08-31-obx-p180-t02-registry-route-reducers.md",
+        "scripts/verify-plan-authority.mjs",
+        "scripts/verify-plan-authority.node.mjs",
+        "scripts/verify-p180-t02-authorization.mjs",
+        "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json"
+      ],
+      "preExistingUntrackedBaseline": [
+        {
+          "path": ".claude/handoffs/one-box-operating-environment-next-phase.md",
+          "algorithm": "sha256",
+          "digest": "cbbc878aa0691f333b128a71aee43adde89a9691a9ed65880f1f2b41a20643a6"
+        }
+      ],
+      "parentTicketId": "OBX-P180",
+      "parentTicketStatus": "proposed",
+      "childTicketIds": [
+        "OBX-P180-T02"
+      ],
+      "authorizationProposalId": "OBX-AUTH-P180-OFFLINE-V1",
+      "ownerActorId": "person:devin-wiggins",
+      "riskOwnerActorId": "person:devin-wiggins",
+      "implementationActorId": "person:devin-wiggins",
+      "authorizedByActorId": "person:devin-wiggins",
+      "ownerAssignmentV1Status": "NOT_AVAILABLE",
+      "roleAvailability": [
+        {
+          "roleId": "implementation-lead",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "model-skill-security-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        },
+        {
+          "roleId": "job-sandbox-owner",
+          "assignmentStatus": "NOT_AVAILABLE",
+          "assignmentRecordPresent": false,
+          "humanActorId": null,
+          "escalationStatus": "NOT_AVAILABLE",
+          "escalationActorId": null,
+          "separationSatisfied": false
+        }
+      ],
+      "implementationAuthorizationSeparation": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false
+      },
+      "escalation": {
+        "status": "NOT_AVAILABLE",
+        "actorId": null
+      },
+      "independentHumanReview": {
+        "status": "NOT_AVAILABLE",
+        "satisfied": false,
+        "actorId": null
+      },
+      "acceptedRisk": {
+        "findingId": "OBX-P180-T02-SOLO-SEPARATION-001",
+        "severity": "MEDIUM",
+        "status": "ACCEPTED",
+        "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE"
+      },
+      "requirementExceptions": [
+        {
+          "requirementId": "P180-R014",
+          "exceptionStatus": "EXCEPT_T02_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "named-human-operating-role-coverage-for-three-t02-roles",
+            "accepted-current-owner-assignment-v1-records",
+            "distinct-per-role-escalation-humans"
+          ]
+        },
+        {
+          "requirementId": "P180-R015",
+          "exceptionStatus": "EXCEPT_T02_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "t02-current-owner-assignment-entry-gate"
+          ]
+        },
+        {
+          "requirementId": "P180-R016",
+          "exceptionStatus": "EXCEPT_T02_SOLO",
+          "satisfactionStatus": "NOT_SATISFIED",
+          "waivedClauses": [
+            "implementation-lead-authorizer-separation",
+            "ordinary-exact-owner-roster"
+          ]
+        }
+      ],
+      "traceabilityRefs": [
+        "EOS-006",
+        "EOS-012",
+        "PROG-EVAL-COST-001",
+        "PROG-EVAL-SEC-AGENT-001"
+      ],
+      "allowedPaths": [
+        "src/lib/operatingEnvironment/registry.ts",
+        "src/lib/operatingEnvironment/registry.test.ts",
+        "src/lib/operatingEnvironment/routeState.ts",
+        "src/lib/operatingEnvironment/routeState.test.ts",
+        "src/lib/operatingEnvironment/fixtures/registry-v1.json",
+        "src/lib/operatingEnvironment/fixtures/route-state-v1.json"
+      ],
+      "allowedEffects": [
+        "add-provider-offline-fixture-registries-and-route-reducers"
+      ],
+      "forbiddenEffects": [
+        "product-runtime-import-or-effect",
+        "provider-or-model-call",
+        "network",
+        "credential-or-environment-access",
+        "filesystem-or-shell-io",
+        "persistence-or-durable-state",
+        "queue-or-background-worker",
+        "browser",
+        "ui",
+        "collaboration",
+        "canvas-or-page-ir-read-write-or-mutation",
+        "deployment",
+        "release",
+        "dependency-or-lockfile-change",
+        "mutable-global-state",
+        "implicit-clock-or-randomness",
+        "authority-outside-exact-solo-record",
+        "t03-through-t08",
+        "parent-evaluation-completion-claim",
+        "independent-human-review-claim",
+        "production-readiness-claim"
+      ],
+      "predecessorBinding": {
+        "ticketId": "OBX-P180-T01",
+        "checkpointCommit": "07864a45d414db0998cc7cfb2731010d0d4cbe8b",
+        "status": "COMPLETED_VERIFIED",
+        "files": [
+          {"path": "src/lib/operatingEnvironment/canonical.ts", "algorithm": "sha256", "digest": "0778ae2cb1183a6ce27127a83c5ecb86f54b08b9b037cf7675bcc07270d1f3ce"},
+          {"path": "src/lib/operatingEnvironment/canonical.test.ts", "algorithm": "sha256", "digest": "a0ec248f0bad2f38616a7f078bdbbb58dde76941c8da40f11e57ca319e808097"},
+          {"path": "src/lib/operatingEnvironment/contracts.ts", "algorithm": "sha256", "digest": "ae7048cc60df003dc5991d04bae975d7033aa60ad84ae5bf276f73e13d092b25"},
+          {"path": "src/lib/operatingEnvironment/contracts.test.ts", "algorithm": "sha256", "digest": "218e1c473687958d89194bf5b4091bad0535b5ccb6ff16f017ce5c9b41fb1c60"},
+          {"path": "src/lib/operatingEnvironment/reasonCodes.ts", "algorithm": "sha256", "digest": "d6d6821d2aeba7882f7e4192c22e5cb985dda2b7190965f32969acd2eac38832"},
+          {"path": "src/lib/operatingEnvironment/reasonCodes.test.ts", "algorithm": "sha256", "digest": "d0cfd015eb2a1c20c87b8c1bb690300f7f33cf7d7be5e6c72692a6516624a64f"}
+        ]
+      },
+      "planBindings": [
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md", "algorithm": "sha256", "digest": "61ab80eb579df514a5627f4d5ecb4133c61497c6e0a7895fb22e6581729be13d"},
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md", "algorithm": "sha256", "digest": "385e3c046528abe7f9a7307421741386fa0abf032f06e094745833feaa3370af"},
+        {"path": "docs/plans/2026-08-31-obx-p180-t02-solo-authorization-design.md", "algorithm": "sha256", "digest": "7fb1dfbc5cb984ce60121c6fa3edabf168cb87abf77d59b7d24f893b2e61fd2a"},
+        {"path": "docs/plans/2026-08-31-obx-p180-t02-registry-route-reducers.md", "algorithm": "sha256", "digest": "3d89de03533aba40d9e1780058242c4b6a0716b0c150323d6ff7605eddc5125a"}
+      ],
+      "governanceBindings": [
+        {"path": "docs/governance/risk-exceptions/README.md", "algorithm": "sha256", "digest": "c5139be92b42987e70d73b6851530d4917c8716b96cfcfbda1c7e9a685f726c2"},
+        {"path": "docs/governance/reviewer-roles.md", "algorithm": "sha256", "digest": "ea1f4cf440ce3122bf40866c0097c516550d876e9674462bbe61edc7dcb701bc"}
+      ],
+      "dependencyBindings": [
+        {"path": "package.json", "algorithm": "sha256", "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"},
+        {"path": "package-lock.json", "algorithm": "sha256", "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"}
+      ],
+      "amendmentBinding": {
+        "path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t02-solo.json",
+        "amendmentId": "OBX-P180-T02-SOLO-AMENDMENT-001",
+        "algorithm": "sha256",
+        "digest": "986a1fb8466a564ab41fffa90ed2337a76ef9196ce36b6ba32cbfb582ebbcbd3"
+      },
+      "reviewProtocol": {
+        "quickAuditModel": "z-ai/glm-5.3-flash",
+        "quickAuditLane": "nous-portal-prepaid",
+        "finalAuditModel": "anthropic/claude-opus-5",
+        "finalAuditLane": "claude-max-subscription",
+        "modelAuthority": "advisory-only",
+        "testAuthority": "deterministic-fixtures-and-vitest",
+        "secondFinalAuditPolicy": "only-if-finding-cannot-be-mechanically-closed"
+      },
+      "requiredEvidencePaths": [
+        "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json"
+      ],
+      "invalidators": [
+        "authorization-hash-mismatch",
+        "amendment-path-id-schema-or-hash-drift",
+        "t01-checkpoint-path-or-hash-drift",
+        "activation-write-set-or-handoff-drift",
+        "timestamp-invalid-expired-or-renewal",
+        "assignment-or-separation-claim",
+        "requirement-exception-drift",
+        "allowed-path-or-effect-drift",
+        "dependency-or-lockfile-change",
+        "product-runtime-or-io-effect",
+        "provider-network-credential-or-environment-effect",
+        "persistence-queue-or-background-effect",
+        "browser-ui-or-collaboration-effect",
+        "canvas-or-page-ir-effect",
+        "deployment-or-release-effect",
+        "parent-ticket-or-evaluation-promotion",
+        "t03-through-t08-authority",
+        "security-receipt-missing-stale-or-malformed",
+        "gate-failure",
+        "additional-unaccepted-finding",
+        "independent-review-or-production-readiness-claim"
+      ],
+      "recordedAt": "2026-08-31T21:47:59Z",
+      "expiresAt": "2026-09-14T21:47:59Z",
+      "renewable": false,
+      "authorizationHash": {
+        "algorithm": "sha256",
+        "canonicalization": "canonical-json-v1",
+        "excludedJsonPointers": [
+          "/authorizationHash/digest"
+        ],
+        "digest": "9eb1ae436bb897de1abe572991ede4a38734b1b97a4ccfda7c079a072dfcaa36"
+      }
+    }
+  ]
+}

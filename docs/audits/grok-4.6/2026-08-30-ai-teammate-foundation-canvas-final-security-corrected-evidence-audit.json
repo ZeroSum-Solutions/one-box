@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T19:18:41.001Z",
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 21992,
+      "completion_tokens": 13941,
+      "total_tokens": 35933,
+      "cost": 0.127438,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.127438,
+        "upstream_inference_prompt_cost": 0.043792,
+        "upstream_inference_completions_cost": 0.083646
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 12517,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "request": {
+    "task": "Corrected Canvas final security evidence audit",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-closure-receipt.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-command-evidence.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-security-review.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"
+    ]
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "critical",
+        "title": "OBX-AUTH-ATF-001 path-cage and authority-capability breach",
+        "evidence": "The 83-path census includes docs/plans/one-box-master/00-authority/authority-manifest.json. Allowed prefixes are src/lib/aiTeammates/, src/app/api/ai-teammates/, src/components/preview/AiTeammate/; exact paths and supportingEvidencePrefixes do not include this file. prohibitedCapabilities lists authority; invalidators include scope-expansion.",
+        "remediation": "Revert or exclude authority-manifest.json from the synthetic target, or amend OBX-AUTH-ATF-001 before any change. Re-run path-cage proof against the literal allow-lists and recapture the census."
+      },
+      {
+        "severity": "high",
+        "title": "exactModel gate failed",
+        "evidence": "requiredReview.exactModel is x-ai/grok-4.6. The review JSON has no model attestation. Receipt transportNote states two exact-Grok security requests were rejected and this is local substitute evidence.",
+        "remediation": "Regenerate the security review with x-ai/grok-4.6 on the bound tree, record model/request ids in the report, and invalidate any local PASS used as exact-model closure."
+      },
+      {
+        "severity": "high",
+        "title": "independentVerification gate unmet",
+        "evidence": "requiredReview.independentVerification is true. The bundle is self-attesting: same receipt, command log, and PASS report with findings []. No separate verifier identity, independent report, or dissenting review is bound.",
+        "remediation": "Commission an independent verifier on the frozen synthetic tree and hash-bind that report separately from the implementation evidence."
+      },
+      {
+        "severity": "high",
+        "title": "Census is circular and not independently captured",
+        "evidence": "CMD-001 records only “83 paths” and points at the report’s changed_paths/captured_diff_paths. Command evidence does not list the paths. Those arrays match each other, but git output is not reproduced, so the census cannot be checked outside the report.",
+        "remediation": "Paste the exact git diff --name-only listing into command evidence, hash-bind it, and require byte-for-byte equality with both path arrays."
+      },
+      {
+        "severity": "high",
+        "title": "Prohibited-capability scan is fail-open and under-scoped",
+        "evidence": "CMD-004 uses rg … || true, so exit 0 is guaranteed. Scope is only src/app/api/ai-teammates, src/lib/aiTeammates, src/components/preview/AiTeammate. Census shared files Workbench.tsx and scripts/e2e/canvas-contract.mjs were not scanned despite prohibitedCapabilityScanRequired.",
+        "remediation": "Drop || true, fail closed on scanner errors, and scan every changed runtime/shared path including Workbench.tsx and canvas-contract.mjs."
+      },
+      {
+        "severity": "medium",
+        "title": "sharedFileDiffReviewRequired not evidenced",
+        "evidence": "Shared exact-path diffs include Workbench.tsx, workbench.css, docs/architecture/README.md, local-api-threat-model.md, and canvas-contract.mjs. sourceIntegrity hashes only route.ts, LocalAiTeammatePanel.tsx, and the threat-model doc. No per-hunk shared-file review is present.",
+        "remediation": "Publish a shared-file diff review with before/after hashes for every allowedExactPath change and extend sourceIntegrity to those files."
+      },
+      {
+        "severity": "medium",
+        "title": "Coverage citations bind the wrong command-evidence lines",
+        "evidence": "prompt-injection cites :30 (heading), export/export_policy cite :32 (authn/authz paragraph), empty-surface rows cite :33 (untrusted-input). Prompt-injection is :34, export :36, audit-only :37. CMD-003 cites :20 (heading); CMD-004 cites :24 (blank).",
+        "remediation": "Retarget every citation to the supporting sentence and re-run the report validator."
+      },
+      {
+        "severity": "medium",
+        "title": "targetChangeInvalidatesReview is not closed",
+        "evidence": "Review is bound to edaa6c75 / tree 45850628 and an 83-path census, but currentWorktreeSecretsScan copied 86 changed/untracked files excluding the receipt. Extra paths are unnamed, so a dirty worktree could include runtime changes that invalidate the review.",
+        "remediation": "Name the extra files, prove they are evidence-only, or recapture against a clean tree identical to syntheticTree."
+      },
+      {
+        "severity": "medium",
+        "title": "Validator claim is unreproducible",
+        "evidence": "report.validator is python3 /Users/zero-suminc./.codex/skills/security-review/scripts/validate_report.py --report <report> exited 0. Placeholder path, machine-local script, no validator digest or argv.",
+        "remediation": "Record the real report path, validator script hash/version, full argv, and stdout, and bind them in the receipt."
+      }
+    ],
+    "proof_assessment": "Internal 83-path arrays agree and six surfaces are labeled, but closure fails literal OBX-AUTH-ATF-001 (authority-manifest.json), exact-model, and independent-verification gates. Capability scan is fail-open and misses shared files; census, citations, validator, and dirty 86-file worktree are not independently checkable. PASS/0 findings is not supported.",
+    "residual_risks": [
+      "This paper audit cannot recompute claimed SHA-256 bindings.",
+      "Same-origin fetch versus prohibitedCapabilities.network remains a policy ambiguity.",
+      "prompt-injection NOT-APPLICABLE despite a 1–2000 character task field.",
+      "LocalAiTeammatePanel.tsx is a changed sensitive surface without a dedicated test file in CMD-003.",
+      "Future target drift still invalidates this synthetic-tree review."
+    ]
+  }
+}

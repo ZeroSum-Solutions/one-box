@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:31:41.843Z",
+  "request": {
+    "task": "OBX-P180-S3-DEFINITIVE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s3-skills-context-receipts-findings-v2.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/security/supply-chain-policy.md"
+    ],
+    "diffBytes": 27975,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 26843,
+      "completion_tokens": 27383,
+      "total_tokens": 54226,
+      "cost": 0.217792,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.217792,
+        "upstream_inference_prompt_cost": 0.053494,
+        "upstream_inference_completions_cost": 0.164298
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 26299,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "InterruptDecisionSlotV1 (~447-471)",
+        "scenario": "The interrupt is immutable and Step 2 stores one interruptHash, but the slot identity is not a unique key. previousSlotHash is optional and a genesis record may be inserted as state=decided. Two InterruptDecisionSlotV1 chains with the same interruptHash can both CAS undecided→decided (accept vs reject), or a writer can skip undecided entirely. Concurrent/later decisions then both look schema-valid, so the claimed single CAS decision slot is not an exclusive authority.",
+        "remediation": "Atomically pair HumanInterruptV1 with exactly one genesis InterruptDecisionSlotV1 (undecided, no decisionHash, no previousSlotHash). Make interruptHash the unique slot key. The only legal mutation is one CAS on that chain’s stateRevision from undecided→decided; genesis decided, second chain, reverse, or extra decided head are invalid and cannot terminal the segment."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "RouteSegmentReceiptV1 terminal invariants (~548-551)",
+        "scenario": "HITL completion elsewhere CASes interrupted directly to completed|cancelled with no new attempt. The receipt invariant still says interrupted has no receipt until it 'resumes or terminals'. An implementer can treat accept-proposal as interrupted→active resumed work (new dispatch/attempt) and delay the segment receipt, reopening the settled-attempt/resume contradiction Step 2 forbids.",
+        "remediation": "Replace 'resumes or terminals' with: interrupted emits no RouteSegmentReceiptV1; the next legal CAS is interrupted→completed or interrupted→cancelled only, creating that terminal receipt and never returning to active or creating an attempt."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "Skill-set live gates (~221-240) vs accept-proposal completion (~473-510)",
+        "scenario": "Parse/intent require command+skill unexpired/unkilled/owned; HITL completion explicitly re-checks now < ContextBundleV1.expiresAt, interrupt/deadline expiry, kill switches, and ownership. SkillAdmissionV1.expiresAt, SlashCommandEntryV1.expiresAt, and HumanDecisionV1.expiresAt are not in the accept-proposal predicate. After interrupt, those clocks can elapse and accept-proposal still CASes interrupted→completed because hashes match. That is fail-open on live skill/command/decision gates; only context/interrupt clocks fail closed.",
+        "remediation": "accept-proposal fails closed unless command (if bound), skill admission, context bundle/fragments, interrupt, and decision are all still unexpired, unkilled, unrevoked, and owner-bound; any of those expiries/revocations wins the race and CASes interrupted→cancelled with no proposal effect."
+      }
+    ],
+    "proof_assessment": "Grok v2 FINDINGS target these same bytes but describe a pre-remediation draft. Current text already closes materialization uniqueness, reserved commandName, apply’s ReceiptBundleManifestV1 frozen-owner lookup, InterruptDecisionSlotV1 as a type, completed-attempt-only interrupt, and context expiry on invoke/dispatch. Treat that JSON as stale on those seven MEDIUMs, not as a CLEAN certificate. Remaining unclosed predicates are slot uniqueness/genesis CAS, leftover 'resumes' vs direct terminalization, and HITL accept omitting skill/command/decision expiresAt.",
+    "residual_risks": [
+      "Apply eligibility does not require interrupt/decision hashes; a completed+proposal RouteSegmentReceiptV1 with no HITL path can still be apply-eligible if active→completed is left open for propose-class output.",
+      "HumanInterruptV1.issuer is a spoofable literal; control-plane authorship is prose-only.",
+      "ContextFragmentV1.normalizedBytes is unspecified as count vs payload; embedding bytes would put content into hash-chained control records.",
+      "excludedFragmentReceipts[] has no closed reason vocabulary.",
+      "effectiveToolGrantHash as a recorded subset is not hash-provable unless both grant bodies are resolved and intersected.",
+      "Mandatory human-decision fragments can deadlock first-turn packing or induce dummy human-decision authority if 'applicable route' is ignored.",
+      "parentSegmentReceiptHash and future child skill receipts lack an explicit acyclic/creation-order validator; first slice has zero children.",
+      "Unicode line separators/bidi/homoglyphs can spoof composer display while ASCII slash grammar stays closed.",
+      "No accessibility contract for pre-dispatch included/excluded source disclosure.",
+      "SkillInvocationReceiptV1 terminal states are not a closed enum with the same non-completed proposal ban."
+    ]
+  }
+}

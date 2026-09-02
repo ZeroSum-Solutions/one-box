@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T13:16:37Z",
+  "request": {
+    "task": "T3C closure for Agent Studio current-run continuity, display-only Canvas context, and live keyboard proof",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0"
+  },
+  "transport": {
+    "clientTimeoutMs": 600000,
+    "result": "TimeoutError",
+    "verdictReturned": false,
+    "note": "Unavailable evidence, not a pass. The unchanged candidate is decomposed into component/run-key and live-E2E closure slices using the same exact model, effort, and no-fallback rule."
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T03:12:40.478Z",
+  "request": {
+    "task": "OBX-P180-S4-FINAL-CLEAN",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-definitive-closure-findings-v4.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "diffBytes": 23807,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15095,
+      "completion_tokens": 29870,
+      "total_tokens": 44965,
+      "cost": 0.209218,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.209218,
+        "upstream_inference_prompt_cost": 0.029998,
+        "upstream_inference_completions_cost": 0.17922
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 28783,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "D1 required proof: 'no-dispatch proof; queued ticket/depth removed in same CAS' (condition row: queue full / deadline infeasible / offered-queued expiry)",
+        "scenario": "QueueStateV1.currentDepth=1 with ticket T0 queued. A second lease L1 is offered and misses the queue (full or deadline infeasible), which the condition table maps to D1. D1's required proof always demands queued ticket/depth removal in the same CAS, while the lease is still offered and inserted no ticket. Following D1 decrements depth to 0 (or deletes T0) although T0 remains the live queued ticket; a later offered lease then queues as a second real ticket, or the claim CAS for T0 cannot find its ticket and rolls back. Inverse path: depth=0, offered->cancelled D1 still 'removes' a ticket and underflows, after which every offered->queued sees depth not below maximum and CASes to cancelled.",
+        "remediation": "Split D1 proof on the actual prior lease state: queued->cancelled|expired must remove that exact ticket and decrement depth once in the same QueueStateV1 CAS; offered->cancelled|expired must carry only no-dispatch proof and must not read or write QueueStateV1. Keep the queue-section rule that observations never change depth."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "Compare contract: 'The compare settles only after both arms terminal or the parent deadline/cancellation settles their outstanding reservations.'",
+        "scenario": "Compare parent reservation is held for both arms. Arm A is claimed/in-flight; arm B is offered or queued. Parent deadline or parent cancellation fires. The or-clause authorizes a parent/hierarchy amount CAS immediately ('settles their outstanding reservations') without both arm terminal receipt hashes. Remaining/held across agency-project-assignment-compare scopes change while A can still dispatch, so a concurrent job can reserve the released remainder against the same observed balances. That second, early parent CAS also contradicts D6 and the earlier rule that the one parent CAS happens only after both arms terminal.",
+        "remediation": "Delete the or-clause. Normative rule stays: parent deadline/cancellation may only drive each arm lease/segment toward terminal using that arm's lease CAS (offered|queued->cancelled|expired, or claimed->reconciliation-hold/released with that arm's receipt); hierarchy amount movement remains the single both-arms-terminal parent CAS in D6."
+      }
+    ],
+    "proof_assessment": "v4's three MEDIUMs describe text that is not in these bytes (bare hold/settle-release, 'may release' queue depth, claim as amount-mutating hierarchy CAS). On this slice those closures hold: D0-D5 map non-compare branches, retry-gate fail is D2 else D4 (lease released), QueueStateV1 increments only offered->queued and decrements only queued->claimed|expired|cancelled, and claim is verify-held plus unchanged balance hashes with zero hierarchy movement. v4 is evidence, not authority. The remaining criterion breaks are the D1 proof still forcing a queue-depth write on never-queued cancels, and the compare deadline/cancellation or-clause still allowing a parent money CAS before both arm terminals.",
+    "residual_risks": [
+      "D3 successor pairing (reservation reconciliation-hold->settled|released with lease reconciliation-hold->released on owner-reconcile) is required by the reservation state machine but is not a D code, despite 'no other reservation/lease pairing is valid'.",
+      "Post-claim proven non-dispatch is not D1 (claimed cannot go cancelled|expired) and falls through to D4 reconciliation-hold, contradicting 'provably absent dispatch releases the unused amount'.",
+      "Evaluator and reviewer runs are reserved on the parent but the parent CAS is keyed only on both arms terminal, so those runs can execute after held budget is settled/released.",
+      "Step 2 reserved|queued->cancelled still 'releases or reconciles its reservation' with no compare-sibling join on the shared budgetReservationId; this file's preamble is the only exception.",
+      "BudgetBalanceStateV1 states 0<=held and remaining<=limit-settled, which does not forbid remaining+held+settled>limit.",
+      "Attempt index one has no CAS distinct from offered->claimed; reusing the claim transaction can re-decrement the concurrency slot.",
+      "claimed|reconciliation-hold->released requires a terminal segment receipt hash but does not bind that receipt's segmentId/manifestHash to CapacityLeaseV1.",
+      "CapacityReceiptV1 and ArmCostAnnotationV1 are named without closed schemas; mixed synthetic/metered compare arms are not forbidden; reservation expiresAt has no CAS except the ambiguous-hold prose; in-memory fixtures cannot prove durable CAS/replay."
+    ]
+  }
+}

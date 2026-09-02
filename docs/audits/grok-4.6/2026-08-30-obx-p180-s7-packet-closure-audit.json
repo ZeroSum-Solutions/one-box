@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T04:14:49.952Z",
+  "request": {
+    "task": "OBX-P180-S7-PACKET-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/07-closure-and-disposition.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/README.md"
+    ],
+    "proofs": [
+      "docs/audits/fable-5/2026-08-30-obx-p180-whole-packet-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s1-definitive-clean-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-final-clean-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s3-definitive-closure-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-absolute-clean-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s5-security-evaluations-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s6-ownership-authorization-reaudit.json"
+    ],
+    "diffBytes": 12585,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 8000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 12641,
+      "completion_tokens": 11892,
+      "total_tokens": 24533,
+      "cost": 0.096442,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.096442,
+        "upstream_inference_prompt_cost": 0.02509,
+        "upstream_inference_completions_cost": 0.071352
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 11348,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Step 7 truthfully closes planning as CLOSED / NOT AUTHORIZED and BLOCKED ON HUMAN ASSIGNMENTS AND OWNER ACCEPTANCE; the authorization remains proposed-not-accepted with assignments, expiry, accepted-by/time, and packet/authorization hashes unset. No runtime, provider, dependency, persistence, browser, collaboration, Page IR, deployment, or release effects or authority are claimed. Steps 1–6 Grok paths, models (requested and provider-reported x-ai/grok-4.6), effort high, CLEAN, and zero findings match the supplied receipts at base==head b6486fd. Exact Fable 5 max is CLEAN with only LOW findings, subagentsSpawned=0, and Task/Agent disallowed. Step 7 is not self-hashed; row 7 is an external post-Fable binding. Post-receipt executable/plan/lint/type/leak/diff/source-scope reruns remain required.",
+    "residual_risks": [
+      "Fable LOW: Step 7 'preserves ... owner map' overstates Step 5 TM-09/TM-13 dropped conditional co-owners (already in the bound S5 Grok residuals).",
+      "Fable LOW: caption 'Every receipt below ... CLEAN, and zero findings' includes the pending Step 7 row; the table cell correctly marks it external after Fable CLEAN.",
+      "Fable LOW: Step 4 'Independent Security Owners' is not the exact Step 6 role ID Independent Security Verifier.",
+      "Fable LOW: evaluator oracle/parse failures exit 1/2 with stderr only, so no machine-readable FAIL/BLOCKED lane receipt.",
+      "Fable LOW: T05 allowedPaths can rewrite frozen fixture/evaluator bytes; only later invalidators catch that.",
+      "SHA-256 values were not recomputed here; this review treats the stated Step 7 digest ce4bb95623bc4c3eaef29475f7b582e5feec266063da0cfc0753483e00cc8420 and Fable receipt digest 0ae57e0ab128cf12e688fb75cffdc7ac10e687e16f9e4bf2a8ba2a31e718b63e plus Fable content-identity checks as the binding evidence.",
+      "Any post-receipt byte edit reopens closure. Named-human assignments, independent security verification, and owner acceptance remain UNASSIGNED. In-memory fixtures do not prove durable CAS/recovery; provider-connected work needs a later distinct proposal."
+    ]
+  }
+}

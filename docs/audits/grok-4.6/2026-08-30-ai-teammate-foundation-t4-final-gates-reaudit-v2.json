@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T09:45:30.536Z",
+  "request": {
+    "task": "T4-authority-docs-e2e-final-gates-reaudit-v2",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/local-api-threat-model.md",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/e2e/preview-workbench.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt"
+    ],
+    "diffBytes": 183478
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 51368,
+      "completion_tokens": 18669,
+      "total_tokens": 70037,
+      "cost": 0.214558,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.214558,
+        "upstream_inference_prompt_cost": 0.102544,
+        "upstream_inference_completions_cost": 0.112014
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 18394,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The slice pins OBX-AUTH-ATF-001 to read/propose-only scope, exact docs/E2E paths, and fail-closed verifier oracles; architecture and threat-model text match those limits. canvas-contract now fails closed on Agent Studio navigation, Edit/open, roster, boundaries, live proposal/receipt, axe errors, and compact hit-targets for the pre-submit Teammates pane; apply-like checks run before and after completion. Proof of passing live 1440/768/390 and repo gates is consistent with this code, but it overstates that the 44x44 enumeration is repeated on the terminal receipt surface.",
+    "residual_risks": [
+      "44x44 enumeration runs only before Create proposal, not on the completed receipt DOM",
+      "apply-like oracle is visible name/value/text matching /\\bapply\\b/i only",
+      "interactive sweep is a semantic selector allowlist, not a full click-target audit",
+      "AiTeammateStyles.test.ts is a CSS substring check, not a rendered 44x44 oracle",
+      "canvas-contract still logs page console errors without failing",
+      "in-flight lock, stale-completion discard, and pane-switch persistence are not exercised in this E2E slice"
+    ]
+  }
+}

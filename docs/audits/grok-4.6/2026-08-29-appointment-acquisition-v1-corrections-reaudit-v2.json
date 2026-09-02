@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T02:52:26.979Z",
+  "request": {
+    "task": "Appointment Acquisition v1 residual CS-003 remediation",
+    "model": "x-ai/grok-4.6",
+    "effort": "medium",
+    "base": "HEAD",
+    "head": "7167a2488a7a0b82f1b5df0fde6b96e1e7b869ef",
+    "files": [
+      "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md"
+    ],
+    "proofs": [],
+    "diffBytes": 116368
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24932,
+      "completion_tokens": 11756,
+      "total_tokens": 36688,
+      "cost": 0.120208,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.120208,
+        "upstream_inference_prompt_cost": 0.049672,
+        "upstream_inference_completions_cost": 0.070536
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 11478,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The supplied slice is only the rewritten PRD; there are no separate fixtures, CAS traces, or matrix hashes. Against that text, open_degraded TransientFailure at or after earliestSecondAt (including at or after deadline) is required to CAS-commit RuntimeDownshift in the same transaction; TransientDeadlineReached is still a scheduled mandatory write; non-blip unreachability is closed to 404|410 and dual-resolver NXDOMAIN and is disjoint from the blip set; the status-only schema is exactly {markerKey} with launch material forbidden; 15.3 names the matching 11.3/11.4 cells.",
+    "residual_risks": [
+      "15.3 says eligible second failure but does not name a distinct post-deadline TransientFailure fixture; 15.9 drills second failure after 15 minutes and missed 30-minute recheck only.",
+      "Status-only {markerKey} non-exposure is specified in §§7 and 12 and marker copy in §8.1, but is not an explicit 15.3 matrix row.",
+      "11.4 claims a total partition of non-success observations while non-blip unreachability is closed to 404|410|NXDOMAIN, so other reachability outcomes are unspecified."
+    ]
+  }
+}

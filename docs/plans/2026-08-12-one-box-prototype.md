@@ -112,10 +112,10 @@ the live OpenRouter catalog at build time, never guess):
 
 - **Orchestrator + vision decode + in-app visual QA**: Gemini 3.1 Pro (frontier
   multimodal, long context).
-- **Builder + edit_site (frontend/motion)**: Kimi K3 (WebDev-preference #2, premium
-  frontend; direct Moonshot lane is the fallback if OpenRouter is slow).
-- **Intake classification / extraction bulk**: DeepSeek V4 (direct `api.deepseek.com`
-  is also approved if cheaper).
+- **Builder + edit_site (frontend/motion)**: Kimi K3 (historical candidate only;
+  an exact provider/model route must be separately admitted before product use).
+- **Intake classification / extraction bulk**: DeepSeek V4 (historical candidate
+  only; price or availability never authorizes a direct or alternate route).
 - **BUILDING the prototype uses ONLY subscription OAuth models** (Devin, 2026-08-12).
   Every dev-time agent — writing the code, reviewing it, QA during development — runs
   on Claude Max OAuth (Claude Code), Codex OAuth (GPT-5.6 Sol review), or `agy`
@@ -127,6 +127,11 @@ the live OpenRouter catalog at build time, never guess):
   reports, never retries silently. Marginal cost is honestly non-zero: OpenRouter
   tokens + Places API (Enterprise SKU fields) + Higgsfield credits — small per run,
   but state it, don't claim $0.
+
+OBX-P180 supersedes any earlier provider-fallback implication in this prototype:
+every provider, model, upstream, data class, price basis, and retention policy is an
+exact route; `fallbackPolicy` is `none`; an unavailable route stops visibly. Direct
+Moonshot, DeepSeek, or any other alternate provider is not an implicit fallback.
 
 ## Quality gates (the actual deliverable)
 

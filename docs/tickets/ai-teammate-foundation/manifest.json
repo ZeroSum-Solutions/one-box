@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "program": "ONE BOX",
+  "slice": "ai-teammate-foundation-v1",
+  "status": "implementation-authorized",
+  "implementationAuthorized": true,
+  "authorization": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json#OBX-AUTH-ATF-001",
+  "sourceSpec": "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+  "implementationPlan": "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+  "ticketStatusPolicy": {
+    "currentStatus": "ready",
+    "allowedSequence": ["ready", "in-progress", "in-review:implementation", "verified", "done"],
+    "automaticTransitionAllowed": false,
+    "transitionRequires": [
+      "explicit-owner-direction",
+      "manifest-and-ticket-body-sync",
+      "verifier-invariant-and-negative-test-update",
+      "authority-packet-digest-refresh",
+      "same-target-review-evidence"
+    ]
+  },
+  "tickets": [
+    {
+      "id": "OBX-AT-001",
+      "title": "Build the native read/propose teammate foundation",
+      "status": "ready",
+      "priority": "P1",
+      "requirements": ["E1"],
+      "file": "OBX-AT-001.md"
+    }
+  ]
+}

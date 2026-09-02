@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T01:41:33.035Z",
+  "request": {
+    "task": "OBX-P180-S2-REAUDIT",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-provider-route-findings.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/security/supply-chain-policy.md"
+    ],
+    "diffBytes": 23341,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 25873,
+      "completion_tokens": 28988,
+      "total_tokens": 54861,
+      "cost": 0.225482,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.225482,
+        "upstream_inference_prompt_cost": 0.051554,
+        "upstream_inference_completions_cost": 0.173928
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 28023,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "309-341 vs 413-416",
+        "scenario": "Segment is validated (checks passed, no reservation yet). User requests a different provider/model/effort. Switch rule 3 requires validated->cancelled, reservation no-op, then a new draft. The machine only allows validated->rejected|reserved|budget-exhausted. Line 340 refuses any unlisted transition and emits no provider call, so cancelled is dropped and the segment remains validated on the old route (switch stuck) or an implementer mutates the frozen route in place.",
+        "remediation": "Add validated->cancelled to the diagram and allowed-transition list; map pre-dispatch user switch to cancelled with no provider call; keep rejected for failed checks only; do not treat an unlisted transition as a silent no-op."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "329-331, 413-416, 456",
+        "scenario": "Segment is reserved or queued with a live reservation and no attempt (attempt index 0 is claimed only at reserved|queued->active). User switch/interrupt must terminal as cancelled and release/reconcile the reservation. Failure-class evidence for user/system interrupt always requires a provider cancel observation (and late-output disposition). Driver cancel needs a fixtureAttemptHandle that does not exist yet, so a valid cancelled receipt cannot be emitted (reservation stuck) or the implementer fabricates a provider/driver cancel (illegal pre-dispatch call).",
+        "remediation": "Split interrupt evidence: pre-dispatch cancel requires interrupt intent plus reservation-release receipt only; post-dispatch cancel additionally requires driver/provider cancel observation and late-output disposition. Do not require provider observations when no attempt was claimed."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "373-374, 400-401, 433-434",
+        "scenario": "maxAttempts is 1 while retryPolicyHash still describes the transient retry policy (validation does not reject that pair). Attempt 0 is retryable-failure with known billing. Retry rules test an undefined retry count is zero and never test maxAttempts. CAS text always allows claiming attempt index one. A second same-route fixture/provider call is issued despite maxAttempts=1.",
+        "remediation": "Fail validation unless (maxAttempts=1 and retry policy forbids retry) or (maxAttempts=2 and the one transient same-route policy). CAS may claim index one only when maxAttempts=2, attempt 0 is retryable-failure, billing is known, and billingState is not ambiguous. Replace retry count is zero with closed attemptIndex==0."
+      }
+    ],
+    "proof_assessment": "HEAD equals BASE; the only changed artifact is planning markdown. The attached Grok JSON describes a different text (dispatched-only terminals, pricingSnapshotRef, fourth catalog, identity waiver) and is prior-finding evidence, not an audit of these bytes. Catalog, fixture-only product entry, identity waiver removal, closed pricing schema, admission/region intersection, hosted expiresAt, credential-free offline driver, and no compare field are present. Pre-dispatch cancel/switch and maxAttempts/CAS still contradict the CLEAN bars. No runtime, tests, or hash-bound review of HEAD.",
+    "residual_risks": [
+      "Pricing prose still requires pricing compare arms before the Step 4 compare contract.",
+      "*PolicyRef target schemas are deferred to Step 5; absence fails closed only if implementers treat unresolved hashes as fatal.",
+      "budgetReservationId is required on the validated frozen manifest before funds are reserved; filling it later would change manifestHash.",
+      "reserved|queued->failed is allowed with no attempt, against the failure table.",
+      "RouteAttemptV1 enumerates states without transitions for claimed vs in-flight crash recovery.",
+      "pricingSnapshotHash equality across model, route, and snapshot is not required.",
+      "evaluation-only is barred only from product work, not from all dispatch.",
+      "Provider-connected crash-between-call-and-persist duplication remains; the slice correctly refuses to treat in-memory tests as durable idempotency evidence."
+    ]
+  }
+}

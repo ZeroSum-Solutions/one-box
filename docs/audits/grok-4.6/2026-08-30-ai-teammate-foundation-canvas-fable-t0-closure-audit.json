@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T11:17:58.593Z",
+  "request": {
+    "task": "T0 closure Canvas Agent Studio audit scope, authority cage, and baseline",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-baseline-runs.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md"
+    ],
+    "proofs": [],
+    "diffBytes": 25375
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 13941,
+      "completion_tokens": 34545,
+      "total_tokens": 48486,
+      "cost": 0.23496,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.23496,
+        "upstream_inference_prompt_cost": 0.02769,
+        "upstream_inference_completions_cost": 0.20727
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 33582,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md",
+        "line": "16-21",
+        "scenario": "T0 claims to byte-bind the complete `Local Canvas and API surface` slice of `docs/specs/2026-08-29-ai-teammate-foundation-v1.md` at commit `899b39433c4be242b4b3adcd39f3e6cd53df99c0`, but the only locator is prose (“bytes from that heading up to but not including `Security and data boundary`”) plus a SHA-256. Unlike the A/B/G/M rows, this omits byte count, `git show <full-commit>:<path>`, encoding, no-newline-normalization, heading-marker inclusivity (`## ` vs title text), and whether blank lines before the next heading are in-range. Two legal extracts (off-by-LF / heading-prefix) can be formed; only one can match the digest. That is not an exact source/extraction rule for the primary audit object.",
+        "remediation": "Bind the section the same way as the criterion rows: `git show 899b39433c4be242b4b3adcd39f3e6cd53df99c0:docs/specs/2026-08-29-ai-teammate-foundation-v1.md` with no newline normalization; define a half-open UTF-8 range from the first byte of the exact heading line through the byte immediately before the next heading line; publish that byte count with the existing SHA-256; state whether the following heading’s preceding LFs are included."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-baseline-runs.json",
+        "line": "62-70 invalidInvocation",
+        "scenario": "The md/JSON present the zsh failure as the same focused suite with an unquoted `[id]` glob. The recorded `invalidInvocation.command` also inserts `src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx` (a non-test source file absent from the successful shell:false argv). Even with quoting, that command is not the baseline argv; stderr is plain text without byte count/SHA-256/base64.",
+        "remediation": "Record the failed invocation as the exact same argv as the successful run, joined only for the shell demonstration; keep `baselineEvidence: false`; if a source path was actually passed, say so instead of attributing the failure solely to globbing."
+      }
+    ],
+    "proof_assessment": "Run 1 decoded preimage is 247 bytes and contains the stated 17/29/21 counts and authority packet SHA-256 `f17059ecbf094c89ace92f1b415f0bf5a695f8893feec3a0843dd9eedd50aa51`. Run 3 decoded preimage is 698 bytes and matches 8 files / 37 tests, shell:false argv with literal `[id]`, cwd, exit 0. Empty stderr digests match SHA-256(\"\"). Run 2 padding (`9179 % 3 == 2`, single `=`) is consistent; TAP summary 48/48 matches the md. Cage lists read/propose, a closed path/prefix set, and a prohibited-capability list, and separates audit dependencies from implementation authorization. A/B/G/M rows and full upgrade/index include bytes+SHA-256 and row extraction rules. Non-empty transcript SHA-256s and all spec/tree digests were not recomputed here.",
+    "residual_risks": [
+      "Spec, tree, and criterion-row SHA-256s cannot be checked without git objects at 899b394/7a1a54e4.",
+      "OBX-AUTH-ATF-001 is not in the slice, so cage completeness vs the authorizing record is unproven.",
+      "test:plans / vitest transcripts embed timings; SHA-256s are recomputable only from the stored base64, not by re-running.",
+      "Full foundation-spec digest has no byte count or git-show/newline rule.",
+      "Per-path effects are stated globally (read/propose), not per allowed path."
+    ]
+  }
+}

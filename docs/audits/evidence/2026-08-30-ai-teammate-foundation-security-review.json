@@ -1,0 +1,1003 @@
+{
+  "schema_version": "1.0",
+  "ref": "1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+  "base": {
+    "status": "AVAILABLE",
+    "value": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "unavailable_reason": null,
+    "evidence": [
+      {
+        "class": "COMMAND",
+        "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff.txt:4"
+      }
+    ]
+  },
+  "scope": {
+    "changed_paths": [
+      "docs/architecture/README.md",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t1-registry-contracts.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t1-registry-contracts-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t3-api-canvas-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t2-executor-receipts-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v2.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v3.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v4.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit-v2.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit.json",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/plan-register.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/security/local-api-threat-model.md",
+      "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "docs/tickets/ai-teammate-foundation/OBX-AT-001.md",
+      "docs/tickets/ai-teammate-foundation/manifest.json",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/e2e/preview-workbench.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx",
+      "src/lib/aiTeammates/executionReceipts.ts",
+      "src/lib/aiTeammates/executor.test.ts",
+      "src/lib/aiTeammates/executor.ts",
+      "src/lib/aiTeammates/receiptBinding.test.ts",
+      "src/lib/aiTeammates/receiptBinding.ts",
+      "src/lib/aiTeammates/registry.test.ts",
+      "src/lib/aiTeammates/registry.ts",
+      "src/lib/aiTeammates/serialization.ts",
+      "src/lib/contracts.test.ts",
+      "src/lib/contracts.ts"
+    ],
+    "captured_diff_paths": [
+      "docs/architecture/README.md",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t1-registry-contracts.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt",
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t1-registry-contracts-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t3-api-canvas-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t2-executor-receipts-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v2.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v3.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v4.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit-v2.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit.json",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/plan-register.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/security/local-api-threat-model.md",
+      "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "docs/tickets/ai-teammate-foundation/OBX-AT-001.md",
+      "docs/tickets/ai-teammate-foundation/manifest.json",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/e2e/preview-workbench.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs",
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx",
+      "src/lib/aiTeammates/executionReceipts.ts",
+      "src/lib/aiTeammates/executor.test.ts",
+      "src/lib/aiTeammates/executor.ts",
+      "src/lib/aiTeammates/receiptBinding.test.ts",
+      "src/lib/aiTeammates/receiptBinding.ts",
+      "src/lib/aiTeammates/registry.test.ts",
+      "src/lib/aiTeammates/registry.ts",
+      "src/lib/aiTeammates/serialization.ts",
+      "src/lib/contracts.test.ts",
+      "src/lib/contracts.ts"
+    ],
+    "path_classification": [
+      {
+        "path": "docs/architecture/README.md",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:64"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:65"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t1-registry-contracts.txt",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:66"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:67"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:68"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt",
+        "surfaces": [
+          "secrets",
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:69"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:70"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-reaudit.json",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:71"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t1-registry-contracts-audit.json",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:72"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t2-executor-receipts-audit.json",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:73"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t3-api-canvas-audit.json",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:74"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t2-executor-receipts-reaudit.json",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:75"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v2.json",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:76"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v3.json",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:77"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit-v4.json",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:78"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t3-api-canvas-reaudit.json",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:79"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-audit.json",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:80"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit-v2.json",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:81"
+          }
+        ]
+      },
+      {
+        "path": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-t4-final-gates-reaudit.json",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:82"
+          }
+        ]
+      },
+      {
+        "path": "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:83"
+          }
+        ]
+      },
+      {
+        "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:84"
+          }
+        ]
+      },
+      {
+        "path": "docs/plans/one-box-master/00-authority/plan-register.md",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:85"
+          }
+        ]
+      },
+      {
+        "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:86"
+          }
+        ]
+      },
+      {
+        "path": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:87"
+          }
+        ]
+      },
+      {
+        "path": "docs/security/local-api-threat-model.md",
+        "surfaces": [
+          "secrets",
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:88"
+          }
+        ]
+      },
+      {
+        "path": "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:89"
+          }
+        ]
+      },
+      {
+        "path": "docs/tickets/ai-teammate-foundation/OBX-AT-001.md",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:90"
+          }
+        ]
+      },
+      {
+        "path": "docs/tickets/ai-teammate-foundation/manifest.json",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:91"
+          }
+        ]
+      },
+      {
+        "path": "scripts/e2e/canvas-contract.mjs",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:92"
+          }
+        ]
+      },
+      {
+        "path": "scripts/e2e/canvas-coverage.mjs",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:93"
+          }
+        ]
+      },
+      {
+        "path": "scripts/e2e/preview-workbench.mjs",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:94"
+          }
+        ]
+      },
+      {
+        "path": "scripts/verify-plan-authority.mjs",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:95"
+          }
+        ]
+      },
+      {
+        "path": "scripts/verify-plan-authority.node.mjs",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:96"
+          }
+        ]
+      },
+      {
+        "path": "src/app/api/ai-teammates/[id]/route.test.ts",
+        "surfaces": [
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:97"
+          }
+        ]
+      },
+      {
+        "path": "src/app/api/ai-teammates/[id]/route.ts",
+        "surfaces": [
+          "secrets",
+          "authentication",
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:98"
+          }
+        ]
+      },
+      {
+        "path": "src/app/styles/workbench.css",
+        "surfaces": [],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:99"
+          }
+        ]
+      },
+      {
+        "path": "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:100"
+          }
+        ]
+      },
+      {
+        "path": "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:101"
+          }
+        ]
+      },
+      {
+        "path": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:102"
+          }
+        ]
+      },
+      {
+        "path": "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+        "surfaces": [],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:103"
+          }
+        ]
+      },
+      {
+        "path": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:104"
+          }
+        ]
+      },
+      {
+        "path": "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:105"
+          }
+        ]
+      },
+      {
+        "path": "src/components/preview/Workbench.tsx",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:106"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/executionReceipts.ts",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:107"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/executor.test.ts",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:108"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/executor.ts",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:109"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/receiptBinding.test.ts",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:110"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/receiptBinding.ts",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:111"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/registry.test.ts",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:112"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/registry.ts",
+        "surfaces": [
+          "authorization"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:113"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/aiTeammates/serialization.ts",
+        "surfaces": [
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:114"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/contracts.test.ts",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:115"
+          }
+        ]
+      },
+      {
+        "path": "src/lib/contracts.ts",
+        "surfaces": [
+          "authorization",
+          "untrusted-input"
+        ],
+        "evidence": [
+          {
+            "class": "STATIC",
+            "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:116"
+          }
+        ]
+      }
+    ],
+    "sensitive_surfaces": [
+      "secrets",
+      "authentication",
+      "authorization",
+      "untrusted-input"
+    ],
+    "diff_command_id": "CMD-001",
+    "evidence": [
+      {
+        "class": "COMMAND",
+        "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff.txt:1"
+      }
+    ]
+  },
+  "commands": [
+    {
+      "id": "CMD-001",
+      "purpose": "diff",
+      "command": "git diff --name-only 47650fccb0fce0e96a49f9ae725abbe6a25540f1...1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "47650fccb0fce0e96a49f9ae725abbe6a25540f1...1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+      "evidence": [
+        {
+          "class": "COMMAND",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff.txt:1"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-002",
+      "purpose": "secrets-scan",
+      "command": "gitleaks detect --source . --no-banner --redact --log-opts 47650fccb0fce0e96a49f9ae725abbe6a25540f1..1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "47650fccb0fce0e96a49f9ae725abbe6a25540f1..1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+      "evidence": [
+        {
+          "class": "COMMAND",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-gitleaks.txt:1"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-003",
+      "purpose": "focused-tests",
+      "command": "npm test -- 'src/app/api/ai-teammates/[id]/route.test.ts' src/lib/aiTeammates/executor.test.ts src/lib/aiTeammates/receiptBinding.test.ts src/lib/aiTeammates/registry.test.ts src/lib/contracts.test.ts src/components/preview/AiTeammate/AiTeammatePanel.test.tsx src/components/preview/AiTeammate/AiTeammateStyles.test.ts src/components/preview/AiTeammate/AgentStudioPanel.test.tsx src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "archived tree 97dddb8b08c53ff3e0c8a492f0c63a116c303b12",
+      "evidence": [
+        {
+          "class": "COMMAND",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:54"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-004",
+      "purpose": "authority-verifier",
+      "command": "npm run verify:plans",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "archived tree 97dddb8b08c53ff3e0c8a492f0c63a116c303b12",
+      "evidence": [
+        {
+          "class": "COMMAND",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:55"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-005",
+      "purpose": "authority-negative-tests",
+      "command": "npm run test:plans",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "archived tree 97dddb8b08c53ff3e0c8a492f0c63a116c303b12",
+      "evidence": [
+        {
+          "class": "COMMAND",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:56"
+        }
+      ],
+      "unavailable_reason": null
+    }
+  ],
+  "exports": {
+    "state": "NONE",
+    "items": [],
+    "evidence": [
+      {
+        "class": "STATIC",
+        "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:44"
+      }
+    ],
+    "unavailable_reason": null
+  },
+  "secrets_scan": {
+    "result": "PASS",
+    "command_id": "CMD-002",
+    "scope": "RANGE",
+    "comparison": "47650fccb0fce0e96a49f9ae725abbe6a25540f1..1b93148627fcc1cf6d29ecdd91d706b0a42dd582",
+    "evidence": [
+      {
+        "class": "COMMAND",
+        "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-gitleaks.txt:1"
+      }
+    ],
+    "unavailable_reason": null
+  },
+  "export_policy": {
+    "result": "PASS",
+    "evidence": [
+      {
+        "class": "STATIC",
+        "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:44"
+      }
+    ],
+    "unavailable_reason": null
+  },
+  "coverage": [
+    {
+      "surface": "prompt-injection",
+      "state": "NOT-APPLICABLE",
+      "evidence": [
+        {
+          "class": "STATIC",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:15"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "surface": "secrets",
+      "state": "REVIEWED",
+      "evidence": [
+        {
+          "class": "COMMAND",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-gitleaks.txt:1"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "surface": "authentication",
+      "state": "REVIEWED",
+      "evidence": [
+        {
+          "class": "STATIC",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:17"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "surface": "authorization",
+      "state": "REVIEWED",
+      "evidence": [
+        {
+          "class": "STATIC",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:18"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "surface": "untrusted-input",
+      "state": "REVIEWED",
+      "evidence": [
+        {
+          "class": "STATIC",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:19"
+        }
+      ],
+      "unavailable_reason": null
+    },
+    {
+      "surface": "export",
+      "state": "NOT-APPLICABLE",
+      "evidence": [
+        {
+          "class": "STATIC",
+          "citation": "docs/audits/evidence/security/2026-08-30-ai-teammate-foundation-diff-review.md:20"
+        }
+      ],
+      "unavailable_reason": null
+    }
+  ],
+  "findings": [],
+  "verdict": "PASS"
+}

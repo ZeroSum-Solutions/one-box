@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:16:33.384Z",
+  "request": {
+    "task": "OBX-P180-S2-INTERRUPT-RECONCILE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-definitive-clean-audit.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/2026-08-29-program-threat-model.md"
+    ],
+    "diffBytes": 28819,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 21638,
+      "completion_tokens": 21842,
+      "total_tokens": 43480,
+      "cost": 0.174136,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.174136,
+        "upstream_inference_prompt_cost": 0.043084,
+        "upstream_inference_completions_cost": 0.131052
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 19865,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "RouteSegmentStateV1 (approx 470-485); interrupted -> active (377-381)",
+        "scenario": "RouteSegmentStateV1 'contains exactly' job/segment/intent/manifest/state/attemptIndex/stateRevision/terminalReceiptHash/updatedAt/stateHash. It has no interruptHash, decisionHash, or expected project/candidate hashes. active->interrupted CASes only stateRevision, and resume's required interrupt/project/candidate equality is out-of-band of stateHash. Input: segment already interrupted under interrupt H1; a second HumanInterrupt H2 is inserted with no segment transition; project/candidate bytes change without intentHash changing. Wrong behavior: a decision on H2 can CAS interrupted->active against revision N, or resume after the candidate has moved, because the closed CAS record cannot bind the interrupt or expected source. That breaks exact hash-bound resume and in-place authority safety.",
+        "remediation": "Add required interruptHash when state=interrupted (forbidden otherwise), plus expectedProjectStateHash and expectedCandidateHash captured at interrupt time. Resume/cancel CAS must include those fields in the compared record; unknown extra fields stay fail-closed."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "active -> interrupted (373-376); RouteAttemptV1.state (455-456)",
+        "scenario": "Stop-work is only a prose precondition: settle in-flight attempts to a 'non-ambiguous' state, then CAS. claimed and in-flight are distinct from ambiguous, so they already satisfy 'non-ambiguous'. Input: attemptIndex 0 is in-flight with a live handle; control plane CASes active->interrupted. Wrong behavior: segment is interrupted while a driver/provider call still runs, contradicting stop-work and 'no driver, skill, proposal apply, or other effect may run while interrupted'. Duplicate completion can then mutate the attempt under the interrupt.",
+        "remediation": "Replace 'non-ambiguous' with a closed settled set: completed|failed|cancelled|retryable-failure only. Forbid CAS to interrupted while any attempt is claimed, in-flight, or ambiguous, or while a handle exists. Stop-work plus attempt settlement plus interruptHash write plus segment CAS must be one atomic compare-and-swap across those records."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "385-386 (late provider output); 375-376 (effects while interrupted)",
+        "scenario": "Late provider output is quarantined only when 'a terminal state is final'. interrupted is explicitly non-terminal and must not have terminalReceiptHash. Input: attempt completes or a duplicate provider body arrives after active->interrupted, or in a race with that CAS. Wrong behavior: the terminal-only quarantine rule does not apply, so the body can attach, flip the attempt to completed, or mint a proposal while the segment is interrupted.",
+        "remediation": "State that any provider/driver output arriving in interrupted (and any output not bound to the settled attemptHash) is a quarantined observation: no attempt transition, no proposal, no receipt mutation. Only in-flight (pre-interrupt) may accept driver completion, and that must happen before the interrupt CAS."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "interrupted -> active (377-381) vs interrupted -> cancelled (382-384)",
+        "scenario": "Resume is allowed when interrupt/intent/manifest/route/context/skill/tool/budget/deadline/expected-state hashes 'still match'. That is equality, not liveness. Cancel lists expiry and revocation separately, but nothing makes those checks part of the resume CAS. Input: interrupt expiresAt or intent deadline is in the past, reservation validity window has ended, or authorization/kill-switch was revoked, while stored hashes are unchanged; accept races a delayed expiry worker. Wrong behavior: interrupted->active succeeds and continues the segment past a dead deadline/reservation/authz. Hash-bound resume becomes fail-open.",
+        "remediation": "Make resume CAS fail closed unless all of: hashes equal, interrupt unexpired, reservation unexpired and still held, deadline not exceeded, authorization current, kill-switch off. Any expiry/revocation/mismatch must CAS to cancelled and win over accept."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "claimed -> cancelled (approx 517-521); active -> interrupted reservation hold (375); switch rule 4 (approx 536-538); failure classification interrupt rows (approx 575-577)",
+        "scenario": "Three different 'interrupts' share one state. (1) claimed->cancelled when 'an interrupt is current' requires reservation release/reconciliation. (2) active->interrupted holds the reservation. Input: HITL interrupt while attempt is claimed/no dispatch; settlement uses claimed->cancelled then CAS to interrupted. Wrong behavior: reservation is both released and held; resume can run without budget or double-reconcile. (3) Failure table terminals every user/system interrupt as cancelled/failed with retry=no, and switch-while-active is 'an interrupt request' that must become terminal before a new route. Wrong behavior: implementers either never keep interrupted non-terminal (no hash-bound resume) or route a switch through interrupted->active and either drop the switch or mutate route/authority in place. Resume also 'creates no new attempt', so settling to cancelled/retryable-failure then resuming leaves active stuck holding budget.",
+        "remediation": "Split closed reason codes: proposal-HITL may enter interrupted only after a settled completed attempt and must not release the reservation; user/system cancel and TM-05 switch never enter interrupted and are active|reserved|queued->cancelled/failed with reconcile. claimed->cancelled reservation release applies only to that terminal cancel path. Do not reuse 'human acceptance' for route switch; accept resumes the same hashes only, reject/expiry/switch CAS to cancelled, then a new segment."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "Acceptance criteria (591-601); interrupted -> active (377-381)",
+        "scenario": "S2 acceptance oracles never mention interrupted, stop-work, CAS identity, hash-bound resume, expiry cancel, no terminal revival, or no in-place route/apply grant. Resume lands in generic active, which elsewhere claims attempts and runs drivers. Input: a contract review or fixture suite that only checks the eight S2 bullets, or an accept-proposal CAS to active before active->completed. Wrong behavior: the interrupt machine can be omitted or, after resume, a worker can treat active as permission to dispatch, switch, or treat acceptance as apply/release authority, and still pass Step 2.",
+        "remediation": "Add fail-closed oracles: interrupt CAS binds interruptHash; no live attempt/handle in interrupted; resume rejected on any hash/expiry/authz mismatch; terminal states cannot leave; switch/cancel cannot rewrite route in place; acceptance does not grant apply/approval/release. If resume is kept, introduce a closed post-accept settling state that cannot dispatch, or require the same CAS to move interrupted->completed without re-entering work-capable active."
+      }
+    ],
+    "proof_assessment": "HEAD equals BASE; the only changed artifact is the Step 2 planning contract. The attached Grok 4.6 CLEAN audit is for OBX-P180-S2-DEFINITIVE, not this interrupt-reconcile criterion. It does not test interrupt identity inside RouteSegmentStateV1, late output while interrupted, resume-vs-expiry races, or the HITL vs cancel/switch overload, and it files cross-record CAS as a residual implementation risk rather than a contract hole. Treat that CLEAN verdict as non-authoritative for OBX-P180-S2-INTERRUPT-RECONCILE.",
+    "residual_risks": [
+      "Step 3 HumanInterruptV1/HumanDecisionV1 still omit expected project/candidate hashes, so even a later schema would not close resume TOCTOU unless S2 state binds them.",
+      "*PolicyRef target schemas remain Step 5; fail-closed resume/authz depends on unresolved hashes staying fatal.",
+      "In-memory first-slice tests cannot evidence durable atomic CAS across segment, attempt, interrupt, and reservation records.",
+      "maxAttempts:1 vs in-flight->retryable-failure remains an implementer trap if interrupt settlement uses retryable-failure."
+    ]
+  }
+}

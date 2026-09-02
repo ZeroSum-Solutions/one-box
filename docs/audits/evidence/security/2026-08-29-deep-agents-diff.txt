@@ -1,0 +1,23 @@
+command: git diff --name-only 9d4ddfddc83efa2af5a560500cd87c787b7035f3...HEAD
+exit_code: 0
+docs/adr/0003-deep-agents-js-job-plane-evaluation.md
+docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md
+docs/audits/evidence/2026-08-29-deep-agents-immutable-review-packet.md
+docs/audits/evidence/2026-08-29-deep-agents-security-review.json
+docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md
+docs/audits/evidence/security/2026-08-29-deep-agents-diff.txt
+docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt
+docs/audits/evidence/security/2026-08-29-deep-agents-merge-base.txt
+docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-corrections-reaudit.json
+docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-final-audit.json
+docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-immutable-final-audit.json
+docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json
+docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md
+docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json
+docs/plans/one-box-master/00-authority/authority-manifest.json
+docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md
+docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md
+docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md
+docs/research/source-catalog/adoption-ledger.json
+docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md
+docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md

@@ -1,0 +1,144 @@
+{
+  "audit_version": 4,
+  "audited_at": "2026-08-27T21:28:17.340552+00:00",
+  "input": {
+    "path": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+    "sha256": "6c914302e0965764d12b0d75413e8c4801d6da372dc73f1a0215eff6d0e7ef13",
+    "line_count": 928
+  },
+  "route": {
+    "requested_model": "x-ai/grok-4.6",
+    "reported_model": "x-ai/grok-4.6",
+    "provider": "xAI",
+    "catalog_verified": true,
+    "credential_source": "zsvault"
+  },
+  "usage": {
+    "prompt_tokens": 13898,
+    "completion_tokens": 32598,
+    "total_tokens": 46496,
+    "cost": 0.223192,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 128,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.223192,
+      "upstream_inference_prompt_cost": 0.027604,
+      "upstream_inference_completions_cost": 0.195588
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 29299,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "audit": {
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "id": "CS-001",
+        "severity": "P0",
+        "section": "11.2 / 11.3 / 11.4 / 10.2",
+        "issue": "The transient-episode table is declared total, and every unlisted state-event pair 'produces no write.' HumanRepublishInstalled, SafetyBlock, and ProjectDeletion are listed only from open_degraded. Blocked selection rejects transient failures, so blocked_restorable has episode none. Read together with 11.2 (unknown/illegal successor produces no write) this makes SafetyBlock, ProjectDeletion, and HumanRepublish illegal in the common durable state none. That contradicts 11.4 immediate SafetyBlock without open_degraded, 10.2 HumanRepublish as the only exit from nonterminal Blocked, and the fail-closed stale-CTA rule.",
+        "correction": "Scope 11.3 unlisted-pair no-write to unrecognized transient events only. Authorized 11.2 transactions must still commit when episode is none or already terminal. Add explicit no-op rows: from none, SafetyBlock/ProjectDeletion leave episode none while selecting the required Blocked artifact; HumanRepublish leaves episode none (or records superseded only if open) and installs the new release. Keep open_degraded → resolved_blocked / superseded as specified. State that a parent transaction must not abort merely because there is no open episode to close."
+      },
+      {
+        "id": "CS-002",
+        "severity": "P1",
+        "section": "6.1 / 6.3 / 5.1 / 7",
+        "issue": "visitor_kind_distinction carries evidence-specific expiry and controls RouteKey shape, but Section 6.3 lists no TTL for it. Lower layers are forbidden to lengthen freshness windows. An unspecified TTL lets implementers preserve or omit the axis indefinitely, so route shape is not fail-closed.",
+        "correction": "Add visitor_kind_distinction to the Section 6.3 table with an explicit TTL no longer than scheduler route-meaning evidence (7 days). Missing, stale, duplicate, or conflicting distinction remains unresolved: route_shape_mismatch. No layer may lengthen that TTL or substitute a stored fresh/stale label."
+      },
+      {
+        "id": "CS-003",
+        "severity": "P1",
+        "section": "6.2 / 7 steps 7–9 / 5.3 / 9.5",
+        "issue": "web_endpoint and public_contact_match are 'separate required publication facts,' yet observations must bind to the same normalized target. If both are always required, scheduler/request web candidates cannot complete without a phone/SMS/email match, and phone/SMS/email contact cannot complete without a web endpoint. If they are mode/target-specific, the required matrix is undefined. Step 7 (missing/stale → blocked: evidence_ineligible) also collides with step 8 (missing/stale endpoint/public-contact → unresolved: endpoint_unverified). Step 7's 'negative result' is not defined across present/absent, care/consultation/neither, generic/negative, unreachable/unsafe, and mismatch/absent.",
+        "correction": "Publish a closed required-observation matrix by candidateMode and target type so web candidates require web_endpoint and not public_contact_match, and phone/SMS/email candidates require public_contact_match and not web_endpoint. Make steps 7–9 disjoint: step 7 applies only to scheduler/request/contact channel observations; missing/stale required endpoint or public-contact verification is only step 8; dead/mismatch is only step 9 endpoint_not_reachable; unsafe is only step 9 endpoint_unsafe. Define which closed result values are negative versus mismatch versus ineligible-for-9.5, and route the last class to step 12 rather than step 7."
+      },
+      {
+        "id": "CS-004",
+        "severity": "P1",
+        "section": "7 SealedDecision / 6.3 / 10.3 / 4 / 11.1",
+        "issue": "A positive decision is illegal unless every cited expiry is strictly later than classificationTime, and artifacts must carry absolute evidence-expiry instants. PositiveDecision has no cited-expiry field. The compiler may not add evidence, lengthen an expiry, or use a clock. If nothing is cited, the legality check is vacuously true; if the compiler re-derives instants, classifier and artifact can diverge; if a positive artifact carries an empty instant set, BaseArtifactValid never expires.",
+        "correction": "Extend every SealedDecision, or at least PositiveDecision, with the closed set of cited observation IDs and their derived absolute expiry instants. Require at least one future instant for any positive decision. Compiler may copy those sealed instants byte-for-byte into the artifact and must fail closed if they are missing, extra, or non-identical. Runtime continues to treat only those signed instants as authoritative."
+      },
+      {
+        "id": "CS-005",
+        "severity": "P1",
+        "section": "4 / 7 step 1 / 7 step 4",
+        "issue": "Section 4 says missing, duplicate, conflicting, or extra serviceCategoryBinding values are invalid input, while a category absent from the certified pack is blocked: unclassified_category. Step 1 lists duplicate, conflicting, or extra bindings as invalid_input but omits missing bindings. An enabled service with no binding has no total rule and may be treated as unclassified_category, category_mode_mismatch, or fall-through.",
+        "correction": "Put missing, duplicate, conflicting, extra, and schema-invalid serviceCategoryBinding in step 1 as blocked: invalid_input. Reserve blocked: unclassified_category for a well-formed binding whose enum member is not declared by the bound certified pack. Keep the binding as data, not an executable predicate."
+      },
+      {
+        "id": "CS-006",
+        "severity": "P1",
+        "section": "5.1 / 7 steps 2, 5, 6",
+        "issue": "visitorKind is required iff visitor_kind_distinction=required and forbidden iff not_required, but step 2 applies prohibited_route_dimension / invalid_route_dimension before distinction is resolved at steps 5–6. Config 'enabled route dimensions' may or may not include visitorKind as an axis. The same supplied value can therefore be invalid_input, invalid_route_dimension, prohibited_route_dimension, or accepted depending on order, and an unknown visitorKind when distinction is required may never be classified.",
+        "correction": "Do not evaluate visitorKind as a config-enabled axis at step 2. After a unique current distinction exists: required+absent → unresolved: missing_visitor_kind with reviewed visitor-kind PublicRouteOption[]; required+unknown value → blocked: invalid_route_dimension; not_required+supplied → blocked: prohibited_route_dimension; missing/conflicting distinction → unresolved: route_shape_mismatch. Location and provider remain step 2/3 config axes."
+      },
+      {
+        "id": "CS-007",
+        "severity": "P1",
+        "section": "10.2 / 15.5 / 8.2 / 7",
+        "issue": "10.2 allows an unresolved SealedDecision to become a signed InitialPublish/HumanRepublish presentation artifact with HandoffMode=blocked and no CTA. 15.5 makes 'unresolved non-publication' a blocking invariant. That conflict can either forbid legitimate missing-dimension correction pages or allow a CTA-bearing unresolved publish, and it makes qualification byte-identity non-deterministic.",
+        "correction": "Replace the 15.5 invariant with: unresolved decisions may be signed only as non-launchable presentation artifacts; they must never issue a CTA-bearing lease, typed target, or positive public action. Keep 10.2's no-CTA unresolved artifact rule and 8.2's directory-information rule as the publication bar."
+      },
+      {
+        "id": "CS-008",
+        "severity": "P1",
+        "section": "5.1 / 7 classify() / 7 step 3",
+        "issue": "PartialRouteInput 'exists only long enough to return one missing_* unresolved decision' and cannot carry channel evidence, but classify() accepts RouteKey | PartialRouteInput with a candidate mode/target/evidence projection. A fully populated PartialRouteInput has no missing_* row and would fall through into channel evidence. If several correctable dimensions are missing, 5.1 requires one closed reason without a priority, so reason codes and PublicRouteOption[] are not deterministic.",
+        "correction": "Reject PartialRouteInput used with candidateMode, candidateTarget, or channel evidence as blocked: invalid_input. If the supplied optional fields already complete the config-enabled shape, require RouteKey rather than PartialRouteInput. For incomplete PartialRouteInput, apply a closed reason priority: missing_service, else missing_location, else missing_provider, else missing_visitor_kind after distinction=required; return only that one reason and only reviewed options for the first missing correctable axis."
+      },
+      {
+        "id": "CS-009",
+        "severity": "P1",
+        "section": "3 / 16 R4 / 19",
+        "issue": "R4 is Limited availability and V1 does not authorize implementation or skipped stages. The non-goal only forbids claiming general availability before R4, which permits a GA claim once R4 starts and would exceed the stated v1 boundary.",
+        "correction": "State that V1 never claims general availability. R4 remains limited availability for consenting signed-manifest sites in the launch verticals. Any GA claim is a new product contract, not a v1 outcome of this PRD."
+      },
+      {
+        "id": "CS-010",
+        "severity": "P1",
+        "section": "header Launch market / 15.8 / 16 R1–R4 / 17.2",
+        "issue": "Launch market is Los Angeles, but the live set, R1 shadow businesses, R3/R4 client sites, and pointer SLO 'supported launch region' have no Los Angeles eligibility rule. Qualification and pilots can therefore be satisfied entirely outside the stated v1 market while still unlocking R4.",
+        "correction": "Make LA a closed eligibility constraint for R1 live-set businesses and for R3/R4 signed-manifest client sites that count toward qualification. Record replacements in the same market. Define 'supported launch region' as that launch market for the pointer SLO. Non-LA fixtures may exist as synthetic/lab evidence only and do not count as live market evidence."
+      },
+      {
+        "id": "CS-011",
+        "severity": "P1",
+        "section": "7 step 9 / 11.2 / 11.4 / 6.2",
+        "issue": "Step 9 lets the classifier return endpoint_unsafe for a revoked endpoint, but classify() inputs have no revocation set and web_endpoint results are only verified, unreachable, or unsafe. Post-publish revocation is a SafetyBlock control-plane action. This splits revocation authority and invites a classifier path that cannot be executed as specified.",
+        "correction": "Limit classifier endpoint_unsafe to verifier-sealed web_endpoint=unsafe (or equivalent sealed target-safety observation). Treat key/artifact/target/project revocation after publication as SafetyBlock only, not as a classifier reason. Do not add revocation lists to classify() inputs."
+      },
+      {
+        "id": "CS-012",
+        "severity": "P2",
+        "section": "5.1 / 8.1 / 9.1",
+        "issue": "The router may ask only conditional new-versus-returning status, but visitorKind is an open enabledVisitorKindId rather than a closed enum. Packs also allow patch addition of prohibited-claim members that have no classifier mapping. These do not by themselves authorize a stronger CTA, but they leave two extension points that later layers could over-interpret.",
+        "correction": "Close visitorKind to {new, returning} or an equally closed reviewed pair. Require pack patches that add prohibited-claim members to map each member to an existing Blocked reason with no new runtime behavior until recertification."
+      }
+    ],
+    "accepted_cross_section_invariants": [
+      "This PRD does not authorize implementation, R0–R2 execution, or code work; the next permitted artifact after owner review is a dependency-ordered implementation plan.",
+      "V1 performs truthful public handoff only: no inventory, reservation, confirmation, vendor submission, payment, identity/clinical collection, CRM/EHR, iframe/webview/in-page vendor session, or inferred conversion/revenue/outcome claims.",
+      "JourneyPromiseClass, ObservedDestinationCapability, and HandoffMode remain isolated; promise class is never rendered directly and does not prove runtime success.",
+      "Public strength is totally ordered scheduler > request > contact > blocked; runtime may keep, downshift inside an approved bundle, or block, and must never upgrade.",
+      "AcquisitionScope=(ProjectId, RouteKey) is the isolation boundary; capabilities, evidence, fallbacks, pointers, counters, and episodes must not merge across ProjectId or RouteKey.",
+      "Lower contract layers and the release compiler may only narrow or fail closed; they may not weaken higher-layer requirements, mint targets, expand privacy, lengthen TTLs, change classifier semantics, or emit a positive public action from a non-positive decision.",
+      "AI may propose candidates only; deterministic code classifies and performs runtime transitions; named humans approve publication and every restoration or upgrade.",
+      "Cross-channel observations must not be combined into one candidate projection; request and contact require independently eligible projections and separate classifier invocations.",
+      "The five analytics event names are exclusive; ProjectId, RouteKey, dimension values, URLs, reversible targets, and contact values are forbidden from analytics, general logs, dashboards, alerts, tickets, and audit summaries.",
+      "ProjectDeleted is terminal for that ProjectId; HumanRepublish cannot restore it; retained metadata cannot reactivate acquisition.",
+      "Manual-invalidation hosting cannot satisfy automatic downshift, Section 17.1 signed-manifest metrics, or R3/R4 automatic-protection qualification.",
+      "The four qualification evidence classes must not substitute for one another; this Grok cross-section verdict is advisory and cannot replace the independent human verifier or owner signatures on the QualificationManifest."
+    ],
+    "implementation_authorization": "NOT_AUTHORIZED",
+    "audit_scope": "Final adversarial cross-section audit of the exact ONE BOX Appointment Acquisition v1 PRD as a single contract, covering contradictions, undefined authority, non-total classifier and state rules, privacy leakage, impossible operations, ambiguous metrics, broken traceability, and v1-boundary overflow. Earlier section ACCEPT results treated as advisory only."
+  }
+}

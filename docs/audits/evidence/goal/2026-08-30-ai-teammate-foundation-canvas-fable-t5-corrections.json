@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T17:35:24Z",
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-audit.json",
+    "disposition": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-disposition.json"
+  },
+  "corrections": [
+    {
+      "finding": "F5-FINAL-01",
+      "red": "T3 and T4 receipts displayed identical hashes for five source files despite the recorded T4 RED-to-GREEN corrections, and the T4 execution receipt said 21 tests for a current 23-test two-file suite.",
+      "green": "T3 now retains its original post-T3/pre-T4 hashes; T4 receipts explicitly bind the post-T4/pre-F5 candidate; the two-file result is 23 tests; this T5 receipt separately binds the later candidate."
+    },
+    {
+      "finding": "F5-FINAL-02",
+      "red": "The new source-integration test failed because Workbench had no collapsed-state retention boundary; the existing conditional unmounted the panel and Agent Studio.",
+      "green": "Workbench keeps the run-keyed Agent Studio subtree mounted while collapse natively hides and inerts both panel and retained wrapper; other tool-panel content remains conditional. An authored workbench-panel[hidden] rule guarantees display:none instead of relying on the user-agent stylesheet. The live 1440 contract proves the outer panel and inner retained wrapper are hidden, aria-hidden, inert, display:none or zero-layout, and excluded from focus while preserving assignment, selected teammate, proposal, and receipt across collapse/reopen."
+    }
+  ],
+  "candidateSha256": {
+    "docs/architecture/README.md": "bd0fe8b0c083fca7b8d20589852b9465f16c5ba6b3342a2b166593f467f6dd55",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t3-corrections.md": "a43f570eff032e3690a7a770aa3a9369e6c4eee8a9fd71032e38497186189d94",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json": "d4f4fffaf7d5ac8b70b4071852db2df461e76000eb389bc65043653113514e2c",
+    "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-closure-receipt.json": "827d8aaa7595e803f765798ce42fe64cfad902286755baa7f8eb017d33626e1a",
+    "src/app/styles/workbench.css": "11238437b99c0a88c9926c15bce96958f8fd1dea960e4ecb1a6abd05ddb35f6c",
+    "src/components/preview/Workbench.tsx": "75f3b299063a61705acc425debddbed28bcae4df8362cfd21a957701a67b8db7",
+    "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx": "d21fced52bcad49ccdd93e4e06900197a8c7136bad73814a6efd64788e6e4dd2",
+    "scripts/e2e/canvas-contract.mjs": "51d2647d2e97433af01dbf886746e149f0fbf908b9e3fff2d30a67da176103dc"
+  },
+  "verification": {
+    "focusedTests": "4 files, 32 tests passed",
+    "typecheck": "passed",
+    "lint": "passed for Workbench, integration test, and Canvas contract harness",
+    "runtimePanelProbe": "Chromium returned hidden=true, aria-hidden=true, inert=true, display=none, width=0, height=0 after collapse",
+    "liveCanvas1440": "passed with outer-panel and retained-wrapper collapse isolation plus continuity; no contract or serious/critical accessibility problems detected",
+    "liveCanvasAllWidths": "ONEBOX_BASE_URL=http://127.0.0.1:8791 npm run test:e2e:canvas-contract passed at 1440, 768, and 390 pixels; no contract or serious/critical accessibility problems detected"
+  },
+  "modelReviews": {
+    "evidenceBinding": {
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t5a-evidence-binding-closure-audit.json",
+      "verdict": "CLEAN",
+      "findings": 0
+    },
+    "collapseInitial": {
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t5b-collapse-continuity-closure-audit.json",
+      "verdict": "FINDINGS",
+      "acceptedFinding": "The inner retained-wrapper oracle did not bind the outer workbench panel layout; add an authored hidden rule and an outer-panel live oracle."
+    },
+    "collapseClosure": {
+      "artifact": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t5b-collapse-continuity-closure-reaudit.json",
+      "verdict": "CLEAN",
+      "findings": 0
+    }
+  },
+  "remaining": [
+    "exact Fable 5 clean re-audit",
+    "full same-target gates, security review, independent verification, commit, push, and remote parity"
+  ]
+}

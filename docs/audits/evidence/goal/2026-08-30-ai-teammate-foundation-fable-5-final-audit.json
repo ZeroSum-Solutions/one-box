@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:58:11Z",
+  "review": {
+    "reviewer": "Fable 5",
+    "requestedModel": "claude-fable-5",
+    "reportedCanonicalModel": "claude-fable-5",
+    "effort": "max",
+    "accessLane": "Claude Code subscription OAuth",
+    "authMethod": "claude.ai",
+    "fallbackConfigured": false,
+    "terminalReason": "completed",
+    "sessionId": "b5237c70-6fa6-415a-aa3c-af868f2fd8e5",
+    "durationApiMs": 758993,
+    "turns": 87,
+    "webSearchRequests": 0,
+    "subagentsSpawned": 0,
+    "permissionDenials": [],
+    "mainModelUsage": {
+      "inputTokens": 582,
+      "cacheCreationInputTokens": 398678,
+      "cacheReadInputTokens": 1880053,
+      "outputTokens": 58703,
+      "provider": "firstParty",
+      "costUsdReportedByCli": 12.794583000000001
+    },
+    "cliHelperUsage": {
+      "canonicalModel": "claude-haiku-4-5",
+      "inputTokens": 1921,
+      "outputTokens": 21,
+      "costUsdReportedByCli": 0.002026
+    },
+    "captureNote": "Claude Code returned one schema-validated result with no web, delegation, permission denial, or reviewer fallback. Helper usage is disclosed separately and was not a fallback reviewer."
+  },
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "section": "complete approved Canvas core-interaction integration boundary plus Local Canvas and API surface",
+    "boundary": "selection, hierarchy, persistent selection-scoped composition, references, proposal and receipt states, typed mutation separation, preview, diff, and history; deterministic local read and propose only"
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "id": "F5-FINAL-01",
+        "severity": "MEDIUM",
+        "category": "evidence",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-closure-receipt.json",
+        "lineOrSymbol": "candidateSha256; also t4-execution-receipt target.candidateSha256 and green two-file test count",
+        "scenario": "The T4 execution and closure receipts bind five files to SHA-256 values that are byte-identical to the T3 corrections manifest even though accepted T4 corrections changed those files. The execution receipt also records the AgentStudioPanel plus AiTeammatePanel run as 21 tests while the closure receipt and current files prove 23.",
+        "contractEffect": "The terminal T4 closure artifacts do not provably distinguish the T3 and T4 candidate bytes; downstream same-target evidence cannot rely on the receipt chain until the binding and count are corrected. Product behavior is unaffected.",
+        "smallestSafeCorrection": "Restore the historical T3 byte binding, recompute and retain the current T4 binding, state explicitly which receipt binds which bytes, and align the two-file test count to 23 without changing product, test, or harness bytes for this finding.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "F5-FINAL-02",
+        "severity": "LOW",
+        "category": "interaction",
+        "file": "src/components/preview/Workbench.tsx",
+        "lineOrSymbol": "collapsed Workbench conditional around workbench-panel and retained Agent Studio wrapper",
+        "scenario": "A user opens Agent Studio, enters an assignment or receives a placeholder proposal and receipt, collapses the workbench, and reopens it. The panel unmounts on collapse, so Agent Studio returns to defaults and loses the process-local draft and receipt. Collapse is a routine path back to the preview on compact workspaces.",
+        "contractEffect": "The accepted F-02 reset-only-on-run-boundary disposition is closed for tool and View/Edit changes but not for collapse/reopen; Agent Studio continuity is weaker than the persistent composer on compact workspaces.",
+        "smallestSafeCorrection": "Keep the Agent Studio process-local state mounted across collapse within the existing run-keyed Workbench boundary and add a collapse-to-reopen continuity step to the live Canvas contract. Add no persistence, job, route, provider, or mutation capability.",
+        "acceptanceRecommendation": "ACCEPT"
+      }
+    ],
+    "overreachAssessment": "No overreach found. The corrected tree adds no provider, network, credential, filesystem, shell, browser, mutate, external-effect, authority, background-process, persistent-storage, Deep Agents, LangGraph, LangSmith, deployment, or release capability. The teammate POST remains the seven authorized same-origin assignment keys with no selection or edit ID. Blocked A4 motion, the draft operating environment, embedded browser, collaboration, provider and model routing, skills, memory, scheduling, persistence, background agents, deployment, release, and new Page IR mutation remain correctly deferred and untouched.",
+    "underreachAssessment": "The selected section is otherwise fully represented: the validated static roster, deterministic proposal contract, terminal receipts, bounded Canvas states, accessible controls, textual status and error output, explicit no-provider placeholder labeling, selection display-only boundary, and typed mutation separation are present. All sixteen accepted findings from the first two passes are closed in current behavior and the R-02 rejection is backed by the radio-Enter oracle. The remaining interaction underreach is collapse continuity in F5-FINAL-02.",
+    "authorityAssessment": "OBX-AUTH-ATF-001 remains unchanged at read plus propose with no runtime dependency and the same path and evidence-prefix cage. Modified product files are inside the cage; the authority digest change is packet-digest-only and the evidence files use authorized prefixes. Canonical documents match current no-store, display-only selection, terminal receipt, and tool plus View/Edit retention behavior. No authority drift was found.",
+    "proofAssessment": "The reviewer read the listed normative, implementation, test, harness, and evidence surfaces plus the exact Grok closures with no commands, web, or delegation. It judged the live network, focus, retention, and accessibility oracles substantive. It found the T3/T4 hash binding and 21-versus-23 count inconsistent and found no retained collapse-to-reopen oracle. Compact 768 and 390 execution and the remaining full gates were correctly recorded as pending rather than claimed.",
+    "residualRisks": [
+      "The current strengthened Agent Studio live proof has been recorded only at 1440; compact widths and remaining full gates are pending.",
+      "The radio-Enter and focus behavior are Chromium-specific until a supported-browser set is frozen.",
+      "The client POST has no timeout or AbortController, so a hung local request can keep the pane locked until run change or reload.",
+      "The local proposal contract is validated independently in the route and client adapter, with drift caught by tests rather than a shared schema.",
+      "Agent Studio mode controls expose aria-pressed without a separate active visual class.",
+      "The retained Site Advice pane remains a separately governed pre-existing mutation surface.",
+      "Client receipt binding trusts the local route for hashes and the injected proposal callback remains a trusted in-process seam.",
+      "The task-origin aria-invalid branch is directly tested but unreachable through the current disabled-empty native form path.",
+      "Process-local Agent Studio results reset intentionally when teammate, task, data class, or run identity changes.",
+      "The final full security, independent verification, commit, push, and remote parity gates remain pending."
+    ]
+  }
+}

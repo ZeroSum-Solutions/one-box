@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T11:06:55.075Z",
+  "request": {
+    "task": "T0 final Canvas Agent Studio audit scope, authority cage, and baseline",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-baseline-runs.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md"
+    ],
+    "proofs": [],
+    "diffBytes": 11050
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4888,
+      "completion_tokens": 27757,
+      "total_tokens": 32645,
+      "cost": 0.176126,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.176126,
+        "upstream_inference_prompt_cost": 0.009584,
+        "upstream_inference_completions_cost": 0.166542
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 26820,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-baseline-runs.json",
+        "line": "12,15,44,47",
+        "scenario": "The published stdout strings are not the same byte sequences as stdoutBytes (and therefore cannot be the preimage of transcriptSha256). Decoded verify:plans stdout is 248 bytes including the trailing LF, but stdoutBytes is 247. Decoded focused vitest stdout is 701 bytes, but stdoutBytes is 698. Input is the artifact itself: any verifier hashing the embedded stdout will not recover the recorded digest, and any verifier trusting stdoutBytes will reject the embedded transcript. That breaks the required bind of plan/focused-test results to transcript bytes/hashes.",
+        "remediation": "Re-capture with spawnSync({shell:false}), persist Buffer.byteLength(stdout)/stderr unchanged, set transcriptSha256 to sha256 of those exact bytes, and JSON-escape that same buffer in stdout. Do not edit newlines to make the prose look nicer."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md",
+        "line": "33-36",
+        "scenario": "Named A/B/G/M rows are hashed with extraction rule git show 899b394:<path>, while two different files are fully hashed immediately above (docs/specs/2026-08-16-canvas-upgrade.md and docs/plans/one-box-master/02-canvas/index.md). A reproducer cannot know which tree path the table-row slices came from, so the per-criterion byte-binds are not immutable.",
+        "remediation": "Replace the <path> placeholder with the single real tree path used for each row (almost certainly docs/specs/2026-08-16-canvas-upgrade.md) and state that the index hash is continuity-only, not the row preimage."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md",
+        "line": "93-95",
+        "scenario": "The claimed exhaustive OBX-AUTH-ATF-001 path cage ends by incorporating 'bounded supporting evidence prefixes already enumerated in OBX-AUTH-ATF-001, including the 2026-08-30 AI teammate goal-evidence and exact Grok 4.6 prefixes.' Those paths are not listed. Self-contained T0 therefore does not freeze the writeable evidence surface; later files can be treated as in-cage by pointing at the ticket.",
+        "remediation": "Copy every allowed evidence prefix/exact path from OBX-AUTH-ATF-001 into this receipt as a closed list. Leave the ticket as the authorizer, not as the path catalog."
+      }
+    ],
+    "proof_assessment": "The slice only contains the two T0 receipts; spec/index/tree/criterion hashes and the 9183-byte test:plans preimage are assertions, not checkable here. What is checkable already fails: stdoutBytes disagrees with embedded stdout for both short runs, so the transcript oracles are not self-consistent. Cage text correctly limits effects to read/propose and separates audit dependencies from implementation authorization, but it is not a closed path list. Extraction rules for the Local Canvas section and full upgrade/index files are otherwise stated.",
+    "residual_risks": [
+      "Spec, tree, authority-packet, and per-row SHA-256 values cannot be recomputed from this allowlist; a wrong hash would freeze the wrong bytes.",
+      "Focused-test digest embeds cwd and vitest Start at wall time, so it records one machine run rather than a portable golden transcript.",
+      "transcriptHashRule uses stdout || stderr, which is ambiguous (JS or vs concatenation) if a future failing run has both streams.",
+      "Inventory names LocalAiTeammatePanel.tsx while the focused argv runs AiTeammatePanel.test.tsx; file identity is unproven in this slice.",
+      "invalidInvocation omits argv/cwd/byte counts/hash, so the failed glob command is not replayable even though it is correctly marked baselineEvidence false."
+    ]
+  }
+}

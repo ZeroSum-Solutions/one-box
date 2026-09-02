@@ -1,0 +1,155 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T04:16:01.337Z",
+  "request": {
+    "task": "Deep Agents JS teammate operating model and adoption decision",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "7167a2488a7a0b82f1b5df0fde6b96e1e7b869ef",
+    "head": "9d4ddfddc83efa2af5a560500cd87c787b7035f3",
+    "files": [
+      "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md",
+      "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/plans/one-box-master/04-operating-environment/index.md",
+      "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md",
+      "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md",
+      "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
+      "docs/tickets/one-box-program/OBX-P140.md"
+    ],
+    "proofs": [
+      "docs/audits/evidence/2026-08-29-planning-remediation-verification.md",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md"
+    ],
+    "diffBytes": 143756
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 38918,
+      "completion_tokens": 17310,
+      "total_tokens": 56228,
+      "cost": 0.181504,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.181504,
+        "upstream_inference_prompt_cost": 0.077644,
+        "upstream_inference_completions_cost": 0.10386
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 15111,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+        "line": "96,113-114",
+        "scenario": "A parent job allowlists only `read`/`propose`. A child/subagent explicitly lists `mutate` or `authority`. The packet never defines effective permissions as parent∩child or as a construction error on superset. The child can be built with tools the parent does not have, which is privilege expansion through delegation rather than explicit permission intersection.",
+        "remediation": "Normatively require child tools/permissions ⊆ parent, effective grants = parent∩child, and fail closed on any child tool, data class, or effect not present on the parent before model execution."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+        "line": "96 vs 113-114",
+        "scenario": "Run contract says omitted tools mean no tools and never inheritance, so a job/subagent with a missing tool list still starts. The tool-boundary section and fixture AR-002 require omitted parent/subagent tool lists to be a construction error before model execution. Implementers can pick silent zero-tool continuation or hard fail; omitted child lists can also be misread as empty rather than invalid.",
+        "remediation": "Make one fail-closed rule: missing or null parent/child tool and permission lists are construction errors; empty lists are allowed only when explicitly written `[]` and still intersected with the parent."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json",
+        "line": "results T1–T11 / T11",
+        "scenario": "Evaluation-plan T11 PASSes only if the immutable manifest includes paths, hashes, environment, and a raw evidence pointer per test. The in-repo receipt stores only `{id, result: PASS}` with no pointers, environment, or per-test hashes, while `overall` is `PASS` and the evaluation plan is marked complete. ADR 0003 still says the Grok 4.6 audit, named owner decision, and independent verification are not done. The Deep Agents decision is therefore justified by an evidence report that fails its own oracle.",
+        "remediation": "Mark T11/`overall` incomplete until each test has a pointer plus hash, attach the required Grok packet-hash audit and finding register, and keep disposition `adapt` only as proposed research until that verification exists."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md",
+        "line": "T4 row",
+        "scenario": "Plan T4 and corpus AR-003 require symlink probes (plus absolute/traversal) to fail closed outside the ephemeral job root. The normalized PASS text only reports absolute, traversal, and home-path failures and never states a symlink result. A symlink escape can still be treated as T4 PASS.",
+        "remediation": "Re-run or quote the symlink probe as its own fail-closed result; if it was not executed, set T4 to `NOT_RUN`/`FAIL` and do not treat filesystem scope as proven."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+        "line": "51-52",
+        "scenario": "Visible roster states are only idle/queued/running/waiting-for-input/challenging/blocked/complete. Budget kill, wall-clock timeout, human reject of an interrupt, retry-cap exhaustion, and construction/route failure have no terminal state. Those runs can appear `blocked` or `complete`, hiding partial-result vs rejected vs cancelled.",
+        "remediation": "Add explicit `failed`, `cancelled`, `rejected`, and `budget-exhausted` states and require a typed receipt for each, including partial output and the stopping condition."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md",
+        "line": "T6 and T7 rows",
+        "scenario": "T6 PASS requires a tracing-on positive control that is observable and killable; the report only shows tracing-off plus OS network-deny and a blocked curl. T7/AR-007 require token, time, and recursion caps with a partial-result receipt; the report only mentions wall-clock cancel and idempotent replay. Hidden LangSmith/fallback or token overrun can still be counted as PASS.",
+        "remediation": "Record separate receipts for tracing-on kill, and for token/currency/recursion stops with partial-result hashes; otherwise mark T6/T7 `NOT_RUN` for the missing probes."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
+        "line": "13-23,54-55,344-346",
+        "scenario": "The shell has seven peer workspaces, only one center surface at a time, Agent Studio as a focused full workspace, and a unified tab strip where Canvas is one pinned tab. That lets Plan/Browser/Agent Studio replace Canvas as the primary interaction surface, against the criterion and against the teammate model’s Canvas-shell UI.",
+        "remediation": "Constrain Agent Studio to drawer/sheet unless Canvas remains the center document surface, and state that Browser/Plan/Team never become the default primary workspace for design or mutation work."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+        "line": "21-26 vs 69-80",
+        "scenario": "The ADR proposed decision still evaluates Deep Agents JS as an ADR 0002 Zone 3 isolated job runtime. Ledger `SC-GH-009` already dates `adapt` and says runtime adoption is closed. A reader of the ADR decision section can keep a job-plane runtime path open while the ledger claims it is closed.",
+        "remediation": "Rewrite the ADR decision to `adapt-patterns-only`, no job-plane runtime candidate, matching the ledger stop-gate, until a new intake/evaluation exists."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json",
+        "line": "comparison",
+        "scenario": "The evaluation plan requires the same synthetic tasks on the current ONE BOX controller/AI SDK baseline. The comparison only lists candidate wrapper lines, package counts, and qualitative costs, with `materialRuntimeAdvantage: false` and no baseline metrics. Closing runtime adoption and choosing pattern extraction is an unsupported comparative claim.",
+        "remediation": "Publish the baseline run’s dependency, policy, interrupt, cancel, and receipt measurements for the same fixtures, or label the comparison architectural opinion rather than spike evidence."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+        "line": "29",
+        "scenario": "After propose/challenge/verify/receipt the flow is `human decision or guarded ONE BOX transition`. Guarded transitions are not enumerated, so mechanically verified output could auto-apply, auto-accept a requirement, or close a gate without a named human, conflicting with teammate tables that forbid approval authority.",
+        "remediation": "List the only non-human transitions (e.g. persist receipt, mark mechanically verified, stop). Require a named human for accept, apply, qualify, release, risk, and ticket authorization."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
+        "line": "10.2 Adopt",
+        "scenario": "Screenshot-to-code pattern study is headed `Adopt` while ledger `SC-GH-005` is `adapt` with no code use. Supply-chain vocabulary treats `adopt` as allowed code use, so this heading can be read as implementation clearance.",
+        "remediation": "Rename the heading to pattern extraction/`adapt` and restate no repository copy or code use."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+        "line": "165-176",
+        "scenario": "Roster, interrupt cards, compare mode, and activity filters have no keyboard, name/role, or non-color failure semantics. Interrupt approve/reject can be unusable or unannounced for assistive tech when this UI is built from the draft.",
+        "remediation": "Require keyboard operation, accessible names, and textual state for roster, assignment composer, and interrupt cards in the interface contract."
+      }
+    ],
+    "proof_assessment": "The supplied verification receipt is at BASE REF 7167a248, not worktree HEAD 9d4ddfdd, and covers unrelated plan-verifier hashes. The spike markdown is the same claimed receipt as the diff, not independent reproduction of external commit 32ea73c0, evidence SHA-256 63c69727…, or T1–T11 logs. In-packet T11 lacks the pointers the evaluation plan requires; ADR 0003 still waits for Grok 4.6, owner decision, and independent verification. Treat PASS/adapt as unverified claims.",
+    "residual_risks": [
+      "External spike tree and lockfile are outside this git slice, so pin/integrity/network/credential claims cannot be reproduced here.",
+      "authority-manifest packetDigest c01313fd… is not checked against these bytes.",
+      "PROG-EVAL-SEC-AGENT-001 and PROG-EVAL-COST-001 are referenced by the corpus but not defined in this diff.",
+      "Owner tickets OBX-P180/OBX-P310 are cited as parents; the only ticket in the slice is OBX-P140, which does not bind the teammate model or Deep Agents decision.",
+      "Named legal review of deepagents@1.13.2 and transitives remains incomplete; safe only while codeUseAllowed stays false."
+    ]
+  }
+}

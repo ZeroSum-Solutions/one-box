@@ -482,6 +482,13 @@
   background: var(--surface-carbon);
 }
 
+/* Agent Studio stays process-local and mounted across collapse. Explicitly
+   keep the retained panel out of layout rather than relying only on the
+   browser's user-agent [hidden] rule, which an authored display can override. */
+.workbench-panel[hidden] {
+  display: none;
+}
+
 .workbench-panel__header {
   display: flex;
   align-items: flex-start;
@@ -1617,6 +1624,251 @@
   .motion-grid,
   .token-actions,
   .motion-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- Agent Studio --------------------------------------------------
+   Compact local teammate composition inside the incumbent assistant rail.
+   Site advice remains a secondary mode; only Create proposal uses the shared
+   filled-primary treatment. */
+
+.agent-studio,
+.ai-teammate-panel,
+.ai-teammate-assignment,
+.ai-teammate-result {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.agent-studio__modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-8);
+}
+
+.agent-studio__modes .seg-pill {
+  width: 100%;
+  justify-content: center;
+}
+
+.agent-studio__boundary,
+.ai-teammate-panel__notice,
+.ai-teammate-permissions,
+.ai-teammate-assignment__error,
+.ai-teammate-result,
+.ai-teammate-receipt {
+  margin: 0;
+  padding: var(--spacing-12);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+  color: var(--text-fog);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.agent-studio__site-advice > h2,
+.ai-teammate-panel__intro h2,
+.ai-teammate-result h3,
+.ai-teammate-receipt h3 {
+  margin: 0;
+  color: var(--text-bone);
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-semibold);
+}
+
+.agent-studio__site-advice {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.agent-studio__boundary,
+.ai-teammate-panel__notice {
+  border-left-color: var(--accent-teal);
+}
+
+.ai-teammate-panel__intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+
+.ai-teammate-roster {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.ai-teammate-roster legend,
+.ai-teammate-assignment > label {
+  color: var(--text-bone);
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-medium);
+}
+
+.ai-teammate-roster > p,
+.ai-teammate-assignment > p {
+  margin: 0 0 var(--spacing-8);
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  line-height: 1.4;
+}
+
+.ai-teammate-roster__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--spacing-8);
+}
+
+.ai-teammate-role {
+  display: grid;
+  min-width: 0;
+  min-height: var(--control-h);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--spacing-8);
+  padding: var(--spacing-8);
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+  color: var(--text-fog);
+  cursor: pointer;
+}
+
+.ai-teammate-role:has(input:checked) {
+  border-color: var(--accent-teal);
+  color: var(--text-paper);
+}
+
+.ai-teammate-role:focus-within {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+.ai-teammate-role input {
+  margin: 0;
+  accent-color: var(--accent-teal);
+}
+
+.ai-teammate-role span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.ai-teammate-role strong {
+  color: var(--text-bone);
+  font-size: var(--text-label-size);
+  font-weight: var(--weight-medium);
+}
+
+.ai-teammate-role small {
+  color: var(--text-ash);
+  font-size: var(--text-caption-size);
+  line-height: 1.35;
+}
+
+.ai-teammate-permissions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.ai-teammate-permissions strong {
+  color: var(--text-bone);
+  font-weight: var(--weight-medium);
+}
+
+.ai-teammate-assignment textarea,
+.ai-teammate-assignment select {
+  width: 100%;
+  border: 1px solid var(--border-graphite);
+  border-radius: var(--radius-control);
+  background: var(--surface-obsidian);
+  color: var(--text-bone);
+  font: inherit;
+}
+
+.ai-teammate-assignment textarea {
+  min-height: calc(var(--control-h) * 3);
+  padding: var(--spacing-12);
+  resize: vertical;
+}
+
+.ai-teammate-assignment select {
+  min-height: var(--control-h);
+  padding: 0 var(--spacing-12);
+}
+
+.ai-teammate-assignment textarea:focus-visible,
+.ai-teammate-assignment select:focus-visible {
+  outline: 2px solid var(--accent-teal);
+  outline-offset: 2px;
+}
+
+.ai-teammate-assignment .btn-primary {
+  align-self: flex-start;
+}
+
+.ai-teammate-assignment__error {
+  border-left-color: var(--border-smoke);
+  color: var(--text-bone);
+}
+
+.ai-teammate-assignment__error p,
+.ai-teammate-result > p {
+  margin: 0;
+}
+
+.ai-teammate-result > p strong {
+  font-weight: var(--weight-medium);
+}
+
+.ai-teammate-receipt dl {
+  display: grid;
+  gap: var(--spacing-8);
+  margin: var(--spacing-8) 0 0;
+}
+
+.ai-teammate-receipt dl > div {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr);
+  gap: var(--spacing-8);
+  border-top: 1px solid var(--border-graphite);
+  padding-top: var(--spacing-8);
+}
+
+.ai-teammate-receipt dt {
+  color: var(--text-ash);
+}
+
+.ai-teammate-receipt dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-bone);
+}
+
+@media (max-width: 768px) {
+  .agent-studio__modes .seg-pill,
+  .ai-teammate-role,
+  .ai-teammate-assignment select,
+  .ai-teammate-assignment .btn-primary {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 720px) {
+  .ai-teammate-roster__grid,
+  .ai-teammate-receipt dl > div {
     grid-template-columns: minmax(0, 1fr);
   }
 }

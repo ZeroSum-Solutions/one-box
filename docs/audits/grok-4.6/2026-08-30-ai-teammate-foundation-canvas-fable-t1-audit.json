@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T10:39:04.974Z",
+  "request": {
+    "task": "T1 exact Fable 5 initial full-section Canvas Agent Studio audit evidence",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json"
+    ],
+    "proofs": [],
+    "diffBytes": 13751
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 4119,
+      "completion_tokens": 9121,
+      "total_tokens": 13240,
+      "cost": 0.062772,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.062772,
+        "upstream_inference_prompt_cost": 0.008046,
+        "upstream_inference_completions_cost": 0.054726
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 7972,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json",
+        "line": "target.selectedSection",
+        "scenario": "A consumer treats this artifact as proof that claude-fable-5 audited the entire selected spec section 'docs/specs/2026-08-29-ai-teammate-foundation-v1.md — Local Canvas and API surface' and every integrationBoundary clause. The file only stores a section title, seven boundary phrases, eight implementation findings, and a keep-list. There is no requirement inventory, inspected-symbol map, or per-boundary result (finding id / no-finding / out-of-scope), so unread subsections and unaudited boundary clauses are indistinguishable from audited-clean ones.",
+        "remediation": "Add a closed coverage table for every selected-section requirement and each integrationBoundary clause, binding each row to the file/symbol inspected and to a finding id or explicit no-finding; do not claim completeness until that table is populated."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json",
+        "line": "overreachAssessment",
+        "scenario": "The criterion requires distinguishing underreach, overreach, duplication, authority drift, and deferred scope. Only overreach is a named assessment. Every finding.authorityDisposition is the same 'inside-current-scope' token, and deferred/out-of-slice items are mixed into residualRisksNotAcceptedAsCurrentCorrections and proofGaps. If the Fable driver had underreach, duplication, or authority-drift results, dropping them would be silent.",
+        "remediation": "Add explicit underreachAssessment, duplicationAssessment, authorityDriftAssessment, and deferredScopeAssessment fields. Write 'none observed' only when that was the driver's result; never encode absence by omitting the key."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json",
+        "line": "driver",
+        "scenario": "requestedModel, reportedModel, and canonicalModel all say claude-fable-5 with fallback none, but the slice has no runtime model string, ordered read/tool log, or hash of the selected section at target.commit. proofGaps already admit the run executed no test, typecheck, build, or E2E. The driver block is therefore self-attestation and cannot detect a different model, a partial file set, or a reconstructed write-up.",
+        "remediation": "Bind the driver to checkable proof: runtime model id, the existing session identifiers, ordered paths/sections read, and a content hash of the selected spec section at target.commit."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json",
+        "line": "findings",
+        "scenario": "proofGaps state F-01 incidence was alphabet-derived, F-04 reachability was computed not executed, and F-08 focus behavior was inferred, yet those items remain in findings[] at HIGH/MEDIUM with no per-finding evidenceGrade. A later correction pass can treat unverified static inference as deterministic proof of product defects.",
+        "remediation": "Attach evidenceGrade (observed|computed|inferred) and the matching proofGaps id on each finding; keep severity but do not present unexecuted claims as equivalent to measured failures."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json",
+        "line": "findings[F-07].line",
+        "scenario": "F-07 cites src/components/preview/AiTeammate/AiTeammatePanel.test.tsx line 1 for a whole-file keyboard/E2E oracle gap, so the missing keyboard.press/focus/busy-lock assertion cannot be located or re-verified.",
+        "remediation": "Cite the specific describe/it/helper and the Canvas E2E symbol that lack a real keyboard path, or mark the finding as file-scoped explicitly."
+      }
+    ],
+    "proof_assessment": "The artifact is advisory under OBX-AUTH-ATF-001, names claude-fable-5 with no fallback, keeps an eight-finding list plus proofGaps, and does not authorize implementation or release. It does not truthfully prove an exact Fable 5 driver completed the selected section and integration boundary: there is no section/boundary coverage map, no files-read binding, and no first-class underreach, duplication, authority-drift, or deferred-scope results. Several HIGH/MEDIUM items are disclosed as unexecuted inference, so they are preserved claims, not deterministic proof.",
+    "residual_risks": [
+      "Original Fable transcript is not in the slice, so dropped or rewritten findings cannot be detected",
+      "Application line citations cannot be checked from this docs-only slice",
+      "target.tree is not proven against target.commit in-slice",
+      "Static unexecuted review may have missed runtime authorization, lifecycle, and oracle defects on the live Canvas Agent Studio surface"
+    ]
+  }
+}

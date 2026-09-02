@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T14:26:28.840Z",
+  "request": {
+    "task": "T3C2 final closure for live Canvas Agent Studio keyboard, selection-body, busy-lock, focus, and continuity oracle",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "scripts/e2e/canvas-contract.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 32779
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 9629,
+      "completion_tokens": 21947,
+      "total_tokens": 31576,
+      "cost": 0.150748,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.150748,
+        "upstream_inference_prompt_cost": 0.019066,
+        "upstream_inference_completions_cost": 0.131682
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20951,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio tool-switch restore",
+        "scenario": "After Create placeholder proposal succeeds, the oracle clicks 'Selection and layout', asserts the retained wrapper inactive, then reopens Agent Studio. That restore only checks Assignment inputValue, the 'Placeholder proposal' heading, and 'Assigned task: …'. It never checks the selected teammate radio, 'Role template: QA Challenger', or the Run receipt. A product that drops roster selection, role, or receipt on tool switch still passes, violating 'Each restore proves assignment, selected teammate, role/task, result heading, and receipt.' View/Edit restore is stricter, so the gap is one-sided and false-green.",
+        "remediation": "Reuse the View/Edit restore assertions on the tool-switch path: selectedRadio.isChecked(), Role template text, Assigned task, Placeholder proposal heading, and Run receipt heading (plus assignment value already checked)."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "radios.evaluateAll(inputs => inputs.every(input => input.disabled))",
+        "scenario": "During the held POST the oracle asserts every matched radio is natively disabled. getByRole('radio') excludes hidden nodes and evaluateAll does not retry; [].every(...) is true. If the busy state unmounts, display:none, or aria-hides the eight radios instead of disabling them, the hold still passes. The assertion message claims a roster option remained enabled, but a missing roster never fails.",
+        "remediation": "In the same evaluateAll, assert inputs.length === 8 and every input.disabled === true (and/or assert radios.count() === 8 immediately before). Do not treat an empty match as locked."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "focusOutline.color !== focusOutline.background",
+        "scenario": "Keyboard-focus proof only compares computed outlineColor/outlineWidth/outlineStyle/alpha strings. Equivalent colors serialize differently (rgb(0, 0, 0) vs rgba(0, 0, 0, 1), comma vs space) and pass notEqual while blending into the submit background. A 0.003 alpha still passes alpha > 0. The criterion's 'color differs from submit background' can therefore false-green.",
+        "remediation": "Parse RGB(A) to numeric channels, require alpha above a real visibility floor (e.g. >= 0.5), and compare channels—not raw CSS strings—against backgroundColor."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "mode buttons isDisabled() during hold",
+        "scenario": "Radios are checked via HTMLInputElement.disabled; submit is explicitly native-enabled + aria-disabled + a second Enter/postCount probe. Teammates/Site advice only use Playwright isDisabled(), which is true for aria-disabled='true' even when a real click/keyboard still switches modes. No Tab/Enter/click probe runs against the mode group during the hold, so a busy UI that only paints aria-disabled on modes false-greens 'both modes lock'.",
+        "remediation": "While held, assert native disabled or otherwise block activation, then press the mode buttons (force or dispatch) and assert pane/mode did not change and postCount stayed 1."
+      }
+    ],
+    "proof_assessment": "No runtime proof artifacts were supplied; this is a static oracle review of scripts/e2e/canvas-contract.mjs. Selection is now required for workbench-agent-studio, roster/boundaries/POST seven-key and editId leak checks, waitForRequest-before-Enter, route handler count/hold, and try/finally release+unroute are present and do not deadlock on assertion failure. Continuity and busy-lock claims are weaker than the written criterion and can still pass green.",
+    "residual_risks": [
+      "createProposal is teammatePane.locator('button[type=submit]') while visibility is waited on a separate named role; a hidden extra submit would steal disabled/focus/POST assertions.",
+      "JSON.stringify(headers/body).includes(selectedEditId) misses encoded/path leaks and can false-fail on short IDs that appear in unrelated strings.",
+      "Tab-cycle wrap requires the click target to stay in sequential tab order; body/iframe activeElement can false-fail rather than false-green.",
+      "outline-only focus misses box-shadow rings (false-fail) and is Chromium-specific."
+    ]
+  }
+}

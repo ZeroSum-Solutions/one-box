@@ -314,9 +314,38 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
 | REPO-007 | S2 | **FIXED** | `~/projects/one-box-worktrees/obx-p180-t03-t05-offline-wave-recovery` carries uncommitted drafts of the two OBX-P180 verifier scripts whose bytes differ from the pushed checkpoint `1c39259` (file mtimes 13:36 and 13:41 on 2026-09-01; the checkpoint was cut at 15:47). The four JSON records match. An agent that resumes from that worktree starts from superseded code. | SHA-256 of `scripts/verify-plan-authority.node.mjs` and `scripts/verify-p180-phase1-terminal-correction-authorization.mjs` in the worktree vs `git show 1c39259:<path>` |
 | REPO-008 | S3 | DOCUMENTED | The 2026-08-20 board's first item (DEF-1, publish before gates) was already fixed on `main` by OBX-012 (`status: verified`, PR #16) before the board reached `main`. The board was written on a branch two commits behind `main`, so its line references had also moved. | `docs/tickets/page-ir-safe-pipeline/OBX-012-gate-before-publish.md`; PR #16 |
 | REPO-009 | S1 | TRACKED | The OBX-P180 terminal verifier has five open independent-review findings (AST scanner bypass, resealable immutable history, fail-open expiry, reads after a rejected file type, malformed proof rows that throw) plus `SEC-001` and `SEC-002` from the `-002` security gate. Tracked in the goal state; not duplicated here. | `task-6-final-review.md` in the Codex terminal worktree; `~/.claude/goal-state/obx-p180-t03-t05-offline-wave/summary.md` |
-| REPO-010 | S1 | OPEN | `npm run verify:plans` (CI job "Verify plan authority and traceability" on lineage C) fails on every fresh checkout: `OBX-AUTH-P180-T01-SOLO-001` and `-T02-SOLO-001` pin `preExistingUntrackedBaseline` to the untracked protected handoff `.claude/handoffs/one-box-operating-environment-next-phase.md`, and `scripts/verify-plan-authority.mjs:609` enforces that hash in every mode. CI can never hold that file. First observed on PR #19 run 33591356178 (fails in 10s, before tests run). Fix belongs inside OBX-P180 verifier authority: enforce the untracked baseline only in solo-local modes and report it as skipped under `GITHUB_ACTIONS`. | PR #19 run 33591356178; `scripts/verify-plan-authority.mjs:609`; `scoped-implementation-authorizations.json` T01/T02 `preExistingUntrackedBaseline` |
-| REPO-011 | S1 | OPEN | `npm test` fails on lineage C: `scripts/eval/obx-p180-contract-fixtures.test.mjs` is a `node:test` file, but the repo has no Vitest config, so Vitest's default include glob loads it and reports "No test suite found in file" (1 suite failed, 1399 passed). Its 18 assertions run in no npm script either; every other node-test file uses the `.node.mjs` suffix. The file is a frozen T01 artifact with a pinned digest, so renaming it means amending an immutable record. Preferred fix: add a Vitest config that scopes `include` to `src/**`, leaving the frozen file untouched. | 62b7b74; `npx vitest run scripts/eval/obx-p180-contract-fixtures.test.mjs` exit 1 on 2026-09-01; independent review on PR #19 |
+| REPO-010 | S1 | **FIXED** | `npm run verify:plans` (CI job "Verify plan authority and traceability" on lineage C) fails on every fresh checkout: `OBX-AUTH-P180-T01-SOLO-001` and `-T02-SOLO-001` pin `preExistingUntrackedBaseline` to the untracked protected handoff `.claude/handoffs/one-box-operating-environment-next-phase.md`, and `scripts/verify-plan-authority.mjs:609` enforces that hash in every mode. CI can never hold that file. First observed on PR #19 run 33591356178 (fails in 10s, before tests run). Fix belongs inside OBX-P180 verifier authority: enforce the untracked baseline only in solo-local modes and report it as skipped under `GITHUB_ACTIONS`. | PR #19 run 33591356178; `scripts/verify-plan-authority.mjs:609`; `scoped-implementation-authorizations.json` T01/T02 `preExistingUntrackedBaseline` |
+| REPO-011 | S1 | **FIXED** | `npm test` fails on lineage C: `scripts/eval/obx-p180-contract-fixtures.test.mjs` is a `node:test` file, but the repo has no Vitest config, so Vitest's default include glob loads it and reports "No test suite found in file" (1 suite failed, 1399 passed). Its 18 assertions run in no npm script either; every other node-test file uses the `.node.mjs` suffix. The file is a frozen T01 artifact with a pinned digest, so renaming it means amending an immutable record. Preferred fix: add a Vitest config that scopes `include` to `src/**`, leaving the frozen file untouched. | 62b7b74; `npx vitest run scripts/eval/obx-p180-contract-fixtures.test.mjs` exit 1 on 2026-09-01; independent review on PR #19 |
 | REPO-012 | S2 | OPEN | Lineage C code paths outside every authorization record: `.github/workflows/ci.yml`, `.github/pull_request_template.md`, `.github/ISSUE_TEMPLATE/feature.yml`, `package.json` (commit `9d4ddfd`); `scripts/eval/grok-audit.mjs` edited in `8587256` then retro-frozen in T01; three unwired source-adoption scripts added in `62b7b74` (`scripts/eval/obx-p180-source-adoption-fixtures.mjs`, `...-fixtures.node.mjs`, `scripts/verify-obx-p180-source-adoption.mjs`) that no npm script or CI job runs. The manifest's own governing rule says proposed artifacts cannot authorize implementation, so the code and the authority record disagree. Resolution: record explicit exceptions in `scoped-implementation-authorizations.json`, and wire or delete the three scripts. | Independent review on PR #19; `authority-manifest.json` `engineering-operating-system` domain (`authorityClass: proposed`) |
+
+### Resolutions — 2026-09-02
+
+- **REPO-010:** `scripts/verify-plan-authority.mjs` keeps the exact
+  `preExistingUntrackedBaseline` record binding in every mode and skips only the
+  local file read when `GITHUB_ACTIONS=true`, announced on stdout as `NOTE`. The
+  node test copies the baseline only when present and covers the absent, drifted,
+  and CI cases; the CI-mode record-binding assertion forces `GITHUB_ACTIONS=true`
+  itself (independent review finding on PR #19). Packet digest and T02 receipt
+  target hashes re-pinned per
+  `docs/audits/evidence/security/2026-09-02-obx-p180-ci-oracle-authority-repin.json`.
+  On a machine that does not hold the baseline run
+  `GITHUB_ACTIONS=true npm run test:plans`.
+- **REPO-011:** `vitest.config.ts` scopes `include` to
+  `src/**/*.{test,spec}.?(c|m)[jt]s?(x)`; 1399 tests pass and the frozen
+  `scripts/eval/obx-p180-contract-fixtures.test.mjs` is untouched.
+- **REPO-012 (still OPEN, annotated):** left open by W0.0 on purpose. The T01
+  verifier freezes the authorization record list to exactly three ids and T01/T02
+  pin `package.json` by hash, so recording exceptions needs the EOS-001
+  authority-chain mechanism. `obx-p180-source-adoption-fixtures.node.mjs` already
+  matches the `test:eval` glob. `scripts/verify-obx-p180-source-adoption.mjs`
+  still runs nowhere, and since W0.0 it fails: lines 128-139 hard-code the
+  2026-08-31 re-pin record and assert its `currentAuthorityManifest` and
+  `refreshedT02SecurityReceipt` digests against the live files, which the
+  2026-09-02 re-pin moved. Re-point it at the newest
+  `obx-p180-authority-repin-review-v1` record (or add a `supersededBy` pointer
+  to the 2026-08-31 record) before wiring it; do not wire it red. Re-pin
+  checklist addition: grep for scripts that assert a prior re-pin record before
+  refreshing any digest.
 
 ### Resolutions — 2026-09-01
 

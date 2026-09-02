@@ -1,0 +1,161 @@
+{
+  "schemaVersion": "obx-planning-final-verification-v1",
+  "packetId": "OBX-P180",
+  "createdAt": "2026-08-30",
+  "branch": "research/la-appointment-field-study",
+  "baseCommit": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+  "headCommit": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+  "disposition": "CLOSED / NOT AUTHORIZED",
+  "auditedBindings": {
+    "step7Sha256": "ce4bb95623bc4c3eaef29475f7b582e5feec266063da0cfc0753483e00cc8420",
+    "fableReceiptSha256": "0ae57e0ab128cf12e688fb75cffdc7ac10e687e16f9e4bf2a8ba2a31e718b63e",
+    "step7GrokReceiptSha256": "c26896e6b525f72551681d260280cb3abc8a5fa4d6318f749535a47eaeb06814"
+  },
+  "modelGates": {
+    "exactGrok": {
+      "requestedModel": "x-ai/grok-4.6",
+      "providerModel": "x-ai/grok-4.6",
+      "effort": "high",
+      "steps": 7,
+      "cleanSteps": 7,
+      "findingsInFinalCleanReceipts": 0,
+      "verdict": "CLEAN"
+    },
+    "exactFable": {
+      "model": "claude-fable-5",
+      "effort": "max",
+      "subagentsSpawned": 0,
+      "materialFindings": 0,
+      "lowFindings": 5,
+      "verdict": "CLEAN",
+      "advisoryOnly": true
+    }
+  },
+  "executableGates": {
+    "contractEvaluatorTests": {
+      "passed": 18,
+      "total": 18,
+      "exitCode": 0
+    },
+    "providerOfflineLanes": [
+      {
+        "lane": "cost-capacity-conformance",
+        "passed": 11,
+        "total": 11,
+        "networkPermission": "denied",
+        "providerCallsMade": 0,
+        "verdict": "PASS"
+      },
+      {
+        "lane": "security-conformance",
+        "passed": 9,
+        "total": 9,
+        "networkPermission": "denied",
+        "providerCallsMade": 0,
+        "verdict": "PASS"
+      },
+      {
+        "lane": "human-decision-conformance",
+        "passed": 3,
+        "total": 3,
+        "networkPermission": "denied",
+        "providerCallsMade": 0,
+        "verdict": "PASS"
+      },
+      {
+        "lane": "apply-eligibility-conformance",
+        "passed": 4,
+        "total": 4,
+        "networkPermission": "denied",
+        "providerCallsMade": 0,
+        "verdict": "PASS"
+      }
+    ],
+    "planAuthorityTests": {
+      "passed": 48,
+      "total": 48,
+      "exitCode": 0
+    },
+    "planAuthorityVerification": {
+      "verdict": "PASS",
+      "domains": 17,
+      "tickets": 29,
+      "programEvaluations": 21,
+      "authorityPacketSha256": "5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b",
+      "operatingEnvironmentStatus": "draft",
+      "obxP180Status": "proposed"
+    },
+    "focusedEslint": {
+      "files": [
+        "scripts/eval/grok-audit.mjs",
+        "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "scripts/eval/obx-p180-contract-fixtures.test.mjs"
+      ],
+      "exitCode": 0,
+      "verdict": "PASS"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "verdict": "PASS"
+    },
+    "diffCheck": {
+      "exitCode": 0,
+      "verdict": "PASS"
+    },
+    "secretScan": {
+      "changedFileScan": {
+        "scope": "Every modified and untracked regular file from git status --porcelain=v1 -uall",
+        "leaksFound": 0,
+        "exitCode": 0,
+        "verdict": "PASS"
+      },
+      "repositoryHistoryScan": {
+        "commitsScanned": 137,
+        "findings": 6,
+        "exitCode": 1,
+        "classification": "Historical findings outside the current change set; reported, not waived or rewritten by OBX-P180.",
+        "findingCommits": [
+          "9d4ddfddc83efa2af5a560500cd87c787b7035f3",
+          "cb26ae9f6179e6570ed305262a26ed360bd5a30f"
+        ],
+        "findingPaths": [
+          "docs/eval/one-box-program/traceability.md",
+          "scripts/verify-plan-authority.node.mjs",
+          "src/lib/candidateRecovery.test.ts"
+        ],
+        "currentChangePathsAffected": 0
+      }
+    }
+  },
+  "scopeVerification": {
+    "productRuntimeChanged": false,
+    "dependenciesOrLockfileChanged": false,
+    "providerRoutesChanged": false,
+    "persistenceChanged": false,
+    "browserOrCollaborationChanged": false,
+    "pageIrMutationChanged": false,
+    "deploymentOrReleaseChanged": false,
+    "acceptedAuthorityManifestChanged": false,
+    "frozenCanvasChanged": false,
+    "trackedChangePaths": [
+      "scripts/eval/grok-audit.mjs"
+    ],
+    "untrackedTaskPathClasses": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/",
+      "docs/eval/one-box-program/fixtures/",
+      "scripts/eval/",
+      "docs/audits/grok-4.6/",
+      "docs/audits/fable-5/",
+      "docs/audits/verification/"
+    ],
+    "preExistingUntrackedExcludedFromTask": [
+      ".claude/handoffs/one-box-operating-environment-next-phase.md"
+    ]
+  },
+  "unresolvedHumanGates": {
+    "ownerAcceptance": "NOT_RUN",
+    "namedRoleAssignments": "UNASSIGNED",
+    "independentSecurityVerification": "NOT_RUN / UNASSIGNED",
+    "implementationAuthorized": false
+  }
+}

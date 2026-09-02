@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T19:22:00Z",
+  "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+  "authorization": "OBX-AUTH-ATF-001",
+  "reviewScope": "Every changed shared file listed as an allowedExactPath by OBX-AUTH-ATF-001",
+  "files": [
+    {
+      "path": "docs/architecture/README.md",
+      "beforeSha256": "98df071bb579f1ba5164baf3a20e1a10d258de6b35e9913146a33ac6f2a9f043",
+      "afterSha256": "bd0fe8b0c083fca7b8d20589852b9465f16c5ba6b3342a2b166593f467f6dd55",
+      "numstat": { "added": 27, "deleted": 9 },
+      "review": "Documents the reversible internal project-ID namespace, one retained current-run Agent Studio instance, hidden and inert inactive states, deterministic placeholder truth, terminal receipt boundary, selection display isolation, and no automatic apply or retry. It does not authorize provider, persistence, mutation, collaboration, deployment, or release behavior.",
+      "verdict": "PASS"
+    },
+    {
+      "path": "docs/security/local-api-threat-model.md",
+      "beforeSha256": "69c08235c0d1c582b33f0277eee9844c8743ae00fa31b6b2bde91311a0ff760a",
+      "afterSha256": "cc502382d4253190d6d949f2842ffb5e88b6d26c130ec68897013c6df13e881c",
+      "numstat": { "added": 1, "deleted": 1 },
+      "review": "Clarifies display-only selection, forbidden task content, reversible run-ID mapping, exact success and terminal envelopes, and no apply or automatic retry. It preserves the loopback, read/propose-only, no-provider threat boundary.",
+      "verdict": "PASS"
+    },
+    {
+      "path": "scripts/e2e/canvas-contract.mjs",
+      "beforeSha256": "5ec4c0a0a9a26719986284913312059c5f32c53588868bcb1da2d1d1f1d23f49",
+      "afterSha256": "aff029ced45eac675eab41f03c670a70dc4d9f368528eb7e57eabc8bbb016051",
+      "numstat": { "added": 635, "deleted": 25 },
+      "review": "Adds deterministic live oracles for Agent Studio continuity, inactive and collapsed isolation, focus and keyboard behavior, exact request and response boundaries, retry focus, selection exclusion, terminal receipts, and non-retention at 1440, 768, and 390. It is test-only and performs no product mutation outside existing localhost UI interactions.",
+      "verdict": "PASS"
+    },
+    {
+      "path": "src/app/styles/workbench.css",
+      "beforeSha256": "5f1be606fbe32961718f919fa17ee49f88f950f0b6035e8d62f33c8e7712c55b",
+      "afterSha256": "11238437b99c0a88c9926c15bce96958f8fd1dea960e4ecb1a6abd05ddb35f6c",
+      "numstat": { "added": 7, "deleted": 0 },
+      "review": "Adds layout and wrapping rules for boundary copy and receipt values. No script, network, persistence, credential, or mutation behavior is introduced.",
+      "verdict": "PASS"
+    },
+    {
+      "path": "src/components/preview/Workbench.tsx",
+      "beforeSha256": "9e5a58725dc766f34e568e368a41f1d7b9cc2569d31cc386943adfdc6149abd9",
+      "afterSha256": "75f3b299063a61705acc425debddbed28bcae4df8362cfd21a957701a67b8db7",
+      "numstat": { "added": 47, "deleted": 16 },
+      "review": "Retains exactly one current-run Agent Studio after first open while inactive and collapsed wrappers are hidden, aria-hidden, and inert; other tool panels still unmount. Existing persistent composer and structured mutation callbacks remain separate. No provider, persistence, new route, or automatic mutation path is added.",
+      "verdict": "PASS"
+    }
+  ],
+  "dependencyDiff": "empty",
+  "overallVerdict": "PASS"
+}

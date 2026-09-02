@@ -8,14 +8,20 @@ versioned `DESIGN.md` plus Tailwind v4 tokens, builds a generated site, and open
 an accessible View/Edit workbench with guarded text, action, layout, token, and
 motion changes plus a project-scoped generated-image library.
 
-The current implementation plan and acceptance IDs are in
-[`docs/specs/2026-08-13-refero-editor-requirements.md`](docs/specs/2026-08-13-refero-editor-requirements.md).
+The complete plan corpus starts at the
+[`ONE BOX master plan library`](docs/plans/one-box-master/README.md). Its
+machine-checkable source map is
+[`authority-manifest.json`](docs/plans/one-box-master/00-authority/authority-manifest.json).
+The accepted source/candidate requirements and ticket IDs remain in
+[`2026-08-22-page-ir-safe-pipeline-prd.md`](docs/specs/2026-08-22-page-ir-safe-pipeline-prd.md)
+and [`docs/tickets/page-ir-safe-pipeline/`](docs/tickets/page-ir-safe-pipeline/README.md).
+Program and future-phase planning tickets are separate and remain non-authorizing.
 
 ## Prerequisites
 
 - macOS or Linux
 - Node.js 20.9 or newer and npm
-- GitHub access to the private `wiggdevin/one-box` repository
+- GitHub access to the `ZeroSum-Solutions/one-box` repository
 - ZS Vault access for live model/research runs
 - Refero OAuth authorization for the official Refero MCP
 
@@ -25,7 +31,7 @@ not require model or research credentials.
 ## Install on a Mac
 
 ```bash
-git clone --recurse-submodules https://github.com/wiggdevin/one-box.git
+git clone --recurse-submodules https://github.com/ZeroSum-Solutions/one-box.git
 cd one-box
 git switch main
 git pull --ff-only
@@ -62,6 +68,10 @@ local and are not synchronized through Git.
   monolith boundary and incremental extraction path.
 - [`docs/adr/0001-modular-monolith.md`](docs/adr/0001-modular-monolith.md) records
   why ONE BOX remains one deployable application.
+- [`docs/adr/0002-target-desktop-cloud-topology.md`](docs/adr/0002-target-desktop-cloud-topology.md)
+  is the proposed target topology; it does not supersede ADR 0001 until accepted.
+- [`docs/governance/reviewer-roles.md`](docs/governance/reviewer-roles.md) defines
+  separation of duties and the target approval matrix.
 - [`docs/loops/README.md`](docs/loops/README.md) indexes the bounded engineering
   loops for ticket delivery, repository hygiene, and architecture-preserving
   refactors.
@@ -112,6 +122,8 @@ npm test                    # Vitest suite
 npm run typecheck           # TypeScript
 npm run lint                # ESLint
 npm run build               # Next.js production build
+npm run verify:plans        # program authority and traceability validation
+npm run test:plans          # positive and fail-closed plan-authority tests
 npm run test:smoke          # deterministic generated-site gates
 npm run test:e2e:intake     # rendered intake/upload acceptance
 npm run test:e2e:preview    # rendered View/Edit workbench acceptance

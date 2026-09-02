@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:49:01.936Z",
+  "request": {
+    "task": "OBX-P180-S5-REAUDIT",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/eval/one-box-program/fixtures/capacity-and-cost-fixture-v1.json",
+      "docs/eval/one-box-program/fixtures/obx-p180-apply-eligibility-fixture-v1.json",
+      "docs/eval/one-box-program/fixtures/obx-p180-human-decision-fixture-v1.json",
+      "docs/eval/one-box-program/fixtures/obx-p180-security-fixture-v1.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/05-security-and-executable-evaluations.md",
+      "scripts/eval/obx-p180-contract-fixtures.mjs",
+      "scripts/eval/obx-p180-contract-fixtures.test.mjs"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s5-security-evaluations-findings.json",
+      "docs/security/2026-08-29-program-threat-model.md"
+    ],
+    "diffBytes": 50851,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 6000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24641,
+      "completion_tokens": 21370,
+      "total_tokens": 46011,
+      "cost": 0.17731,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.17731,
+        "upstream_inference_prompt_cost": 0.04909,
+        "upstream_inference_completions_cost": 0.12822
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20972,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The attached Grok 4.6 receipt is stale relative to these bytes: it cites mixed-lane aggregate PASS, fail-open context/identity/permission, missing boundary fail-closed/owner columns, rebound TM-03/08/09/13, hardcoded providerCallsMade, and open parseFixture schemas that are not present in the supplied diff. Current files keep program TM IDs and primary owners, give every trust-boundary row a fail-closed outcome and owner, emit four lane-scoped receipts with no cross-lane score, reject unknown/missing root/case/input/oracle keys via exactKeys, fail closed on unknown/empty identity and authority mapping, refuse to run unless process.permission.has('net')===false, gate metrics.providerCallsMade===0, admit interrupt cancel despite drift, and deny Page IR apply plus compare-arm/auto-apply.",
+    "residual_risks": [
+      "TM-09/TM-13 drop program co-owners (Security and Key Custody for signing roots; Release and Operations for recovery) while keeping the primary owner plus ISV.",
+      "No named-human OwnerAssignmentV1 records exist; owners remain role titles.",
+      "Security lane has no accepted context-authority or matching provider-identity oracle, so an always-mismatch context mapper would still PASS that lane.",
+      "Cancel/reject still require CAS win and a settled attempt; conflict or live-handle cancel is not a terminal cancel.",
+      "Oracle-mismatch and parse failures exit 1/2 with stderr only, so there is no machine-readable FAIL/BLOCKED lane receipt.",
+      "agent-routing-adversarial-corpus-v1 and replay/CAS/duplicate-terminal cases are not executed; those controls stay documentation-only.",
+      "providerCallsMade is an in-process counter with no adapter hook; network denial is the real isolation control."
+    ]
+  }
+}

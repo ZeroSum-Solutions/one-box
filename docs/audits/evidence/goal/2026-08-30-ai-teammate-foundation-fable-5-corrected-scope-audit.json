@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T15:33:29Z",
+  "review": {
+    "reviewer": "Fable 5",
+    "requestedModel": "claude-fable-5",
+    "reportedCanonicalModel": "claude-fable-5",
+    "effort": "max",
+    "accessLane": "Claude Code subscription OAuth",
+    "authMethod": "claude.ai",
+    "fallbackConfigured": false,
+    "terminalReason": "completed",
+    "sessionId": "d68fa64d-bfa1-40de-95de-7161eeac281e",
+    "durationApiMs": 956193,
+    "turns": 62,
+    "webSearchRequests": 0,
+    "webFetchRequests": 0,
+    "subagentsSpawned": 0,
+    "permissionDenials": [],
+    "mainModelUsage": {
+      "inputTokens": 394,
+      "cacheCreationInputTokens": 269997,
+      "cacheReadInputTokens": 810447,
+      "outputTokens": 77954,
+      "thinkingTokens": 62262,
+      "provider": "firstParty",
+      "costUsdReportedByCli": 10.112027
+    },
+    "cliHelperUsage": {
+      "canonicalModel": "claude-haiku-4-5",
+      "inputTokens": 1814,
+      "outputTokens": 22,
+      "costUsdReportedByCli": 0.001924
+    },
+    "captureNote": "Claude Code returned one schema-validated JSON result. The desktop command transport truncated a redundant tail of the 10,725-token outer envelope; this receipt preserves the complete eight-finding set and material assessments visible in the result. Helper usage is disclosed separately and was not a fallback reviewer."
+  },
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "section": "Canvas Agent Studio / Local AI Teammate foundation",
+    "boundary": "deterministic local read+propose only; no provider, persistence, filesystem, network, Page IR/site mutation, browser, collaboration, scheduling, deployment, release, or A4 motion"
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "id": "R-01",
+        "severity": "MEDIUM",
+        "category": "accessibility",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "lineOrSymbol": "LocalAiTeammatePanelContent hasError and textarea aria-invalid",
+        "scenario": "A valid typed assignment followed by a transport, HTTP, or invalid-envelope failure renders the assignment textarea with aria-invalid=true, so assistive technology attributes a non-field failure to valid user input.",
+        "contractEffect": "The accepted F-04 disposition reserved assignment aria-invalid for local assignment validation, but the retained test pins the opposite behavior.",
+        "smallestSafeCorrection": "Carry an error origin and set aria-invalid only for task-field validation; keep the alert in aria-describedby for all error kinds and add both positive and negative unit cases.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "R-02",
+        "severity": "LOW",
+        "category": "accessibility",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "lineOrSymbol": "working roster radios and form implicit submission",
+        "scenario": "Fable infers that Enter on a focused roster radio can implicitly submit in Chromium; the radio then becomes natively disabled and focus may fall to BODY while the request is held.",
+        "contractEffect": "Potential second instance of the accepted F-08 focus-continuity defect, not exercised by the current E2E.",
+        "smallestSafeCorrection": "Reproduce in Chromium; if confirmed, block roster Enter implicit submission or keep the focused radio in a coherent aria-disabled state and add a live one-request/focus oracle.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "R-03",
+        "severity": "LOW",
+        "category": "accessibility",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "lineOrSymbol": "roster error Try again and reloadRoster",
+        "scenario": "Activating Try again replaces the focused button with loading text, dropping focus to BODY; success or repeated error does not restore a coherent keyboard position.",
+        "contractEffect": "The roster recovery control does not meet the section's keyboard/focus contract.",
+        "smallestSafeCorrection": "Retain the retry control while loading with aria-disabled and a duplicate guard, or explicitly focus the loading/re-rendered status; prove the real browser path.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "R-04",
+        "severity": "LOW",
+        "category": "authority-drift",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-selection-display-boundary-proof.md",
+        "lineOrSymbol": "file path and the authority-packet digest proof path",
+        "scenario": "Two new evidence files cited by closure reviews do not begin with an OBX-AUTH-ATF-001 supportingEvidencePrefixes entry, all of which require the 2026-08-30-ai-teammate-foundation- prefix.",
+        "contractEffect": "Evidence placement falls outside the authorization's exhaustive traceability cage; the content remains non-authoritative.",
+        "smallestSafeCorrection": "Rename both artifacts into the authorized prefix and repoint every closure proof reference.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "R-05",
+        "severity": "LOW",
+        "category": "evidence",
+        "file": "src/app/api/ai-teammates/[id]/route.test.ts",
+        "lineOrSymbol": "missing non-complete HTTP 200 envelope case",
+        "scenario": "A schema-valid 2,000-code-unit NUL task exceeds the canonical 8 KiB input budget and returns a five-key HTTP 200 envelope with proposal=null and a budget-exhausted receipt, but no retained route test protects that route-to-Canvas contract.",
+        "contractEffect": "The accepted F-04 route-coverage half and spec non-complete terminal acceptance path remain unproven at the adapter boundary.",
+        "smallestSafeCorrection": "Add a route regression test for the oversized canonical input and exact terminal envelope/receipt fields.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "R-06",
+        "severity": "LOW",
+        "category": "evidence",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t3-corrections.md",
+        "lineOrSymbol": "F-03/F-06 proof claims and canvas-contract live assertions",
+        "scenario": "The ledger says live Canvas checks prove eight static Idle rows, but the E2E has no Idle assertion; it also lacks the promised data-class help text and aria-describedby live checks.",
+        "contractEffect": "The correction record overstates the F-03 live oracle and omits the F-06 Canvas half.",
+        "smallestSafeCorrection": "Add the three live assertions or narrow the ledger to unit-only evidence.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "R-07",
+        "severity": "LOW",
+        "category": "correctness",
+        "file": "src/app/api/ai-teammates/[id]/route.ts",
+        "lineOrSymbol": "unauthorizedResponse, invalidRunResponse, invalidAssignmentResponse",
+        "scenario": "The three JSON error helpers omit Cache-Control while canonical architecture and threat-model prose state that responses are no-store.",
+        "contractEffect": "The documentation header claim is broader than current error behavior.",
+        "smallestSafeCorrection": "Use one shared no-store JSON response init for all three error helpers and add 403/400 header assertions, or narrow both docs.",
+        "acceptanceRecommendation": "ACCEPT"
+      },
+      {
+        "id": "R-08",
+        "severity": "LOW",
+        "category": "evidence",
+        "file": "src/app/api/ai-teammates/[id]/route.test.ts",
+        "lineOrSymbol": "Date.now spy and afterEach",
+        "scenario": "The collision test's Date.now spy is never restored because afterEach calls only vi.unstubAllGlobals; the following timing test runs under the frozen clock and its stoppedAt>=startedAt assertion becomes vacuous and order-dependent.",
+        "contractEffect": "A retained receipt-time oracle cannot fail and test isolation is incomplete.",
+        "smallestSafeCorrection": "Call vi.restoreAllMocks in afterEach in addition to vi.unstubAllGlobals, and prove the unfrozen clock in the following test.",
+        "acceptanceRecommendation": "ACCEPT"
+      }
+    ],
+    "overreachAssessment": "No capability overreach found. The corrected tree adds none of the prohibited runtime, mutation, collaboration, deployment, release, browser, or A4 capabilities. Site Advice retention is an existing separately governed surface, not a newly granted capability. Evidence-path placement is the only scope-cage deviation found.",
+    "underreachAssessment": "Fable considered F-01, F-02 within the claimed tool/View boundary, F-03 product labelling, F-05, F-07, and F-08 for the submit control closed. It identified R-01 through R-08 as the remaining current underreach or proof defects; collapse retention remains explicitly unclaimed.",
+    "authorityAssessment": "OBX-AUTH-ATF-001, its ready ticket status, and prohibited-capability boundary remain unchanged. The authority manifest is packetDigest-only and the supplied verifier receipt binds the current packet. Same-target final security and independent-verification gates remain open. Two evidence artifacts are outside the named supporting-evidence prefix.",
+    "proofAssessment": "Fable read the listed normative, implementation, test, harness, and closure surfaces with no commands, web, or delegation. It accepted the 4-file/28-test and 1440 live-run records as recorded rather than independently executed, judged the live focus/network/retention oracles substantive, and identified the missing or vacuous cases in R-01, R-05, R-06, and R-08.",
+    "residualRisks": [
+      "Corrected-file hashes and the authority digest were recorded but not recomputed by the read-only reviewer.",
+      "Same-target security, dependency-diff, prohibited-capability, and independent-verification gates remain pending.",
+      "The strengthened Agent Studio live oracle has been recorded only at 1440 so far; 768 and 390 remain pending.",
+      "The client POST has no timeout or AbortController, so a hung local request can retain working state until run change or reload.",
+      "Workbench collapse still unmounts draft/result state and remains explicitly unclaimed.",
+      "Client receipt binding trusts the local route for output hashing.",
+      "The hidden retained Site Advice pane remains separately mutating and would need a new boundary if it ever portals UI.",
+      "The injected proposal callback remains a trusted in-process seam."
+    ]
+  }
+}

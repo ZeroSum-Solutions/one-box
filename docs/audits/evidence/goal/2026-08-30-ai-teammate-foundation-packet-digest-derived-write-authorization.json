@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "OBX-AUTH-ATF-DERIVED-001",
+  "status": "authorized",
+  "recordedAt": "2026-08-30T22:16:36Z",
+  "authorizedBy": {
+    "name": "Devin Wiggins",
+    "identityRef": "person:devin-wiggins",
+    "role": "Product and architecture owner"
+  },
+  "parentAuthorization": "OBX-AUTH-ATF-001",
+  "conversationEvidence": {
+    "request": "Authorize authority-manifest.json changes only for deterministic packetDigest refreshes; no other fields may change.",
+    "ownerResponse": "Yes"
+  },
+  "derivedWrite": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "allowedJsonPointers": ["/packetDigest"],
+    "requiredDerivation": "The value must equal the deterministic packet digest reported by npm run verify:plans after already-authorized packet-input changes.",
+    "allowedHunkCount": 1,
+    "prohibitedChanges": "Every other byte and semantic authority field in the manifest must remain unchanged."
+  },
+  "scope": {
+    "appliesOnlyToGoal": "ONE BOX Canvas core-interaction Fable 5 reconciliation on research/la-appointment-field-study",
+    "implementationScopeExpansion": false,
+    "authorityCapabilityExpansion": false,
+    "runtimeEffectExpansion": false,
+    "providerAuthorized": false,
+    "networkAuthorized": false,
+    "persistenceAuthorized": false,
+    "deploymentAuthorized": false,
+    "releaseAuthorized": false
+  },
+  "invalidators": [
+    "any authority-manifest path other than /packetDigest changes",
+    "the packetDigest value does not equal the verifier-computed digest",
+    "any new runtime capability, dependency, provider, persistence, deployment, or release change",
+    "the parent authorization or goal boundary changes"
+  ]
+}

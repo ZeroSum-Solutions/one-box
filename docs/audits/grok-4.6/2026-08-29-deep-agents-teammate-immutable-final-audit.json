@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T04:42:32.954Z",
+  "request": {
+    "task": "Compact immutable Deep Agents teammate final audit",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "a0c932faa2df949db817538726e83e0202c3d417",
+    "head": "c635b5397101cbfe8a48352713e3a739e8f708eb",
+    "files": [
+      "docs/audits/evidence/2026-08-29-deep-agents-immutable-review-packet.md"
+    ],
+    "proofs": [
+      "docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md"
+    ],
+    "diffBytes": 7183
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 5235,
+      "completion_tokens": 10131,
+      "total_tokens": 15366,
+      "cost": 0.071256,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.071256,
+        "upstream_inference_prompt_cost": 0.01047,
+        "upstream_inference_completions_cost": 0.060786
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 9843,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Bounded slice is only the compact packet; proof is the disposition register plus spike markdown, not a0c932 blobs or the external git object. All 12 disposition rows map into Control summary 1–7 and the External spike receipt without restating a weaker rule on human gates, Canvas-as-sole-mutation-surface, parent-child intersection, null-vs-empty construction errors, fail-closed tool/data/tracing/budget stops, accessibility, adapt-patterns-only, or architectural-only comparison. Spike T-series and 15/15 are labeled hash-bound and non-authoritative. SHA-256 table and external commit were not recomputed or rerun here.",
+    "residual_risks": [
+      "Fourteen target SHA-256s and the authority-packet digest were not recomputed against a0c932 blobs in this slice.",
+      "External spike commit 00922f29e0f2ed6f59e6016be9e26f2ef95e56ef and 15/15 assertions remain unreproduced.",
+      "Control 2 compresses finding 5 (omits partial-output hash, stopping condition, retry eligibility); full text is only in hashed operating-model bytes.",
+      "Prior CLEAN re-audit was on uncommitted bytes; commit identity rests on the hash table."
+    ]
+  }
+}

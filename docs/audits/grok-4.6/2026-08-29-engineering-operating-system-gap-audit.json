@@ -1,0 +1,314 @@
+{
+  "verdict": "REVISE",
+  "implementationAuthorization": "NOT_AUTHORIZED",
+  "summary": "The gap register correctly names the core missing contracts (authority chain, topology ADR, narrow Release 1, cloud tenancy, collaboration, browser containment, static Page IR, tests, ops, supply chain, cost, handoff, UX, capability matrix, fallback sunset) and correctly withholds implementation authorization. It is not yet safe as engineering planning policy: the mandatory Grok 4.6 gate is unbounded, recursive, and certificate-like; audit packets have no data-classification or retention rule; live Git/GitHub/runtime snapshot claims are unavailable in this packet; and S0–S11 is not mapped to Page IR tickets, P1–P8, or current contribution/CI contracts. Correct the gate and evidence basis, then re-audit new hashes.",
+  "findings": [
+    {
+      "id": "EOSA-001",
+      "severity": "P0",
+      "category": "grok-gate",
+      "targetSection": "Review rule; §6 Mandatory Grok 4.6 stage gate; §7 Definition of Ready; §8 Definition of Done",
+      "issue": "The owner requirement that each named step is audited by exact x-ai/grok-4.6 is preserved in intent, but the mechanism is an invalid plan gate. DoR/DoD make a model PASS a necessary condition for Ready/Done, which elevates Grok from adversarial reviewer to process certifier despite the disclaimer. The gate applies to every S0–S11 stage, every ticket before work, every PR before merge, and every release candidate with no packet-size/context budget, no same-hash determinism rule, no independence rule against Grok closing Grok findings, no unavailable-model behavior beyond an undefined stop-the-line, and no emergency/rollback protocol that keeps the pin without creating an informal skip. That combination will either halt the website-first track or be waived in shadow process.",
+      "evidence": [
+        {
+          "path": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+          "sectionOrLines": "header Review rule; §6 Audit packet, Verdict rules, Independent verification; §7 last two Ready bullets; §8 Grok PASS and independent reviewer bullets",
+          "support": "Pins x-ai/grok-4.6, forbids substitute models, preserves first REVISE verdict, and says Grok is not a certifier/authority; then requires Grok PASS before Ready, Done, merge, and RC with no packet cap, no reported-model mismatch fail, no same-hash replay rule, no retention/redaction, and no unavailability path other than BLOCKED."
+        },
+        {
+          "path": "docs/tickets/page-ir-safe-pipeline/manifest.json",
+          "sectionOrLines": "tickets array OBX-001 through OBX-051",
+          "support": "Existing Page IR pack already has 25 reviewable tickets. Applying unbounded per-ticket plus per-PR plus per-stage audits without a scoped packet contract is not practicable and would retroactively unset status:ready."
+        }
+      ],
+      "risk": "False certification, self-review recursion, unbounded cost/latency/context, informal waivers, or a hard stop of already-authorized Page IR delivery.",
+      "smallestSafeCorrection": "Keep mandatory exact x-ai/grok-4.6 audit on each named S-stage, ticket, PR, and RC. Rewrite the mechanism: (1) Grok PASS is a stored review_input, never approval/certification; named human owner plus independent verifier remain the only acceptance voices. (2) Fail closed if reported model ≠ x-ai/grok-4.6. (3) Packet is hash-first: exact file list, SHA-256, bounded excerpts/diff, named receipts; no whole-repo inline. (4) One live audit per unique hash set; preserve first verdict; identical hashes reuse the stored verdict or dual-run both results and BLOCKED on disagreement. (5) Grok may not close Grok findings; human dispositions each P0/P1. (6) Unavailable model => BLOCKED, no substitute, no skip; owner may wait or stop-the-line; already-accepted S11 rollback runbooks may execute. (7) Record effort/usage/cost against EOS-012. (8) DoR/DoD wording: tests, independent verification, and human visual/release authority can fail closed even when Grok says PASS; Grok cannot override a failed deterministic check."
+    },
+    {
+      "id": "EOSA-002",
+      "severity": "P0",
+      "category": "security",
+      "targetSection": "§6 Audit packet items 4–8",
+      "issue": "The mandatory audit packet stores raw request, raw response, diffs, test receipts, and candidate identity with no data classification, secret/PII prohibition, redaction, access control, or retention period. Making that packet a required gate creates a new external-model egress path for client evidence, run artifacts, prompts, and credentials that the local-API threat model does not cover.",
+      "evidence": [
+        {
+          "path": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+          "sectionOrLines": "§6 Audit packet",
+          "support": "Requires current diff or immutable candidate identity, tests/evaluations and raw receipts, plus raw request/response with no classification or redaction rule."
+        },
+        {
+          "path": "docs/security/local-api-threat-model.md",
+          "sectionOrLines": "opening; upload/model redaction; ONE_BOX_API_TOKEN never in artifacts/prompts",
+          "support": "Existing threat model is loopback single-user and already forbids secrets in artifacts/prompts; it does not authorize a mandatory third-party audit channel."
+        },
+        {
+          "path": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+          "sectionOrLines": "§4 EOS-005",
+          "support": "Cloud/privacy lifecycle is required before E0/E3/E6/P3, but the Grok packet itself is an immediate data-lifecycle path and is not listed there."
+        }
+      ],
+      "risk": "Required exfiltration of client facts, screenshots, transcripts, secrets, or private run state into model logs; retention of those payloads as planning evidence.",
+      "smallestSafeCorrection": "Add a blocking audit-packet data contract before the gate is policy: deny secrets, env, sites/, .one-box/, OAuth, credentials, raw uploads, and client-identifying evidence unless the owner explicitly classifies a redacted excerpt as necessary; store hashes not bodies for binary/media; retention/access/deletion rules; redaction of prompt bodies in retained Markdown. EOS-005 must include this channel."
+    },
+    {
+      "id": "EOSA-003",
+      "severity": "P1",
+      "category": "evidence",
+      "targetSection": "§2 Evidence snapshot; §3 Planning readiness; §4 EOS-004 and EOS-010",
+      "issue": "Live Git/GitHub/runtime claims are treated as established baseline, but this packet does not include git status, GitHub ruleset/issue dumps, test/lint/build transcripts, or tracing logs. Unavailable is not false; it also cannot justify a P0 backlog gap or a numeric readiness score. The Grok master-plan finding counts are the exception and are verified.",
+      "evidence": [
+        {
+          "path": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+          "sectionOrLines": "§2 bullets on branch, untracked files, 1,275 tests, lint warnings, build tracing, GitHub ruleset/reviews/issues; §3 58/100; §4 EOS-004 and EOS-010",
+          "support": "Asserts worktree/GitHub/test/build facts and uses them for EOS-004 P0 and EOS-010 tracing risk."
+        },
+        {
+          "path": "docs/audits/grok-4.6/2026-08-29-one-box-technology-master-plan-audit.md",
+          "sectionOrLines": "header Verdict; Findings table MPA-001–MPA-011",
+          "support": "Confirms REVISE / NOT_AUTHORIZED with five P1, five P2, and one P3. That snapshot bullet is supported."
+        },
+        {
+          "path": ".github/workflows/ci.yml",
+          "sectionOrLines": "jobs.verify steps",
+          "support": "Supports only the CI-tier part of EOS-009: verify runs npm test, typecheck, lint, build, and test:e2e:page-ir, not smoke/canvas/axe/motion/eval/full-run."
+        }
+      ],
+      "risk": "Planning policy locked to unreproducible machine state; EOS-004 over-graded on unavailable git; later tickets cite 58/100 or 1,275 tests as fact.",
+      "smallestSafeCorrection": "Split §2 into Verified-from-supplied-files versus Unavailable-live-claims. Keep EOS-004 as a gap using supplied evidence only (generic GitHub issue/PR templates versus the Page IR ticket pack; no program board in the master-plan library). Demote git-divergence and tracing-warning specifics until receipts are attached. Delete or rubric the 58/100 score."
+    },
+    {
+      "id": "EOSA-004",
+      "severity": "P1",
+      "category": "workflow",
+      "targetSection": "§5 Senior-engineering workflow S0–S11; §7–§8; §10 Planning sequence",
+      "issue": "S0–S11 is coherent as a stage list but not connected or practicable against the existing Page IR ticket/eval authority, the approved P1–P8 shipping sequence, the draft E0–E8 track, or current CONTRIBUTING/CI/PR contracts. Two additional process languages (section 10 steps 1–10 and P/E phase IDs) are unmapped. Retroactive DoR (Grok PASS + parent phase accepted) would unset the Page IR pack marked status ready without a grandfather/re-audit rule, conflicting with the document’s own website-first order. S8 independent approval is not represented in CONTRIBUTING.md or the PR template.",
+      "evidence": [
+        {
+          "path": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+          "sectionOrLines": "§1 website journey; §5 S0–S11; §10 steps 1–10",
+          "support": "Declares website journey first, then a 12-stage SDLC, then a separate 10-step pre-build sequence with no ID mapping or granularity (program vs P-plan vs OBX ticket)."
+        },
+        {
+          "path": "docs/superpowers/plans/2026-08-27-canvas-to-agency-shipping-roadmap.md",
+          "sectionOrLines": "P1–P8 diagram and program-wide stop rules",
+          "support": "Approved architecture sequence already defines plan boundaries, schema/provider/appointment gates, and no-later-plan claims. S-stages do not say whether each P-plan is an S0 initiative or an S5/S6 packet."
+        },
+        {
+          "path": "docs/tickets/page-ir-safe-pipeline/manifest.json",
+          "sectionOrLines": "status ready; prd/evalManifest links; dependsOn graph",
+          "support": "Page IR already has requirement-linked tickets and eval ownership. New DoR would recycle that pack through S0–S6 unless explicitly grandfathered."
+        },
+        {
+          "path": "CONTRIBUTING.md",
+          "sectionOrLines": "Checks; Pull requests",
+          "support": "Requires relevant local checks and a PR template; does not require independent approval, Grok packets, or eval IDs."
+        },
+        {
+          "path": ".github/pull_request_template.md",
+          "sectionOrLines": "Reviewer checklist",
+          "support": "Author-completed checklist only; no second-approver or audit-packet fields."
+        }
+      ],
+      "risk": "Senior team cannot execute one workflow; website-track tickets stall; contribution docs and the new OS compete as status authorities, repeating EOS-004 inside process design.",
+      "smallestSafeCorrection": "Add a mapping table: program S0 once; each P1–P8 plan is S2–S6 then separately authorized S7–S10; E0–E8 remain draft until EOS-002/005/007 close; existing OBX tickets keep accepted PRD/eval IDs and need only scoped S7/S8 Grok packets, not a new S0–S3. Add a contribution-contract gap: revise CONTRIBUTING, PR/issue templates, and CI tiers as documents after this OS is accepted—no code. State S7–S11 are not in force until section 10 steps 1–9 pass."
+    },
+    {
+      "id": "EOSA-005",
+      "severity": "P1",
+      "category": "completeness",
+      "targetSection": "§4 Prioritized gap register; §9 Required test suites; §10",
+      "issue": "Important closures are missing or only implied: GSAP/A4 motion-authoring stop; named draft vendors are not selected providers; appointment PRD/independence gate; EVAL-WEB-001/human visual still NOT_RUN; repository review enforcement; Grok-audit economics; machine-checkable authority oracle/owner for EOS-001. Section 9 lists embedded-browser and appointment suites as minimums while those domains remain unauthorized, which can be read as work to start.",
+      "evidence": [
+        {
+          "path": "docs/plans/one-box-master/README.md",
+          "sectionOrLines": "Current stop conditions",
+          "support": "GSAP visual motion authoring requires written consent or license review; client invitations, providers, schema, deploy, and appointment activation retain separate gates."
+        },
+        {
+          "path": "docs/audits/grok-4.6/2026-08-29-one-box-technology-master-plan-audit.md",
+          "sectionOrLines": "MPA-001, MPA-004, MPA-005, MPA-009",
+          "support": "E0 retained Electron shell, React/ExperienceModule authority, E6-before-P3, and A4/GSAP stops are required corrections; the register covers several via EOS-007/008 but does not name GSAP/A4 or vendor non-selection."
+        },
+        {
+          "path": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md",
+          "sectionOrLines": "§12.3 Cloud project service; §11.2 Track A compiler targets",
+          "support": "Draft already names a Supabase organization, LiveKit, Electron, and React targets. EOS-002 requires an ADR but does not say draft vendor names are not selections."
+        },
+        {
+          "path": "docs/architecture/README.md",
+          "sectionOrLines": "Page IR v1 contract boundary — EVAL-WEB-001",
+          "support": "Human EVAL-WEB-001 and visual qualification remain NOT_RUN and need an explicit contract/version decision; not in the register."
+        },
+        {
+          "path": "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+          "sectionOrLines": "§9 table rows Embedded browser; Appointment acquisition",
+          "support": "Minimum suites are specified for blocked/unauthorized domains without a blocked-until-plan-accepted label."
+        }
+      ],
+      "risk": "Followers start browser/appointment/GSAP/vendor work from the OS table; human visual remains undefined while S9 asks for it; MPA items thought closed are not.",
+      "smallestSafeCorrection": "Add P1 gaps, do not start code: (a) A4 motion-authoring blocked on GSAP consent or replacement plan; (b) draft names (Supabase, LiveKit, Electron, production hosts) are not selected until EOS-002/P6; (c) appointment implementation stays behind PRD acceptance and website-independence tests; (d) EVAL-WEB-001/human visual contract; (e) independent-review enforcement in contribution docs after acceptance; (f) Grok-audit cost in EOS-012; (g) EOS-001 oracle/owner. Mark §9 browser/appointment rows BLOCKED planning oracles only."
+    },
+    {
+      "id": "EOSA-006",
+      "severity": "P2",
+      "category": "consistency",
+      "targetSection": "§3; §4 EOS-002/EOS-010 and EOS-003/EOS-015; AGENTS.md versus §1",
+      "issue": "Related gaps overlap without a merge/see-also rule (topology ADR vs cloud ops; Release 1 vs capability matrix; privacy vs handoff). AGENTS.md/README.md still point at 2026-08-13 Refero as product/plan truth, which EOS-001 correctly flags, but the OS header Review rule could be read as already superseding those files before the authority check exists. Planning-readiness 58/100 has no rubric.",
+      "evidence": [
+        {
+          "path": "AGENTS.md",
+          "sectionOrLines": "Sources of truth",
+          "support": "Routes contributors to docs/specs/2026-08-13-refero-editor-requirements.md and docs/plans/2026-08-13-refero-editor-evidence-workspace.md."
+        },
+        {
+          "path": "README.md",
+          "sectionOrLines": "opening; current implementation plan sentence",
+          "support": "Same 2026-08-13 requirements pointer; Page IR rollout remains default-off with explicit kill switch."
+        },
+        {
+          "path": "docs/plans/one-box-master/00-authority/plan-register.md",
+          "sectionOrLines": "Precedence by product domain; Conflict rule",
+          "support": "Already names Page IR PRD as website authority and says drafts/audits cannot authorize implementation. EOS-001 is valid; the OS must not claim precedence over AGENTS.md until that closure lands."
+        },
+        {
+          "path": "docs/adr/0001-modular-monolith.md",
+          "sectionOrLines": "Decision; Revisit when",
+          "support": "Accepted loopback monolith; revisit before a second deployable or remote persistence authority. Supports EOS-002; EOS-010 should cite it as child work, not a second topology decision."
+        }
+      ],
+      "risk": "Duplicate closures, premature OS precedence over AGENTS.md, fake precision of 58/100.",
+      "smallestSafeCorrection": "Mark this OS as draft evidence until EOS-001 closes. Cross-link EOS-002→EOS-010, EOS-003→EOS-015, EOS-005→EOS-013. Remove 58/100 or attach a rubric. State AGENTS.md/README.md remain contributor entry points until the machine-checkable authority check exists."
+    }
+  ],
+  "missingGaps": [
+    "Grok 4.6 gate operational contract: packet budget, data classification, reported-model fail, same-hash determinism, anti-recursion, unavailability without skip, retention/redaction, audit cost",
+    "Contribution-control alignment: CONTRIBUTING.md, issue/PR templates, CI tiers, independent-review enforcement after OS acceptance",
+    "Grandfather/re-audit rule for existing Page IR OBX tickets and eval IDs so website-first work is not recycled through S0–S3",
+    "Explicit A4/GSAP visual motion-authoring stop and non-GSAP oracle",
+    "Draft vendor names are not provider selections (Supabase/LiveKit/Electron/hosts) until topology ADR and P6",
+    "Appointment PRD acceptance and website/appointment independence as a named closure",
+    "EVAL-WEB-001 / named-human visual qualification contract still NOT_RUN",
+    "EOS-001 machine-checkable authority oracle, owner, and fail-closed CI check (planning only)",
+    "Mapping table among S0–S11, section 10 steps, P1–P8, and draft E0–E8",
+    "Independent-verifier roster and which boundaries require a non-author human packet"
+  ],
+  "workflowAssessment": {
+    "status": "REVISE",
+    "strengths": [
+      "No inherited stage approval; versioned artifact packets",
+      "S4 evaluation design before S5/S6 tickets matches Page IR requirement-to-eval discipline",
+      "Website journey remains first; Agent Studio/browser/appointments cannot become source/approval/release authorities",
+      "DoR/DoD require oracles, rollback, and human authorization for merge/deploy/schema/provider/appointment effects",
+      "Independent verification is required for security, schema, identity, browser, migration, release, and rollback",
+      "Human visual quality, evidence truth, client approval, and rollout stay named-human decisions",
+      "Section 10 correctly starts with MPA-001–MPA-011 reconciliation and forbids feature implementation from this document alone"
+    ],
+    "weaknesses": [
+      "S0–S11, section 10 steps 1–10, P1–P8, and E0–E8 are parallel unmapped languages",
+      "Granularity unspecified: one program initiative versus one S-cycle per shipping plan versus per ticket",
+      "S6/S8/DoD would retroactively invalidate Page IR status:ready without a grandfather rule",
+      "S8 independent approval is not in CONTRIBUTING.md or the PR template; GitHub review-enforcement claims are unavailable",
+      "S7–S11 are specified as if in force while §1/§10 still forbid implementation",
+      "No named legal/license stage; license work is only EOS-011 prose",
+      "Per-ticket plus per-PR plus 12-stage Grok load is not a practicable senior-team cadence without scoped packets"
+    ]
+  },
+  "grokGateAssessment": {
+    "status": "REVISE",
+    "strengths": [
+      "Exact model pin x-ai/grok-4.6; other models/versions are not substitutes",
+      "Stores input hashes, requested vs reported model, provider, effort, timestamp, usage",
+      "REVISE preserves the first verdict and re-audits new hashes",
+      "BLOCKED forbids weakening the gate to obtain PASS",
+      "Any P0/P1 blocks even if prose sounds favorable",
+      "States Grok is not authority, certifier, peer approval, pentest, or release owner",
+      "PASS still requires a named human owner decision",
+      "Independent verification paragraph keeps tests and humans above the model in principle"
+    ],
+    "weaknesses": [
+      "DoR/DoD Grok PASS is certificate-like in practice",
+      "Unbounded: every stage, ticket, PR, and RC with no context/cost cap",
+      "Self-review recursion on Grok-corrected packets and on this OS itself",
+      "No fail if reported model ≠ requested model",
+      "No same-hash determinism/replay rule",
+      "Unavailable-model behavior is BLOCKED with no wait/stop-the-line protocol, creating waiver pressure",
+      "Raw request/response retention without classification or redaction",
+      "Independence: same model/provider reviews every layer including its prior findings",
+      "Audit cost/latency absent from EOS-012",
+      "Does not state that failed deterministic tests beat a Grok PASS"
+    ],
+    "requiredControls": [
+      "Keep mandatory exact x-ai/grok-4.6 audit on each named S-stage, ticket packet, PR, and RC; do not delete the pin",
+      "Treat Grok output as review_input only; owner decision and independent verifier are the only acceptance/release voices",
+      "Hash-first bounded packets: file list, SHA-256, excerpts/diff, named receipts; prohibit whole-repo and secret/PII/media bodies",
+      "Fail closed when reported model ≠ x-ai/grok-4.6 or when required files/hashes are missing",
+      "One live audit per unique hash set; reuse stored verdict on identical hashes or dual-run and BLOCKED on disagreement",
+      "Human must disposition every Grok P0/P1; Grok cannot close Grok findings",
+      "Unavailable model: BLOCKED, no substitute, no skip; owner may wait or stop-the-line; pre-accepted S11 rollback runbooks may run",
+      "Deterministic tests, schema/oracles, and human visual/evidence decisions override Grok PASS; Grok cannot override a failed test",
+      "Retention, access, redaction, and deletion rules for raw packets; record usage against the cost policy",
+      "Existing Page IR tickets: scoped S7/S8 packets only, not a new S0–S3, unless the PRD itself changes"
+    ]
+  },
+  "acceptedStrengths": [
+    "Explicit planning draft with implementationAuthorization denied",
+    "Correct website-first authority: Page IR/template layout, candidate identity, qualification, and release stay above Agent Studio, collaboration, browser, and appointments",
+    "EOS-001 through EOS-016 cover the right contract classes and correctly reflect ADR 0001 versus the operating-environment draft",
+    "EOS-007/EOS-008 align with MPA-001/MPA-004: no retained Electron/remote-content host before a rewritten browser plan; static Page IR remains Release 1",
+    "EOS-009 is supported by ci.yml versus package.json extra suites (smoke, canvas, axe, motion, eval)",
+    "Local API threat model is correctly treated as insufficient for cloud/review-origin/multi-user",
+    "Page IR ticket/eval traceability and the P1–P8 shipping stop rules are recognized as the current rigorous baseline",
+    "Verdict vocabulary PASS/REVISE/BLOCKED and preserve-first-verdict are sound if anti-certification controls are added",
+    "Section 10 step 1 already requires MPA-001–MPA-011 reconciliation before further planning"
+  ],
+  "evidenceMissing": [
+    "git status/branch-ahead/untracked/divergent-checkout receipts",
+    "GitHub ruleset, required-review count, CODEOWNERS, last-push approval, and open-issue dump",
+    "npm test / typecheck / lint / build / git diff --check transcripts, including 1,275 tests and tracing warnings",
+    "research/la-appointment-field-study worktree contents",
+    "Live runtime or provider availability for x-ai/grok-4.6",
+    "Any SBOM, license-counsel receipt, or GSAP written consent",
+    "Completion state of individual OBX tickets beyond manifest status:ready"
+  ],
+  "recommendedNextPlanningOrder": [
+    "Revise this OS: Grok gate controls in EOSA-001/002 requiredControls; do not authorize implementation",
+    "Relabel §2 snapshot as verified versus unavailable; remove 58/100 or attach a rubric",
+    "Add mapping/grandfather/contribution-contract/GSAP/vendor-non-selection/appointment/EVAL-WEB-001 gaps; mark §9 blocked-domain rows as planning oracles only",
+    "Owner dispositions this REVISE; re-audit only the new hash set with exact x-ai/grok-4.6",
+    "After PASS-as-review_input plus owner accept: run section 10 step 1 (MPA-001–MPA-011) as its own packet",
+    "Then Freeze Release 1 and excluded capabilities (EOS-003/015) before any topology ADR text is treated as selected vendors",
+    "Then EOS-002 topology/system-of-record ADR, then threat models (EOS-005/006/007), then eval/CI/supply-chain/cost packets",
+    "Do not start retained Electron, cloud identity, ExperienceModules, client rooms, providers, or appointment implementation from this document"
+  ],
+  "auditMetadata": {
+    "capturedAt": "2026-08-29T23:44:13.377Z",
+    "requestedModel": "x-ai/grok-4.6",
+    "reportedModel": "x-ai/grok-4.6",
+    "provider": "xAI",
+    "effort": "high",
+    "inputCount": 22,
+    "usage": {
+      "prompt_tokens": 42125,
+      "completion_tokens": 17646,
+      "total_tokens": 59771,
+      "cost": 0.189934,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.189934,
+        "upstream_inference_prompt_cost": 0.084058,
+        "upstream_inference_completions_cost": 0.105876
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 11241,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  }
+}

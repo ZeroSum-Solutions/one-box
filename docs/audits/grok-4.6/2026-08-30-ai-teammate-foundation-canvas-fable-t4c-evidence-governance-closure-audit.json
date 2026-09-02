@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T15:53:05.747Z",
+  "request": {
+    "task": "T4C exact closure: Fable corrected-scope disposition and evidence-path governance",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-authority-packet-digest-proof.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-evidence-relocation-receipt.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-selection-display-boundary-proof.md",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-audit.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3d-docs-authority-closure-audit.json"
+    ],
+    "diffBytes": 14449
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 10404,
+      "completion_tokens": 19822,
+      "total_tokens": 30226,
+      "cost": 0.139548,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.139548,
+        "upstream_inference_prompt_cost": 0.020616,
+        "upstream_inference_completions_cost": 0.118932
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 18829,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "BLOCK",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json",
+        "line": "20-26 R-02",
+        "scenario": "R-02 is REJECTED on a claimed Chromium negative live oracle (Enter on the focused QA radio → zero POST, radio remains document.activeElement, later submit → one POST). The only cited proof is a generic WIDTHS=1440 Canvas pass, and no harness/log in this slice states zero POST plus retained radio focus. The source Fable audit of the same HEAD (899b394) said radio-Enter was inferred and not exercised by the current E2E. Criterion allows R-02 reject only if the cited live negative oracle actually states those facts.",
+        "remediation": "Keep R-02 non-REJECTED until a retained live oracle artifact explicitly asserts Enter-on-focused-radio → 0 POST and activeElement still that radio; cite that oracle in proof. Do not treat a bare 1440 contract pass as that negative oracle."
+      },
+      {
+        "severity": "BLOCK",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-evidence-relocation-receipt.md",
+        "line": "17 Both old paths are absent",
+        "scenario": "R-04 closure requires the two historical out-of-cage paths to be absent. NAME STATUS is additions-only; BASE=HEAD=899b394, the same baseline Fable cited as containing docs/audits/evidence/goal/2026-08-30-ai-teammate-selection-display-boundary-proof.md and docs/audits/evidence/goal/2026-08-30-one-box-authority-packet-digest-proof.md. No D/R records. Prefixed copies were added while the receipt asserts absence, so the out-of-cage paths are not shown removed and R-04 is not closed.",
+        "remediation": "Remove the two historical paths (git rm/mv), leave historical Grok request JSON untouched, and replace the absence sentence with a deterministic listing (test ! -e / rg) plus current hashes of the prefixed successors."
+      },
+      {
+        "severity": "BLOCK",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json",
+        "line": "dispositions R-01,R-03,R-05,R-06,R-07,R-08 correction/proof",
+        "scenario": "Six ACCEPT records use past-tense corrections and pass proofs (aria origin, held-retry live contract, 2000-NUL route case, Idle/help live assertions, no-store 403/400 headers, restoreAllMocks clock isolation) while this allowlist has only four evidence files and HEAD is still the Fable-defective baseline. Those accepted corrections are not represented; the disposition claims unexecuted suites/live gates.",
+        "remediation": "In this T4C slice, record R-01/R-03/R-05/R-06/R-07/R-08 as accepted open defects without 'now'/'passes' proof, or point at in-tree correcting files plus retained logs. Represent completed correction+proof only for R-04."
+      }
+    ],
+    "proof_assessment": "New artifacts sit under docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-, historical Grok request proofs still cite the old digest path, and the relocation table names both successors. That is insufficient for T4C: R-02 is rejected without an oracle that actually states zero POST plus retained radio focus; old out-of-cage paths are not deleted in the change set despite an absence claim; six other ACCEPT rows claim executed corrections and passing gates that this HEAD/slice does not contain. Packet-digest figures in the relocated proof match the prior Grok CLEAN note but remain unrecomputed here and grant no authority.",
+    "residual_risks": [
+      "Relocation SHA-256 values are author-supplied and were not recomputed from these bytes.",
+      "If the two historical paths remain at 899b394, prefixed copies do not cage them.",
+      "Fable still records pending 768/390 live oracles and open same-target security/independent-verification gates; this disposition must not be read as closing them.",
+      "R-01/R-03/R-05/R-07/R-08 product defects remain present on this HEAD if the disposition is believed."
+    ]
+  }
+}

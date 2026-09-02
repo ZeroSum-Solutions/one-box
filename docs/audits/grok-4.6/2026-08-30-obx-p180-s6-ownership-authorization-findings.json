@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:34:57.946Z",
+  "request": {
+    "task": "OBX-P180-S6",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md"
+    ],
+    "proofs": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/05-security-and-executable-evaluations.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json"
+    ],
+    "diffBytes": 17720,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 6000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 31337,
+      "completion_tokens": 27244,
+      "total_tokens": 58581,
+      "cost": 0.225946,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.225946,
+        "upstream_inference_prompt_cost": 0.062482,
+        "upstream_inference_completions_cost": 0.163464
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 25906,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+        "line": "allowedPaths / forbiddenEffects / authorizedTicketIds",
+        "scenario": "Owner later copies ScopedImplementationAuthorizationProposalV1 into the authority manifest after filling placeholders. The accept-able record unions T01–T08, scopes writes with src/lib/operatingEnvironment/**, docs/audits/obx-p180/**, docs/plans/.../obx-p180/** and docs/eval/one-box-program/fixtures/obx-p180-*.json, and never encodes per-ticket file lists or predecessor gates. Ticket details enumerate files only for T01–T04; T05–T08 do not. forbiddenEffects names runtime-product-import-or-wiring, network-or-browser, persistence, Page IR, deploy/release, but not UI. After acceptance an implementer can add src/lib/operatingEnvironment/ui/Preview.tsx (or other non-enumerated modules) during T01–T07, where UI is not a ticket forbidden, and still satisfy allowedEffects by claiming contract/fixture work. Ready/prose/ui-import invalidator do not bind the copied record.",
+        "remediation": "Put exact per-ticket paths and predecessor gates inside the authorization record (no **/* globs). Add a closed rule that unlisted effects are denied. Add an explicit forbidden effect such as expose-ui-or-product-surface. Keep T05–T08 to enumerated files only."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+        "line": "allowedPaths: docs/eval/one-box-program/manifest.json",
+        "scenario": "The same accepted record allows rewriting the whole program eval manifest. Ticket T05 forbids quality PASS or provider-connected claims, but that forbid is not in forbiddenEffects. A T05 edit can flip unrelated PROG-EVAL-* blocking rows, pin quality PASS, or add provider-connected eval claims, which is release-adjacent and outside a path/effect-bounded offline slice.",
+        "remediation": "Remove whole-file manifest.json from allowedPaths. Authorize only a named offline fixture/evaluator pin (exact keys/ids). Add forbiddenEffects for quality-PASS, provider-connected eval claims, and any other-lane manifest mutation."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+        "line": "Sequenced ticket ledger entry gates (T02–T04)",
+        "scenario": "Roles are given exact IDs in the table (budget-operations-owner, model-skill-security-owner, data-protection-owner), but gates require 'registry/route owners', 'supply-chain/data owners', and 'Budget/Operations Owner'. Those labels do not map 1:1 to roleId, so a current human in the wrong role can open T02–T04, or the intended role can be treated as optional.",
+        "remediation": "Replace every gate owner phrase with required roleId values (and require those OwnerAssignmentV1 rows to be current)."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+        "line": "independent verifier separation paragraph",
+        "scenario": "SoD requires the verifier to differ from the implementation-lead and from authors of the reviewed security policy/evaluator change, not from every author of the frozen offline diff. A non-lead who wrote T01–T04 reducers can be assigned independent-security-verifier and sign T07 on their own code (self-review substitution that T07 only forbids in prose).",
+        "remediation": "Require independent-security-verifier.humanActorId to be disjoint from implementation-lead and from every author of the reviewed diff; treat overlap as an invalidator."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+        "line": "OwnerAssignmentV1.escalationActorId / availability rule",
+        "scenario": "The schema has escalationActorId, but an assignment is unavailable only on role, human, scope, expiry, or acceptance omission. A row with missing, non-human, or same-as-assignee escalation still counts as current for Ready, so separation/escalation is not exact.",
+        "remediation": "Make omitted, non-human, expired/revoked, or same-human escalationActorId render the assignment unavailable; require the escalation actor to be a named human who is not the assignee."
+      }
+    ],
+    "proof_assessment": "The slice only adds this planning file; SRC-02 still authorizes only OBX-AUTH-ATF-001. Status proposed-not-accepted, null acceptance fields, and sentinel hashes/expiry satisfy unaccepted-with-placeholders. Prose correctly says tickets do not inherit authority from predecessors or audits and that the offline slice must not wire providers, credentials, dependencies, persistence, Page IR, deploy, or release. Those guarantees live mainly in narrative ticket tables, not in the copyable authorization object, so they are evidence of intent rather than an enforceable bound.",
+    "residual_risks": [
+      "T03 and T04 are numbered sequentially but both gate only on T02, so the ledger is a DAG while claiming a total order.",
+      "planPacketHash and expiresAt are non-null sentinels; a sloppy accept that sets acceptedBy without replacing them would bind no real packet hash or expiry.",
+      "docs/plans/.../obx-p180/** remains an allowed write path; adding files may or may not trip plan-or-foundation-hash-change depending on the still-unwritten Step 7 manifest.",
+      "ui-import as an invalidator does not catch UI artifacts that import no UI framework."
+    ]
+  }
+}

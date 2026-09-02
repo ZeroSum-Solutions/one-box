@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T11:41:10.199Z",
+  "request": {
+    "task": "T2 closure reproduce and disposition every exact Fable 5 Canvas Agent Studio finding",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json"
+    ],
+    "proofs": [],
+    "diffBytes": 17460
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 5425,
+      "completion_tokens": 12353,
+      "total_tokens": 17778,
+      "cost": 0.084776,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.084776,
+        "upstream_inference_prompt_cost": 0.010658,
+        "upstream_inference_completions_cost": 0.074118
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 12010,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The slice is only the T2 disposition JSON (no product or test land, no raw logs). Structurally it closes all eight IDs: each has symbols/input/observed, accept|proof-gap, red or proof-gap oracle, smallest correction, paths, insideAuthority. F-01 preserves already-legal IDs; F-02 requires native hidden + aria-hidden + inert on the retained tree; F-08 defines one idle-invalid / idle-valid / working submit machine; F-07 is classified as an E2E proof gap, not an unobserved product bug. Future capabilities use defer-new-authorization or reject-for-this-slice and do not authorize job/selection-payload/Page IR/provider/persistence/browser/collaboration/dependency/deployment/release expansion. IndependentReproduction is narrative CONFIRMED, not re-executable in this slice.",
+    "residual_risks": [
+      "Claimed 34/34, 16/16, 8/8, and Chromium probe runs are not attached; later implementation could drift from these oracles.",
+      "F-04 reason cites four terminal receipt states but only budget-exhausted/NUL is reproduced.",
+      "F-03 correction wording (placeholder creation) is not identical to the baseline-absent string Placeholder proposal.",
+      "deployment is denied in authority/overreach but is not its own futureScopeDispositions row.",
+      "F-08 BODY-focus is Chromium-specific; jsdom coverage in AiTeammatePanel.test.tsx could false-green if e2e is incomplete."
+    ]
+  }
+}

@@ -10,6 +10,8 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
+    "verify:plans": "node scripts/verify-plan-authority.mjs",
+    "test:plans": "node --test scripts/verify-plan-authority.node.mjs",
     "eval:baseline:verify": "node scripts/eval/baseline-harness.mjs verify",
     "eval:baseline:prepare": "node scripts/eval/baseline-harness.mjs prepare",
     "eval:baseline:live": "node scripts/eval/baseline-live-runner.mjs",

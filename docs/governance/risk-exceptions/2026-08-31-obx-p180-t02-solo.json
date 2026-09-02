@@ -1,0 +1,189 @@
+{
+  "schemaVersion": 1,
+  "amendmentId": "OBX-P180-T02-SOLO-AMENDMENT-001",
+  "recordKind": "owner-solo-child-ticket-governance-amendment-v2",
+  "status": "ACTIVE",
+  "authorizationId": "OBX-AUTH-P180-T02-SOLO-001",
+  "projectId": "one-box",
+  "branch": "research/la-appointment-field-study",
+  "baseCommit": "07864a45d414db0998cc7cfb2731010d0d4cbe8b",
+  "activationBaseCommit": "07864a45d414db0998cc7cfb2731010d0d4cbe8b",
+  "parentTicketId": "OBX-P180",
+  "childTicketIds": [
+    "OBX-P180-T02"
+  ],
+  "predecessor": {
+    "ticketId": "OBX-P180-T01",
+    "checkpointCommit": "07864a45d414db0998cc7cfb2731010d0d4cbe8b",
+    "status": "COMPLETED_VERIFIED"
+  },
+  "ownerDirection": {
+    "actorId": "person:devin-wiggins",
+    "name": "Devin Wiggins",
+    "sourceThreadId": "01a0553b-ef7d-7b42-9f59-7204480be636",
+    "decision": "ACCEPT_EXACT_SOLO_T02_RISK_AND_START",
+    "recordedAt": "2026-08-31T21:47:59Z"
+  },
+  "standardWaiverEligible": false,
+  "nonWaivableDefaultPreserved": true,
+  "unavailableControls": [
+    {
+      "controlId": "owner-assignment-v1-t02",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "implementation-lead",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "model-skill-security-owner",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "job-sandbox-owner",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "implementation-actor-authorizer-separation",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "independent-human-security-review",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    }
+  ],
+  "requirementExceptions": [
+    {
+      "requirementId": "P180-R014",
+      "exceptionStatus": "EXCEPT_T02_SOLO",
+      "satisfactionStatus": "NOT_SATISFIED",
+      "waivedClauses": [
+        "named-human-operating-role-coverage-for-three-t02-roles",
+        "accepted-current-owner-assignment-v1-records",
+        "distinct-per-role-escalation-humans"
+      ]
+    },
+    {
+      "requirementId": "P180-R015",
+      "exceptionStatus": "EXCEPT_T02_SOLO",
+      "satisfactionStatus": "NOT_SATISFIED",
+      "waivedClauses": [
+        "t02-current-owner-assignment-entry-gate"
+      ]
+    },
+    {
+      "requirementId": "P180-R016",
+      "exceptionStatus": "EXCEPT_T02_SOLO",
+      "satisfactionStatus": "NOT_SATISFIED",
+      "waivedClauses": [
+        "implementation-lead-authorizer-separation",
+        "ordinary-exact-owner-roster"
+      ]
+    }
+  ],
+  "acceptedRisk": {
+    "findingId": "OBX-P180-T02-SOLO-SEPARATION-001",
+    "severity": "MEDIUM",
+    "status": "ACCEPTED",
+    "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE",
+    "riskOwnerActorId": "person:devin-wiggins"
+  },
+  "scope": {
+    "denyUnlistedPathsAndEffects": true,
+    "allowedPaths": [
+      "src/lib/operatingEnvironment/registry.ts",
+      "src/lib/operatingEnvironment/registry.test.ts",
+      "src/lib/operatingEnvironment/routeState.ts",
+      "src/lib/operatingEnvironment/routeState.test.ts",
+      "src/lib/operatingEnvironment/fixtures/registry-v1.json",
+      "src/lib/operatingEnvironment/fixtures/route-state-v1.json"
+    ],
+    "allowedEffects": [
+      "add-provider-offline-fixture-registries-and-route-reducers"
+    ],
+    "forbiddenEffects": [
+      "product-runtime-import-or-effect",
+      "provider-or-model-call",
+      "network",
+      "credential-or-environment-access",
+      "filesystem-or-shell-io",
+      "persistence-or-durable-state",
+      "queue-or-background-worker",
+      "browser",
+      "ui",
+      "collaboration",
+      "canvas-or-page-ir-read-write-or-mutation",
+      "deployment",
+      "release",
+      "dependency-or-lockfile-change",
+      "mutable-global-state",
+      "implicit-clock-or-randomness",
+      "authority-outside-exact-solo-record",
+      "t03-through-t08",
+      "parent-evaluation-completion-claim",
+      "independent-human-review-claim",
+      "production-readiness-claim"
+    ]
+  },
+  "reviewProtocol": {
+    "quickAuditModel": "z-ai/glm-5.3-flash",
+    "quickAuditLane": "nous-portal-prepaid",
+    "finalAuditModel": "anthropic/claude-opus-5",
+    "finalAuditLane": "claude-max-subscription",
+    "modelAuthority": "advisory-only",
+    "testAuthority": "deterministic-fixtures-and-vitest",
+    "secondFinalAuditPolicy": "only-if-finding-cannot-be-mechanically-closed"
+  },
+  "requiredEvidencePaths": [
+    "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json"
+  ],
+  "compensatingControls": [
+    "exact-t02-only-scope",
+    "exact-336-hour-non-renewable-expiry",
+    "deny-every-unlisted-path-and-effect",
+    "provider-offline-pure-reducers-with-no-io",
+    "exact-t01-predecessor-checkpoint-binding",
+    "exact-amendment-and-authorization-hash-binding",
+    "exact-security-receipt-parsing",
+    "deterministic-tests-remain-authoritative",
+    "independent-human-review-remains-not-available"
+  ],
+  "independentHumanReview": {
+    "status": "NOT_AVAILABLE",
+    "satisfied": false,
+    "actorId": null
+  },
+  "recordedAt": "2026-08-31T21:47:59Z",
+  "expiresAt": "2026-09-14T21:47:59Z",
+  "renewable": false
+}

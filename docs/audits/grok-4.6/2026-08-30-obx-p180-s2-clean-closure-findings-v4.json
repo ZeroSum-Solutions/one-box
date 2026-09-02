@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:49:31.563Z",
+  "request": {
+    "task": "OBX-P180-S2-CLEAN-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-proposal-hitl-findings-v3.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "diffBytes": 31322,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 15826,
+      "completion_tokens": 22382,
+      "total_tokens": 38208,
+      "cost": 0.165752,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.165752,
+        "upstream_inference_prompt_cost": 0.03146,
+        "upstream_inference_completions_cost": 0.134292
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 21525,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "`active -> interrupted` / \"no attempt may be `retryable-failure`\"",
+        "scenario": "Legal config maxAttempts=2: attempt 0 is `retryable-failure`, control plane claims index 1, attempt 1 is `completed` with a schema-valid unapplied typed proposal, segment still `active`, no live handle. HITL entry fails because attempt 0 remains `retryable-failure`. The mutex then forbids `active -> completed|failed|budget-exhausted`, so the only legal close is operational cancel. The typed proposal never gets `active -> interrupted`, so the four hashes are never written and unique live acceptance cannot close completed.",
+        "remediation": "When claiming attempt index 1, settle attempt 0 out of `retryable-failure` into a terminal attempt record, and evaluate HITL only against the current attempt plus live `claimed`/`in-flight`/`ambiguous` handles. A completed current attempt with a schema-valid unapplied proposal must still take `active -> interrupted` after a successful same-route retry."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "`interrupted -> interrupted` ... invalid; mismatch cancels rather than rebinds",
+        "scenario": "Segment is `interrupted` with write-once hashes H1/P1/E1. A duplicate worker delivery or any CAS that repeats `active -> interrupted` / stays in `interrupted` / supplies different hashes is both “invalid” (must reject/attach, no transition) and “mismatch cancels”. If mismatch-cancel wins, one duplicate or rewrite attempt CASes `interrupted -> cancelled`, emits a terminal receipt, and drops HITL without a unique accept/reject decision. That races the human decision and violates otherwise-cancellation only after the live accept/reject path.",
+        "remediation": "Split the rules: `interrupted -> interrupted` and duplicate/self CASes reject or attach with zero mutation. The four hashes stay immutable for the life of the segment record, including terminal states. Only a listed `interrupted -> cancelled` trigger (reject/expiry/revocation/stale expected state) or a failed `accept-proposal` live-gate compare may cancel; hash mismatch on accept cancels, hash mismatch on duplicate interrupt delivery does not."
+      }
+    ],
+    "proof_assessment": "HEAD equals BASE; only the S2 planning contract changed. The attached Grok PROPOSAL-HITL FINDINGS describe an older hole set (`active -> completed` still beside HITL; hashes not write-once). Current bytes close those two items with the typed-proposal mutex, write-once four-hash rule, and forbidden `interrupted -> interrupted`. They are evidence of prior review, not authority over these bytes. Remaining criterion pressure is the HITL entry predicate after retry and the cancel-vs-reject conflict on hash mismatch/duplicate CAS. S3 decision-slot text is adjacent evidence, not this allowlist.",
+    "residual_risks": [
+      "`active -> interrupted` is specified as a multi-record CAS (segment, settled attempt, interrupt, proposal, expected state, held reservation) with no single closed transaction record; in-memory fixtures cannot prove durable atomicity.",
+      "RouteSegmentStateV1 has no decisionHash; unique `accept-proposal` uniqueness is deferred to the S3 slot CAS.",
+      "`interrupted -> completed` requires the reservation still held and never reconciles it, so accept can leak budget.",
+      "Kill-switch on or reservation loss during `interrupted` is an accept live-gate failure but is not named as a mandatory `interrupted -> cancelled` trigger.",
+      "Leftover “Resume or cancellation” wording can be misread as `interrupted -> active` even though that transition is unlisted."
+    ]
+  }
+}

@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:12:46.040Z",
+  "request": {
+    "task": "T4A2 exact closure: Fable R-02 rejection, R-03 retry, and R-06 live Canvas oracles",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "scripts/e2e/canvas-contract.mjs"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json"
+    ],
+    "diffBytes": 39804
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 14311,
+      "completion_tokens": 21588,
+      "total_tokens": 35899,
+      "cost": 0.15815,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.15815,
+        "upstream_inference_prompt_cost": 0.028622,
+        "upstream_inference_completions_cost": 0.129528
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 20450,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio: retryRoster.evaluate(click) then rosterGetCount === initialRosterGetCount + 1",
+        "scenario": "R-03 duplicate-GET oracle is asserted in the same turn as the forced DOM click, with no bounded wait. A second GET that starts on a microtask, useEffect, or delayed fetch hits the still-installed hold handler after the equality check. rosterGetCount is never re-read before release/unroute, so the retry can still pass. The POST path does wait 750ms and re-check postCount; the GET path does not.",
+        "remediation": "After the forced click, keep the hold, wait a bounded window (or waitForRequest that must time out), re-assert rosterGetCount === initialRosterGetCount + 1, then release and await the in-flight GET."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio: retryRoster aria-disabled assertion (no native disabled check)",
+        "scenario": "Held retry only requires aria-disabled=true. HTMLElement.click() is a no-op on a natively disabled button, so the forced duplicate click may never run the product guard and cannot add a GET. That makes the R-03 duplicate-GET check vacuous. The submit oracle already forbids native disabled; retry does not.",
+        "remediation": "Before evaluate(click), assert getAttribute('disabled') is null (and optionally that aria-disabled was not true before the first click). Keep aria-disabled=true during the hold."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio POST finally: releaseHeldPost(); page.unroute(teammateRoutePattern)",
+        "scenario": "GET teardown awaits rosterReloadResponse before unroute. POST teardown releases and unroutes immediately with no wait for route.continue() or the POST response. On any throw after the POST is held, that races Playwright unroute vs an in-flight handler and can let the request escape or error outside the oracle.",
+        "remediation": "Mirror the GET finally: release, await the outstanding waitForRequest/waitForResponse (catch timeout), then unroute."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio: getByText('Idle · Read + propose').count() === 8",
+        "scenario": "R-06 / proof claim eight visible Idle rows, but count() includes hidden/aria-hidden nodes in the visible pane. Eight sr-only or retained copies satisfy the oracle without eight visible rows; extra hidden copies also false-fail. The claimed visible check is not reached.",
+        "remediation": "Count only visible rows, e.g. teammatePane.getByText('Idle · Read + propose', { exact: true }).evaluateAll on getBoundingClientRect/visibility, and assert length 8."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio: dataClassControl aria-describedby includes ai-teammate-data-class-help",
+        "scenario": "The harness checks the ID token and separately waitFor's the no-scan/sensitive sentence. It never asserts document.getElementById('ai-teammate-data-class-help') is that node. A describedby pointing at an empty/other element still passes, so the claimed link is not actually proven.",
+        "remediation": "Resolve the describedby id(s) in-page and assert the exact help string is the textContent of the element whose id is ai-teammate-data-class-help."
+      }
+    ],
+    "proof_assessment": "The T4 receipt’s WIDTHS=1440 exit 0 is only evidence that this harness did not throw, not that R-02/R-03/R-06 are tight. R-02’s 500ms waitForRequest-before-Enter plus postCount and activeElement is reachable and can fail on a same-URL POST. R-03/R-06 green can be vacuous: duplicate retry click may be a no-op or miss a late GET, and Idle/describedby checks are weaker than the explicitOracles text. Treat the receipt as a run log, not closure.",
+    "residual_risks": [
+      "Glob **/api/ai-teammates/* plus postCount only sees one path segment; a form GET/POST to the preview URL or a deeper API path would miss both the R-02 waitForRequest and the POST hold.",
+      "waitForResponse for the retry GET accepts any GET /api/ai-teammates/ including a late 503, so that await may not actually gate the successful reload.",
+      "Initial failure still snapshots textContent after waitForTimeout(250) instead of waitFor’ing the 503 copy; that is a dev-timing assumption around Strict Mode duplicate mounts.",
+      "Proof ran only 1440; compact-width Agent Studio branches are not in this oracle.",
+      "React Strict Mode double-fetch on the user retry still fails the exact +1 GET count even when the user clicked once."
+    ]
+  }
+}

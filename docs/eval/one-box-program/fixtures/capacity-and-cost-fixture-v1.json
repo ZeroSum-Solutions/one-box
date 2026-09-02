@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "obx-p180-contract-fixtures-v1",
+  "fixtureId": "capacity-and-cost-fixture-v1",
+  "laneId": "cost-capacity-conformance",
+  "mode": "provider-offline",
+  "dataClass": "synthetic-internal",
+  "providerCallsPermitted": false,
+  "cases": [
+    {
+      "id": "route-offline-admitted",
+      "evaluator": "route-admission",
+      "input": { "providerConnected": false, "fundingClass": "synthetic", "exactModelIdentity": "fixture/local-contract-v1", "automaticFallback": false, "routeMutatedAfterValidation": false },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED" }
+    },
+    {
+      "id": "route-automatic-fallback-rejected",
+      "evaluator": "route-admission",
+      "input": { "providerConnected": false, "fundingClass": "synthetic", "exactModelIdentity": "fixture/local-contract-v1", "automaticFallback": true, "routeMutatedAfterValidation": false },
+      "expect": { "accepted": false, "reasonCode": "AUTO_FALLBACK_FORBIDDEN" }
+    },
+    {
+      "id": "budget-full-hierarchy-admitted",
+      "evaluator": "budget-reservation",
+      "input": { "requiredUnits": 200, "remainingUnitsByScope": { "agency": 1000, "project": 500, "assignment": 300, "segment": 200 }, "allOwnersCurrent": true, "priceKnown": true },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED" }
+    },
+    {
+      "id": "budget-one-scope-insufficient",
+      "evaluator": "budget-reservation",
+      "input": { "requiredUnits": 200, "remainingUnitsByScope": { "agency": 1000, "project": 199, "assignment": 300, "segment": 200 }, "allOwnersCurrent": true, "priceKnown": true },
+      "expect": { "accepted": false, "reasonCode": "BUDGET_RESERVE_INSUFFICIENT" }
+    },
+    {
+      "id": "capacity-compliant-admitted",
+      "evaluator": "capacity-admission",
+      "input": { "snapshotFresh": true, "compliantRegion": true, "capacityAvailable": true, "routeFieldsUnchanged": true },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED" }
+    },
+    {
+      "id": "capacity-cannot-downgrade-route",
+      "evaluator": "capacity-admission",
+      "input": { "snapshotFresh": true, "compliantRegion": true, "capacityAvailable": true, "routeFieldsUnchanged": false },
+      "expect": { "accepted": false, "reasonCode": "CAPACITY_ROUTE_MUTATION" }
+    },
+    {
+      "id": "compare-two-fair-arms-admitted",
+      "evaluator": "compare-admission",
+      "input": { "armCount": 2, "aggregateWorstCaseReserved": true, "sharedTaskHash": true, "sharedContextHash": true, "sharedSkillSetHash": true, "sharedToolGrantHash": true, "sharedOutputContractHash": true, "automaticWinnerApply": false },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED" }
+    },
+    {
+      "id": "compare-third-arm-rejected",
+      "evaluator": "compare-admission",
+      "input": { "armCount": 3, "aggregateWorstCaseReserved": true, "sharedTaskHash": true, "sharedContextHash": true, "sharedSkillSetHash": true, "sharedToolGrantHash": true, "sharedOutputContractHash": true, "automaticWinnerApply": false },
+      "expect": { "accepted": false, "reasonCode": "COMPARE_ARM_COUNT" }
+    },
+    {
+      "id": "compare-context-drift-rejected",
+      "evaluator": "compare-admission",
+      "input": { "armCount": 2, "aggregateWorstCaseReserved": true, "sharedTaskHash": true, "sharedContextHash": false, "sharedSkillSetHash": true, "sharedToolGrantHash": true, "sharedOutputContractHash": true, "automaticWinnerApply": false },
+      "expect": { "accepted": false, "reasonCode": "COMPARE_FAIRNESS_MISMATCH" }
+    },
+    {
+      "id": "compare-automatic-winner-apply-rejected",
+      "evaluator": "compare-admission",
+      "input": { "armCount": 2, "aggregateWorstCaseReserved": true, "sharedTaskHash": true, "sharedContextHash": true, "sharedSkillSetHash": true, "sharedToolGrantHash": true, "sharedOutputContractHash": true, "automaticWinnerApply": true },
+      "expect": { "accepted": false, "reasonCode": "COMPARE_AUTO_APPLY_FORBIDDEN" }
+    },
+    {
+      "id": "retry-ambiguous-billing-rejected",
+      "evaluator": "retry-admission",
+      "input": { "attemptIndex": 1, "failureClass": "transient-transport", "billingKnown": false, "sameRoute": true, "usableOutputExists": false, "reservationCoversRetry": true },
+      "expect": { "accepted": false, "reasonCode": "RETRY_BILLING_AMBIGUOUS" }
+    }
+  ]
+}

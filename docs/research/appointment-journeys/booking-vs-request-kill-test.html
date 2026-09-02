@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LA appointment journey kill test</title>
+    <link rel="stylesheet" href="study.css" />
+  </head>
+  <body>
+    <header>
+      <p class="eyebrow">ONE BOX · Los Angeles field study · 2026-08-26</p>
+      <h1>The binary fails.</h1>
+      <p class="lede">
+        “Booking versus request” hides three materially different promises. The
+        page shell can be shared. The completion contract cannot.
+      </p>
+      <nav class="nav">
+        <a href="la-cosmetic-dentistry-orthodontics.html">Dentistry</a
+        ><a href="la-medspa-aesthetics.html">Med spas</a
+        ><a href="la-physical-therapy-sports-rehab.html">Physical therapy</a
+        ><a href="README.md">Research memo</a>
+      </nav>
+    </header>
+    <main>
+      <section class="verdict">
+        <article class="contract">
+          <strong>Confirmed care</strong>Real inventory reserves a care or
+          treatment visit.
+        </article>
+        <article class="contract">
+          <strong>Booked consultation</strong>Real inventory reserves a
+          consultation. Care is not yet scheduled.
+        </article>
+        <article class="contract">
+          <strong>Appointment request</strong>Preferences go to staff for
+          acceptance, matching, or verification.
+        </article>
+      </section>
+      <p class="note">
+        Contact-only is a fallback. Hybrid is a service/location/provider router
+        that selects one of the contracts above—not a fourth success state.
+      </p>
+      <h2>Strict evidence set</h2>
+      <div class="metrics">
+        <div class="metric">
+          <b>25</b><span>high-confidence local operators</span>
+        </div>
+        <div class="metric"><b>2</b><span>confirmed-care flows</span></div>
+        <div class="metric"><b>4</b><span>booked consultations</span></div>
+        <div class="metric"><b>7</b><span>appointment requests</span></div>
+      </div>
+      <p class="note">
+        Twelve additional high-confidence operators were contact-only. Thirteen
+        medium/low-confidence core rows remain visible in the research but do
+        not enter the decision numerator.
+      </p>
+      <h2>The operating rule</h2>
+      <div class="sequence">
+        <article class="step">
+          <div>
+            <h3>Inspect inventory authority</h3>
+            <p>
+              Live scheduler, staff-confirmed workflow, or no scheduling
+              authority.
+            </p>
+          </div>
+        </article>
+        <article class="step">
+          <div>
+            <h3>Classify the actual reserved object</h3>
+            <p>
+              Treatment, clinical evaluation, consultation, class, or nothing
+              yet.
+            </p>
+          </div>
+        </article>
+        <article class="step">
+          <div>
+            <h3>Scope the mode</h3>
+            <p>
+              Service, location, provider, and new/returning status can change
+              the route.
+            </p>
+          </div>
+        </article>
+        <article class="step">
+          <div>
+            <h3>Generate truthful language</h3>
+            <p>
+              CTA, success state, analytics, and recovery must match the
+              contract.
+            </p>
+          </div>
+        </article>
+        <article class="step">
+          <div>
+            <h3>Verify the live endpoint</h3>
+            <p>A label or scheduler vendor is not evidence of inventory.</p>
+          </div>
+        </article>
+      </div>
+      <h2>Representative proof</h2>
+      <div class="grid">
+        <article class="card">
+          <div class="operator">
+            <img
+              src="https://www.google.com/s2/favicons?domain=cienegaspa.com&sz=64"
+              alt=""
+            />
+            <h3>Cienega Medical</h3>
+          </div>
+          <p>
+            HydraFacial option, price, location, provider context, and public
+            15-minute slots.
+          </p>
+          <span class="mode">confirmed care</span>
+        </article>
+        <article class="card">
+          <div class="operator">
+            <img
+              src="https://www.google.com/s2/favicons?domain=thepracticebh.com&sz=64"
+              alt=""
+            />
+            <h3>The Practice Beverly Hills</h3>
+          </div>
+          <p>
+            Public live times for a cosmetic consultation; treatment remains
+            unscheduled.
+          </p>
+          <span class="mode">booked consultation</span>
+        </article>
+        <article class="card">
+          <div class="operator">
+            <img
+              src="https://www.google.com/s2/favicons?domain=skinworksmed.com&sz=64"
+              alt=""
+            />
+            <h3>Skin Works Medical Spa</h3>
+          </div>
+          <p>
+            Requested times are explicitly not guaranteed until staff confirms.
+          </p>
+          <span class="mode">appointment request</span>
+        </article>
+        <article class="card">
+          <div class="operator">
+            <img
+              src="https://www.google.com/s2/favicons?domain=sportsrehabla.com&sz=64"
+              alt=""
+            />
+            <h3>Sports Rehab LA</h3>
+          </div>
+          <p>
+            Call-to-book and general inquiry channels without availability or a
+            scheduling promise.
+          </p>
+          <span class="mode">contact only</span>
+        </article>
+      </div>
+      <h2>Architecture verdict</h2>
+      <p class="lede">
+        Adopt one appointment-acquisition family with three non-interchangeable
+        completion contracts. Run the classifier before copy or interface
+        generation; run the live endpoint verifier after integration. Never
+        infer a stronger promise from an indeterminate flow.
+      </p>
+      <p class="warning">
+        <strong>Not a freeze.</strong> This is a Grok-audited recommendation.
+        Human approval is still required before ONE BOX adopts the playbook or
+        schema.
+      </p>
+    </main>
+    <footer>
+      Purposive LA quality-and-contrast sample; not a prevalence census. No
+      identity, payment, form, or appointment was submitted.
+    </footer>
+  </body>
+</html>

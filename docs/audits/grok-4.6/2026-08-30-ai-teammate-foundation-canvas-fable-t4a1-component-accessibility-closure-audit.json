@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T16:16:32.099Z",
+  "request": {
+    "task": "T4A1 exact closure: Fable R-01 and R-03 component accessibility state",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t4-execution-receipt.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-corrected-scope-disposition.json"
+    ],
+    "diffBytes": 61813
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 20172,
+      "completion_tokens": 36036,
+      "total_tokens": 56208,
+      "cost": 0.256368,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.256368,
+        "upstream_inference_prompt_cost": 0.040152,
+        "upstream_inference_completions_cost": 0.216216
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 34910,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "describe(\"LocalAiTeammatePanel\")",
+        "scenario": "Allowlisted tests never render rosterState.kind===\"error\" (with or without retrying/focusAfterRetry), never click Try again, and cannot run Content's focus effect because they use renderToStaticMarkup. The cited e2e oracle only records held-retry + duplicate GET + success focusing the first radio. Input: retry GET fails again. Required behavior (focus the still-mounted Try again control) has no unit or cited live oracle, so R-03 can regress while the suite stays green.",
+        "remediation": "Add DOM tests (not only static markup) that start from roster error, activate Try again twice before the GET resolves (one GET, aria-disabled not native disabled, status announced, button still focused/mounted), then assert focus on the first radio after ready and on the retry control after a second error. Keep a static-markup case for error+retrying so aria-disabled/status/button presence cannot drift."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "LocalAiTeammatePanelContent focus useEffect([retryingRoster, rosterState])",
+        "scenario": "On successful retry the focused Try again node unmounts as kind flips to ready; focus restore runs in useEffect (after paint), not useLayoutEffect. Input: Try again focused → GET succeeds. Wrong behavior: browser moves focus to body for a paint, then the effect focuses the first radio. Screen readers can announce the document; a focus race exists on the required success path. focusAfterRetry is also never cleared, so any later rosterState identity change with the flag still true re-steals focus.",
+        "remediation": "Restore focus in useLayoutEffect (before paint) on the ready/error transition, then clear focusAfterRetry in the same turn (one-shot ref or setState) so the effect cannot refocus on unrelated renders."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "LocalAiTeammatePanelContent roster error alert",
+        "scenario": "Retry status is a role=\"status\" live region nested inside the roster role=\"alert\". Input: error surface, activate Try again. Wrong behavior: nested live regions are ignored or collapsed by common AT, so \"Trying the local roster again…\" may never be announced as its own status; the assertive alert may instead re-read the old error plus the button. That undercuts R-03's announce-retry-status requirement.",
+        "remediation": "Keep the Try again button mounted in the alert, but render the retry status as a sibling live region outside the alert (or replace the alert contents with a single non-nested status while retrying)."
+      },
+      {
+        "severity": "LOW",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "createProposal / submitAiTeammateAssignment task origin",
+        "scenario": "createProposal returns silently on !task.trim() and the submit button is disabled when trim is empty, so the panel never commits {kind:\"error\", origin:\"task\"}. The only task-origin aria-invalid check injects that state into LocalAiTeammatePanelContent and does not assert aria-describedby. Residual mismatches in submitAiTeammateAssignment tests use toMatchObject({kind:\"error\"}) and would still pass without origin.",
+        "remediation": "Either produce origin:\"task\" through the real submit path and assert textarea aria-invalid plus describedby, or add a submitAiTeammateAssignment(\"\") test that requires origin:\"task\" and make every error assertion include origin."
+      }
+    ],
+    "proof_assessment": "R-01 markup is implemented (error.origin required; aria-invalid only for origin===\"task\"; assignment error id stays on textarea aria-describedby) and the request-origin static test matches that. R-03's mounted aria-disabled retry, sync ref-before-GET, generation/mounted commit guards, and success focus are present in code, but the allowlisted suite does not exercise those states; the execution receipt's R-03 oracle omits failed-retry refocus; the accessibility aggregate is recorded as timed out, not a pass. Proof is therefore incomplete for exact R-03 closure.",
+    "residual_risks": [
+      "Strict Mode still issues two initial roster GETs; only generation/mounted checks drop the stale completion (retry is ref-gated, initial load is not).",
+      "Hung fetch leaves error+retrying with aria-disabled Try again indefinitely (no abort/timeout).",
+      "Empty parsed roster: ready+focusAfterRetry with no radio; firstRosterRadioRef.focus() is a silent no-op after the retry button unmounts.",
+      "Working assignment submit is natively enabled (disabled={!canSubmit && !isWorking}) and relies on canSubmit/submitting.current to prevent a second POST.",
+      "AiTeammateRosterState optional retrying/focusAfterRetry flags allow overlapping combinations instead of a discriminated retrying kind."
+    ]
+  }
+}

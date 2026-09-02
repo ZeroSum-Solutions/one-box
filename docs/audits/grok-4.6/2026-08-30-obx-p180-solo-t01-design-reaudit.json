@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T05:53:53.131Z",
+  "request": {
+    "task": "OBX-P180-SOLO-T01-DESIGN-REAUDIT",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "91b18e0",
+    "head": "91b18e0152df21e444b8b150f35071ac70340a11",
+    "files": [
+      "docs/plans/2026-08-30-obx-p180-solo-t01-authorization-design.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-solo-t01-design-audit.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/07-closure-and-disposition.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/governance/reviewer-roles.md",
+      "docs/governance/risk-exceptions/README.md"
+    ],
+    "diffBytes": 43786,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 8000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 30475,
+      "completion_tokens": 19990,
+      "total_tokens": 50465,
+      "cost": 0.180698,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.180698,
+        "upstream_inference_prompt_cost": 0.060758,
+        "upstream_inference_completions_cost": 0.11994
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 19521,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "Prior HIGH/MEDIUM findings are closed in the revised design text: unavailable T01 roles/OwnerAssignment/separations are pinned to NOT_AVAILABLE/false with same-human assignment rejected; 15 packet artifacts plus baseCommit are stored with independent rehash; P180-R014..016 are EXCEPT_T01_SOLO/NOT_SATISFIED with waived clauses; the stored record includes paths/effects/hashes/algorithms/invalidators/self-hash; receipts are exact paths/schemas with PASS-WITH-ACCEPTED-RISK and only OBX-P180-T01-SOLO-SEPARATION-001 MEDIUM ACCEPTED; ATF/global/manifest/governance are byte/key-constrained; six-path equality forbids prefixes/globs; 18 negatives are specified against committed-byte copies; only the exact amendment tuple can authorize T01; runtime/provider/persistence/UI/Page-IR/deployment/release authority is forbidden. Live proof still shows schema v1, ATF-only, globalImplementationAuthorized false, packet CLOSED/NOT AUTHORIZED, and non-waivable governance; that is the required pre-activation state, not evidence the future record already exists. Digests/timestamps remain unspecified literals because the design requires execution-time derivation and placeholder rejection.",
+    "residual_risks": [
+      "R015/R016 waived-clause cells mix waived and retained rules in prose, so a string-only oracle may not distinguish them without the other hard-coded checks.",
+      "Frozen risk-exceptions README will still say the directory has no active exception after the amendment file exists; that staleness is required by the freeze but can confuse operators.",
+      "Numbered negative tests do not separately name a now>expiresAt case distinct from 1,209,600-second interval drift, though the verifier prose rejects expired active records.",
+      "Gate 7 generates Grok and Fable together while Fable targetPaths include the Grok receipt, so implementation must freeze Grok before Fable.",
+      "Correctness of ATF/governance/dependency/packet digests is not proven by this markdown-only change and depends on the required execution-time rehash."
+    ]
+  }
+}

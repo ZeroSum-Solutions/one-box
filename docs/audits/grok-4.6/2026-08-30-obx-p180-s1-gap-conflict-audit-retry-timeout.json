@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T00:51:35Z",
+  "task": "OBX-P180-S1-RETRY",
+  "attempt": 2,
+  "requestedModel": "x-ai/grok-4.6",
+  "requestedEffort": "high",
+  "provider": "OpenRouter",
+  "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+  "target": {
+    "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+    "sha256": "8a88744d7282e00566560041fd98247762f45cbad7bc85910c205fcd97298f21"
+  },
+  "result": "TIMEOUT",
+  "timeoutMs": 300000,
+  "exitCode": 1,
+  "error": "DOMException TimeoutError: operation aborted at the harness timeout before an audit response was captured",
+  "authority": "Failed exact-model retry retained as chronology only. It is not Grok review evidence, a verdict, acceptance, or implementation authority.",
+  "nextAction": "Use the same exact model with the repository-evidenced 600000 ms bounded audit window and a smaller response ceiling. Do not substitute a model."
+}

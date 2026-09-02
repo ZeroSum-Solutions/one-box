@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T03:41:35.337Z",
+  "request": {
+    "task": "OBX-P180-S4-EXCLUSIVE-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-ultimate-closure-findings-v8.json"
+    ],
+    "diffBytes": 27834,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 9203,
+      "completion_tokens": 22067,
+      "total_tokens": 31270,
+      "cost": 0.150616,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.150616,
+        "upstream_inference_prompt_cost": 0.018214,
+        "upstream_inference_completions_cost": 0.132402
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 21355,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "D7 disposition-table lease column",
+        "scenario": "Compare parent is reserved for Arm A, Arm B, and an evaluator. D6U CASes the unused evaluator offered|queued lease to cancelled|expired (parent stays held, no hierarchy amount movement). Arm A terminals and D6 does claimed->released (no-op if already terminal). Arm B had uncertain dispatch, so its lease is reconciliation-hold; D6 therefore leaves that lease in reconciliation-hold and CASes the parent held->reconciliation-hold. D7 is the only legal reservation-hold and lease-hold exit, but its lease column allows only already-released-with-terminal-receipt (no-op) or reconciliation-hold->released. The evaluator lease is cancelled|expired, which has no D7 transition (`expired|cancelled|released -> no transition`). Strict execution rejects D7 (parent money and Arm B capacity stuck forever) or an implementer invents a second hold-exit / reopens the cancelled slot. The same pairing arises if an unclaimed arm was cancelled while a sibling lease remained in reconciliation-hold.",
+        "remediation": "Give D7 the same already-terminal lease set as D6: each associated lease is already released|cancelled|expired with bound terminal or UnusedCompareComponentProofV1 hash (no-op, do not reopen) or reconciliation-hold->released in this CAS, still only with bound terminal hashes plus owner-reconcile. Keep reconciliation-hold->released legal only in D7."
+      }
+    ],
+    "proof_assessment": "v8 is not faithful to these bytes: it still describes D2 as claimed|reconciliation-hold->released, D6 as unable to join already-released siblings, and unused proofs as non-CAS records. Current text already makes D2 claimed->released only, D6 no-op on released|cancelled|expired plus park-parent on any lease reconciliation-hold, and D6U an atomic unused-proof CAS that binds priorComponentStateRevision and rejects later claim. Those closures are real. v8 is therefore not authority that the old holes remain, and it missed the residual composition hole: D7 was not given D6/D6U's cancelled|expired no-op, so exclusive D7 cannot finish a parked compare parent.",
+    "residual_risks": [
+      "D1 prior-offered forbids reading QueueStateV1 while queue-full offered->cancelled must observe depth; two offered admissions can race maximumQueueDepth unless the offered->queued CAS is the sole depth gate.",
+      "Capacity claimed->released requires a terminal receipt hash but the general capacity paragraph does not bind that receipt's segmentId/manifestHash/jobId to CapacityLeaseV1; D-rows say this-segment, the lease state machine does not.",
+      "Reservation expiresAt has no D-code; expiry is told not to silently release an ambiguous hold, but the positive transition is unspecified.",
+      "D6U restates parent/hierarchy amount no-op but does not restate queued ticket removal/depth decrement; it relies on the general queued->cancelled rule.",
+      "In-memory fixtures still cannot prove crash-safe CAS, replay/attach, or durable reconciliation."
+    ]
+  }
+}

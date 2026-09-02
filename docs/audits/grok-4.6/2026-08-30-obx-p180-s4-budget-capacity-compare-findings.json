@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:19:50.041Z",
+  "request": {
+    "task": "OBX-P180-S4",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json"
+    ],
+    "diffBytes": 15596,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24767,
+      "completion_tokens": 23812,
+      "total_tokens": 48579,
+      "cost": 0.192214,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.192214,
+        "upstream_inference_prompt_cost": 0.049342,
+        "upstream_inference_completions_cost": 0.142872
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 22408,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "122-125, 130-131, 138-139, 146-148",
+        "scenario": "A provider/driver UsageObservationV1 reports billed units below the held worst-case reserve with billingState=known. Line 122 plus settle-known/release-unused authorize the control plane to settle and free the remainder, while lines 138-139 only forbid observations from changing the ledger 'directly' and lines 146-148 require under-reports to keep the conservative hold. Implementing the settle path treats untrusted under-reporting as known usage, releases reserved funds, and lets another segment spend them; a later corrected bill cannot enlarge the original cap, so spend exceeds admitted authority.",
+        "remediation": "Make provider/driver observations attach-only evidence. Permit settle-known/release-unused solely from fixture/control-plane proof of non-dispatch or from owner-reconcile. Any provider-sourced amount below reserve, absent final usage, or unverifiable billing must CAS the full unresolved amount to reconciliation-hold; never reduce a hold from untrusted units."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "184-187, 190-194",
+        "scenario": "CapacityLeaseV1 allows claimed->expired with no ambiguous/hold state, and line 192 says claim expiry before provable dispatch cancels and reconciles capacity. That is the uncertain-dispatch case, which line 193 says must not return capacity as unused. An in-flight or retryable segment whose lease interval ends, or a crash after claim without a dispatch proof, can terminal-expire the lease, free the slot, and admit another segment while the first attempt may still be running; same-route attempt 1 and Step 3 interrupt/resume have no lease-lifetime rule and can either lose the slot or consume a second one.",
+        "remediation": "Add a capacity reconciliation-hold (or equivalent) that cannot be reused. Split pre-claim expiry from post-claim uncertainty. Forbid claimed->expired from returning concurrency while dispatch is unproven, in-flight, interrupted, or awaiting the already-reserved retry; require one CAS across held reservation, lease, and attempt claim, with replay/attach only."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "243-247, 268-273",
+        "scenario": "Each compare arm is an ordinary Step 2 segment with its own completed RouteSegmentReceiptV1/proposal envelope. Step 3 apply eligibility keys off that completed segment receipt, not CompareReceiptV1. A single successful arm can therefore enter the guarded apply funnel (or be treated as the usable output) while the sibling arm is running, failed, or partial, despite the no-winner/no-auto-apply rule.",
+        "remediation": "Declare compare-arm segment receipts evidence-only and not apply-eligible. Block apply, Page IR mutation, risk acceptance, authority grants, and default-route promotion unless a separate non-authorizing human decision bound to a terminal CompareReceiptV1 plus stale-safe source hash starts a new explicit non-compare segment."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "106-107, 163, 174-177, 141-143",
+        "scenario": "Atomicity is specified as reservation/lease stateRevision CAS and prose 'atomically checks and holds', but there is no CAS object for hierarchical remaining allowances or rate-window tokens. Concurrent jobs can both read the same remaining cap or CapacityObservationV1 rate-window remainder and both insert held reservations/leases, exceeding agency/project/assignment caps or rateWindows while each row CAS succeeds.",
+        "remediation": "Define remaining-balance and rate-window token records with CAS revisions. Require one transaction that decrements every hierarchy scope plus rate tokens and inserts the reservation/lease, or rolls all back; snapshots remain observational and cannot admit by themselves."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "285-295",
+        "scenario": "Acceptance item 7 and the criterion require every failure class to fail closed with disposition, preserved evidence, stop/kill behavior, and a named owner. The table omits Step 2/3 classes: human interrupt, auth/credential boundary, output schema/size/canary, in-flight cap exhaustion, and queued/offered lease expiry. Interrupt leaves capacity lease disposition unspecified; queued->expired is not mapped, so funds/slots can stick or silently release without an owner.",
+        "remediation": "Extend the table to those classes with terminal action, budget and capacity disposition, evidence retention, kill/stop, and owners already in the TM map (Job/Sandbox, Model/Skill Security, Budget/Operations, Independent Security Verifier). Define Evaluation Owner and Budget/Operations Owner as OwnerAssignmentV1 roles before relying on them."
+      }
+    ],
+    "proof_assessment": "The slice is a planning contract with no executable ledger, lease, or compare implementation. Step 2/3, the threat model, authorization JSON, and routing corpus are prior planning evidence: they support fail-closed routes and non-authoritative proposals, but Step 3's apply-eligible completed segment receipts conflict with this file's no-apply compare rule, and nothing demonstrates crash-safe CAS, rate-token atomicity, or provider-usage non-enlargement. Exact-Grok binding of these bytes is not present in the supplied proof.",
+    "residual_risks": [
+      "OwnerAssignmentV1 rows remain unassigned, so named failure owners are labels only.",
+      "Provider-offline in-memory fixtures cannot prove durable CAS, replay/attach, or reconciliation after crash.",
+      "CapacityReceiptV1 is referenced by CompareReceiptV1 but has no closed schema, weakening settlement oracles.",
+      "Mixed synthetic/metered compare arms are not forbidden.",
+      "Priority-before-fair-share ordering has no anti-starvation bound if weights are zero or omitted."
+    ]
+  }
+}

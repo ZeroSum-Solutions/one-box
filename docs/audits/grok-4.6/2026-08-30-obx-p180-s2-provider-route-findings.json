@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T01:30:29.733Z",
+  "request": {
+    "task": "OBX-P180-S2",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/eval/model-routing/policy.md",
+      "docs/eval/model-routing/benchmark-harness.md",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/security/supply-chain-policy.md",
+      "docs/adr/0002-target-desktop-cloud-topology.md"
+    ],
+    "diffBytes": 18102,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 29144,
+      "completion_tokens": 18896,
+      "total_tokens": 48040,
+      "cost": 0.171472,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.171472,
+        "upstream_inference_prompt_cost": 0.058096,
+        "upstream_inference_completions_cost": 0.113376
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 17032,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "264-288 Route-selection state machine / Allowed transitions; 333-349 Retry; 351-368 Failure classification",
+        "scenario": "A segment fails validation, budget reservation, kill-switch, deadline, or pre-dispatch region/capacity checks, or attempt 1 hits a classified transient rate-limit. Allowed transitions are only draft->validated->reserved->queued->dispatched, and completed|rejected|failed|cancelled|budget-exhausted exist only from dispatched; terminal states are final and unlisted transitions are rejected. Pre-dispatch fail-closed cases cannot reach the table's rejected/cancelled/budget-exhausted receipts (invalid manifest never becomes rejected without a provider call; queued work cannot be cancelled when the kill switch fires or the deadline dies). Same-route retry is unreachable: moving to failed makes the retry an illegal transition, and staying in dispatched is unspecified. Retry count is also not a closed field on RouteSegmentManifestV1, so crash/replay can emit extra provider attempts.",
+        "remediation": "Add pre-dispatch terminals (draft|validated|reserved|queued -> rejected|cancelled|budget-exhausted), reserved|queued -> cancelled for kill-switch/deadline, and a non-terminal in-flight attempt state that allows exactly one classified same-route retry before failed. Put attemptIndex/retryCount in the closed attempt/segment receipt (max two attempts) with control-plane CAS. Keep late provider output quarantined after any terminal."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "318-327 Switch rules 1-4",
+        "scenario": "User has a validated/reserved/queued segment for model A and requests model B before dispatch. Rule 1 says selection is mutable UI draft state until dispatch; rule 2 says provider/model/effort cannot change while validated, reserved, queued, dispatched, or terminal; the state machine has no switch, interrupt, or reservation-release transition before dispatched. An implementer can mutate the reserved segment in place (hidden route/effort change, budget held for the wrong route, TM-05 receipt skipped) or refuse the switch and leave the old reservation stuck.",
+        "remediation": "Make validated/reserved/queued/dispatched/terminal immutable. Any user switch before dispatch must terminal the current segment (cancel + release reservation), then open a new draft segment with a new manifest, validation, reservation, and receipt chain. Keep rule 4 interrupt-during-dispatch as the only in-flight path."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "176-189 PricingSnapshotV1; ModelRegistryEntryV1.pricingSnapshotRef",
+        "scenario": "PricingSnapshotV1 is prose, not a closed exact-field schema, and the model binds pricingSnapshotRef rather than a snapshot hash (unlike providerEntryHash/modelEntryHash on the route). Snapshot bytes can change unit price in place while modelEntryHash and routePolicyHash stay the same, so a reserved/dispatched segment silently runs under a new price basis.",
+        "remediation": "Define PricingSnapshotV1 as a schemaVersioned closed record with exact fields and its own snapshotHash. Store pricingSnapshotHash on both ModelRegistryEntryV1 and RoutePolicyV1 so any price/tax/tier change is a new model, route, and segment."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "66-78 First catalog; 52-59 three inventories; ModelRegistryEntryV1.admission; RoutePolicyV1.modelEntryHash",
+        "scenario": "The only first-slice identity is offline-deterministic-v1, called a harness not a model slug and placed in a 'Product test registry' that is not one of the three inventories. RoutePolicyV1 still requires modelEntryHash, and model admission is only disabled|evaluation-only|enabled (no fixture-only). The provider-offline slice cannot be constructed under the closed contracts without minting a fake model slug or leaving routes uninstantiable.",
+        "remediation": "Put the harness in the Product inventory with closed fixture-only admission on both provider and model entries, and define an exact synthetic model/route identity whose results remain non-qualifying. Do not invent a fourth catalog."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "70-73 First catalog Codex and Grok rows; 52-61 Registry separation",
+        "scenario": "Grok is labeled 'External review/evaluation' and Codex OAuth 'Evaluation/operator tooling', so one identity is named in two catalogs despite 'an entry in one inventory never silently appears in another.' Seeding registries from this table can place Grok in the evaluation inventory used by blinded fixtures, blurring advisory audit scope with evaluation candidates.",
+        "remediation": "Bind each identity to exactly one home: Grok solely External-review/audit-only; Codex OAuth solely outside the product registry as operator tooling (or solely evaluation-only, not both). Dual-label rows are invalid."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "165-168 reportedIdentityRule",
+        "scenario": "A provider returns requested-only/unverifiable identity. The unless-clause lets an 'accepted provider contract' supply 'equivalent attestation' and thereby product-enable that identity, which is a paper waiver of fail-closed identity rather than reported-identity evidence.",
+        "remediation": "Delete the waiver. Requested-only or unverifiable identity is always product-disabled and evaluation-ineligible. Any later attestation must be an exact hash-bound reported-identity rule admitted as its own contract, not a generic provider agreement."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "228-231 effective-route intersection; ProviderRegistryEntryV1.admission vs ModelRegistryEntryV1.admission; RoutePolicyV1.processingRegion",
+        "scenario": "Intersection lists provider, model, project, actor, assignment, skill, tool, data, region, and budget permissions, but not admission, and it does not require route.processingRegion to be a member of provider.processingRegions. An evaluation-only/disabled/fixture-only provider plus an enabled model (or a route region absent from the provider allowlist) can still reserve/dispatch as product work.",
+        "remediation": "Intersect admission explicitly: product dispatch requires provider admission enabled AND model admission enabled AND a current authorization; route admission/data/region/tools cannot exceed the stricter provider and model allowlists; processingRegion must be in provider.processingRegions or the intersection is empty and fails before reservation."
+      }
+    ],
+    "proof_assessment": "The only changed artifact is the new Step 2 planning markdown; HEAD equals BASE and there is no runtime, test, or hash-bound Grok audit of these bytes. Step 1 and the cited ADRs/policies are context, not proof that the state machine, switch rules, or closed schemas are consistent. In-document contradictions (terminals only from dispatched vs pre-dispatch rejected/cancelled/retry; mutable-until-dispatch vs frozen-from-validated) are sufficient to invalidate completeness without treating the packet's own acceptance list as authority.",
+    "residual_risks": [
+      "Nested *PolicyRef objects are unnamed closed schemas, so incomplete region/retention/telemetry/subprocessor policies may not fail validation.",
+      "Crash between provider attempt and control-plane persist can duplicate a call even with a one-retry rule.",
+      "compareGroupId is on the segment before the Step 4 compare contract exists.",
+      "Optional expiresAt allows never-expiring hosted entries.",
+      "dispatch(..., shortLivedCredentialHandle?) can be copied into the provider-offline slice despite credentialBoundary none.",
+      "Document AC8 requires a Grok 4.6 CLEAN binding of these bytes; that audit is not in the slice."
+    ]
+  }
+}

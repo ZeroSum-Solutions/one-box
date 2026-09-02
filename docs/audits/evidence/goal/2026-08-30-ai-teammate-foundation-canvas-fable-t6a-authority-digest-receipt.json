@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T17:59:30Z",
+  "finding": "F5-CLOSE-01",
+  "authorization": "OBX-AUTH-ATF-001",
+  "stepBoundary": "This receipt binds only the authority packet digest refresh. README bd0fe8b0c083fca7b8d20589852b9465f16c5ba6b3342a2b166593f467f6dd55 and all other packet inputs were frozen before the RED verifier run and remained byte-identical through the GREEN runs.",
+  "before": {
+    "packetDigest": "1b86107bb20bb4e5e206de725aa6dec048a1acff8a3247b3963a34cae1780da5",
+    "manifestSha256": "d640b6a20642670e0352a4eb778ed987de054dfea9669520f7020097be3b0ac2",
+    "proof": "Replacing only the current packetDigest string with the prior value in a byte-preserving stream reproduced d640b6a20642670e0352a4eb778ed987de054dfea9669520f7020097be3b0ac2, the manifest hash already bound by the T3 ledger and authority packet digest proof."
+  },
+  "red": {
+    "command": "npm run verify:plans",
+    "exitCode": 1,
+    "result": "packetDigest mismatch; expected current 5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b"
+  },
+  "change": {
+    "onlyField": "packetDigest",
+    "from": "1b86107bb20bb4e5e206de725aa6dec048a1acff8a3247b3963a34cae1780da5",
+    "to": "5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b",
+    "authorizationFieldsChanged": false,
+    "canonicalInputFilesChangedDuringStep": false
+  },
+  "after": {
+    "packetDigest": "5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b",
+    "manifestSha256": "62e9e2804937817ce3fbbc8d0db3ff18900f68666f32b02aaaadaf93b72543e2",
+    "architectureReadmeSha256": "bd0fe8b0c083fca7b8d20589852b9465f16c5ba6b3342a2b166593f467f6dd55"
+  },
+  "green": {
+    "verifyPlans": "passed: 17 domains, 29 tickets, 21 program evaluations; authority packet SHA-256 5efe92421246d22520e425f05ca5b45b5e734b57b57d19fd7d8925247570b38b",
+    "testPlans": "passed 48 of 48"
+  },
+  "scope": "No effect, path, runtime dependency, implementation flag, authority class, domain state, ticket state, Page IR behavior, product code, or canonical prose changed in this step."
+}

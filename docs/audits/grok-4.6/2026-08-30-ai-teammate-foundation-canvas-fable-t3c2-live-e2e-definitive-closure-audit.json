@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T14:42:41.741Z",
+  "request": {
+    "task": "T3C2 definitive closure for live Canvas Agent Studio oracle",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "scripts/e2e/canvas-contract.mjs"
+    ],
+    "proofs": [],
+    "diffBytes": 34135
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 9976,
+      "completion_tokens": 45255,
+      "total_tokens": 55231,
+      "cost": 0.291482,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.291482,
+        "upstream_inference_prompt_cost": 0.019952,
+        "upstream_inference_completions_cost": 0.27153
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 44904,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "No runtime proof artifacts were supplied. Verdict is from static review of scripts/e2e/canvas-contract.mjs only: the Agent Studio path now threads a live data-edit-id, drives roster/form by keyboard, parses computed outline RGBA, registers a bounded waitForRequest before Enter, holds/counts POST-only via route, checks the seven JSON keys and editId absence in body/headers/empty query, asserts held-state disablement and the duplicate-request/postCount=1 oracles, always release/unroute in finally, and repeats retained hidden/aria-hidden/inert/0x0 plus a wraparound Tab cycle and state restore for tool switch and View/Edit.",
+    "residual_risks": [
+      "assignment/dataClass held-state uses Playwright isDisabled() (true for aria-disabled) rather than the native disabled property used for radios/modes; an aria-only freeze would still pass",
+      "editId substring checks omit the POST pathname and can miss escaped/encoded forms",
+      "Tab-cycle wrapped=true can be satisfied by a small focus trap or a no-move Tab; iframe tab stops can also prevent wrap (false red) or freeze parent activeElement",
+      "parseColor treats missing alpha as 1 and would misread percentage alpha if computed style were not canonical rgba",
+      "QA Challenger isChecked after five ArrowRights does not first assert a different radio was selected",
+      "duplicate waitForRequest(750ms) is a timing oracle; postCount=1 through result is the real backstop",
+      "retained count() is one-shot with no waitFor on [data-retained-agent-studio]"
+    ]
+  }
+}

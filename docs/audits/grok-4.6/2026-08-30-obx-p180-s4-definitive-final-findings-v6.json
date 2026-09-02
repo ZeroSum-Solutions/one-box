@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T03:19:55.969Z",
+  "request": {
+    "task": "OBX-P180-S4-DEFINITIVE-FINAL",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-final-clean-findings-v5.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "diffBytes": 24088,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 14823,
+      "completion_tokens": 20484,
+      "total_tokens": 35307,
+      "cost": 0.152358,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.152358,
+        "upstream_inference_prompt_cost": 0.029454,
+        "upstream_inference_completions_cost": 0.122904
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 19036,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "D1 proof cell; 'Cancellation before a provably absent dispatch releases the unused amount.'; condition rows mapping 'no dispatch' to D1",
+        "scenario": "Lease is already `claimed` (queue ticket removed at claim) and dispatch is later proven absent (driver/control preflight failure, auth failure before call, or stop before send). D1 cannot fire: its lease edge is only `offered|queued -> cancelled|expired`, and `claimed -> cancelled|expired` is not in the lease machine. The only listed claimed terminals are D2 (`held -> settled`) or D4 (`held -> reconciliation-hold`). D2 requires usage proof that does not exist; D4 keeps the full unused amount in `reconciliation-hold`. The pairing `held -> released` plus `claimed -> released` is banned by 'No other reservation/lease pairing is valid,' so proven non-dispatch after claim cannot release unused budget.",
+        "remediation": "Extend D1 (or add one closed code) for proven non-dispatch after claim: reservation `held -> released`, lease `claimed -> released` with no-dispatch proof plus this-segment terminal receipt; QueueState is not read or written because the ticket was already removed by the claim CAS. Keep D4 only when dispatch/billing is not proven absent."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "D3 row; reservation machine `reconciliation-hold -> settled | released`; 'No other reservation/lease pairing is valid.'",
+        "scenario": "Ambiguous dispatch takes D3: reservation `held -> reconciliation-hold`, lease `claimed -> reconciliation-hold`. A named owner later supplies schema-valid `owner-reconcile` evidence. The reservation machine requires `reconciliation-hold -> settled|released` and the lease machine requires `reconciliation-hold -> released`, but no D-code has that prior-state pair (D2 still starts at reservation `held`). Implementers either freeze money/capacity forever or perform an unlisted pairing, so D0-D6 are not closed. The same hole applies when D6 parks the compare parent in `reconciliation-hold`.",
+        "remediation": "Add one successor code used by non-compare D3 and by D6 parent `reconciliation-hold`: reservation `reconciliation-hold -> settled|released`, lease `reconciliation-hold -> released`, requiring the bound terminal segment receipt hash plus owner-reconcile evidence; forbid any other exit."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "compare parent CAS: '0 <= held, remaining <= limit - settled, and no double release'",
+        "scenario": "Scope limit=100, settled=0, remaining=100, held=100. Both stated predicates hold, so a second reservation CAS against the same observed remaining can hold another 100. Concurrent jobs then spend the same cap because remaining is not forced to drop by held. The closed stock invariant remaining+held+settled<=limit is never checked.",
+        "remediation": "Make the CAS predicate remaining>=0, held>=0, settled>=0, and remaining+held+settled=limit (treat released as a flow counter, not a third stock). Reject any reserve/settle/release/hold that would break equality or raise remaining+held+settled above limit."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "D6 'after both arms terminal one CAS'; 'A compare parent reserves both arms, every allowed retry, the deterministic evaluator, and declared human-review allowance as one transaction'",
+        "scenario": "Parent hold includes evaluator and reviewer units. Both arm terminal hashes exist; evaluator/reviewer have not run. D6's single parent amount CAS may `release-unused` those units immediately. The evaluator then either runs with no held authority or cannot run, and a concurrent job can reserve the released remainder. Parent deadline/cancel does not create this early money CAS, but ordinary both-arm completion does, so compare budget is not closed.",
+        "remediation": "Key the one parent amount CAS on terminal-or-proven-unused hashes for every reserved component (both arms, decided retries, evaluator, declared reviewer runs), not merely both arm terminals. Parent deadline/cancel may still only drive each non-terminal component through its own segment/lease CAS and must not move hierarchy or parent amounts until that full terminal set exists."
+      }
+    ],
+    "proof_assessment": "v5's two MEDIUMs describe bytes that are not in this slice: D1 already splits QueueState writes (queued ticket/depth only; offered must not read or write QueueStateV1), and the compare or-clause that allowed a parent money CAS on deadline/cancel is gone. Those two criterion clauses hold. v5 is not authority for closedness of D0-D6/CAS/compare: the disposition table still has illegal or missing pairings, and the stated balance predicates do not conserve remaining+held+settled.",
+    "residual_risks": [
+      "claimed|reconciliation-hold->released requires a terminal receipt hash but does not bind that receipt's segmentId/manifestHash/jobId to CapacityLeaseV1, so a foreign receipt can free the slot.",
+      "Attempt index one has no CAS distinct from offered|queued->claimed; a reused claim transaction can re-decrement the concurrency slot despite D5.",
+      "Step 2 reserved|queued->cancelled still releases or reconciles budgetReservationId with no sibling join; only this file's compare preamble blocks that, and a Step 2 implementer can still move parent amounts on the first arm.",
+      "CapacityReceiptV1 and ArmCostAnnotationV1 are unnamed closed schemas; mixed synthetic/metered compare arms are not forbidden under one parent policy; reservation expiresAt has no D-code.",
+      "D1 offered 'does not read QueueStateV1' conflicts with the offered->queued failure path that must observe depth to CAS cancelled on queue-full; writes are closed, admission reads are not.",
+      "'Parent cancellation cancels both' if read as a single pair CAS will refuse or revive an already-terminal completed arm; the later per-arm lease CAS sentence is the safe rule.",
+      "In-memory fixtures cannot prove crash-safe CAS, replay/attach, or durable reconciliation."
+    ]
+  }
+}

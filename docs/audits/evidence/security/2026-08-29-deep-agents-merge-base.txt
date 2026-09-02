@@ -1,0 +1,3 @@
+command: git merge-base 9d4ddfddc83efa2af5a560500cd87c787b7035f3 HEAD
+exit_code: 0
+output: 9d4ddfddc83efa2af5a560500cd87c787b7035f3

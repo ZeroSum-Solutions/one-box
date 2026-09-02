@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T01:14:17.616Z",
+  "request": {
+    "task": "OBX-P180-S1-FINAL",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md"
+    ],
+    "proofs": [
+      ".claude/handoffs/one-box-operating-environment-next-phase.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/04-operating-environment/index.md",
+      "docs/plans/one-box-master/00-authority/2026-08-29-engineering-operating-system-and-gap-register.md",
+      "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+      "docs/eval/model-routing/policy.md",
+      "docs/eval/model-routing/benchmark-harness.md",
+      "docs/eval/one-box-program/evaluation-strategy.md",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/security/supply-chain-policy.md"
+    ],
+    "diffBytes": 23556,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 4000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 34016,
+      "completion_tokens": 13184,
+      "total_tokens": 47200,
+      "cost": 0.146944,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.146944,
+        "upstream_inference_prompt_cost": 0.06784,
+        "upstream_inference_completions_cost": 0.079104
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 11945,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "102,105,108,109,114,123,125,126",
+        "scenario": "CLEAN requires every GC row to cite governing SRC IDs in both current-evidence and gap/conflict cells. After reading GC-01, GC-04, GC-07, GC-08, GC-13, GC-22, GC-24, and GC-25, the gap/conflict cells have no SRC IDs (GC-04 and GC-22 use pronouns only). Later steps can treat those gaps as ungoverned or silently closed, so the matrix is not a source-bound contract.",
+        "remediation": "Put explicit SRC IDs in each listed gap/conflict cell, e.g. GC-01: SRC-03/SRC-20/SRC-23; GC-04: SRC-08–SRC-11; GC-07: SRC-15/SRC-20/SRC-22; GC-08: SRC-15/SRC-16; GC-13: SRC-04/SRC-22; GC-22: SRC-04/SRC-12/SRC-15; GC-24: SRC-12/SRC-14/SRC-15; GC-25: SRC-14/SRC-15/SRC-16."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "54",
+        "scenario": "CLEAN requires exact normalized Deep Agents result paths. SRC-07 names the evaluation plan and `docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md` but binds the companion receipt only as 'its adjacent `.json` receipt'. A differently named or missing JSON file can be treated as the T1–T11 disposition without a checkable path.",
+        "remediation": "Replace the adjacent-receipt phrase with the exact repository path of the normalized JSON receipt (or delete the claim if no such file exists)."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "55,73",
+        "scenario": "The six closed classes are not internally coherent. SRC-08 is a provisional routing policy classed as evaluation evidence, while GC-14 uses it as permission to retry. SRC-26 is a hash-bound closure receipt classed as evaluation evidence beside SRC-27/SRC-28 as audit evidence. Class-based ranking will treat policy as measured evidence and drop the foundation closure hash from the audit set.",
+        "remediation": "Reclass SRC-08 as proposed target (or accepted contract if that policy is in-force) and SRC-26 as audit evidence; keep GC uses aligned to the new classes."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "25,34-38",
+        "scenario": "Band 1 names both the authority manifest and scoped implementation authorization, but the within-band paragraph ranks SRC-18, SRC-29, SRC-19, and SRC-01 only. SRC-02 is unclassified inside the band. If SRC-18 places operating-environment work in program scope while SRC-02 still sets implementationAuthorized capabilities to read/propose and prohibits provider/network/persistence, a reader can take the manifest as the winning machine-readable owner.",
+        "remediation": "Add one within-band-1 rule: SRC-02 exclusively owns implementationAuthorized, allowed effects, and prohibitedCapabilities and cannot be overridden by SRC-18, SRC-19, SRC-29, or SRC-01."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "108",
+        "scenario": "GC-07 current evidence cites only SRC-20/SRC-22 and the gap says no immutable segment, mid-turn, stale-result, or receipt-link rule is specified. SRC-15 TM-05 already requires a new receipted route segment on every user-requested switch and forbids hidden fallback. Steps 2–3 can treat route segments as greenfield and under-bind the threat model.",
+        "remediation": "Move SRC-15 into GC-07 current evidence; restate the gap as missing schema/state-machine/receipt fields under that already-governing rule."
+      }
+    ],
+    "proof_assessment": "The supplied handoff, OBX-AUTH-ATF-001, ADR 0003, routing policy, and frozen-foundation receipts show the provider-offline, no-authorization, Canvas, Page-IR, and route-preservation decisions were not reversed. The new matrix bytes themselves are the deterministic proof that CLEAN citation, exact Deep Agents path, class-coherence, and within-band-ranking bars are unmet; prior Grok items in those areas are only partly dispositioned.",
+    "residual_risks": [
+      "GC-12 is owned by Step 4 in P180-R009 but marked open-to-step-5, so capacity ceilings may be deferred past the budget contract.",
+      "SRC-03 `:15-31` may not point at the roster paragraph, weakening the persistent-identity freeze.",
+      "Without the exact JSON path, GC-06 can keep citing T1–T11 after the receipt is renamed or split."
+    ]
+  }
+}

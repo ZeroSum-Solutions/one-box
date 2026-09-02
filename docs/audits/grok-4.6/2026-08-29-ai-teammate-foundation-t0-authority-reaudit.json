@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T06:27:30.022Z",
+  "request": {
+    "task": "T0-authority-reaudit",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/plan-register.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
+      "docs/tickets/ai-teammate-foundation/OBX-AT-001.md",
+      "docs/tickets/ai-teammate-foundation/manifest.json",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t0-authority.txt",
+      "docs/audits/grok-4.6/2026-08-29-ai-teammate-foundation-t0-authority-audit.json"
+    ],
+    "diffBytes": 119637
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 34921,
+      "completion_tokens": 22092,
+      "total_tokens": 57013,
+      "cost": 0.202202,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.202202,
+        "upstream_inference_prompt_cost": 0.06965,
+        "upstream_inference_completions_cost": 0.132552
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 21736,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The first Grok 4.6 audit JSON is preserved as the FINDINGS source list, not as closure authority. Closure is in the verifier: rejectUnknownKeys allowlists on registry/record/authorizedBy/scope/requiredReview/foundation ticket manifest and ticket records; hardcoded pins for ticketIds [OBX-AT-001], tickets [{id:OBX-AT-001,...}], effects [read,propose], requirements [E1], invalidators, operating-environment draft/false, OBX-P180 proposed, OBX-P310 blocked; AiTeammate prefix delimited to src/components/preview/AiTeammate/. Negative tests assert those distinct fail() strings, so a stale packetDigest alone cannot greenwash them. The evidence txt is a narrative receipt (43 tests, digest 87b08c3b… matching the manifest field) and was not re-executed here.",
+    "residual_risks": [
+      "prohibitedCapabilities and requiredReview scan/hunk flags remain labels; T0 still does not scan code or spec/ticket prose for provider/network/mutate",
+      "allowedExactPaths still grant whole shared files (contracts.ts, Workbench.tsx) with no machine hunk/behavior limit",
+      "directory-delimiter extra check is AiTeammate-specific; other prefixes depend on the expected-array pin",
+      "docs/audits/** evidence is existence-checked but not packet-digested, so the receipt text can drift without verify:plans failing",
+      "validateAuthorizedPath does not treat src/app/api/ or src/components/preview/ as too broad if both JSON and expectedTeammateFoundationScope were updated together"
+    ]
+  }
+}

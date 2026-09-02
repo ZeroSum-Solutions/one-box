@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T17:02:53Z",
+  "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-audit.json",
+  "authority": "OBX-AUTH-ATF-001",
+  "dispositions": [
+    {
+      "finding": "F5-FINAL-01",
+      "decision": "ACCEPT",
+      "reason": "The T3 manifest had been refreshed to post-T4 hashes even though its prose claimed a pre-T4 binding, and one T4 result retained the superseded 21-test count.",
+      "correction": "Restore the original post-T3/pre-T4 source hashes in the T3 manifest; label the T4 execution and closure hashes as post-T4/pre-F5; correct the two-file count to 23; bind later changes separately in the T5 receipt.",
+      "scopeEffect": "Evidence-only; no product capability or authority change."
+    },
+    {
+      "finding": "F5-FINAL-02",
+      "decision": "ACCEPT",
+      "reason": "The accepted reset-only-on-run-boundary continuity contract should include routine collapse/reopen, especially on compact workspaces.",
+      "correction": "Keep only the run-keyed retained Agent Studio subtree mounted inside a hidden, aria-hidden, inert collapsed panel; continue unmounting other tool-panel content; add a live collapse/reopen continuity oracle for assignment, teammate, proposal, receipt, focus, layout, and accessibility isolation.",
+      "scopeEffect": "Process-local UI continuity only; no persistence, job, route, provider, mutation, browser, collaboration, deployment, release, or A4 capability."
+    }
+  ],
+  "deferredResiduals": [
+    "Full 768 and 390 live execution is a required final gate, not a correction finding.",
+    "Client timeout and shared proposal-schema refactors are not required to close these two findings and remain outside this bounded correction unless a later verified gate makes them blocking.",
+    "Site Advice remains the pre-existing separately governed mutation surface."
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T15:05:22.949Z",
+  "request": {
+    "task": "T3D closure for AI teammate Canvas architecture, threat model, and authority digest",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/security/local-api-threat-model.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3a-route-closure-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3b-local-panel-closure-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3c1a-agent-studio-final-closure-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3c1b-workbench-closure-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3c2-live-e2e-residual-closure-audit.json"
+    ],
+    "diffBytes": 30537
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 12026,
+      "completion_tokens": 30501,
+      "total_tokens": 42527,
+      "cost": 0.206866,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.206866,
+        "upstream_inference_prompt_cost": 0.02386,
+        "upstream_inference_completions_cost": 0.183006
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 29516,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/architecture/README.md",
+        "line": "331",
+        "scenario": "A syntactically valid dash- or underscore-leading path id (T3A example `-abc1`) is accepted. Architecture says that path ID is validated and echoed into the job. The corrected route leaves response runId as the parsed path id but writes job.projectId as a verbatim copy only for alphanumeric-leading ids; dash/underscore-leading ids are prefix+hex-mapped, and jobId omits run/project identity. Docs claim identity-preserving echo that the bounded route does not perform.",
+        "remediation": "Replace “echoed into the job” with the T3A rule: HTTP runId stays the parsed path id; job.projectId is a byte-for-byte copy only for alphanumeric-leading ids and otherwise the prefix+hex mapping so the image cannot equal another 4–40 run id."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+        "line": "31",
+        "scenario": "Every manifest field except packetDigest is unchanged; domains, implementationAuthorized=false, provider/deploy/release policy, and primaryPaths are untouched. packetDigest still moves f17059ec… → 7a34d7e5…. Architecture/threat-model paths are not domain packets in this manifest, and no supplied proof gives preimage, packet list, or SHA-256 command for 7a34d7e55c02034ac74a7db58fb1c25c7217f42501bbc7e72a0085482b925a67. The new digest is an unbound authority claim (drift if packets did not change; false binding if they did).",
+        "remediation": "Attach the canonical packet preimage and hash command that produce 7a34d7e55c02034ac74a7db58fb1c25c7217f42501bbc7e72a0085482b925a67, or revert packetDigest if the packet set is unchanged."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/architecture/README.md",
+        "line": "338",
+        "scenario": "The updated paragraph still opens “The Workbench exposes Agent Studio only in Edit mode” and then requires one current-run instance to remain mounted across View/Edit behind hidden+aria-hidden+inert. A reader applying the lead sentence unmounts on View and drops the process-only draft/receipt T3C1B retained.",
+        "remediation": "State interactive exposure as assistant∧Edit only; keep the mount/retention sentence as the normative current-run lifetime."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/architecture/README.md",
+        "line": "349-350",
+        "scenario": "“without an apply or automatic retry control” modifies only valid non-complete terminals. Complete results are merely “proposal-only”. The threat model also forbids apply/retry only on a terminal view, so the complete-proposal surface is not explicitly no-apply/no-auto-retry.",
+        "remediation": "State that both complete proposal and non-complete terminal views have no apply control and no automatic retry."
+      }
+    ],
+    "proof_assessment": "T3A–T3C2 are CLEAN static reviews (T3C2 is not a live run). They support read+propose-only deterministic no-provider placeholder, five-key envelope with exact complete binding and literal-null non-complete fail-closed, Local assignment receiving/sending no selection, keyed current-run Agent Studio retention with native hidden+aria-hidden+inert, internal inactive pane isolation, data-class as caller assertion, and Site advice remaining separate. They contradict architecture’s “path ID … echoed into the job”. The git slice supports packetDigest-only manifest editing with no widened domain/implementation/provider/deploy/release flags, but nothing verifies the new digest value.",
+    "residual_risks": [
+      "Workbench collapse still unmounts Agent Studio (T3C1B unclaimed); architecture scopes retention to tool and View/Edit only.",
+      "“both process-local pane states” can be read as classifying mutating Site advice as process-only retention.",
+      "Data-class UI help copy is not quoted; threat-model examples (cookies, release, appointment) may not match the UI warning.",
+      "T3C2 live tab/0x0/network oracles were not attached; a11y claims rest on code review plus a static E2E script.",
+      "inert/hidden on the wrapper would not cover portal UI if Agent Studio ever portals (T3C1B residual)."
+    ]
+  }
+}

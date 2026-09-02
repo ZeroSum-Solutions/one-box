@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-30",
+  "sourceAudit": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json",
+  "sourceTarget": {
+    "commit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "tree": "7a1a54e421d12cf7e5cc5a1f42877d8ffe6750b5"
+  },
+  "authority": {
+    "id": "OBX-AUTH-ATF-001",
+    "allowedEffects": ["read", "propose"],
+    "newRuntimeDependencies": false,
+    "scopeExpansion": false,
+    "releaseOrDeployment": false
+  },
+  "summary": {
+    "accepted": 8,
+    "rejected": 0,
+    "deferred": 0,
+    "note": "Every initial finding was independently reproduced against the immutable baseline. The accepted corrections change only truthful presentation, local state continuity, closed route construction, valid receipt display, and existing E2E proof. They do not add a future capability."
+  },
+  "independentReproduction": [
+    {
+      "findings": ["F-01", "F-02", "F-03", "F-04"],
+      "result": "CONFIRMED",
+      "evidence": "Independent read-only review plus focused 34/34 baseline tests and an isolated 8/8 reproduction suite. GET accepted dash/underscore-leading run IDs while POST threw on projectId; Workbench unmounted and reset Agent Studio; unrelated assignments produced the same deterministic template under agentic attribution; a live 2,000-NUL assignment produced a schema-valid budget-exhausted receipt the adapter labeled invalid."
+    },
+    {
+      "findings": ["F-05", "F-06", "F-07", "F-08"],
+      "result": "CONFIRMED",
+      "evidence": "Independent read-only source/test review plus focused 16/16 tests and a Chromium focus probe. Teammates ignored selection; data-class copy omitted caller-asserted/no-scan semantics; no real Agent Studio keyboard path or held-request busy oracle existed; disabling the focused submit moved focus to BODY and no result-focus recovery existed."
+    }
+  ],
+  "baselineReproductionByFinding": [
+    {
+      "id": "F-01",
+      "symbols": ["src/lib/contracts.ts::RunIdSchema", "src/lib/contracts.ts::AiTeammateContractIdV1Schema", "src/app/api/ai-teammates/[id]/route.ts::POST", "src/lib/aiTeammates/executor.ts::executeAiTeammateJobV1"],
+      "input": "Authorized GET and POST for run IDs -abc1 and _abc1 with the ordinary valid researcher assignment.",
+      "observed": "GET returned HTTP 200. POST rejected before returning a Response with a Zod issue whose path was projectId; no terminal receipt existed.",
+      "replayAfterTestLand": "npm test -- 'src/app/api/ai-teammates/[id]/route.test.ts'"
+    },
+    {
+      "id": "F-02",
+      "symbols": ["src/components/preview/Workbench.tsx::panelContent", "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx::LocalAiTeammateRunPanel cleanup"],
+      "input": "Open Agent Studio, enter an assignment, then select a preview element so activeTool changes from assistant to text or selection; separately switch View mode.",
+      "observed": "AgentStudioPanel was removed from the rendered tree. Cleanup set mounted=false and incremented both generations. Returning mounted default researcher, empty task, loading roster, and no process-only receipt; a late result failed shouldCommitAiTeammateRequest.",
+      "replayAfterTestLand": "WIDTHS=1440 npm run test:e2e:canvas-contract"
+    },
+    {
+      "id": "F-03",
+      "symbols": ["src/app/api/ai-teammates/[id]/route.ts::propose", "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx::LocalAiTeammatePanelContent"],
+      "input": "Submit two unrelated Researcher assignments.",
+      "observed": "Both responses used the identical recommendation template. Visible UI said Working, Creating a bound local proposal, Proposal, and Proposed by: Researcher; it contained no sentence matching No AI model or provider is connected and no Placeholder label.",
+      "replayAfterTestLand": "npm test -- src/components/preview/AiTeammate/AiTeammatePanel.test.tsx"
+    },
+    {
+      "id": "F-04",
+      "symbols": ["src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx::submitAiTeammateAssignment", "src/app/api/ai-teammates/[id]/route.ts::POST"],
+      "input": "Authorized POST with a 2,000-code-unit assignment consisting of NUL characters; then pass the HTTP 200 envelope to submitAiTeammateAssignment.",
+      "observed": "Route returned a schema-valid budget-exhausted/input-bytes-exceeded receipt and proposal:null. The adapter returned kind:error with 'The local teammate returned an invalid receipt. Nothing was applied; try again.' and exposed no receipt.",
+      "replayAfterTestLand": "npm test -- src/components/preview/AiTeammate/AiTeammatePanel.test.tsx 'src/app/api/ai-teammates/[id]/route.test.ts'"
+    },
+    {
+      "id": "F-05",
+      "symbols": ["src/components/preview/AiTeammate/AgentStudioPanel.tsx::AgentStudioPanel", "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx::LocalAiTeammatePanelContent"],
+      "input": "Render AgentStudioPanel with selection { editId: 'hero.headline', tag: 'h1', behavior: 'text' } in Teammates mode.",
+      "observed": "Teammates markup contained neither hero.headline nor a statement that the current selection is not included. The teammate POST body contained task/dataClass/effects/grants only and no editId or selection field.",
+      "replayAfterTestLand": "npm test -- src/components/preview/AiTeammate/AgentStudioPanel.test.tsx src/components/preview/AiTeammate/AiTeammatePanel.test.tsx"
+    },
+    {
+      "id": "F-06",
+      "symbols": ["src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx::LocalAiTeammatePanelContent data-class select", "docs/security/local-api-threat-model.md::AI teammate Local foundation boundary"],
+      "input": "Render the ready idle form with dataClass project-internal.",
+      "observed": "The select had no aria-describedby attribute. Visible copy contained Project internal and Public but not nothing is scanned or read from the project and no prohibition on credentials, cookies, client-sensitive, release, or appointment details.",
+      "replayAfterTestLand": "npm test -- src/components/preview/AiTeammate/AiTeammatePanel.test.tsx"
+    },
+    {
+      "id": "F-07",
+      "symbols": ["scripts/e2e/canvas-contract.mjs::openAgentStudio", "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx static-markup suite"],
+      "input": "rg -n 'keyboard\\.press|\\.press\\(' scripts/e2e/canvas-contract.mjs scripts/e2e/preview-workbench.mjs",
+      "observed": "Exit 1 with no matches. Agent Studio used check/fill/click only; no held-route or document.activeElement assertion existed. This is an evidence gap, not proof that the native controls are inoperable.",
+      "replayAfterTestLand": "WIDTHS=1440 npm run test:e2e:canvas-contract"
+    },
+    {
+      "id": "F-08",
+      "symbols": ["src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx::LocalAiTeammatePanelContent submit button"],
+      "input": "In Chromium, focus enabled Create proposal, activate it by keyboard, hold the request after submission.kind becomes working, then complete it.",
+      "observed": "document.activeElement changed from the submit BUTTON to BODY while held and remained BODY after the result appeared.",
+      "replayAfterTestLand": "WIDTHS=1440 npm run test:e2e:canvas-contract"
+    }
+  ],
+  "dispositions": [
+    {
+      "id": "F-01",
+      "decision": "accept",
+      "reason": "Valid generated run IDs can violate the narrower teammate projectId grammar before a terminal receipt exists.",
+      "correction": "Preserve every run ID that already satisfies AiTeammateContractIdV1Schema byte-for-byte. Only when a validated run ID begins with dash or underscore, construct projectId as run-<original>; leave response runId and every legal existing projectId unchanged. Add literal dash- and underscore-leading route tests that require HTTP 200, the original runId in the response, and a complete bound receipt.",
+      "redOracle": "The new route cases throw before returning a Response on the baseline.",
+      "paths": ["src/app/api/ai-teammates/[id]/route.ts", "src/app/api/ai-teammates/[id]/route.test.ts"],
+      "insideAuthority": true
+    },
+    {
+      "id": "F-02",
+      "decision": "accept",
+      "reason": "Ordinary selection/tool/View transitions unmount the only process-local draft and receipt state.",
+      "correction": "Once opened for a run, keep exactly one AgentStudioPanel mounted inside Workbench. While inactive or in View mode, its wrapper must carry native hidden, aria-hidden=true, and inert so it is absent from layout, accessibility, pointer, and tab-order behavior rather than becoming a second interactive tree. Reset only on the existing runId key boundary. Add a live Canvas continuity oracle that types an assignment, changes the active tool through preview selection, returns, and finds the same value; also prove a completed receipt survives the switch and the hidden tree has no focusable descendant.",
+      "redOracle": "The continuity E2E returns to an empty assignment and missing receipt on the baseline.",
+      "paths": ["src/components/preview/Workbench.tsx", "scripts/e2e/canvas-contract.mjs"],
+      "insideAuthority": true
+    },
+    {
+      "id": "F-03",
+      "decision": "accept",
+      "reason": "A fixed deterministic template is currently presented as work performed and proposed by a named teammate, conflicting with the explicit no-connected-provider rule.",
+      "correction": "Persistently state that no AI model or provider is connected and that results are fixed deterministic placeholders; label the action and result as placeholder creation; keep every roster availability label at the registry's static Idle state while a separate live region reports request progress.",
+      "redOracle": "For a ready idle form and a completed Researcher response, baseline markup contains 'Create proposal', 'Proposal', and 'Proposed by:' but contains neither 'No AI model or provider is connected' nor 'Placeholder proposal'. During working it renders exactly one 'Working · Read + propose' roster status even though registry availability is idle.",
+      "paths": ["src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx", "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx", "scripts/e2e/canvas-contract.mjs"],
+      "insideAuthority": true
+    },
+    {
+      "id": "F-04",
+      "decision": "accept",
+      "reason": "Four schema-valid terminal receipt states are falsely reported as invalid and discarded.",
+      "correction": "Add a valid terminal state carrying the parsed receipt without a proposal; retain strict envelope and receipt binding; render status, stopping condition, retry eligibility, and hashes without false retry advice; reserve assignment aria-invalid for local assignment validation rather than transport or terminal outcomes.",
+      "redOracle": "A schema-valid budget-exhausted response currently becomes the invalid-receipt error and exposes no receipt.",
+      "paths": ["src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx", "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx", "src/app/api/ai-teammates/[id]/route.test.ts"],
+      "insideAuthority": true
+    },
+    {
+      "id": "F-05",
+      "decision": "accept",
+      "reason": "The surrounding Canvas indicates a live selection, but the closed teammate job does not carry it.",
+      "correction": "Pass selection to the Teammates pane for display only and explicitly state that the current element is not included in this local assignment. Do not change the job or route contract and do not send editId.",
+      "redOracle": "Rendering Teammates with selection {tag:'h1', editId:'hero.headline'} produces markup containing neither 'hero.headline' nor 'not included in this local assignment'; inspecting the POST JSON shows no selection/editId field. The correction must add both the visible editId context and explicit non-scoping phrase while keeping the POST unchanged.",
+      "paths": ["src/components/preview/AiTeammate/AgentStudioPanel.tsx", "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx", "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx", "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx"],
+      "insideAuthority": true
+    },
+    {
+      "id": "F-06",
+      "decision": "accept",
+      "reason": "Data class is caller-asserted metadata, but the control can be read as scanning content or granting project access and supplies no sensitive-data warning.",
+      "correction": "Add persistent data-class help stating that nothing is scanned or read from the project and prohibiting credentials, cookies, client-sensitive, release, and appointment details; bind it to the select with aria-describedby while preserving working-state description.",
+      "redOracle": "In the ready idle baseline markup, #ai-teammate-data-class has no aria-describedby attribute and there is no #ai-teammate-data-class-help node; visible text contains none of 'nothing is scanned or read from the project', 'credentials', 'cookies', 'client-sensitive', 'release', or 'appointment details'.",
+      "paths": ["src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx", "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx", "scripts/e2e/canvas-contract.mjs"],
+      "insideAuthority": true
+    },
+    {
+      "id": "F-07",
+      "decision": "accept",
+      "findingType": "proof-gap",
+      "reason": "The existing acceptance claim covers native markup but not a real keyboard path, visible focus, or the live busy lock.",
+      "correction": "Add an E2E-only characterization/proof path using the existing Playwright dependency: keyboard-navigate the native roster and form, prove a visible focus indicator, and deliberately hold a request to prove roster, textarea, select, mode switch, and duplicate submit are locked. This finding requires no production change unless the characterization exposes a separate behavioral failure; F-08 owns the already-observed submit-focus defect. Run this proof after F-02 and F-08 so it covers retained-panel inertness and submit focus without coupling to F-03 wording.",
+      "redOracle": "Baseline proof inventory command `rg -n 'keyboard\\.press|\\.press\\(' scripts/e2e/canvas-contract.mjs scripts/e2e/preview-workbench.mjs` exits 1, and openAgentStudio uses check/fill/click with no held-route or activeElement assertion. This is the missing-oracle observation; a new characterization may pass existing native keyboard behavior and is not itself evidence of a product bug.",
+      "paths": ["scripts/e2e/canvas-contract.mjs"],
+      "insideAuthority": true
+    },
+    {
+      "id": "F-08",
+      "decision": "accept",
+      "reason": "Chromium moved focus from the natively disabled submit button to BODY, and the component has no intentional focus destination.",
+      "correction": "Use one submit state machine: when idle and invalid, native disabled=true; when idle and valid, native disabled=false and aria-disabled is absent; when submitting.current is set and submission.kind is working, native disabled=false, aria-disabled=true, and the existing synchronous guard plus form canSubmit=false rejects duplicate activation. Prove document.activeElement stays on the submit BUTTON throughout the held request and after the result commits, never BODY.",
+      "redOracle": "The baseline held-request keyboard probe finds BODY instead of the submit control.",
+      "paths": ["src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx", "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx", "scripts/e2e/canvas-contract.mjs"],
+      "insideAuthority": true
+    }
+  ],
+  "rejectedReviewerOverreach": [
+    "No real model, provider routing, job persistence, proposal history, selection payload, Page IR mutation, cancellation UI, browser, collaboration, scheduling, deployment, or release capability is added.",
+    "No DOM testing dependency is added; live keyboard and focus behavior use the already-authorized Playwright Canvas harness.",
+    "The three adjacent natural-language surfaces remain because their responsibilities are distinct; this slice clarifies those boundaries instead of deleting or merging them."
+  ],
+  "futureScopeDispositions": [
+    { "capability": "provider and model routing", "decision": "defer-new-authorization" },
+    { "capability": "durable jobs, proposal history, memory, and scheduling", "decision": "defer-new-authorization" },
+    { "capability": "selection or editId in the teammate job payload", "decision": "defer-new-authorization" },
+    { "capability": "Page IR mutation, automatic apply, diff, restore, and release", "decision": "defer-new-authorization" },
+    { "capability": "browser, filesystem, shell, collaboration, and external effects", "decision": "defer-new-authorization" },
+    { "capability": "new runtime or test dependencies", "decision": "reject-for-this-slice" }
+  ],
+  "implementationOrder": ["F-01", "F-04", "F-03", "F-05", "F-06", "F-08", "F-02", "F-07"]
+}

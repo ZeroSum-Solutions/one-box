@@ -1,0 +1,748 @@
+{
+  "schemaVersion": 2,
+  "backlogVersion": "2.0.0",
+  "status": "planning",
+  "implementationAuthorized": false,
+  "readme": "docs/tickets/one-box-program/README.md",
+  "evalManifest": "docs/eval/one-box-program/manifest.json",
+  "requiredTicketSections": ["Outcome", "Readiness gate", "Bounded delivery", "Acceptance criteria", "Evidence boundary"],
+  "humanAssignments": {
+    "status": "unassigned-blocking",
+    "records": [],
+    "rule": "No ticket may become ready or later until an OwnerAssignmentV1 records one accountable human and the required non-author verifier. Names are not inferred by this planning packet."
+  },
+  "tickets": [
+    {
+      "id": "OBX-P100",
+      "title": "Reconcile authority and MPA-001 through MPA-011",
+      "status": "in-review",
+      "reviewStage": "planning",
+      "priority": "P0",
+      "epic": "Governance",
+      "dependsOn": [],
+      "requirements": [
+        "EOS-001",
+        "EOS-018",
+        "MPA-001",
+        "MPA-002",
+        "MPA-003",
+        "MPA-004",
+        "MPA-005",
+        "MPA-006",
+        "MPA-007",
+        "MPA-008",
+        "MPA-009",
+        "MPA-010",
+        "MPA-011"
+      ],
+      "evaluations": [
+        "PROG-EVAL-AUTH-001"
+      ],
+      "ownerRole": "program architecture owner",
+      "size": "M",
+      "file": "OBX-P100.md"
+    },
+    {
+      "id": "OBX-P110",
+      "title": "Accept Release 1 and compatibility contract",
+      "status": "in-review",
+      "reviewStage": "planning",
+      "priority": "P0",
+      "epic": "Release contract",
+      "dependsOn": [
+        "OBX-P100"
+      ],
+      "requirements": [
+        "EOS-002",
+        "EOS-013",
+        "EOS-015",
+        "EOS-016"
+      ],
+      "evaluations": [
+        "PROG-EVAL-LIFE-001",
+        "PROG-EVAL-COMPAT-001"
+      ],
+      "ownerRole": "product and architecture owners",
+      "size": "M",
+      "file": "OBX-P110.md"
+    },
+    {
+      "id": "OBX-P120",
+      "title": "Accept target desktop-cloud topology ADR",
+      "status": "in-review",
+      "reviewStage": "planning",
+      "priority": "P0",
+      "epic": "Architecture",
+      "dependsOn": [
+        "OBX-P100",
+        "OBX-P110"
+      ],
+      "requirements": [
+        "EOS-002",
+        "EOS-003",
+        "EOS-004",
+        "EOS-010"
+      ],
+      "evaluations": [
+        "PROG-EVAL-TOPO-001"
+      ],
+      "ownerRole": "architecture owner",
+      "size": "M",
+      "file": "OBX-P120.md"
+    },
+    {
+      "id": "OBX-P130",
+      "title": "Accept and operationalize program threat model",
+      "status": "in-review",
+      "reviewStage": "planning",
+      "priority": "P0",
+      "epic": "Security",
+      "dependsOn": [
+        "OBX-P110",
+        "OBX-P120"
+      ],
+      "requirements": [
+        "EOS-003",
+        "EOS-004",
+        "EOS-005",
+        "EOS-006",
+        "EOS-007",
+        "EOS-008"
+      ],
+      "evaluations": [
+        "PROG-EVAL-SEC-TENANT-001"
+      ],
+      "ownerRole": "security owner",
+      "size": "L",
+      "file": "OBX-P130.md"
+    },
+    {
+      "id": "OBX-P140",
+      "title": "Enforce program evaluation and CI strategy",
+      "status": "in-review",
+      "reviewStage": "planning",
+      "priority": "P0",
+      "epic": "Evaluation",
+      "dependsOn": [
+        "OBX-P100",
+        "OBX-P110",
+        "OBX-P130"
+      ],
+      "requirements": [
+        "EOS-009",
+        "EOS-017",
+        "EOS-018"
+      ],
+      "evaluations": [
+        "PROG-EVAL-TEST-001"
+      ],
+      "ownerRole": "quality engineering owner",
+      "size": "L",
+      "file": "OBX-P140.md"
+    },
+    {
+      "id": "OBX-P150",
+      "title": "Enforce supply-chain policy and adoption ledger",
+      "status": "in-review",
+      "reviewStage": "planning",
+      "priority": "P0",
+      "epic": "Supply chain",
+      "dependsOn": [
+        "OBX-P100",
+        "OBX-P130",
+        "OBX-P140"
+      ],
+      "requirements": [
+        "EOS-011"
+      ],
+      "evaluations": [
+        "PROG-EVAL-SC-001"
+      ],
+      "ownerRole": "security and licensing owners",
+      "size": "L",
+      "file": "OBX-P150.md"
+    },
+    {
+      "id": "OBX-P160",
+      "title": "Rewrite retained desktop and embedded-browser security plan",
+      "status": "blocked",
+      "priority": "P0",
+      "epic": "Desktop and browser",
+      "dependsOn": [
+        "OBX-P120",
+        "OBX-P130",
+        "OBX-P150"
+      ],
+      "requirements": [
+        "EOS-005",
+        "EB-001",
+        "EB-002",
+        "EB-003",
+        "EB-004",
+        "EB-005",
+        "EB-006",
+        "EB-007",
+        "EB-008",
+        "EB-009",
+        "EB-010",
+        "EB-011",
+        "EB-012",
+        "EB-013",
+        "EB-014",
+        "EB-015",
+        "EB-016",
+        "EB-017",
+        "EB-018",
+        "EB-019",
+        "EB-020",
+        "EB-021"
+      ],
+      "evaluations": [
+        "PROG-EVAL-SEC-BROWSER-001",
+        "PROG-EVAL-COMPAT-001"
+      ],
+      "ownerRole": "desktop security owner",
+      "size": "XL",
+      "file": "OBX-P160.md"
+    },
+    {
+      "id": "OBX-P170",
+      "title": "Validate collaboration, client review, and cognitive load",
+      "status": "proposed",
+      "priority": "P1",
+      "epic": "Collaboration and UX",
+      "dependsOn": [
+        "OBX-P110",
+        "OBX-P120",
+        "OBX-P130",
+        "OBX-P140"
+      ],
+      "requirements": [
+        "EOS-004",
+        "EOS-007",
+        "EOS-014"
+      ],
+      "evaluations": [
+        "PROG-EVAL-CLIENT-001",
+        "PROG-EVAL-UX-BASELINE-001"
+      ],
+      "ownerRole": "product design and security owners",
+      "size": "L",
+      "file": "OBX-P170.md"
+    },
+    {
+      "id": "OBX-P175",
+      "title": "Resolve Canvas motion and human visual qualification",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "Canvas quality",
+      "dependsOn": [
+        "OBX-P110",
+        "OBX-P140",
+        "OBX-P150"
+      ],
+      "requirements": [
+        "EOS-017"
+      ],
+      "evaluations": [
+        "PROG-EVAL-MOTION-001"
+      ],
+      "ownerRole": "design and licensing owners",
+      "size": "M",
+      "file": "OBX-P175.md"
+    },
+    {
+      "id": "OBX-P180",
+      "title": "Specify model routing, skills, budgets, and capacity",
+      "status": "proposed",
+      "priority": "P1",
+      "epic": "Agent platform",
+      "dependsOn": [
+        "OBX-P120",
+        "OBX-P130",
+        "OBX-P140",
+        "OBX-P150"
+      ],
+      "requirements": [
+        "EOS-006",
+        "EOS-012"
+      ],
+      "evaluations": [
+        "PROG-EVAL-COST-001",
+        "PROG-EVAL-SEC-AGENT-001"
+      ],
+      "ownerRole": "agent platform and finance owners",
+      "size": "L",
+      "file": "OBX-P180.md"
+    },
+    {
+      "id": "OBX-P185",
+      "title": "Define post-Phase-1 modules and reconstruction",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "Premium capability",
+      "dependsOn": [
+        "OBX-P110",
+        "OBX-P130",
+        "OBX-P140",
+        "OBX-P150",
+        "OBX-P230"
+      ],
+      "requirements": [
+        "EOS-008",
+        "EOS-015"
+      ],
+      "evaluations": [
+        "PROG-EVAL-MODULE-001",
+        "PROG-EVAL-SC-001"
+      ],
+      "ownerRole": "architecture and security owners",
+      "size": "L",
+      "file": "OBX-P185.md"
+    },
+    {
+      "id": "OBX-P190",
+      "title": "Define cloud, desktop, agency-support, and re-delivery operations",
+      "status": "proposed",
+      "priority": "P1",
+      "epic": "Operations",
+      "dependsOn": [
+        "OBX-P110",
+        "OBX-P120",
+        "OBX-P130",
+        "OBX-P140",
+        "OBX-P150"
+      ],
+      "requirements": [
+        "EOS-010",
+        "EOS-013"
+      ],
+      "evaluations": [
+        "PROG-EVAL-HANDOFF-001",
+        "PROG-EVAL-TOPO-001",
+        "PROG-EVAL-PROD-001",
+        "PROG-EVAL-DRILL-001"
+      ],
+      "ownerRole": "operations and agency owners",
+      "size": "XL",
+      "file": "OBX-P190.md"
+    },
+    {
+      "id": "OBX-P195",
+      "title": "Select provider and preserve appointment independence",
+      "status": "blocked",
+      "priority": "P0",
+      "epic": "Provider and appointments",
+      "dependsOn": [
+        "OBX-P110",
+        "OBX-P130",
+        "OBX-P140",
+        "OBX-P190",
+        "OBX-P250"
+      ],
+      "requirements": [
+        "EOS-019"
+      ],
+      "evaluations": [
+        "PROG-EVAL-PROVIDER-001"
+      ],
+      "ownerRole": "product, operations, and appointment owners",
+      "size": "M",
+      "file": "OBX-P195.md"
+    },
+    {
+      "id": "OBX-P200",
+      "title": "Plan P1 closed website lifecycle implementation",
+      "status": "proposed",
+      "priority": "P0",
+      "epic": "P1 lifecycle",
+      "dependsOn": [
+        "OBX-P110",
+        "OBX-P120",
+        "OBX-P130",
+        "OBX-P140",
+        "OBX-P150"
+      ],
+      "requirements": [
+        "P1",
+        "EOS-002"
+      ],
+      "evaluations": [
+        "PROG-EVAL-LIFE-001"
+      ],
+      "ownerRole": "website lifecycle owner",
+      "size": "L",
+      "file": "OBX-P200.md"
+    },
+    {
+      "id": "OBX-P210",
+      "title": "Plan P2 lifecycle projection in Canvas",
+      "status": "proposed",
+      "priority": "P0",
+      "epic": "P2 Canvas lifecycle",
+      "dependsOn": [
+        "OBX-P200"
+      ],
+      "requirements": [
+        "P2",
+        "A0",
+        "A1",
+        "A2",
+        "A3"
+      ],
+      "evaluations": [
+        "PROG-EVAL-LIFE-001",
+        "PROG-EVAL-CANVAS-001"
+      ],
+      "ownerRole": "Canvas owner",
+      "size": "L",
+      "file": "OBX-P210.md"
+    },
+    {
+      "id": "OBX-P220",
+      "title": "Plan P3 client review origin and decisions",
+      "status": "blocked",
+      "priority": "P0",
+      "epic": "P3 client review",
+      "dependsOn": [
+        "OBX-P200",
+        "OBX-P210",
+        "OBX-P130",
+        "OBX-P170"
+      ],
+      "requirements": [
+        "P3",
+        "EOS-007"
+      ],
+      "evaluations": [
+        "PROG-EVAL-CLIENT-001",
+        "PROG-EVAL-UX-BASELINE-001"
+      ],
+      "ownerRole": "client review owner",
+      "size": "L",
+      "file": "OBX-P220.md"
+    },
+    {
+      "id": "OBX-P230",
+      "title": "Plan P4 immutable qualification engine",
+      "status": "proposed",
+      "priority": "P0",
+      "epic": "P4 qualification",
+      "dependsOn": [
+        "OBX-P200",
+        "OBX-P220",
+        "OBX-P140"
+      ],
+      "requirements": [
+        "P4"
+      ],
+      "evaluations": [
+        "PROG-EVAL-QUAL-001",
+        "PROG-EVAL-SEC-TENANT-001"
+      ],
+      "ownerRole": "qualification owner",
+      "size": "L",
+      "file": "OBX-P230.md"
+    },
+    {
+      "id": "OBX-P240",
+      "title": "Plan P5 release orchestrator and rollback",
+      "status": "proposed",
+      "priority": "P0",
+      "epic": "P5 release",
+      "dependsOn": [
+        "OBX-P230",
+        "OBX-P130",
+        "OBX-P190"
+      ],
+      "requirements": [
+        "P5"
+      ],
+      "evaluations": [
+        "PROG-EVAL-LIFE-001"
+      ],
+      "ownerRole": "release owner",
+      "size": "L",
+      "file": "OBX-P240.md"
+    },
+    {
+      "id": "OBX-P250",
+      "title": "Plan P6 provider conformance and selection",
+      "status": "blocked",
+      "priority": "P0",
+      "epic": "P6 provider",
+      "dependsOn": [
+        "OBX-P240",
+        "OBX-P150",
+        "OBX-P190"
+      ],
+      "requirements": [
+        "P6",
+        "EOS-019"
+      ],
+      "evaluations": [
+        "PROG-EVAL-PROVIDER-001"
+      ],
+      "ownerRole": "operations and product owners",
+      "size": "L",
+      "file": "OBX-P250.md"
+    },
+    {
+      "id": "OBX-P260",
+      "title": "Plan P7 client change and re-delivery loop",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "P7 delivery loop",
+      "dependsOn": [
+        "OBX-P220",
+        "OBX-P230",
+        "OBX-P240",
+        "OBX-P250"
+      ],
+      "requirements": [
+        "P7"
+      ],
+      "evaluations": [
+        "PROG-EVAL-LIFE-001",
+        "PROG-EVAL-UX-BASELINE-001"
+      ],
+      "ownerRole": "agency delivery owner",
+      "size": "L",
+      "file": "OBX-P260.md"
+    },
+    {
+      "id": "OBX-P270",
+      "title": "Plan P8 legacy migration, support, and retirement",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "P8 migration",
+      "dependsOn": [
+        "OBX-P250",
+        "OBX-P190"
+      ],
+      "requirements": [
+        "P8",
+        "EOS-016"
+      ],
+      "evaluations": [
+        "PROG-EVAL-COMPAT-001",
+        "PROG-EVAL-HANDOFF-001",
+        "PROG-EVAL-DRILL-001"
+      ],
+      "ownerRole": "migration and support owners",
+      "size": "XL",
+      "file": "OBX-P270.md"
+    },
+    {
+      "id": "OBX-P300",
+      "title": "Plan A4 advanced Canvas controls",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "A4 Canvas",
+      "dependsOn": [
+        "OBX-P210",
+        "OBX-P175"
+      ],
+      "requirements": [
+        "A4",
+        "EOS-014",
+        "EOS-017"
+      ],
+      "evaluations": [
+        "PROG-EVAL-UX-BASELINE-001",
+        "PROG-EVAL-MOTION-001",
+        "PROG-EVAL-CANVAS-001"
+      ],
+      "ownerRole": "Canvas and design owners",
+      "size": "L",
+      "file": "OBX-P300.md"
+    },
+    {
+      "id": "OBX-P310",
+      "title": "Plan E0-E3 operating-environment contracts",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "Operating environment",
+      "dependsOn": [
+        "OBX-P120",
+        "OBX-P130",
+        "OBX-P140",
+        "OBX-P170",
+        "OBX-P180"
+      ],
+      "requirements": [
+        "E0",
+        "E1",
+        "E2",
+        "E3"
+      ],
+      "evaluations": [
+        "PROG-EVAL-TOPO-001",
+        "PROG-EVAL-SEC-TENANT-001",
+        "PROG-EVAL-SEC-AGENT-001",
+        "PROG-EVAL-COST-001"
+      ],
+      "ownerRole": "platform owner",
+      "size": "XL",
+      "file": "OBX-P310.md"
+    },
+    {
+      "id": "OBX-P320",
+      "title": "Plan E4 browser after EB closure",
+      "status": "blocked",
+      "priority": "P0",
+      "epic": "Operating environment",
+      "dependsOn": [
+        "OBX-P160",
+        "OBX-P310"
+      ],
+      "requirements": [
+        "E4",
+        "EB-001",
+        "EB-002",
+        "EB-003",
+        "EB-004",
+        "EB-005",
+        "EB-006",
+        "EB-007",
+        "EB-008",
+        "EB-009",
+        "EB-010",
+        "EB-011",
+        "EB-012",
+        "EB-013",
+        "EB-014",
+        "EB-015",
+        "EB-016",
+        "EB-017",
+        "EB-018",
+        "EB-019",
+        "EB-020",
+        "EB-021"
+      ],
+      "evaluations": [
+        "PROG-EVAL-SEC-BROWSER-001",
+        "PROG-EVAL-COMPAT-001"
+      ],
+      "ownerRole": "desktop/browser owner",
+      "size": "XL",
+      "file": "OBX-P320.md"
+    },
+    {
+      "id": "OBX-P330",
+      "title": "Plan E5 governed reconstruction",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "Operating environment",
+      "dependsOn": [
+        "OBX-P185",
+        "OBX-P320"
+      ],
+      "requirements": [
+        "E5",
+        "EOS-008"
+      ],
+      "evaluations": [
+        "PROG-EVAL-MODULE-001"
+      ],
+      "ownerRole": "reconstruction owner",
+      "size": "L",
+      "file": "OBX-P330.md"
+    },
+    {
+      "id": "OBX-P340",
+      "title": "Plan E6 client media room after P3",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "Operating environment",
+      "dependsOn": [
+        "OBX-P220",
+        "OBX-P170",
+        "OBX-P310"
+      ],
+      "requirements": [
+        "E6",
+        "EOS-007"
+      ],
+      "evaluations": [
+        "PROG-EVAL-CLIENT-001",
+        "PROG-EVAL-UX-BASELINE-001"
+      ],
+      "ownerRole": "client media owner",
+      "size": "L",
+      "file": "OBX-P340.md"
+    },
+    {
+      "id": "OBX-P350",
+      "title": "Plan E7 stack intelligence within Page IR",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "Operating environment",
+      "dependsOn": [
+        "OBX-P185",
+        "OBX-P230"
+      ],
+      "requirements": [
+        "E7",
+        "EOS-008",
+        "EOS-015"
+      ],
+      "evaluations": [
+        "PROG-EVAL-SC-001"
+      ],
+      "ownerRole": "compiler architecture owner",
+      "size": "L",
+      "file": "OBX-P350.md"
+    },
+    {
+      "id": "OBX-P360",
+      "title": "Plan E8 delivery and quality workers",
+      "status": "blocked",
+      "priority": "P1",
+      "epic": "Operating environment",
+      "dependsOn": [
+        "OBX-P230",
+        "OBX-P240",
+        "OBX-P250",
+        "OBX-P150",
+        "OBX-P190"
+      ],
+      "requirements": [
+        "E8",
+        "EOS-009",
+        "EOS-010",
+        "EOS-011"
+      ],
+      "evaluations": [
+        "PROG-EVAL-SEC-TENANT-001",
+        "PROG-EVAL-HANDOFF-001",
+        "PROG-EVAL-QUAL-001",
+        "PROG-EVAL-SC-001"
+      ],
+      "ownerRole": "quality and operations owners",
+      "size": "XL",
+      "file": "OBX-P360.md"
+    },
+    {
+      "id": "OBX-P370",
+      "title": "Plan appointment as an independent track",
+      "status": "blocked",
+      "priority": "P0",
+      "epic": "Appointment acquisition",
+      "dependsOn": [
+        "OBX-P100"
+      ],
+      "dependencySemantics": "Consumes only the reconciled program authority and traceability contract from OBX-P100; provider selection and website release outcomes remain outside this architecture-only ticket.",
+      "requirements": [
+        "EOS-019",
+        "APPT-REQ-001"
+      ],
+      "evaluations": [
+        "PROG-EVAL-APPT-001"
+      ],
+      "ownerRole": "appointment product and security owners",
+      "size": "XL",
+      "file": "OBX-P370.md"
+    }
+  ]
+}

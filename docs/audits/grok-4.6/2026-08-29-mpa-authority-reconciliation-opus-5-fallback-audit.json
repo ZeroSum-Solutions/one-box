@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T00:50:47.902Z",
+  "provider": "Claude Code Max OAuth",
+  "fallbackFor": "x-ai/grok-4.6 timeout",
+  "requestedModel": "claude-opus-5",
+  "reportedModel": "claude-haiku-4-5-20251001, claude-opus-5",
+  "authMethod": "claude.ai Max OAuth",
+  "effort": "high",
+  "auditPass": 1,
+  "targetHash": "3745aa2b1392ef8f55bc66b2c02937e64b1058760a14e1a4aede3c3d5d8c7493",
+  "targetFiles": [
+    "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md",
+    "docs/plans/one-box-master/00-authority/authority-manifest.json"
+  ],
+  "verdict": "REVISE",
+  "implementationAuthorization": "NOT_AUTHORIZED",
+  "summary": "Single-pass adversarial review of the MPA-001..MPA-011 reconciliation and authority-manifest.json, performed as an Opus 5 OAuth fallback after Grok 4.6 timed out with no result. This is not Grok evidence and carries no acceptance authority. Session note: all file, search, and shell tools were disabled, so the declared per-file digests (863e07b0..., 34122d0e...), byte counts (5341, 6837), and the exact target aggregate SHA-256 3745aa2b1392ef8f55bc66b2c02937e64b1058760a14e1a4aede3c3d5d8c7493 could NOT be recomputed or confirmed; the aggregate construction is also unspecified in the packet. The review therefore treats the supplied bytes as untrusted evidence reviewed on their face. Substantively the packet is directionally strong: static Page IR is consistently the single Phase 1 production compiler/document authority; the embedded-browser stop is fail-closed and consistent across all four supporting files with EB-001..EB-021 closure and EB-001 first; E6 is correctly subordinated to P3 with media as transport only; E7/React/ExperienceModules are consistently post-Phase-1 behind a separate schema/security ADR; the A4 motion stop is stated identically in three places; all Grok audits sit in supportingEvidence and none is a domain primaryPath; and the census arithmetic is internally consistent (shortlist tables total exactly 18 rows: 6+1+2+2+3+1+3, matching 133/107/26/18). Two P1 defects block planning acceptance. First, MPA-003 claims the rejected E4.0-E4.7 sequence was not reproduced and roadmap T4 explicitly forbids reusing that numbering, yet the 18-item shortlist -- which MPA-006 declares the sole planning disposition and phase authority -- assigns work to \"E4.3\" and \"E4.4\", so the rejected numbering survives inside the authority artifact itself. Second, authority-manifest.json sets website-source implementationAuthorized:true against a top-level implementationAuthorized:false and a governing rule stating that non-approved classes cannot authorize implementation, with the scope bounded only by the prose phrase \"existing accepted Page IR tickets\" -- no ticket IDs, no named approver, no date, and no declared precedence between domain and top-level flags. Seven further P2/P3 issues concern unresolvable prose pointers in the manifest, Tailwind/astryx phase placement conflicting with roadmap T2/T6, missing blocked-state annotations on E5 shortlist rows, the MPA-011 verifier control being asserted only in prose with no machine-readable expression or run receipt, an unreceipted retained-GSAP license basis, a stale provenance line, and an undefined authorityClass vocabulary. No implementation, deployment, schema change, provider selection, invitation, or appointment authority is granted or implied by this review.",
+  "findings": [
+    {
+      "id": "MPA-R-001",
+      "severity": "P1",
+      "category": "governance/sequencing-authority",
+      "path": "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md (MPA-003 row) with docs/research/source-catalog/github-starred-one-box-shortlist-2026-08-29.md",
+      "sectionOrLines": "Closure matrix, MPA-003 row; shortlist section \"E4, embedded browser\" rows for chrome-devtools-mcp and ego-lite",
+      "issue": "MPA-003 is marked \"corrected\" on the evidence that the technology roadmap contains no retained E4 slice sequence, and roadmap T4 states \"Do not reuse that numbering until a replacement browser plan is accepted.\" But the 18-item shortlist -- which MPA-006 declares \"the sole planning disposition and phase authority\" -- assigns dispositions to the rejected sub-slice numbers: \"Adapt schemas and tests in E4.3\" and \"Learn and adapt tests in E4.4\". The rejected E4.0-E4.7 decomposition therefore persists inside the artifact the packet elevates to phase authority, and MPA-003's closure claim is scoped only to the roadmap while leaving the authority artifact uncorrected.",
+      "risk": "An engineer following the declared phase authority can reconstruct the rejected sequence, treat E4.3/E4.4 as real slices with assigned work, and begin browser-adjacent adaptation under numbering that the roadmap and the embedded-browser rejection explicitly voided. This is the exact failure mode MPA-003 claims to have closed, so the closure matrix understates open risk.",
+      "smallestSafeCorrection": "Replace the E4.3 and E4.4 phase labels in the shortlist E4 rows with a non-reusing marker (for example \"E4-replacement, slice TBD by the accepted plan\"), and restate the MPA-003 row so its closure claim covers the shortlist and every catalog artifact, not the roadmap alone. Make no other change to those rows."
+    },
+    {
+      "id": "MPA-R-002",
+      "severity": "P1",
+      "category": "authority-and-implementation-authorization",
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "sectionOrLines": "Top-level \"implementationAuthorized\": false and \"governingRule\"; domains.website-source \"implementationAuthorized\": true with boundary \"Existing accepted Page IR tickets only; one page-ir-v1 or template-v1 source per run.\"",
+      "issue": "The manifest is the single machine-readable authority file and simultaneously asserts implementationAuthorized:false at the program level and implementationAuthorized:true for the website-source domain, with no declared precedence rule between the two fields. The scope of the true flag is carried entirely by the prose phrase \"Existing accepted Page IR tickets\": no ticket IDs are enumerated, no approver is named, no approval date is recorded, and the referenced ticket set is not resolvable from the manifest. The reconciliation header separately states \"Implementation authorization: none\". The audit focus requires the manifest to classify artifacts without granting implementation authority; as written it grants an unbounded-on-its-face standing authorization.",
+      "risk": "An engineer or an automated consumer reading only the manifest can conclude that Page IR production work is authorized now, and the boundary text does not constrain which work. Combined with MPA-004's statement that Release 1 and Phase 1 share one static Page IR production source/compiler, this can be read as license to start compiler, mutation, or promotion work that no named human has approved in this packet.",
+      "smallestSafeCorrection": "Either set domains.website-source.implementationAuthorized to false pending enumeration, or keep true and add three fields to that domain -- acceptedTicketIds (explicit list), approvedBy (named human), approvalDate -- plus a top-level precedenceRule string stating that a domain flag may be true only for the enumerated accepted tickets and never widens the program-level false."
+    },
+    {
+      "id": "MPA-R-003",
+      "severity": "P2",
+      "category": "authority-graph-integrity",
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "sectionOrLines": "domains.technology-adoption.boundary; domains.target-topology.boundary; domains.program-security.boundary; domains.website-source.boundary",
+      "issue": "Several boundaries name a controlling artifact only in prose, with no path or identifier, so the authority graph cannot be resolved or machine-verified: \"The shortlist owns planning dispositions\" (the 18-item shortlist is never registered as a domain primaryPath anywhere in the manifest, despite MPA-006 declaring it the sole disposition and phase authority); \"ADR 0001 remains executable authority\" (no path); \"the local API threat model remains current for loopback runtime\" (no path); \"Existing accepted Page IR tickets\" (no IDs). The manifest also never classifies the master-plan index files (02-canvas/index.md, 04-operating-environment/index.md, 06-technology/technology-adoption-roadmap.md is registered, the two indexes are not) that the closure matrix repeatedly cites as current evidence.",
+      "risk": "The one machine-readable authority file cannot answer \"what governs this decision\" for the artifacts that actually carry the dispositions and the currently-executable topology and threat-model authority. A consumer of the manifest may treat the unregistered shortlist and index files as ungoverned, or may fail to find the still-current ADR 0001 and local API threat model, weakening the domain-authority-outranks-recency rule the manifest declares.",
+      "smallestSafeCorrection": "Add explicit paths for the 18-item shortlist, ADR 0001, and the local API threat model, and add ticket IDs for the accepted Page IR tickets, either as a new domain entry (shortlist, class research, implementationAuthorized false) or as a resolvable path field inside each existing boundary."
+    },
+    {
+      "id": "MPA-R-004",
+      "severity": "P2",
+      "category": "phase-consistency",
+      "path": "docs/research/source-catalog/github-starred-one-box-shortlist-2026-08-29.md with docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md",
+      "sectionOrLines": "Shortlist section \"E7, Stack Intelligence\" (tailwindcss and astryx rows); roadmap T2 \"Retain Tailwind as a pinned compile dependency\"; roadmap T6 visual-baseline receipts under P4-P8",
+      "issue": "MPA-006 makes the shortlist the sole phase authority, and the shortlist places tailwindcss under \"E7, Stack Intelligence\" -- an explicitly post-Phase-1 label per the canvas index, the operating-environment index, and roadmap T5 -- while roadmap T2 relies on Tailwind as a pinned compile dependency inside the Phase 1 foundation. The astryx row (visual-baseline promotion identity, publication lock, acceptance provenance) is likewise filed under E7 while roadmap T6 places visual-baseline receipts in the P4-P8 delivery lane.",
+      "risk": "Two documents assign different phases to the same dependency, and the packet declares the shortlist authoritative for phase. A reader can conclude that Tailwind use is post-Phase-1 gated behind the unwritten schema/security ADR, contradicting current retained use, or conversely can import the E7 label as permission to pull E7 patterns forward. Practical blast radius is limited because the Tailwind decision reads \"Retain existing dependency\", but the phase authority is self-contradictory.",
+      "smallestSafeCorrection": "Move the tailwindcss row out of the E7 section into a \"Retained Phase 1 dependencies\" heading matching roadmap T2, and relabel the astryx row's phase to P4/P5 to match roadmap T6, changing only the section placement and phase label, not the decisions."
+    },
+    {
+      "id": "MPA-R-005",
+      "severity": "P2",
+      "category": "blocked-state-propagation",
+      "path": "docs/research/source-catalog/github-starred-one-box-shortlist-2026-08-29.md",
+      "sectionOrLines": "Section \"E5, reconstruction\" (hyperframes, screenshot-to-code rows); compare with the E4 section's blocking note",
+      "issue": "The E4 section carries an explicit block (\"These entries do not clear the existing Grok 4.6 rejection. E4 remains blocked until the EB hostile-content and fail-closed controls pass review.\"). The E5 section carries no equivalent note, yet the operating-environment index states E5 is \"contingent on the accepted E4 boundary\" and the canvas index calls E5 a draft label that \"is not implementation authorization.\" The E5 rows read as bare imperatives: \"Adapt schemas; Apache-2.0\" and \"Adapt bounded patterns; MIT\". The same pattern recurs across the shortlist, where adoption-imperative verbs (Adapt contracts, Adapt adapter, Adapt envelopes, Adapt state machine) appear with no per-row reference to the adoption-ledger entry and phase authorization that MPA-007 and roadmap T0 require; the mitigating rule lives only in the separate catalog README.",
+      "risk": "A reader consulting the declared disposition authority for E5 sees an unqualified instruction to adapt schemas, with no signal that E5 is transitively blocked behind the rejected browser plan, and no in-file pointer to the ledger gate. This is the most likely path by which blocked work is started in good faith.",
+      "smallestSafeCorrection": "Add one sentence above the E5 table mirroring the E4 note (\"E5 is contingent on the accepted E4 boundary and remains blocked; these are pattern references only.\"), and add a single standing line under the Selection rule stating that every \"Adapt\" or \"Adopt\" disposition requires an accepted adoption-ledger entry and phase authorization before any code use."
+    },
+    {
+      "id": "MPA-R-006",
+      "severity": "P2",
+      "category": "verification-controls",
+      "path": "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md and docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "sectionOrLines": "MPA-011 row (\"The authority verifier rejects any docs/audits primary path\", \"verify-plan-authority.mjs negative test\"); \"Validation contract\" section (npm run verify:plans, npm run test:plans)",
+      "issue": "The packet asserts an enforced control and a deliberate-failure test, but the control has no machine-readable expression anywhere in the manifest (there is no forbiddenPrimaryPathPrefixes or equivalent field), the verifier script and its negative test were not supplied, and no run receipt (commit SHA, date, exit status) is recorded for verify:plans or test:plans. The MPA-011 closure therefore rests on prose in the same document that the control would police. Session tooling was disabled, so I could not confirm the script, the npm scripts, or a passing run.",
+      "risk": "MPA-011 may be recorded as closed while the enforcement is aspirational. If the verifier does not exist or does not implement the docs/audits prohibition, an audit file could later be promoted to a domain primaryPath with nothing mechanical to stop it -- precisely the finding MPA-011 claims to have fixed.",
+      "smallestSafeCorrection": "Add a top-level manifest field expressing the rule mechanically (for example \"forbiddenPrimaryPathPrefixes\": [\"docs/audits/\"]), cite the verifier and negative-test file paths and test names in the MPA-011 row, and append a validation receipt line (commit SHA, date, exit status) to the Validation contract; if no passing run exists yet, relabel the control \"planned, not yet enforced.\""
+    },
+    {
+      "id": "MPA-R-007",
+      "severity": "P2",
+      "category": "supply-chain/licensing",
+      "path": "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md",
+      "sectionOrLines": "MPA-009 row and \"Final reconciled technology decisions\" bullet: \"Existing GSAP runtime behavior is retained narrowly\"; compare roadmap T0 \"Fail closed on mixed, custom, missing-SPDX, Commons Clause, AGPL, and GPL candidates\"",
+      "issue": "The packet correctly blocks visual motion authoring pending written GSAP consent, but simultaneously asserts that existing GSAP runtime behavior is retained, with no license basis, receipt, SPDX identifier, version pin, or named legal reviewer recorded, and with \"narrowly\" left undefined. T0's fail-closed rule is written against \"candidates\", leaving retained non-permissive dependencies implicitly grandfathered without a stated legal justification, while the adoption record requirement (item 2: license and notices) is not shown to be satisfied for this retained use.",
+      "risk": "The licensing stop is enforced for new adoption but silent for the retained surface that motivated the stop. The undefined scope of \"narrowly\" gives no testable boundary between permitted existing behavior and the blocked authoring expansion, so an engineer cannot determine whether a given change is inside or outside the stop.",
+      "smallestSafeCorrection": "Add to the MPA-009 row the retained GSAP license identifier, version, and receipt path if one exists; if none exists, mark it \"license review pending\" with an explicit no-new-call-sites, no-version-bump, no-new-feature boundary. Do not authorize any new GSAP use either way."
+    },
+    {
+      "id": "MPA-R-008",
+      "severity": "P3",
+      "category": "provenance-accuracy",
+      "path": "docs/plans/one-box-master/00-authority/2026-08-29-mpa-reconciliation.md",
+      "sectionOrLines": "Header \"Status: corrected planning packet; single-pass exact Grok review pending\"; final paragraph of \"Validation contract\"",
+      "issue": "The status line and the closing paragraph both presuppose that the pending single-pass review is an exact Grok 4.6 audit. Grok 4.6 timed out without producing a result and this review is an Opus 5 OAuth fallback, so after this pass the provenance line is stale and the closing sentence attributes challenge rights to a specific vendor model rather than to model review generally.",
+      "risk": "A later reader may believe a Grok 4.6 exact audit of this reconciliation exists or is the only recognized reviewer, misattributing the review record of a governance artifact and obscuring that the primary reviewer produced no output.",
+      "smallestSafeCorrection": "Update the status line to record that Grok 4.6 timed out with no result and that an Opus 5 OAuth fallback single-pass review was performed on 2026-08-29, and generalize the closing sentence from \"The single exact Grok 4.6 audit\" to \"Any model review of this reconciliation\"."
+    },
+    {
+      "id": "MPA-R-009",
+      "severity": "P3",
+      "category": "manifest-completeness",
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "sectionOrLines": "domains (all); supportingEvidence array",
+      "issue": "The reconciliation document itself is not classified in the manifest, so its authority class is undeclared even though it asserts closure over eleven findings. The canvas index cites docs/audits/grok-4.6/2026-08-28-canvas-master-plan-reconciliation-audit.md as supporting review evidence, but that file is absent from the manifest supportingEvidence array, which lists only three audits. The audit evidence set is therefore incomplete relative to what the plan tree actually cites.",
+      "risk": "Minor. A reader cannot determine from the manifest how to treat the reconciliation document, and the evidence inventory is not a complete index of cited audits, which weakens the claim that audits are systematically classified as non-authoritative supporting evidence.",
+      "smallestSafeCorrection": "Add a domain entry for the reconciliation (authorityClass \"proposed\", implementationAuthorized false, boundary describing it as a closure record pending owner acceptance) and append the 2026-08-28 canvas audit path to supportingEvidence."
+    },
+    {
+      "id": "MPA-R-010",
+      "severity": "P3",
+      "category": "schema-clarity",
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "sectionOrLines": "schemaVersion 1; authorityClass values across domains",
+      "issue": "Seven distinct authorityClass values are used (owner-approved, owner-approved-direction, owner-approved-architecture, proposed, draft, research, rejected) with no declared enumeration, no definition of the semantic difference between the three owner-approved variants, and no mapping from class to permitted action. Historical and audit artifacts are classified by array membership rather than by class, so the classification model is split across two mechanisms.",
+      "risk": "Low, because each domain carries an explicit implementationAuthorized flag and a prose boundary that do the real work. But a consumer cannot validate the file against a schema or reason about class precedence, and \"owner-approved-direction\" versus \"owner-approved-architecture\" is not defined anywhere in the packet.",
+      "smallestSafeCorrection": "Add a top-level authorityClasses object enumerating each class with a one-line definition and its permitted action, and give historical and audit artifacts an explicit class field consistent with that enumeration."
+    }
+  ],
+  "acceptedStrengths": [
+    "Static Page IR is held as the single Phase 1 production document and compiler authority consistently across MPA-004, the canvas index, roadmap T2 and T5, and the manifest website-source boundary, with template-v1 confined to a closed per-run compatibility path and explicitly not a second Phase 1 target.",
+    "The embedded-browser stop is fail-closed and stated consistently in all four supporting files: EB-001 through EB-021 must close with EB-001 first, every finding needs an owner, threat, deterministic oracle, fixture, exit gate, and retained-code boundary, and the operating-environment index explicitly forecloses smuggling a retained shell through E0.",
+    "E6 is correctly subordinated to P3 in both the operating-environment index and roadmap T5, with LiveKit or any media layer restricted to transport and explicitly denied the power to create review, lock, invitation, or approval authority.",
+    "E7, React, Next.js, ExperienceModules, and React Three Fiber are consistently deferred to post-Phase-1 behind a separate accepted schema/security ADR, with an explicit rule that a future module may not author the site document, bypass Page IR or release gates, or release itself.",
+    "MPA-011 is directionally implemented in the artifact under review: every Grok audit appears in supportingEvidence and none is used as a domain primaryPath, and the canvas and operating-environment indexes each label their audit links as review evidence, not product authority.",
+    "Catalog census arithmetic is internally consistent and reproducible on its face: the shortlist tables total exactly 18 rows (6 E1 + 1 E3 + 2 E4 + 2 E5 + 3 E7 + 1 P5/E8 + 3 E8), matching the 133/107/26/18 census in the README, and six explicit selection criteria are stated for the 107-to-18 cut.",
+    "Licensing posture fails closed where evidence exists: react-bits is cut for MIT plus Commons Clause, PostHog and agent-native are held at needs-license-review with no code-level use, and T0 fails closed on mixed, custom, missing-SPDX, Commons Clause, AGPL, and GPL candidates.",
+    "The A4 motion stop is stated in identical terms in the canvas index, roadmap T0, and roadmap T3, and T1 and T5 both state explicitly that Motion research does not clear the visual motion-authoring stop.",
+    "The packet correctly limits model review to input: it states that the pending audit may challenge but cannot accept the corrections or authorize implementation, which matches the rule that deterministic evidence, named humans, and independent verification outrank model output.",
+    "Appointments, provider selection, client invitations, deployment, schema changes, and retained desktop/browser work are each kept behind independent gates in both the reconciliation and the manifest, with no cross-inheritance of authorization from the P1-P8 program order."
+  ],
+  "missingEvidence": [
+    "Digest verification was impossible: all file, search, and shell tools were disabled in this session, so the target aggregate SHA-256 3745aa2b1392ef8f55bc66b2c02937e64b1058760a14e1a4aede3c3d5d8c7493, the per-file digests 863e07b32c4d8245a159c431c59babb3bea9b5322423ab5ca65a036cf03b4057 and 34122d0e50992c1a25fa33a2ce784f4e98820a8ff3a6bdff773ea303a8c4d5bb, and the declared byte counts 5341 and 6837 are unconfirmed.",
+    "The aggregate digest construction is unspecified in the packet: concatenated file bytes versus concatenated hex digests, file ordering, and any separator or length framing are undefined, so the aggregate is not reproducible even with tool access.",
+    "verify-plan-authority.mjs, its docs/audits negative test, and the package.json scripts verify:plans and test:plans were not supplied, and no run receipt (commit SHA, date, exit status) exists anywhere in the packet.",
+    "docs/tickets/one-box-program/manifest.json was not supplied; every closure-matrix ticket citation (OBX-P160, P175, P185, P220, P300, P310-P360, P320, P340, P350) is unverifiable, including their status, blocked-ness, and whether any is an accepted rather than proposed ticket.",
+    "docs/research/source-catalog/adoption-ledger.json and docs/security/supply-chain-policy.md were not supplied, so MPA-007's claim that the ledger enforces disallowed states and MPA-010's SC-HF-001 entry are unverified.",
+    "docs/research/source-catalog/hugging-face-one-box-candidates-2026-08-29.md was not supplied, so MPA-010's claims that every HF row is Research/T1 only, that MLX and mlx-vlm are Evaluate only, and that WebInfinity is excluded pending page-rights and provenance are unverified.",
+    "The technology adoption matrix, the 107-item relevance report, and github-starred-2026-08-29.json were not supplied, so MPA-006's subordination of the matrix and relevance report and MPA-008's claim that immediate anchors outside the shortlist were removed are unverified.",
+    "The specs and plans named as manifest primaryPaths were not supplied (page-ir-safe-pipeline PRD, canvas-upgrade, canvas-to-agency design and roadmap, appointment-acquisition PRD, engineering-operating-system register, release-1 contract and compatibility matrix, ADR 0002 and ADR 0001, program threat model, evaluation strategy, operating-environment design draft, embedded-browser integration plan), so every authorityClass and boundary in the manifest is taken at face value.",
+    "No named human approver, approval date, or signature is recorded for any owner-approved, owner-approved-direction, or owner-approved-architecture classification, and no independent human verification record for this reconciliation exists in the packet.",
+    "No GSAP license receipt, SPDX identifier, version pin, or written-consent artifact is present for the retained runtime use asserted in MPA-009.",
+    "Grok 4.6 produced no result (timeout), so no exact single-pass vendor audit of this reconciliation exists; this fallback review is the only recorded model review and is input only.",
+    "No repository, runtime, vendor, legal, user-research, or test evidence was independently gathered or fabricated for this audit; all findings rest solely on the supplied bytes."
+  ],
+  "phaseDecision": {
+    "status": "REVISE",
+    "reason": "Two P1 findings are open, which per the stated rules forces REVISE. MPA-R-001: the rejected E4.0-E4.7 numbering survives as E4.3 and E4.4 inside the 18-item shortlist, the artifact MPA-006 declares the sole planning disposition and phase authority, directly contradicting the MPA-003 closure claim and roadmap T4's prohibition on reusing that numbering. MPA-R-002: authority-manifest.json grants domains.website-source implementationAuthorized:true against a top-level implementationAuthorized:false and a governing rule to the contrary, with scope bounded only by an unresolvable prose reference to 'existing accepted Page IR tickets' and no named approver, date, ticket IDs, or precedence rule. Independently, the exact target aggregate SHA-256 could not be verified because all file and shell tools were disabled, so byte-level identity of the reviewed packet to the named target is asserted, not proven. The packet is otherwise coherent and safely fail-closed on browsers, motion, media, licensing, and post-Phase-1 stack expansion, so a bounded correction pass addressing the two P1 items plus the five P2 items should be sufficient to reach ACCEPT_FOR_PLANNING on re-review."
+  },
+  "nextActions": [
+    "Correct MPA-R-001: replace the E4.3 and E4.4 phase labels in the shortlist E4 rows with a non-reusing marker, and rewrite the MPA-003 closure row so its claim covers the shortlist and all catalog artifacts rather than the roadmap alone.",
+    "Correct MPA-R-002: either set domains.website-source.implementationAuthorized to false pending enumeration, or add acceptedTicketIds, approvedBy, and approvalDate to that domain plus a top-level precedenceRule stating a domain flag may be true only for enumerated accepted tickets and never widens the program-level false.",
+    "Add resolvable paths or identifiers to the manifest for the 18-item shortlist, ADR 0001, the local API threat model, and the accepted Page IR tickets, and register the two master-plan index files that the closure matrix cites as current evidence.",
+    "Reconcile phase placement: move tailwindcss out of the shortlist E7 section to match roadmap T2 retained Phase 1 use, and relabel the astryx row to P4/P5 to match roadmap T6.",
+    "Add an E5 blocked-state note mirroring the E4 note, and add one standing line stating that every Adapt or Adopt disposition requires an accepted adoption-ledger entry and phase authorization before any code use.",
+    "Express the docs/audits primary-path prohibition as a machine-readable manifest field, cite the verifier and negative-test paths in the MPA-011 row, and attach a verify:plans and test:plans run receipt with commit SHA, date, and exit status, or relabel the control as planned and not yet enforced.",
+    "Record the retained GSAP license basis, version, and receipt, or mark it license-review-pending with an explicit no-new-call-sites and no-version-bump boundary; do not authorize any new GSAP use.",
+    "Update the reconciliation status line to record the Grok 4.6 timeout and this Opus 5 OAuth fallback review, and generalize the closing Validation contract sentence from a specific vendor model to any model review.",
+    "Recompute and republish the packet digests with the aggregate construction stated explicitly (byte concatenation versus digest concatenation, file order, separators), then re-run the single-pass review against the corrected bytes.",
+    "Supply the twelve missing evidence artifacts listed in missingEvidence for the next pass, prioritizing the tickets manifest, adoption ledger, supply-chain policy, HF candidate note, and the authority verifier with its negative test.",
+    "Obtain a named human approver and date for each owner-approved class in the manifest before any domain flag is set or kept true; model review cannot substitute for that record."
+  ]
+}

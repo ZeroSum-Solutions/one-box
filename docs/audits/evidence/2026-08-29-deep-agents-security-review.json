@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0",
+  "ref": "HEAD",
+  "base": {
+    "status": "AVAILABLE",
+    "value": "9d4ddfddc83efa2af5a560500cd87c787b7035f3",
+    "unavailable_reason": null,
+    "evidence": [
+      { "class": "COMMAND", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-merge-base.txt:1" }
+    ]
+  },
+  "scope": {
+    "changed_paths": [
+      "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+      "docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md",
+      "docs/audits/evidence/2026-08-29-deep-agents-immutable-review-packet.md",
+      "docs/audits/evidence/2026-08-29-deep-agents-security-review.json",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-diff.txt",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-merge-base.txt",
+      "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-corrections-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-final-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-immutable-final-audit.json",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md",
+      "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md",
+      "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md",
+      "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md"
+    ],
+    "captured_diff_paths": [
+      "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+      "docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md",
+      "docs/audits/evidence/2026-08-29-deep-agents-immutable-review-packet.md",
+      "docs/audits/evidence/2026-08-29-deep-agents-security-review.json",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-diff.txt",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt",
+      "docs/audits/evidence/security/2026-08-29-deep-agents-merge-base.txt",
+      "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-corrections-reaudit.json",
+      "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-final-audit.json",
+      "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-immutable-final-audit.json",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md",
+      "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md",
+      "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md",
+      "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md",
+      "docs/research/source-catalog/adoption-ledger.json",
+      "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md",
+      "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md"
+    ],
+    "path_classification": [
+      { "path": "docs/adr/0003-deep-agents-js-job-plane-evaluation.md", "surfaces": ["authorization"], "evidence": [{ "class": "STATIC", "citation": "docs/adr/0003-deep-agents-js-job-plane-evaluation.md:1" }] },
+      { "path": "docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/2026-08-29-deep-agents-grok-disposition.md:1" }] },
+      { "path": "docs/audits/evidence/2026-08-29-deep-agents-immutable-review-packet.md", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/2026-08-29-deep-agents-immutable-review-packet.md:1" }] },
+      { "path": "docs/audits/evidence/2026-08-29-deep-agents-security-review.json", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/2026-08-29-deep-agents-security-review.json:1" }] },
+      { "path": "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md:1" }] },
+      { "path": "docs/audits/evidence/security/2026-08-29-deep-agents-diff.txt", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff.txt:1" }] },
+      { "path": "docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt:1" }] },
+      { "path": "docs/audits/evidence/security/2026-08-29-deep-agents-merge-base.txt", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-merge-base.txt:1" }] },
+      { "path": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-corrections-reaudit.json", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-corrections-reaudit.json:1" }] },
+      { "path": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-final-audit.json", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-final-audit.json:1" }] },
+      { "path": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-immutable-final-audit.json", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/audits/grok-4.6/2026-08-29-deep-agents-teammate-immutable-final-audit.json:1" }] },
+      { "path": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json", "surfaces": ["prompt-injection", "authorization", "untrusted-input"], "evidence": [{ "class": "STATIC", "citation": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json:1" }] },
+      { "path": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md", "surfaces": ["prompt-injection", "authorization", "untrusted-input"], "evidence": [{ "class": "STATIC", "citation": "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.md:1" }] },
+      { "path": "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json", "surfaces": ["prompt-injection", "authorization", "untrusted-input"], "evidence": [{ "class": "STATIC", "citation": "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json:1" }] },
+      { "path": "docs/plans/one-box-master/00-authority/authority-manifest.json", "surfaces": ["authorization"], "evidence": [{ "class": "STATIC", "citation": "docs/plans/one-box-master/00-authority/authority-manifest.json:1" }] },
+      { "path": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md", "surfaces": ["prompt-injection", "authorization", "untrusted-input"], "evidence": [{ "class": "STATIC", "citation": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md:1" }] },
+      { "path": "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md", "surfaces": ["prompt-injection", "authorization", "untrusted-input"], "evidence": [{ "class": "STATIC", "citation": "docs/plans/one-box-master/06-technology/deepagents-js-evaluation-plan.md:1" }] },
+      { "path": "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md", "surfaces": [], "evidence": [{ "class": "STATIC", "citation": "docs/plans/one-box-master/06-technology/technology-adoption-roadmap.md:1" }] },
+      { "path": "docs/research/source-catalog/adoption-ledger.json", "surfaces": ["authorization"], "evidence": [{ "class": "STATIC", "citation": "docs/research/source-catalog/adoption-ledger.json:1" }] },
+      { "path": "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md", "surfaces": ["prompt-injection", "untrusted-input"], "evidence": [{ "class": "STATIC", "citation": "docs/research/source-catalog/deepagents-js-candidate-intake-2026-08-29.md:1" }] },
+      { "path": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md", "surfaces": ["prompt-injection", "authorization", "untrusted-input"], "evidence": [{ "class": "STATIC", "citation": "docs/superpowers/specs/2026-08-29-canvas-operating-environment-design.md:1" }] }
+    ],
+    "sensitive_surfaces": ["prompt-injection", "authorization", "untrusted-input"],
+    "diff_command_id": "CMD-001",
+    "evidence": [
+      { "class": "COMMAND", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff.txt:1" }
+    ]
+  },
+  "commands": [
+    {
+      "id": "CMD-001",
+      "purpose": "diff",
+      "command": "git diff --name-only 9d4ddfddc83efa2af5a560500cd87c787b7035f3...HEAD",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "9d4ddfddc83efa2af5a560500cd87c787b7035f3...HEAD",
+      "evidence": [{ "class": "COMMAND", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff.txt:1" }],
+      "unavailable_reason": null
+    },
+    {
+      "id": "CMD-002",
+      "purpose": "secrets-scan",
+      "command": "gitleaks detect --source . --no-banner --redact --log-opts 9d4ddfddc83efa2af5a560500cd87c787b7035f3..HEAD",
+      "outcome": "PASS",
+      "exit_code": 0,
+      "scope": "9d4ddfddc83efa2af5a560500cd87c787b7035f3..HEAD",
+      "evidence": [{ "class": "COMMAND", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt:1" }],
+      "unavailable_reason": null
+    }
+  ],
+  "exports": {
+    "state": "NONE",
+    "items": [],
+    "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md:12" }],
+    "unavailable_reason": null
+  },
+  "secrets_scan": {
+    "result": "PASS",
+    "command_id": "CMD-002",
+    "scope": "RANGE",
+    "comparison": "9d4ddfddc83efa2af5a560500cd87c787b7035f3..HEAD",
+    "evidence": [{ "class": "COMMAND", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt:1" }],
+    "unavailable_reason": null
+  },
+  "export_policy": {
+    "result": "PASS",
+    "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md:12" }],
+    "unavailable_reason": null
+  },
+  "coverage": [
+    { "surface": "prompt-injection", "state": "REVIEWED", "evidence": [{ "class": "STATIC", "citation": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md:75" }], "unavailable_reason": null },
+    { "surface": "secrets", "state": "REVIEWED", "evidence": [{ "class": "COMMAND", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-gitleaks.txt:1" }], "unavailable_reason": null },
+    { "surface": "authentication", "state": "NOT-APPLICABLE", "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md:12" }], "unavailable_reason": null },
+    { "surface": "authorization", "state": "REVIEWED", "evidence": [{ "class": "STATIC", "citation": "docs/plans/one-box-master/04-operating-environment/ai-teammate-operating-model.md:109" }], "unavailable_reason": null },
+    { "surface": "untrusted-input", "state": "REVIEWED", "evidence": [{ "class": "STATIC", "citation": "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json:20" }], "unavailable_reason": null },
+    { "surface": "export", "state": "NOT-APPLICABLE", "evidence": [{ "class": "STATIC", "citation": "docs/audits/evidence/security/2026-08-29-deep-agents-diff-review.md:12" }], "unavailable_reason": null }
+  ],
+  "findings": [],
+  "verdict": "PASS"
+}

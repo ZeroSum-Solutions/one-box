@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:51:04.087Z",
+  "request": {
+    "task": "OBX-P180-S3-CLEAN-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s3-definitive-findings-v3.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "diffBytes": 28615,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 16052,
+      "completion_tokens": 28485,
+      "total_tokens": 44537,
+      "cost": 0.203014,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.203014,
+        "upstream_inference_prompt_cost": 0.032104,
+        "upstream_inference_completions_cost": 0.17091
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 27719,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "RouteSegmentReceiptV1 completed invariant; Apply eligibility after ProposalEnvelopeV1",
+        "scenario": "A completed RouteSegmentReceiptV1 carries proposalEnvelopeHash but omits interruptHash/decisionHash. The completed rule only adds interrupt/decision/accept-proposal requirements for 'proposal-HITL completion', so a validator can treat this mix as schema-valid. Apply eligibility then succeeds from that receipt plus any ReceiptBundleManifestV1 that lists it and a frozen foundation receipt, without a unique accept-proposal slot decision.",
+        "remediation": "Make completed+proposalEnvelopeHash require the unique interruptHash, decisionHash, and decisionValue accept-proposal; any other completed/proposal mix fails validation. Apply eligibility must require those same hashes on that completed receipt and fail closed if they are absent or not accept-proposal."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+        "line": "SkillInvocationIntentV1.slashInvocationHash?; accept-proposal 'bound command when present'",
+        "scenario": "A slash command produces SlashCommandInvocationV1, but slashInvocationHash is optional on the intent, so the segment can drop the command binding. After active→interrupted the command/registry expires, is revoked, or is killed while the skill admission stays live. accept-proposal treats the command as not present and CASes interrupted→completed.",
+        "remediation": "If a slash command selected the skill, slashInvocationHash is mandatory on the intent for the whole segment. Omission of a used command binding is invalid. accept-proposal fails closed unless that command entry and registry remain unexpired, unrevoked, unkilled, and owner-bound."
+      }
+    ],
+    "proof_assessment": "v3 FINDINGS target these same bytes but describe a pre-remediation draft. The supplied text already closes unique genesis InterruptDecisionSlotV1 keyed by interruptHash with one undecided→decided CAS, interrupted→completed|cancelled with no return to active, and live skill/context/interrupt/decision/owner/kill-switch gates on accept-proposal. Treat those three v3 MEDIUMs as stale. Remaining criterion gaps are closed combinations at the apply/receipt boundary and optional command binding that can drop command liveness at completion.",
+    "residual_risks": [
+      "ReceiptBundleManifestV1 has no control-plane authorship, per-jobId uniqueness, owners, or kill switch; any reconstructible hash list can satisfy the apply packaging gate.",
+      "HumanInterruptV1.issuer is a spoofable literal; control-plane authorship is prose-only.",
+      "ContextFragmentV1.normalizedBytes is unspecified as count vs payload and could embed content in hash-chained records.",
+      "Kill switch on an interrupted segment blocks accept but is not listed as a cancellation trigger, so the reservation can remain held until interrupt expiry.",
+      "effectiveToolGrantHash 'recorded subset' is not subset-provable unless both grant bodies are resolved and intersected.",
+      "Mandatory human-decision fragments can deadlock first-turn packing if 'applicable route' is ignored.",
+      "Unicode line separators/bidi/homoglyphs can spoof composer display while ASCII slash grammar stays closed.",
+      "No accessibility contract for pre-dispatch included/excluded source disclosure.",
+      "SkillInvocationReceiptV1 terminal states are not a closed enum with the same non-completed proposal ban."
+    ]
+  }
+}

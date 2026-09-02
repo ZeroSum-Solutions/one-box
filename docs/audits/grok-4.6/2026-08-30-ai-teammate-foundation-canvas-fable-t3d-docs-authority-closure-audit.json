@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T15:14:34.548Z",
+  "request": {
+    "task": "T3D exact closure: Canvas Agent Studio canonical docs and authority-packet digest",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/security/local-api-threat-model.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3d-docs-authority-audit.json",
+      "docs/audits/evidence/goal/2026-08-30-one-box-authority-packet-digest-proof.md",
+      "scripts/verify-plan-authority.mjs"
+    ],
+    "diffBytes": 32359
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24442,
+      "completion_tokens": 15251,
+      "total_tokens": 39693,
+      "cost": 0.140198,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.140198,
+        "upstream_inference_prompt_cost": 0.048692,
+        "upstream_inference_completions_cost": 0.091506
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 14778,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The three-file slice closes the four prior T3D items in place: architecture now keeps HTTP runId as the validated path id, copies alphanumeric-leading ids into job.projectId, and maps dash/underscore-leading ids through a reversible 43-character prefix plus lowercase ASCII hex whose 51–123 image cannot meet the 4–40 grammar and stays within 128; Agent Studio is interactive only for Assistant∧Edit, with one current-run instance retained across tool and View/Edit behind native hidden/aria-hidden/inert; both complete and non-complete classes are documented as no-apply and no automatic retry; Local assignment receives no selection object and neither tag nor edit id enters POST/job. Manifest diff is packetDigest-only; implementationAuthorized, domains, and governance are unchanged. Digest 1b86107bb20bb4e5e206de725aa6dec048a1acff8a3247b3963a34cae1780da5 equals the supplied verify:plans receipt and the verifier algorithm (localeCompare-sorted keys, key+NUL+bytes+NUL, manifest JSON without packetDigest). That receipt is evidence, not a reviewer-recomputed preimage of the other packet bytes. T3A–T3C2 remain static CLEAN reviews, not live oracles.",
+    "residual_risks": [
+      "Retention is specified only for Workbench-tool and View/Edit; collapse unmount is still unclaimed.",
+      "“both process-local pane states” can be read as classifying mutating Site advice as process-only.",
+      "Threat model states the 51–123 vs 4–40 non-collision rule but omits the 128-character job bound that architecture states.",
+      "Packet digest cannot be recomputed from this 3-file slice; a fabricated verify:plans receipt would not be caught here.",
+      "T3C2 live tab/0x0/network oracles are still absent; a11y claims rest on docs plus prior static review.",
+      "hidden/aria-hidden/inert on the wrapper would not cover portaled UI.",
+      "Data-class UI help copy is still not quoted against the threat-model examples (cookies, release, appointment)."
+    ]
+  }
+}

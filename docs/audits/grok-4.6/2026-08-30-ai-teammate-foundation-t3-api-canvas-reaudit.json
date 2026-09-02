@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T08:24:47.934Z",
+  "request": {
+    "task": "T3-api-canvas-reaudit",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "src/app/api/ai-teammates/[id]/route.test.ts",
+      "src/app/api/ai-teammates/[id]/route.ts",
+      "src/app/styles/workbench.css",
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+      "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+      "src/components/preview/AiTeammate/AiTeammateStyles.test.ts",
+      "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+      "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx",
+      "src/components/preview/Workbench.tsx"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t3-api-canvas.txt"
+    ],
+    "diffBytes": 75330
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 24348,
+      "completion_tokens": 32493,
+      "total_tokens": 56841,
+      "cost": 0.243462,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.243462,
+        "upstream_inference_prompt_cost": 0.048504,
+        "upstream_inference_completions_cost": 0.194958
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 31476,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "LocalAiTeammatePanelContent roster map: hardcoded `Idle · Read + propose`",
+        "scenario": "Roster is ready and the user submits; submission.kind becomes working and the form announces “Creating a bound local proposal…”. Every role still renders the static “Idle · Read + propose” line, and the help text still defines idle as “no process, provider, tools, lease, or budget is active.” Availability/effectClasses from the loaded roster are never read.",
+        "remediation": "Render availability/effectClasses from each teammate record; while submission.kind==='working', mark the in-flight teammate as working (not idle) and do not claim no process is active."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "submitAiTeammateAssignment isBoundResult",
+        "scenario": "POST 200 envelope has the pinned run/lane/notice/effects/schema/cost/teammate/task values but receipt.outputSha256=null, partialOutputSha256 set, and retryEligible=true. The client still treats it as kind:'result' and shows a terminal success receipt (“Output hash None”, “Retry eligible Yes”). route.test.ts only toMatchObject-partial-matches the API receipt and never asserts those fields; panel residualMismatches omit them too.",
+        "remediation": "Require outputSha256 64-hex, partialOutputSha256===null, retryEligible===false (and non-null job/input hashes) before kind:'result'; extend route and submit tests with those counterexamples instead of partial matchObject."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx",
+        "line": "ai-teammate-result vs ai-teammate-receipt live region",
+        "scenario": "A bound proposal arrives. Proposed-by, assigned task, and recommendation render outside the aria-live/atomic receipt. AT users get hashes/status announced and can miss the actual proposal text unless they later browse the section. Working progress is also only a sibling role=status, not referenced from the assignment controls.",
+        "remediation": "Put recommendation + assignment identity inside the same polite atomic live region as the receipt (or live-region the whole result). Point the textarea/select aria-describedby at the working status id while in-flight, matching the error association."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AiTeammatePanel.test.tsx",
+        "line": "rejects stale submit and roster completions…",
+        "scenario": "The named race test only calls isCurrentAiTeammateRequest/isCurrentAiTeammateRosterRequest. It never asserts a dataClass mismatch (the comparator’s fifth field) and never runs LocalAiTeammateRunPanel createProposal/reloadRoster overlapping completions. Dropping dataClass from the comparator, or dropping generation++ in onDataClassChange, still passes.",
+        "remediation": "Assert dataClass inequality returns false, and add a test that drives createProposal/reloadRoster with overlapping generations/runIds and expects discarded completions not to call setState."
+      }
+    ],
+    "proof_assessment": "Prior items are closed in the slice: POST authorizes before json/text, grants/effects fail closed, both Agent Studio panes stay mounted, working disables assignment controls, errors are labelled/described, UI submit pins run/lane/notice/effects/schema/cost/teammate/task, and fetch is unused on the happy POST path. The proof’s green vitest run is real but over-claims race/receipt closure: those oracles are helper/SSR substring checks, not overlapping in-panel completions or full receipt counterexamples. Full-suite timeout and stale E2E assistant labels are explicitly unfinished.",
+    "residual_risks": [
+      "executeAiTeammateJobV1, AiTeammateRegistryV1Schema, AiTeammateRunReceiptV1Schema, and isLocalApiAuthorized are outside the slice; API 200 still forwards whatever the executor returns.",
+      "GET auth is not oracled (Host-only 200); removing the GET gate would not fail tests.",
+      "canSubmit does not require selectedTeammateId to be in the parsed roster; that is safe only if the registry schema cannot be empty/partial.",
+      "No fetch timeout/abort: a hung roster or POST leaves loading/working with no retry/cancel.",
+      "Workbench tool changes still unmount AgentStudioPanel; E2E still uses the old assistant label and does not axe Agent Studio viewports."
+    ]
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T11:29:31.549Z",
+  "request": {
+    "task": "T1 closure exact Fable 5 initial full-section Canvas Agent Studio audit evidence",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json"
+    ],
+    "proofs": [],
+    "diffBytes": 24004
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 6997,
+      "completion_tokens": 9522,
+      "total_tokens": 16519,
+      "cost": 0.070934,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.070934,
+        "upstream_inference_prompt_cost": 0.013802,
+        "upstream_inference_completions_cost": 0.057132
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 9121,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The supplied slice is only docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-initial-audit.json; no CLI transcript, spec-section bytes, tree proof, or other artifacts were provided, so SHA-256 and envelope values cannot be recomputed here. On the face of the durable JSON it binds requested/reported/canonical claude-fable-5 plus captured output-envelope counters, session, cost, and terminal reason; records selected-section and full-spec SHA-256 with an extraction recipe; enumerates orderedInspectionCoverage; maps selected requirements and the listed integration boundaries to inspected symbols with a finding id or explicit no-finding; keeps F-01..F-08 with evidenceGrade and proofGapRef; states overreach, underreach, duplication, authority drift, and deferred scope in separate fields; and remains advisory under OBX-AUTH-ATF-001 with no capability-expanding code in the allowlist. No MEDIUM-or-above break of that criterion is demonstrated by the artifact text.",
+    "residual_risks": [
+      "Envelope fields are a normalized executor capture, not a verbatim CLI JSON blob; missing raw keys (e.g. num_turns/wall duration) cannot be checked from this slice.",
+      "selectedSectionExtraction uses a <target.commit> placeholder; section-hash truthfulness depends on the unpublished spec bytes and exact heading cut.",
+      "Target commit equals the commit that adds this evidence file; tree 7a1a54e4… was not recomputed.",
+      "PG-05 records prior evidence-target drift; line numbers and finding text vs source were not re-verified.",
+      "closedCoverageMap bundles some boundaries (proposals/receipts, permissions) into adjacent requirements; a missing selected-section SHALL would not be visible without the spec."
+    ]
+  }
+}

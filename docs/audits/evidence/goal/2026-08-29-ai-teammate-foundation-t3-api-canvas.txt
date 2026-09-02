@@ -1,0 +1,68 @@
+T3 local API and Canvas Agent Studio verification
+Verified: 2026-08-30
+Base: 47650fccb0fce0e96a49f9ae725abbe6a25540f1
+
+Implemented boundary:
+- Run-scoped GET/POST /api/ai-teammates/[id] reuses isLocalApiAuthorized before POST body parsing.
+- POST accepts only a known teammate, a bounded task, public or project-internal data, exact read/propose effects, and explicit empty parent/child tool grants.
+- Execution is the existing deterministic in-memory executor plus a fixed local proposal function. It performs no provider, credential, network, filesystem, persistence, Page IR mutation, or automatic application.
+- Agent Studio defaults to Teammates and Local foundation, keeps Site advice separate, renders the exact eight-role roster, explains idle/read/propose boundaries, preserves a failed assignment for correction, and renders proposal-only terminal receipt fields as text.
+
+Red evidence:
+- Route, panel, mode, Workbench integration, and style tests failed before their corresponding modules/integration/styles existed.
+- Additional red cycles rejected premature submission before roster readiness and response envelopes whose run, lane, or teammate did not bind to the request.
+
+Green commands:
+- npx vitest run 'src/app/api/ai-teammates/[id]/route.test.ts' src/components/preview/AiTeammate/*.test.tsx src/components/preview/AiTeammate/*.test.ts
+  PASS: 5 files, 16 tests.
+- npm run typecheck
+  PASS.
+- npm run lint -- src/app/api/ai-teammates src/components/preview/AiTeammate src/components/preview/Workbench.tsx
+  PASS.
+- npm run build
+  PASS; dynamic route /api/ai-teammates/[id] registered.
+- npm run verify:plans && npm run test:plans
+  PASS: verifier passed and 43/43 plan tests passed.
+- git diff --check
+  PASS.
+- package and lockfile diff
+  EMPTY.
+
+Full-suite observation:
+- npm test: 1,308 passed, 4 skipped, one cross-process image-library fixture timed out at 5 seconds.
+- Isolated src/lib/imageLibrary.test.ts retry: 19/19 passed.
+- This is recorded as a partial full-suite result, not relabeled as green. The entire suite must pass on the final target.
+
+Accessibility and responsive contract:
+- Native labeled radios, textarea, select, and buttons; loading status, alert errors, polite atomic receipt announcement, visible focus, textual receipt fields, and no Apply proposal control.
+- Agent Studio CSS uses existing design tokens, 8px spacing, 44px narrow controls at <=768px, and one-column roster/receipt layout at <=720px.
+- No raw colors, font-family literal, or motion was added.
+
+Known final-gate work:
+- Existing E2E scripts still contain the former assistant label and do not exercise Agent Studio across the required viewports with axe. Final verification must reconcile these test contracts through an exact-path authorization correction before completion.
+
+No commit, push, deployment, release, provider call, runtime dependency, or persistent storage was performed by T3.
+
+Exact Grok 4.6 finding disposition (2026-08-30):
+- First audit requested/reported x-ai/grok-4.6 at xhigh and returned 2 HIGH plus 8 MEDIUM findings.
+- All ten findings were reproduced and fixed test-first: stale submit/run/roster generations now fail closed; assignment controls stay locked while working; the submitted teammate and task remain visible; mode changes keep the teammate session mounted; working/error accessibility state is explicit; the receipt exposes the complete bound record without suggesting a provider; response validation pins the exact local lane/notice/effects/schema/cost/teammate/task contract; and the unauthorized-body test proves request.json/text remain unread.
+- Corrected focused gate: 5 files, 18 tests passed; typecheck, focused lint, production build, dependency diff, prohibited-capability scan, and git diff --check passed.
+- A fresh exact-model re-audit is required on these corrected bytes before T3 can advance.
+
+Second exact Grok 4.6 re-audit disposition (2026-08-30):
+- Requested/reported x-ai/grok-4.6 at xhigh; the re-audit found four MEDIUM gaps after confirming the original ten were closed.
+- All four were fixed test-first: the selected teammate is visibly Working while a proposal runs and roster text derives from validated availability/effects; complete client results require non-null valid output/job/input hashes, no partial output, and no retry; the entire proposal and receipt share one polite atomic live region and working descriptions bind to the form controls; and the actual commit predicates now have data-class and stale mounted/generation/run oracles.
+- Corrected focused gate: 5 files, 19 tests passed; typecheck, focused lint, production build, dependency diff, prohibited-capability scan, and git diff --check passed.
+- A second corrected exact-model re-audit is required before T3 can advance.
+
+Third exact Grok 4.6 re-audit disposition (2026-08-30):
+- Requested/reported x-ai/grok-4.6 at xhigh; it confirmed the preceding implementation fixes and found one hidden-pane busy-state issue plus three exact test-oracle gaps.
+- All four were fixed test-first: Local foundation busy state now disables both Agent Studio mode controls; the roster oracle requires exactly one Working and seven Idle roles; a mismatched proposal task is rejected; and working plus idle/error/result tests distinguish disabled from editable radios, textarea, select, and submit behavior.
+- Corrected focused gate: 5 files, 21 tests passed; typecheck, focused lint, dependency diff, prohibited-capability scan, and git diff --check passed.
+- A third corrected exact-model re-audit is required before T3 can advance. The local client still has no separate fetch timeout; final browser lifecycle evidence must keep that residual explicit rather than claiming cancellation support.
+
+Fourth exact Grok 4.6 re-audit disposition (2026-08-30):
+- Requested/reported x-ai/grok-4.6 at xhigh; it reduced the remaining result to two MEDIUM issues: parent busy state arrived after paint, and the working-state test omitted the submit control.
+- Both were fixed test-first. The request event now synchronously binds parent busy=true before publishing child working state and binds false with the committed terminal state; unmount still clears the parent. The working oracle explicitly requires the disabled Creating button, and the synchronous ordering helper is exercised directly.
+- Corrected focused gate: 5 files, 22 tests passed; typecheck, focused lint, dependency diff, prohibited-capability scan, and git diff --check passed.
+- A fourth corrected exact-model re-audit is required before T3 can advance.

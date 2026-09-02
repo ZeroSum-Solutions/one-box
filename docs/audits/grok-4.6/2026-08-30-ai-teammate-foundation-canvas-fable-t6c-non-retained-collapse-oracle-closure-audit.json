@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:11:21.320Z",
+  "request": {
+    "task": "T6C exact evidence-slice audit: close no-unintended-retention collapse proof finding",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t6c-collapse-non-retention-receipt.json"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-final-closure-audit.json",
+      "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t5b-collapse-continuity-closure-reaudit.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t6-closure-receipt.json"
+    ],
+    "diffBytes": 3188
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 5680,
+      "completion_tokens": 11192,
+      "total_tokens": 16872,
+      "cost": 0.07832,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.07832,
+        "upstream_inference_prompt_cost": 0.011168,
+        "upstream_inference_completions_cost": 0.067152
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 10816,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "F5-CLOSE-03 is the missing live absence oracle, not the already-closed T5 inactivity/continuity half. This receipt is internally consistent with that finding and with T5 Grok: productBytesChanged false; Workbench.tsx/workbench.css are bound; canvas-contract.mjs and WorkbenchAgentStudio.test.tsx hashes match the T6 closure packet; the documented locator requires zero header, breadcrumb, composer, and non-retained body children; the source pin is both `{!workbenchCollapsed && (` guards; all three widths are claimed to run that count before retained-wrapper inactivity and reopen continuity; capabilityAssessment adds no runtime surface. The slice is receipt-only by design; candidate hashes are the epoch binding. Inactivity (hidden/inert/zero-layout/outside focus) and reopen restore are referenced as still-executed prior assertions rather than re-specified here, which matches a test-only close of the absence half.",
+    "residual_risks": [
+      "Workbench.tsx/workbench.css identity with the T5 correction receipt is attested, not cross-hashed in this packet.",
+      "Source oracle is a count-2 regex and does not pin guard bodies (header/undo/clear/breadcrumb vs panelContent/hairline/composer).",
+      "Live locator is document-global and depends on `data-retained-agent-studio`, which T5 Grok never named; a wrong class/attribute would make count()===0 vacuously true.",
+      "Collapse path remains behind roster-retry, POST-hold, tool-switch, and View/Edit; an earlier skip still omits this oracle.",
+      "Site Advice stays a mounted mutation surface inside the retained Agent Studio tree; hasOpenedAgentStudio is still not run-keyed."
+    ]
+  }
+}

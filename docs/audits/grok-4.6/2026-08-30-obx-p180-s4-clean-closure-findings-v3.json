@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:47:50.780Z",
+  "request": {
+    "task": "OBX-P180-S4-CLEAN-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s4-budget-capacity-compare-findings-v2.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md"
+    ],
+    "diffBytes": 21326,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 20217,
+      "completion_tokens": 17060,
+      "total_tokens": 37277,
+      "cost": 0.142602,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.142602,
+        "upstream_inference_prompt_cost": 0.040242,
+        "upstream_inference_completions_cost": 0.10236
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 15646,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "211-212, 269-274, 326-336",
+        "scenario": "One BudgetReservationV1 state covers the whole compare. Dispatch requires that state to be held. Compare prose keeps the parent held until both arms are terminal, then one aggregate CAS. General failure rows do not: ambiguous billing, mismatch, auth-after-dispatch, output/canary, in-flight cap, over-reserve, and kill-switch/in-flight all CAS the reservation to reconciliation-hold or settled. Input: arm A claimed, arm B offered/queued, A hits ambiguous/over-reserve/cap. Wrong behavior: parent leaves held before B is terminal, so B cannot claim (deadlock vs both-terminal CAS) or an early settle/release restores remaining while B can still dispatch, so another job can reserve funds still inside the compare worst case.",
+        "remediation": "Make compare-parent reservation CAS compare-only: stay held while any arm can queue/claim/retry/HITL; per-arm failures write arm-scoped evidence only; exactly one parent CAS after both arms terminal to settled, released, or reconciliation-hold. Restate every general money row as applying to a non-compare segment reservation, or as no-op on parent state until that CAS."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "140-144, 269-271",
+        "scenario": "Parent reservedAmounts are immutable and parent state must not change until both arms terminal, but every ledger class is an amount movement with previous/next revisions. Input: parent held 200 (100/arm); arm A terminals using 10 and emits release-unused/settle-known against assignment/project remaining. Wrong behavior: remaining is restored before the one parent CAS, so a concurrent job can reserve the 90 while arm B/retry/evaluator/reviewer are still covered only by the stale reservation row; reservation record and BudgetBalanceStateV1 diverge and a later parent release can under-hold or double-release.",
+        "remediation": "Forbid hierarchy remaining/held mutations from per-arm events. Allow only non-restoring arm-scoped annotations until the both-terminal parent CAS, which is the single transaction that settle-known/release-unused/hold-ambiguous across all scopes. Bound every movement so remaining <= limit - settled and held >= 0."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "189-198, 204-209, 219-226",
+        "scenario": "maximumQueueDepth is policy, but CapacityBalanceStateV1 CASes only concurrency slots and rate windows. Queue depth lives on observational CapacityObservationV1, and offered->queued is not in the claim transaction. Input: depth = maximumQueueDepth-1, two offered leases CAS to queued on the same snapshot. Wrong behavior: queue admits past bound; extra queued leases keep budget held. Observation-driven queueing becomes admission authority.",
+        "remediation": "Add a queue-depth/ticket CAS record. offered->queued must atomically increment depth only if depth < maximumQueueDepth and the deadline still survives maximumQueueWaitMs; otherwise offered->cancelled with no-dispatch proof. Observations cannot increment depth."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": "204-217, 326-336",
+        "scenario": "Claimed leases may only go to released or reconciliation-hold, and prose releases claimed capacity only on terminal segment proof. The table then names lease 'held' (not a state), says reservation 'settles or -> reconciliation-hold' with no discriminator, omits the failed compare-arm lease, and lets reconciliation-hold->released on named owner evidence without a terminal segment receipt hash. Input: HITL/retryable segment still non-terminal, or reconciliation-hold lease released while RouteSegmentStateV1 is active. Wrong behavior: slot returns to the pool, a second segment claims it, original retry/HITL either dispatches without claimed or consumes a second slot.",
+        "remediation": "Rewrite each row to one reservation state from {held,settled,released,reconciliation-hold} and one lease state from the CAS diagram, with the exact proof that selects it. Bind claimed|reconciliation-hold -> released to a terminal segment receipt hash (completed|failed|cancelled|rejected|budget-exhausted); owner-reconcile cannot release capacity while the segment is non-terminal."
+      }
+    ],
+    "proof_assessment": "v2 quotes 'provable terminal attempt settlement' and older failure/compare semantics that are not in these bytes. Those specific holes are largely closed in prose (segment-not-attempt release, no claimed->expired, parent held language, attach-only provider usage, expanded owner table). v2 is not authority that this revision is CLEAN. Remaining contradictions still break the criterion: general failure CASes can move the compare parent before both arms terminal; per-arm ledger can restore remaining early; queue depth is not CAS; lease release is not always bound to terminal segment proof. No executable CAS/replay/apply-oracle proof exists; acceptance item 8 stays unmet while MEDIUM+ findings remain.",
+    "residual_risks": [
+      "compare-evidence-only is prose only; Step 3 RouteSegmentReceiptV1/ProposalEnvelopeV1 are closed and apply-eligible without a compare join, so an arm proposal can still satisfy Step 3 apply unless oracles reject any segment bound by CompareIntent/CompareManifest/CompareReceipt",
+      "CapacityReceiptV1 is hashed from CompareReceiptV1 but has no closed schema",
+      "BudgetBalanceStateV1 remaining invariant (remaining = limit-held-settled vs burned released) is unspecified except by later arithmetic prose",
+      "expiresAt has no CAS; only ambiguous holds are barred from silent expiry release",
+      "rate-window epoch/identity at interval boundaries is unspecified",
+      "OwnerAssignmentV1 rows are labels until Step 6",
+      "in-memory fixtures cannot prove durable CAS, replay/attach, or post-crash reconciliation",
+      "mixed synthetic/metered compare arms are not forbidden",
+      "priority-before-fair-share has no anti-starvation bound if weights are zero"
+    ]
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T10:39:40.661Z",
+  "request": {
+    "task": "T0 Canvas Agent Studio audit scope, authority cage, and baseline",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md"
+    ],
+    "proofs": [],
+    "diffBytes": 3365
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 1688,
+      "completion_tokens": 10870,
+      "total_tokens": 12558,
+      "cost": 0.068404,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.068404,
+        "upstream_inference_prompt_cost": 0.003184,
+        "upstream_inference_completions_cost": 0.06522
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 9977,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "BLOCK",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md",
+        "line": "5, 48-52",
+        "scenario": "T0 receipt sets Status: PASS and asserts `npm run verify:plans` PASS (17/29/21), `npm run test:plans` PASS 48/48, and a focused Agent Studio/local-route/registry/executor/receipt suite PASS 8 files 37/37. The supplied packet has empty proof artifacts and the receipt embeds no command, quoted argv, cwd, exit code, or stdout. Those PASS labels are assertions, not deterministic baselines, so the criterion's no-unsupported-pass-claims rule is already broken.",
+        "remediation": "Delete Status: PASS and every PASS/n-of-n claim. Attach the exact commands and full transcripts (or content hashes of those transcripts) for verify:plans, test:plans, and the focused suite; record results only from those artifacts."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md",
+        "line": "54-56",
+        "scenario": "The only execution narrative is a first focused-test run whose unquoted `[id]` path was globbed by zsh, then a claimed quoted rerun used as the 37/37 product baseline with 'No product test failed.' A glob miss can run zero/wrong files or skip the dynamic route test while still allowing a later green count. Without the quoted command and the eight file paths, the focused baseline is an unsafe oracle.",
+        "remediation": "Record the invalid globbed invocation as non-baseline. Publish the quoted command, the exact eight paths, and the passing transcript; never treat a shell glob error as evidence that product tests passed."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md",
+        "line": "16-37",
+        "scenario": "The freeze names spec heading `Local Canvas and API surface`, conceptual bullets, and an unnamed 'existing Canvas integration contract,' then says the cage permits only 'exact source, component, route, documentation, and E2E paths recorded in the scoped authorization' without inlining those paths or the contract id. Completeness of the Local Canvas/API surface and named integration boundaries is not checkable against commit `899b39433c4be242b4b3adcd39f3e6cd53df99c0` / tree `7a1a54e421d12cf7e5cc5a1f42877d8ffe6750b5`, so unspecified files can be treated as in-scope or in-cage.",
+        "remediation": "Inventory at that tree the exhaustive spec subsection, contract identifier, implementation/route/component/E2E paths, and integration boundaries, and copy the OBX-AUTH-ATF-001 path and effect-class lists into this receipt alongside the packet SHA."
+      }
+    ],
+    "proof_assessment": "The slice is only the T0 markdown receipt; proof artifacts are empty. Commit, tree, and authority-packet SHA are written down, not reproduced. Plan/focused-test PASS counts have no transcripts, so they cannot satisfy the fresh-baseline requirement. Prose that the receipt is evidence not authority does not make the green claims evidenced.",
+    "residual_risks": [
+      "OBX-AUTH-ATF-001 body is not in the slice; a compressed slash-list plus SHA `f17059ecbf094c89ace92f1b415f0bf5a695f8893feec3a0843dd9eedd50aa51` cannot prove every prohibited capability was preserved",
+      "Commit/tree correspondence is unverified here",
+      "Status: PASS can be copied forward as full-audit or implementation authorization despite the footer",
+      "Future focused runs can drop `[id]` route tests under globbing shells"
+    ]
+  }
+}

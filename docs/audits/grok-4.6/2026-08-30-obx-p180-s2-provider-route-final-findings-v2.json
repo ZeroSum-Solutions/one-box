@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T01:50:05.807Z",
+  "request": {
+    "task": "OBX-P180-S2-FINAL",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md"
+    ],
+    "proofs": [
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-provider-route-findings.json",
+      "docs/audits/grok-4.6/2026-08-30-obx-p180-s2-provider-route-reaudit-findings.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/2026-08-29-program-threat-model.md"
+    ],
+    "diffBytes": 25709,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 5000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 18800,
+      "completion_tokens": 20339,
+      "total_tokens": 39139,
+      "cost": 0.159442,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.159442,
+        "upstream_inference_prompt_cost": 0.037408,
+        "upstream_inference_completions_cost": 0.122034
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 19504,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "466-475 RouteAttemptV1 transitions; crash/uncertain-call rule",
+        "scenario": "Attempt index 0 is `claimed` after control-plane CAS (`reserved|queued -> active`) and `dispatchOffline`/`dispatchProvider` may already have been invoked, then the process crashes before `in-flight` is persisted. Closed transitions allow only `claimed -> in-flight | failed`. `claimed -> failed` is illegal because dispatch is not proven absent; `claimed -> ambiguous` is unlisted and therefore rejected. Recovery leaves a non-terminal `claimed` attempt, or an implementer forces `failed` and may retry or release budget, contradicting the rule that an uncertain call yields `ambiguous`, holds the reservation, and never retries.",
+        "remediation": "Add `claimed -> ambiguous` to the closed attempt graph. Any recovery where dispatch is not proven absent must CAS to `ambiguous`, hold the reservation for reconciliation, and refuse index-1 claim."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+        "line": "466-467 claimed transitions; 525-526 after-claimed interrupt evidence; switch rule 4",
+        "scenario": "Segment is `active` with attempt 0 `claimed` and no `fixtureAttemptHandle`/`providerAttemptHandle` yet. User switch/interrupt must terminal the segment as `cancelled` (rule 4). Attempt transitions omit `claimed -> cancelled`. After-claimed interrupt evidence requires a driver/provider cancel observation, but `cancel(handle)` cannot run without a handle. The interrupt is stuck, the attempt is forced `claimed -> failed` (wrong terminal, dispatch may still proceed), or a cancel observation is fabricated.",
+        "remediation": "Split claimed-without-handle from in-flight: allow `claimed -> cancelled` only when dispatch is proven not to have occurred, with interrupt intent plus reservation-release/reconciliation and no provider observation. Require driver/provider cancel observation and late-output disposition only from `in-flight` (handle exists). If dispatch is uncertain, use `ambiguous`, not `cancelled` or `failed`."
+      }
+    ],
+    "proof_assessment": "HEAD equals BASE; the only changed artifact is planning markdown. The attached Grok JSON files audit older bytes (dispatched-only terminals, pricingSnapshotRef, fourth catalog, identity waiver, missing validated->cancelled, undifferentiated cancel evidence, unpaired maxAttempts) and are prior-finding evidence, not a hash-bound review of these bytes. Current text does fix intent/manifest split, validated/reserved/queued cancel reachability, no reserved|queued->failed, maxAttempts/retry pairing, CAS guards, pricingSnapshotHash equality, catalog/admission/region/identity separation, and provider-offline/no-authorization/frozen-route boundaries. The remaining closed attempt graph still makes claimed a dead-end for the required ambiguity-stop and active-interrupt paths.",
+    "residual_risks": [
+      "*PolicyRef target schemas are deferred to Step 5; fail-closed holds only if unresolved/expired hashes stay fatal.",
+      "Canonical SHA-256 is not specified to exclude the record's own hash field, so entryHash/pricingSnapshotHash/attemptHash hashing is implementer-defined.",
+      "IdempotencyKey uniqueness has no replay/attach semantics; in-memory tests remain non-evidence for durable or provider-side idempotency.",
+      "Segment state is prose-only (not a closed field on intent/manifest), so extra segment states can be added without failing the listed schemas.",
+      "claimed -> failed still allows a failed receipt with no provider observation if used as the proven-no-dispatch abort."
+    ]
+  }
+}

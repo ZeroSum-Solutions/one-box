@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T11:35:05.577Z",
+  "request": {
+    "task": "T2 reproduce and disposition every exact Fable 5 Canvas Agent Studio finding",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json"
+    ],
+    "proofs": [],
+    "diffBytes": 9662
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 3303,
+      "completion_tokens": 12057,
+      "total_tokens": 15360,
+      "cost": 0.078756,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.078756,
+        "upstream_inference_prompt_cost": 0.006414,
+        "upstream_inference_completions_cost": 0.072342
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 10585,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json",
+        "line": "39 F-01.correction",
+        "scenario": "Baseline GET already accepts some dash/underscore-leading run IDs while POST rejects projectId. The accepted fix prefixes every validated run ID, including IDs that already satisfy projectId grammar. That rewrites the closed teammate contract identifier for all runs, not only illegal ones, and can desynchronize route params, receipt binding, and any later GET of the same run.",
+        "remediation": "Reject prefix-all. Smallest authorized correction is generate RunId values that already match projectId grammar, or widen projectId to RunIdSchema, or prefix only when the current ID would fail parse. Keep existing legal identifiers byte-identical and add the dash/underscore route cases against that narrower change."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json",
+        "line": "58,76,85,94 redOracle",
+        "scenario": "F-03/F-05/F-06/F-07 red oracles are that not-yet-written assertions fail or that new help/disclosure/keyboard checks are absent. They do not quote the baseline observable (exact agentic copy, current data-class accessible name, HTTP status/exception, selector, or focus target). F-05's 'disclosure or selected editId context' also passes on either half, so it cannot fail a wrong disclosure that still omits non-scoping.",
+        "remediation": "Replace each redOracle with one exact baseline input and result: quoted strings, status/throw, DOM id/role, and focus node as observed on 899b394, independent of tests added by the correction. Isolate F-07 from F-03 label changes."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json",
+        "line": "92-95 F-07",
+        "scenario": "F-07 is accepted as a missing real keyboard path, visible focus, and live busy lock, but paths and correction only extend scripts/e2e/canvas-contract.mjs. If roster/form/mode controls are not actually keyboard-operable, the E2E cannot create that path without component edits that are not authorized on this finding; if they are already native, accepting a product finding whose only correction is a new test overstates the defect and couples the oracle to F-03 agentic labels and F-08 focus behavior.",
+        "remediation": "Split the finding: map product keyboard/busy-lock gaps to the specific panel files with the smallest control/roving-tabindex/aria-busy change, or reject/defer the product claim and accept only a proof gap with E2E-only paths. Do not treat a new Playwright spec as the correction for missing keyboard behavior."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json",
+        "line": "22-33 independentReproduction",
+        "scenario": "All eight decisions are accept and marked CONFIRMED, but the slice has no commands, test ids, file:line/symbols, stdout, or hashes. Proof artifacts are empty. Count claims (34/34, 8/8, 16/16, Chromium probe) cannot be replayed, so the required evidence-backed reproduction of the exact Fable 5 findings is self-attested only.",
+        "remediation": "Cite baseline symbols and the exact failing command/output per id (route throw, unmount reset, agentic template copy, 2000-NUL budget-exhausted adapter error, selection omission, data-class name, focus target BODY). Record those oracles on the disposition; do not accept on aggregated CONFIRMED prose."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json",
+        "line": "48 F-02.correction",
+        "scenario": "Accepted correction keeps AgentStudioPanel mounted and hidden across selection/tool/View changes. It does not require inert/aria-hidden/exclusion from tab order. A hidden but mounted form can still take focus or compete with the F-07 keyboard oracle after implementationOrder runs F-07 before F-02.",
+        "remediation": "Specify hide via inert plus aria-hidden and no tab stops, or lift draft/receipt state above the unmount boundary without leaving a second interactive tree. Re-prove keyboard/focus after the mount change."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-fable-5-disposition.json",
+        "line": "102 F-08.correction",
+        "scenario": "Correction natively disables submit for 'loading' and also keeps it focusable with aria-disabled while a valid request is working. Loading and working are the same held-request state in the F-08 red oracle, so implementers can still native-disable during submit and recreate focus moving to BODY.",
+        "remediation": "Name one submitting state machine: native disabled only when idle and invalid; aria-disabled and focusable only while submittingRef is set; prove the held-request probe never sees BODY."
+      }
+    ],
+    "proof_assessment": "The only changed artifact is the disposition JSON. independentReproduction is narrative self-attestation (test counts, one 2,000-NUL case, one Chromium focus probe) with no replayable command, log, or baseline symbol. sourceAudit and tree 7a1a54e421d12cf7e5cc5a1f42877d8ffe6750b5 are not in the slice, so exact Fable 5 identity and reproduction are unverified. Deterministic proof was treated as absent, not as authority for the eight accepts.",
+    "residual_risks": [
+      "Implementing F-01 as prefix-all silently changes closed route/receipt identity while still being marked insideAuthority",
+      "F-05 display of selection/editId can leak selection into Agent Studio even if editId is not POSTed",
+      "F-02 hidden mount plus F-07/F-08 keyboard proofs can regress focus if hide is CSS-only",
+      "F-04 new valid-terminal UI state may be implemented by loosening envelope checks if path mapping stays panel/tests-only",
+      "rejectedReviewerOverreach is a sidebar list, not a reject/defer disposition, so a later slice can still widen job, provider, persistence, or Page IR under these accepts"
+    ]
+  }
+}

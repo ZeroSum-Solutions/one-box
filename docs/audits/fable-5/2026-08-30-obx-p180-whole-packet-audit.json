@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "obx-model-audit-receipt-v1",
+  "taskId": "OBX-P180-WHOLE-PACKET",
+  "createdAt": "2026-08-30",
+  "baseCommit": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+  "branch": "research/la-appointment-field-study",
+  "request": {
+    "model": "claude-fable-5",
+    "effort": "max",
+    "mode": "read-only",
+    "safeMode": true,
+    "restricted": true,
+    "availableTools": [
+      "Read",
+      "Grep"
+    ],
+    "disallowedTools": [
+      "Task",
+      "Agent"
+    ],
+    "permissionMode": "plan",
+    "sessionPersistence": false,
+    "fallbackModel": null,
+    "criterion": "Audit the frozen OBX-P180 packet, executable fixtures, evaluators, exact-Grok receipts, and governing authority/threat sources for internal consistency, source reconciliation, contract fidelity, threat boundaries, ownership, sequencing, authorization limits, receipt truthfulness, and planning-closure versus implementation-authorization separation. CLEAN requires zero BLOCK, HIGH, or MEDIUM findings."
+  },
+  "execution": {
+    "sessionId": "2d5154e7-0c6a-4ebc-8e32-9af8d45f072b",
+    "resultUuid": "04f36f84-72b1-4e48-98b2-784113b226d1",
+    "terminalReason": "completed",
+    "stopReason": "end_turn",
+    "isError": false,
+    "permissionDenials": [],
+    "subagentsSpawned": 0,
+    "subagentsCompleted": 0,
+    "requestedReviewerModel": "claude-fable-5",
+    "substantiveReviewerModel": "claude-fable-5",
+    "substantiveReviewerCanonicalModel": "claude-fable-5",
+    "substantiveReviewerProvider": "firstParty",
+    "auxiliaryModelUsage": {
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 1337,
+        "outputTokens": 16,
+        "note": "CLI auxiliary usage; no subagent was spawned and it did not produce the audit verdict."
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "model": "claude-fable-5",
+    "effort": "max",
+    "findings": [
+      {
+        "severity": "LOW",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/07-closure-and-disposition.md",
+        "line": 102,
+        "scenario": "Step 7 claims Step 5 preserves the program threat-model owner map, but Step 5 lines 49-50 omit the TM-09/TM-13 conditional co-owners (Security and Key Custody Owner for signing roots; Release and Operations Owner for recovery); a reader could treat the reduced set as the accepted program map even though the dropped scopes are outside this provider-offline packet and the delta is already recorded in the bound S5 Grok receipt.",
+        "remediation": "Qualify the Step 7 sentence to 'primary accountable owners' or add the two conditional co-owners to the Step 5 TM-09/TM-13 rows."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+        "line": 429,
+        "scenario": "The over-reserve row names 'Independent Security Owners', which is not an exact Step 6 OwnerAssignmentV1 role ID even though the table preamble requires exact proposed roles; the D7 row and Step 6 use the exact 'Independent Security Verifier'.",
+        "remediation": "Replace 'Independent Security Owners' with 'Independent Security Verifier'."
+      },
+      {
+        "severity": "LOW",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": 439,
+        "scenario": "Oracle mismatch exits 1 and malformed fixtures exit 2 with stderr text only, so no bounded machine-readable FAIL/BLOCKED lane receipt exists, while Step 5 fixture-contract rule 8 requires one bounded machine-readable lane result recording the verdict; automation consuming only stdout receipts sees silence instead of a typed failure.",
+        "remediation": "Emit the same bounded lane-receipt JSON with verdict FAIL or BLOCKED on failure paths, or scope rule 8's wording to passing runs."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/07-closure-and-disposition.md",
+        "line": 57,
+        "scenario": "The caption 'Every receipt below records ... verdict CLEAN, and zero findings' includes the Step 7 row whose receipt is explicitly pending external capture after Fable CLEAN, so the caption asserts properties of a receipt that does not yet exist.",
+        "remediation": "Restrict the caption to the Step 1 through 6 receipts."
+      },
+      {
+        "severity": "LOW",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
+        "line": 255,
+        "scenario": "T05 allowedPaths include the four already-frozen fixtures and both evaluator files, so an authorized T05 could rewrite Step 5 evidence bytes; only the fixture-or-oracle-drift and plan-hash-change invalidators catch the rewrite after the fact (also flagged in the bound S6 Grok receipt residual risks).",
+        "remediation": "Narrow T05 write scope to docs/eval/one-box-program/obx-p180-offline-manifest-entry-v1.json and mark the fixture/evaluator paths verify-only."
+      }
+    ],
+    "residualRisks": [
+      "SHA-256 values in the Step 7 frozen-artifact manifest and receipt table were verified by content identity only: receipt-quoted line citations match current bytes, all six receipts record requested and reported x-ai/grok-4.6 at effort high with CLEAN and zero findings at base==head b6486fd, and the authority-packet hash matches authority-manifest.json packetDigest; this read-only audit could not recompute digests, so digest truthfulness rests on the recorded gate runs and the subsequent exact-Grok Step 7 verification.",
+      "scripts/eval/grok-audit.mjs and the entire packet are uncommitted working-tree state; committing anything other than the exact audited bytes invalidates the frozen manifest and all receipts.",
+      "Final receipt capture order is safe only because later receipts rebut stale findings against unchanged bytes; any post-receipt byte edit reopens the affected step per Step 7.",
+      "The apply-eligibility lane does not execute the Step 3 interrupt/decision-hash bind for completed-with-proposal receipts, and the 27 oracles sample rather than exhaust the contracts; replay/CAS/duplicate-terminal and adversarial-corpus controls remain documentation-only until OBX-P180-T01 through T05 tests exist under an accepted authorization.",
+      "Advisory residual risks recorded inside the six Grok receipts remain open owner-attention items, notably: accepting the proposal by reshaping it into the existing scoped-implementation-authorizations.json entry schema could drop per-ticket path/predecessor/role binding, sentinel planPacketHash/expiresAt values need explicit acceptance-time validation, and providerCallsMade is an in-process counter with network denial as the real isolation control.",
+      "No named-human OwnerAssignmentV1 records exist; independent security verification and every operating role remain UNASSIGNED, which the packet correctly reports as the implementation-readiness blocker.",
+      "In-memory provider-offline fixtures cannot prove durable, crash-safe CAS, provider-side idempotency, or reconciliation recovery; the packet states this and a provider-connected slice must re-prove them."
+    ],
+    "authorizationDisposition": "Planning closure CLOSED / NOT AUTHORIZED is truthful and internally supported. OBX-AUTH-P180-OFFLINE-V1 remains proposed-not-accepted and absent from the accepted authority manifest. Implementation remains blocked until the repository owner fills every placeholder, sets expiry, assigns all separated named-human roles including an independent verifier disjoint from every diff author, and accepts the exact record. This advisory CLEAN satisfies neither independent human verification nor owner acceptance and grants no implementation authority."
+  }
+}

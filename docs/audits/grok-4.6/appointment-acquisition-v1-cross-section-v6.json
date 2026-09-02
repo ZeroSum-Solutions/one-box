@@ -1,0 +1,109 @@
+{
+  "audit_version": 6,
+  "audited_at": "2026-08-27T22:05:55.077106+00:00",
+  "input": {
+    "path": "docs/specs/2026-08-27-appointment-acquisition-v1-prd.md",
+    "sha256": "74f80898339fd71bcd2137423e8765d7b1c0633eea36fb1f1e07cd9db4257f05",
+    "line_count": 1013
+  },
+  "route": {
+    "requested_model": "x-ai/grok-4.6",
+    "reported_model": "x-ai/grok-4.6",
+    "provider": "xAI",
+    "catalog_verified": true,
+    "credential_source": "environment"
+  },
+  "usage": {
+    "prompt_tokens": 17962,
+    "completion_tokens": 32000,
+    "total_tokens": 49962,
+    "cost": 0.227732,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 128,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.227732,
+      "upstream_inference_prompt_cost": 0.035732,
+      "upstream_inference_completions_cost": 0.192
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 29915,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "audit": {
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "id": "CS-001",
+        "severity": "P1",
+        "section": "15.8, 18, 11.2, 11.4",
+        "issue": "material_semantic_change is not bound to one public effect. Section 15.8 requires recertify_unavailable with no CTA until the fresh cycle completes, while also saying the scope downshifts or Blocks. Section 18 maps the same event to RuntimeDownshift. RuntimeDownshift cannot skip an OperationallyAvailable weaker artifact and may therefore keep a CTA after RouteKey-meaning, target, or channel-semantic change. recertify_unavailable is not an 11.2 transaction.",
+        "correction": "Partition material changes and map each kind to exactly one Section 11.2 transaction and one public selection. If RouteKey-meaning change must remove all CTAs, require SafetyBlock or mandatory pre-signed Blocked and forbid weaker-fallback CTAs until HumanRepublish. If channel-semantic or target change may keep an independently eligible weaker fallback, say so explicitly and delete the 15.8 no-CTA rule for that kind. Name the actor that must commit the transaction immediately on detection."
+      },
+      {
+        "id": "CS-002",
+        "severity": "P1",
+        "section": "11.3, 11.4, 12, 13.1, 15.8",
+        "issue": "TransientFailure, 11.4 immediate RuntimeDownshift/SafetyBlock, and 13.1 monitor results are not a closed partition. Target unreachability, approved-surface absence, and unsafe/identity/session detections can be read as either a 15/30-minute keep-CTA episode or an immediate fail-close. Misclassification would miss the 5-minute unsafe/revocation bound or allow stale CTA navigation after a required fail-close.",
+        "correction": "Close-partition monitor observations into TransientFailure (reachability blips only), immediate RuntimeDownshift events, and SafetyBlock events, with mutually exclusive guards. State that 13.1 closed semantic failures and 11.4 unsafe/identity/payment/session/revocation detections cannot open open_degraded or keep a CTA. Keep pointer refusal as a second check, not the only definition of the event."
+      },
+      {
+        "id": "CS-003",
+        "severity": "P1",
+        "section": "4, 7",
+        "issue": "Verified business configuration may contain business prohibitions, but the closed prohibition enum is not listed. The classifier only evaluates a prohibition equal to emergency_urgent_adverse. Other values may be ignored, treated as invalid_input, or implemented as extra unpublished predicates, so classification is not total and lower-layer authority is undefined.",
+        "correction": "Enumerate the prohibition members in the closed config schema. Map every member to an existing Section 7 row, or state that the only legal member is emergency_urgent_adverse and any other value is blocked: invalid_input. Forbid prohibition semantics outside the sealed classifier."
+      },
+      {
+        "id": "CS-004",
+        "severity": "P1",
+        "section": "6.2, 6.3, 15.8, 16",
+        "issue": "Section 15.8’s location eligibility function depends on unique current public-location evidence and treats missing/stale/duplicate/conflicting/out-of-bound evidence as ineligible, but that evidence is not a closed Section 6.2 observation class, has no Section 6.3 TTL, and is not a publication or classifier guard. V1 can therefore publish outside greater_los_angeles while still claiming a total market rule.",
+        "correction": "Add a closed location-eligibility observation with closed results, binding scope, TTL, and verifier stop rules. State whether ineligible/missing market evidence is a classifier/publication fail-close before InitialPublish/HumanRepublish, or a qualification-counting rule only plus an explicit publication prohibition on ineligible scopes. Align recapture cadence with that TTL."
+      },
+      {
+        "id": "CS-005",
+        "severity": "P1",
+        "section": "10.1, 10.2, 11.1",
+        "issue": "Atomic install sets the public pointer to a new or prior release, but the function from an installed bundle to the closed runtime selection states is not total. 11.1 step 1 assumes selection is already unresolved_presentation. A bundle with a primary plus weaker fallbacks does not state which artifact is current after InitialPublish or HumanRepublish. Implementers can initialize HandoffMode=blocked unresolved artifacts as blocked_restorable (dropping correction options) or leave current artifact undefined.",
+        "correction": "Define a total install-time selection function: unresolved artifact and UnresolvedArtifactValid → unresolved_presentation; else apply the 11.1 rule to the primary positive artifact and approved weaker fallbacks; else blocked_restorable; ProjectDeleted → blocked_terminal. State that HandoffMode=blocked on an unresolved decision does not itself select blocked_restorable."
+      },
+      {
+        "id": "CS-006",
+        "severity": "P1",
+        "section": "10.1, 15.3",
+        "issue": "The QualificationCoverageMatrix must cover every fallback topology, but an AcquisitionScope release may contain zero or more independently classified fallbacks with disjoint channels and targets. That topology set is unbounded, so the coverage bar cannot be shown complete.",
+        "correction": "Close the v1 fallback topologies (allowed mode/target chains and maximum depth) and require the matrix to cover exactly those topologies. If a stronger fallback in the same bundle is illegal, say so and add a fail-closed compiler/publication check."
+      },
+      {
+        "id": "CS-007",
+        "severity": "P1",
+        "section": "7, 8.1",
+        "issue": "Serve-time PublicRouteOption markers display available or unavailable from a pointer read, while compile-time options may not carry a sealed availability flag or ad-hoc display string. The words are not bound to CopyKeyMap or the dimension-label dictionary and can be read as appointment-inventory availability, which exceeds the truthful-handoff / no-inventory boundary.",
+        "correction": "Bind the marker to reviewed keys meaning only that a CTA-bearing lease would or would not issue for that exact AcquisitionScope. Forbid inventory, booking, confirmation, or slot wording. State that mixed markers add no extra sentence beyond those keys and do not create a new classifier or analytics reason unless that reason is added to the closed enums."
+      }
+    ],
+    "accepted_cross_section_invariants": [
+      "This PRD does not authorize implementation, R0–R2, or general availability; the next permitted artifact after owner review is a dependency-ordered implementation plan.",
+      "ONE BOX v1 performs truthful public handoff only: it must not own inventory, reserve or confirm appointments, submit to vendor systems, collect prohibited data, embed a vendor session, or become a clinical system of record.",
+      "Missing, stale, contradictory, unsafe, or unavailable evidence cannot produce a stronger public promise; runtime may keep, downshift, or block inside an approved bundle and must never upgrade.",
+      "HumanRepublish with named human approval is the only path that may replace a bundle, change target or copy, exit nonterminal Blocked, or move to a stronger artifact; AI may not verify, classify, approve, publish, or change runtime state.",
+      "AcquisitionScope=(ProjectId, RouteKey) is the isolation boundary for capability, channel evidence, targets, fallbacks, pointers, counters, and episodes; visitor_kind_distinction may be shared only as a RouteShapeScope shape fact and cannot transfer channel strength.",
+      "visitorKind is not a config axis; route shape is decided only by a current eligible visitor_kind_distinction observation, and the router may not ask clinical, identity, financial, insurance, or free-text questions.",
+      "The classifier is a sealed pure function over a closed request union; every invocation returns exactly one SealedDecision member with one closed reason code and must not splice evidence across candidate projections.",
+      "Unresolved decisions are non-launchable: no typed target, no fallback ladder, and no CTA-bearing lease; CopyKeyMap non-positive tuples cannot contain acquisition-action keys.",
+      "The release compiler is a deterministic hash-locked transformer with no network, clock, AI, or mutable state and must copy evidence citations and CopyKeyMap resolutions byte-for-byte or fail closed.",
+      "After InitialPublish, only MonitorMetadata, RuntimeDownshift, SafetyBlock, ProjectDeletion, and HumanRepublish may update control state; the qualification watch is not a writer.",
+      "Analytics, general logs, dashboards, and audit summaries may contain only opaque non-reversible IDs and closed enums and must not contain ProjectId, RouteKey, route dimensions, URLs, reversible targets, contact values, or prohibited personal/clinical/payment fields.",
+      "Qualification evidence classes (deterministic, rendered, live public, consenting pilots) must not substitute for one another; R4 is limited availability for market-eligible signed-manifest sites only."
+    ],
+    "implementation_authorization": "NOT_AUTHORIZED",
+    "audit_scope": "Exact-file cross-section audit of the ONE BOX Appointment Acquisition v1 PRD as one contract; prior section ACCEPT results advisory only; no implementation, rollout stage, or GA authorization."
+  }
+}

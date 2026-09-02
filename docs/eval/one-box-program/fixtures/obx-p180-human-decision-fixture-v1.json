@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "obx-p180-contract-fixtures-v1",
+  "fixtureId": "obx-p180-human-decision-fixture-v1",
+  "laneId": "human-decision-conformance",
+  "mode": "provider-offline",
+  "dataClass": "synthetic-internal",
+  "providerCallsPermitted": false,
+  "cases": [
+    {
+      "id": "interrupt-capability-expansion-rejected",
+      "evaluator": "interrupt-resume",
+      "input": { "issuer": "one-box-control-plane", "segmentState": "interrupted", "decision": "accept-proposal", "singleAssignmentWon": true, "boundHashesMatch": true, "attemptCompleted": true, "liveHandleExists": false, "liveGatesCurrent": true, "capabilitiesChanged": true },
+      "expect": { "accepted": false, "reasonCode": "INTERRUPT_CAPABILITY_EXPANSION" }
+    },
+    {
+      "id": "interrupt-live-attempt-rejected",
+      "evaluator": "interrupt-resume",
+      "input": { "issuer": "one-box-control-plane", "segmentState": "interrupted", "decision": "accept-proposal", "singleAssignmentWon": true, "boundHashesMatch": true, "attemptCompleted": false, "liveHandleExists": true, "liveGatesCurrent": true, "capabilitiesChanged": false },
+      "expect": { "accepted": false, "reasonCode": "INTERRUPT_ATTEMPT_NOT_SETTLED" }
+    },
+    {
+      "id": "interrupt-cancel-on-drift-admitted",
+      "evaluator": "interrupt-resume",
+      "input": { "issuer": "one-box-control-plane", "segmentState": "interrupted", "decision": "cancel", "singleAssignmentWon": true, "boundHashesMatch": false, "attemptCompleted": true, "liveHandleExists": false, "liveGatesCurrent": false, "capabilitiesChanged": true },
+      "expect": { "accepted": true, "reasonCode": "ACCEPTED_TERMINAL_CANCEL" }
+    }
+  ]
+}

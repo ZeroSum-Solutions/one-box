@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T02:28:34.004Z",
+  "request": {
+    "task": "OBX-P180-S5",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/eval/one-box-program/fixtures/capacity-and-cost-fixture-v1.json",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/05-security-and-executable-evaluations.md",
+      "scripts/eval/obx-p180-contract-fixtures.mjs",
+      "scripts/eval/obx-p180-contract-fixtures.test.mjs"
+    ],
+    "proofs": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/03-skills-context-and-receipts.md",
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/04-budget-capacity-compare-failure.md",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/eval/one-box-program/fixtures/agent-routing-adversarial-corpus-v1.json"
+    ],
+    "diffBytes": 36534,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 6000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 35052,
+      "completion_tokens": 15644,
+      "total_tokens": 50696,
+      "cost": 0.163776,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.163776,
+        "upstream_inference_prompt_cost": 0.069912,
+        "upstream_inference_completions_cost": 0.093864
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 13670,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/05-security-and-executable-evaluations.md",
+        "line": "24-33 Assets and trust boundaries",
+        "scenario": "The eight trust-boundary rows list trusted authority, untrusted input, and forbidden crossing only. They omit fail-closed terminal behavior and a named owner. S5 acceptance item 1 and the criterion both require every trust boundary to name owner and fail-closed outcome. The threat-control matrix cannot close this: stale/generated apply is owned only by 'existing apply owner', and the owner/reviewer boundary never states reject/fail.",
+        "remediation": "Extend the boundary table with fail-closed outcome and an exact OwnerAssignmentV1 role per row; replace 'existing apply owner' with the Website Authority / apply-gate owner already used by the guarded Page IR path."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/05-security-and-executable-evaluations.md",
+        "line": "42-55 Threat-control matrix TM-03/04/08/09/13",
+        "scenario": "Step 5 rebinds program TM IDs to different threats (TM-03 worker authority vs candidate/Page IR integrity; TM-08 poisoned skill vs workers; TM-09 retention leak vs supply chain; TM-13 URL escape vs monitoring). Named owners therefore attach to the wrong program-threat-model row, so TM-03 Page IR integrity and TM-09 supply-chain ownership can be treated as covered when they are not.",
+        "remediation": "Use the program threat-model IDs and owner-role map unchanged; if P180 needs extra rows, add new IDs instead of overwriting TM-03/04/08/09/13."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "evaluateContextAuthority:105-108",
+        "scenario": "Input {} or {sourceKind:'not-a-kind'} yields mapping[undefined]===undefined, the inequality is false, and the evaluator returns ACCEPTED. Unknown/missing sourceKind with missing authorityClass is blessed instead of fail-closed CONTEXT_AUTHORITY_MISMATCH. parseFixture only requires input to be a non-null object, so this is a legal case.",
+        "remediation": "Reject unless sourceKind is an own key of the closed mapping and authorityClass strictly equals the mapped class; add a literal oracle for unknown/missing sourceKind."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "evaluateProviderIdentity:216-226",
+        "scenario": "Input {} has requestedProvider===reportedProvider (both undefined) and the same for model/effort, so identity attestation ACCEPTED with no identities. Empty strings also match. The only fixture case is a populated mismatch, so this fail-open path is untested.",
+        "remediation": "Require non-empty strings for requested and reported provider, model, and effort before comparing; reject missing/empty with a dedicated reason code and add that negative oracle."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "evaluatePermissionIntersection:190-198",
+        "scenario": "Input {} uses ?? [] on all three arrays, expected and effective are both [], and the evaluator returns ACCEPTED. A skill with omitted capability lists therefore passes permission intersection. Non-array strings also become character sets instead of rejecting.",
+        "remediation": "Fail closed unless all three fields are arrays of closed capability tokens; treat omission as invalid, not empty-allow."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "main:318-325 and evaluators map",
+        "scenario": "One receipt {fixtureId:'capacity-and-cost-fixture-v1', verdict:'PASS'} scores route/budget/capacity/compare together with context authority, slash, permission, canary, interrupt, proposal-apply, and identity. Contract, security, cost/capacity, human-decision, and authorization questions share one accepted boolean and cannot be receipted separately. A cost PASS can be cited as security/HITL/authorization evidence, violating non-substitution.",
+        "remediation": "Split fixtures and receipts by lane (cost/capacity vs security vs interrupt/decision vs apply-eligibility) with distinct verdict fields; never emit a single PASS over mixed lanes."
+      },
+      {
+        "severity": "HIGH",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "evaluateProposal:140-154",
+        "scenario": "Any input with terminalState 'completed' and the four booleans true returns ACCEPTED from evaluator 'proposal-apply', ignoring effectClass, Page IR, release, and compare-evidence-only. Fixture only has proposal-failed-segment-not-apply-eligible. compare-two-fair-arms-admitted sets automaticWinnerApply false but no case expects COMPARE_AUTO_APPLY_FORBIDDEN. Generated completed output is therefore oracle-admitted as apply with no Page IR/release denial.",
+        "remediation": "Make proposal-apply reject unless effectClass is propose and a separate non-authorizing flag is set; add literal oracles that completed proposals, compare winners, and auto-apply remain denied for Page IR/release."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "main:323 providerCallsMade: 0",
+        "scenario": "providerCallsMade is a literal 0, not measured. Adding fetch/net would still print providerCallsMade:0 and PASS. The test deepEquals that hardcoded receipt, so it cannot detect a provider-call regression.",
+        "remediation": "Keep an actual call counter (initialized 0, incremented only by a provider adapter that this slice must not register) and fail parse/run if it is non-zero or if providerCallsPermitted is not false."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "parseFixture:246-285",
+        "scenario": "Missing fixtureId, missing/wrong dataClass, extra root keys, empty reasonCode, and unknown case fields are accepted. Docs require a closed schema and fail-closed malformed roots. A non-synthetic fixtureId-less document still runs and can emit verdict PASS.",
+        "remediation": "Allowlist root and case keys; require non-empty fixtureId, dataClass synthetic-internal, and non-empty reasonCode; throw on any other field."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/eval/obx-p180-contract-fixtures.test.mjs",
+        "line": "26-80",
+        "scenario": "Negative-sensitivity coverage is only fallback-oracle mutation and providerCallsPermitted. Claimed fail-closed paths (unknown evaluator, duplicate ids, invalid JSON, empty cases, compare auto-apply, empty identity, unknown context sourceKind) have no test, so the suite can stay green while those oracles bless forbidden inputs.",
+        "remediation": "Add CLI tests for each parseFixture throw and one oracle-mutation per forbidden reason code, including COMPARE_AUTO_APPLY_FORBIDDEN and missing-identity/context cases."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/eval/obx-p180-contract-fixtures.mjs",
+        "line": "evaluateInterrupt:111-138",
+        "scenario": "decision 'reject'/'cancel' with capabilitiesChanged true still returns INTERRUPT_CAPABILITY_EXPANSION after all other gates. Step 2/3 require mismatch/expiry/capability change to cancel the segment. The oracle cannot admit the fail-closed cancel path and can leave an interrupt stuck when expansion is detected.",
+        "remediation": "Model reject/cancel/expiry as admitted terminal cancel when hashes/capabilities drifted; reserve INTERRUPT_CAPABILITY_EXPANSION for accept-proposal only."
+      }
+    ],
+    "proof_assessment": "The 19 fixture oracles are internally consistent with the evaluator and the two tests would pass, but that only proves matching bytes for listed inputs. It is not evidence of fail-closed behavior on omitted fields, closed schema parsing, measured provider isolation, separate lane receipts, or Page IR/release denial. Planning prose in Steps 2–4 correctly withholds implementation authority; the Step 5 executable and boundary table do not implement the criterion those docs describe.",
+    "residual_risks": [
+      "Owner rows are role titles only; program threat model still has no named-human OwnerAssignmentV1 records.",
+      "agent-routing-adversarial-corpus-v1 is not executed; security conformance remains NOT_RUN even if this cost fixture PASSes.",
+      "No CAS/replay/duplicate-terminal executable case exists for the replay threat row.",
+      "Failure path emits stderr/exit 1 with no machine-readable FAIL/BLOCKED receipt, so missing evidence can be misread as absent rather than failed.",
+      "Exact Grok binding required by S5 acceptance item 8 is not in this slice."
+    ]
+  }
+}

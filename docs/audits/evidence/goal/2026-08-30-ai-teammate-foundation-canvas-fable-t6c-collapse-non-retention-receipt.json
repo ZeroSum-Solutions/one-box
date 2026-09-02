@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T18:07:36Z",
+  "finding": "F5-CLOSE-03",
+  "authorization": "OBX-AUTH-ATF-001",
+  "criterion": "While the workbench is collapsed, exactly the run-keyed Agent Studio subtree may remain mounted and inactive; every other workbench-panel child must be absent. Reopening must restore assignment, teammate, proposal, and receipt.",
+  "before": "The live oracle asserted the outer panel and retained Agent Studio wrapper were hidden, inert, zero-layout, and excluded from focus, but had no direct assertion that other workbench children were absent.",
+  "change": {
+    "productBytesChanged": false,
+    "liveSelector": ".workbench-panel__header, .workbench-breadcrumb, .workbench-composer, .workbench-panel__body > :not([data-retained-agent-studio])",
+    "liveAssertion": "await collapsedNonRetainedContent.count() equals 0 before the retained-wrapper inactivity assertion and reopen continuity checks",
+    "sourceAssertion": "source.match(/\\{!workbenchCollapsed && \\(/g) has length 2",
+    "meaning": "The two source guards continue to unmount the header/undo/clear/breadcrumb block and the panelContent/hairline/composer block. The live selector independently fails if any header, breadcrumb, composer, or any workbench body child other than the retained wrapper is present."
+  },
+  "candidateSha256": {
+    "src/components/preview/Workbench.tsx": "75f3b299063a61705acc425debddbed28bcae4df8362cfd21a957701a67b8db7",
+    "src/app/styles/workbench.css": "11238437b99c0a88c9926c15bce96958f8fd1dea960e4ecb1a6abd05ddb35f6c",
+    "scripts/e2e/canvas-contract.mjs": "aff029ced45eac675eab41f03c670a70dc4d9f368528eb7e57eabc8bbb016051",
+    "src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx": "8a403f271cb2ca997ef77bfceae7a521fe005b405e0e69b5b13a75a521ad0c62"
+  },
+  "unchangedProductBinding": "Workbench.tsx and workbench.css hashes are identical to the T5 correction receipt. Only the E2E harness and source-integration test changed for F5-CLOSE-03.",
+  "verification": {
+    "sourceIntegration": "npm test -- --run src/components/preview/AiTeammate/WorkbenchAgentStudio.test.tsx passed 1 of 1",
+    "liveCanvasAllWidths": "ONEBOX_BASE_URL=http://127.0.0.1:8791 npm run test:e2e:canvas-contract passed at 1440, 768, and 390 pixels; every workbench-agent-studio surface executed the new absence assertion before reopen continuity; no contract or serious/critical accessibility problems detected",
+    "diffCheck": "git diff --check passed"
+  },
+  "capabilityAssessment": "No provider, persistence, background task, model routing, credential, filesystem, shell, browser, collaboration, deployment, release, Page IR mutation, or product runtime capability was added."
+}

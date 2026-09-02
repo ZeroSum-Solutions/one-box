@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T13:30:58.851Z",
+  "request": {
+    "task": "T3C1A closure for Agent Studio mode isolation and display-only Canvas selection context",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+      "src/components/preview/AiTeammate/AgentStudioPanel.tsx"
+    ],
+    "proofs": [],
+    "diffBytes": 6479
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 2584,
+      "completion_tokens": 16022,
+      "total_tokens": 18606,
+      "cost": 0.101108,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.101108,
+        "upstream_inference_prompt_cost": 0.004976,
+        "upstream_inference_completions_cost": 0.096132
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 15007,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+        "line": "shows the current selection only as excluded context for teammate assignments",
+        "scenario": "renderToStaticMarkup(<AgentStudioPanel selection={{editId:'hero.headline', tag:'h1', text:'Build trust faster', behavior:'text'}} />) is the only oracle for display-only Canvas context. The sibling test shows this same tree SSRs LocalAiTeammatePanel as 'Loading the local roster…', so assignment inputs/buttons are typically absent and the negative regex is vacuous. The regex only inspects opening tags of input|textarea|select|button for hero.headline or the literal substring data-edit-id; it does not fail if selection.text is in a textarea/value, if editId is button inner text, or if a non-control data-* holds the selection. Copy strings ('not included…', 'No selection data is sent') are treated as proof of omission. A hydrated Teammates form that embeds the selection still leaves this test green.",
+        "remediation": "Assert against the post-load Teammates pane (client render + queries), require the read-only tag/editId banner exactly once inside data-agent-studio-pane=teammates, and assert tag, editId, and text are absent from every interactive element and data-* attribute. Do not use loading-state HTML or opening-tag regex as the oracle."
+      },
+      {
+        "severity": "HIGH",
+        "file": "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+        "line": "LocalAiTeammatePanel selection={selection}",
+        "scenario": "The only product change in this slice forwards the full PreviewSelection (tag, editId, text, behavior) into LocalAiTeammatePanel. AgentStudioPanel does not render the required read-only tag/editId context or the not-included/not-sent copy itself. That makes Teammates' use of Canvas selection (inputs, data attributes, later request bodies) a child-side side effect outside the allowlist, which is mutation-authority/data-lifecycle expansion relative to a display-only pane banner. Site Advice already receives selection separately, so this is a second exposure path.",
+        "remediation": "Render the read-only 'Current Canvas selection: {tag} {editId}' plus explicit not-included/not-sent text in the teammates pane in AgentStudioPanel. Do not pass selection into LocalAiTeammatePanel. Leave AssistantPanel's existing selection prop unchanged."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AgentStudioPanel.test.tsx",
+        "line": "keeps both modes mounted while hiding the inactive pane",
+        "scenario": "The hide/mount test only renders AgentStudioPanelContent with mode='site-advice' and checks teammates has hidden=\"\". Default/Teammates mode never asserts that the site-advice pane is hidden. Site Advice could stay visible (or both panes visible) in the default state without failing this suite. SSR also never clicks, tabs, or checks inert, so inactive-pane interactivity is untested.",
+        "remediation": "Cover both modes: inactive pane has hidden (and inert if added), active pane does not. Add a client test that inactive-pane controls are not reachable."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/components/preview/AiTeammate/AgentStudioPanel.tsx",
+        "line": "data-agent-studio-pane hidden={mode !== …}",
+        "scenario": "Inactive panes stay mounted with live descendants and are gated only by the HTML hidden attribute. There is no inert, no disabling of nested controls, and no focus move on mode change. Author CSS on .agent-studio__pane can override UA [hidden]{display:none}, and a live region inside the hidden Teammates tree can still be in the accessibility/interactivity surface.",
+        "remediation": "Set inert as well as hidden on the inactive pane; move focus into the newly shown pane on mode change. Keep both trees mounted."
+      }
+    ],
+    "proof_assessment": "No proof artifacts were supplied. Deterministic evidence in-slice is only renderToStaticMarkup substring checks. Those cannot exercise mode switching, busy locking beyond disabled in static HTML, hidden-pane focus, post-load Teammates controls, duplicated selection after hydration, or request-body omission.",
+    "residual_risks": [
+      "Request-body omission is declared to live in a separate E2E slice and is not evidenced here.",
+      "LocalAiTeammatePanel after hydration is outside the allowlist; SSR cannot show whether selection lands in inputs or payloads.",
+      "Author CSS on .agent-studio__pane may override the hidden attribute."
+    ]
+  }
+}

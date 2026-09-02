@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T06:45:31.745Z",
+  "request": {
+    "task": "T1-registry-contracts",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t1-registry-contracts.txt",
+      "src/lib/aiTeammates/receiptBinding.test.ts",
+      "src/lib/aiTeammates/receiptBinding.ts",
+      "src/lib/aiTeammates/registry.test.ts",
+      "src/lib/aiTeammates/registry.ts",
+      "src/lib/contracts.test.ts",
+      "src/lib/contracts.ts"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t1-registry-contracts.txt"
+    ],
+    "diffBytes": 38176
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 13131,
+      "completion_tokens": 27495,
+      "total_tokens": 40626,
+      "cost": 0.19104,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.19104,
+        "upstream_inference_prompt_cost": 0.02607,
+        "upstream_inference_completions_cost": 0.16497
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 27065,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The evidence file is a narrative summary (no vitest/tsc/eslint transcripts, no failing command output, no hash-sensitivity or mutation logs), so it cannot independently prove the criterion. Inspection of the allowed slice does: public `AI_TEAMMATE_REGISTRY` is schema-parsed to the eight closed IDs; definitions/jobs/receipts are `.strict()`; jobs require present empty `toolGrants`/`childToolGrants`, `maxAttempts: 1`, `maxDelegationDepth: 0`, `fallback: \"none\"`, and closed data/effect enums; receipts reject non-terminal status, unknown fields, and non-zero `providerCostUsd`; `validateAiTeammateRunReceiptV1` recomputes SHA-256 over the parsed job and re-checks identity fields. No provider, package dependency, executor, storage, or authority runtime is in the slice.",
+    "residual_risks": [
+      "Receipt-binding tests never validate a second legal job against a receipt minted for the first; a constant hasher would still pass that file, so job-body tamper detection is implemented (JSON.stringify of the parsed job) but not locked by oracle.",
+      "Job/receipt `dataClasses` and `effectClasses` allow empty arrays (definitions require min 1); empty is not enum widening, but a later consumer could treat empty as unconstrained.",
+      "Receipts omit explicit grant/delegation/retry/fallback fields (unknown keys fail `.strict()`), while `retryEligible` can be true even though jobs cannot retry.",
+      "`JSON.stringify` hashing depends on Zod parse key order; it is fail-closed on mismatch, not a canonical cross-language encoding.",
+      "Runtime immutability depends on Zod `.readonly()` actually `Object.freeze`ing; evidence does not show a freeze/mutation transcript.",
+      "`node:crypto` is a Node-only hash runtime in `src/lib` (not package I/O), which would break a non-Node import path."
+    ]
+  }
+}

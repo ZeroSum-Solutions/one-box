@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T13:43:39Z",
+  "request": {
+    "task": "T3C1A closure for Agent Studio mode isolation and display-only Canvas selection context",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0"
+  },
+  "transport": {
+    "clientTimeoutMs": 600000,
+    "result": "TimeoutError",
+    "verdictReturned": false,
+    "note": "Unavailable evidence, not a pass. Including the already-reviewed Local panel expanded this narrow boundary unnecessarily; its no-selection interface is replaced by a compact hash-bound proof artifact for the replay."
+  }
+}

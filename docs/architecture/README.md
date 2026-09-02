@@ -7,6 +7,11 @@ intake UI, evidence workspace, preview workbench, and API routes from one
 process. Local development uses `npm run dev` on `127.0.0.1:3000`; this document
 does not define a hosted deployment or production topology.
 
+[ADR 0002](../adr/0002-target-desktop-cloud-topology.md) proposes a future
+desktop/cloud target for the full product. It is not accepted runtime authority,
+does not select vendors, and does not supersede this current topology until an
+accepted migration proves each extracted seam.
+
 The current repository maps to three logical layers:
 
 ```text
@@ -298,6 +303,71 @@ process persists its own refreshable OAuth client state under the ignored
 `.one-box/oauth/` boundary; it does not copy Codex's separate OAuth session or
 require a static project bearer token. `src/lib/referoAuth.ts` owns OAuth state,
 callback validation, refresh persistence, and the local connect flow.
+
+### AI teammate Local foundation boundary
+
+`src/lib/contracts.ts` owns the closed v1 teammate, job, and receipt schemas.
+`src/lib/aiTeammates/registry.ts` owns the immutable eight-role roster; `idle`
+means no process, provider session, tool, lease, or budget is active. Jobs admit
+only `public` or `project-internal` data labels, exact `read` and `propose`
+effects, empty parent and child tool grants, one attempt, zero delegation depth,
+bounded bytes and duration, and process-only retention.
+
+`src/lib/aiTeammates/executor.ts`, `executionReceipts.ts`,
+`receiptBinding.ts`, and `serialization.ts` own deterministic in-memory
+execution. For a schema-valid job they canonicalize and freeze the job, input,
+proposal, and terminal receipt; bind the job, input, and complete output hashes;
+enforce cancellation, deadline, and byte/time budgets; and return `complete`,
+`failed`, `cancelled`, `rejected`, or `budget-exhausted`. Receipts are not
+persisted, cannot be retried in v1, and record zero external cost. The injected
+proposal function remains a trusted in-process seam, not a sandbox: cooperative
+abort cannot stop a future callback that ignores its signal or introduces an
+effect. The shipped route supplies only a fixed, local, effect-free callback.
+
+The [AI teammate route](../../src/app/api/ai-teammates/%5Bid%5D/route.ts) is the
+sole HTTP adapter. Its GET returns the static roster and its POST builds one 8
+KiB, one-second local job from a strict bounded assignment; both responses are
+`no-store`. The path ID is validated syntactically and returned unchanged as the
+HTTP `runId`. An alphanumeric-leading ID is copied unchanged into the job's
+`projectId`; a valid dash- or underscore-leading ID is mapped reversibly to a
+43-character reserved prefix plus lowercase ASCII hex. That mapped image is 51
+to 123 characters, so it cannot collide with the external run-ID grammar's
+4-to-40-character values and remains inside the job contract's 128-character
+bound. This foundation route does not load, authenticate, mutate, or persist a run. It
+performs no provider, credential, network, filesystem, Page IR, site, queue, or
+automatic-application work. The local authorization and request-body boundary
+are documented in the [local API threat
+model](../security/local-api-threat-model.md).
+
+The Workbench makes Agent Studio interactive only when the Assistant tool and
+Edit mode are active. Teammates is the default
+`Local foundation` pane; the existing Site advice pane stays separately labeled
+and may mutate the site only through its established controls. After Agent
+Studio is opened, exactly one instance remains mounted for the current run
+across Workbench-tool, View/Edit, and workbench collapse/reopen changes. While
+the workbench is collapsed, the panel and retained Agent Studio wrapper are
+natively `hidden`, `aria-hidden`, and `inert`; other tool-panel content still
+unmounts. The process-only teammate draft and receipt therefore stay available
+without leaving a second interactive tree in layout, accessibility, or keyboard
+navigation. A run-ID change resets that retained state. During
+local execution, assignment controls are locked, duplicate activation is
+rejected, and run/assignment generation checks discard stale completions. The
+UI states that no model or provider is connected and labels the deterministic
+output as a fixed placeholder. Complete results remain proposal-only, and valid
+non-complete terminal results expose only their receipt. Neither result class
+has an apply control or automatic retry. Agent Studio owns the read-only current-selection banner and
+passes only its tag and edit ID to that text; the Local teammate assignment
+component receives no selection object, and neither value enters its POST or
+job. Its inactive Teammates/Site advice pane is also `hidden`, `aria-hidden`,
+and `inert` while both process-local pane states remain mounted.
+
+This slice has no migration or durable runtime state. Rollback reverts its
+contracts, `src/lib/aiTeammates/`, route, `AiTeammate/` components, Workbench
+integration, and styles together; in-process values are discarded and existing
+Page IR, candidate, site, review, and release state stays untouched. Provider or
+model calls, model routing, skills, memory, scheduling, background workers,
+collaboration, tools, mutation authority, deployment, release, and Deep Agents,
+LangGraph, or LangSmith adoption remain non-goals.
 
 ### Page IR v1 contract boundary
 

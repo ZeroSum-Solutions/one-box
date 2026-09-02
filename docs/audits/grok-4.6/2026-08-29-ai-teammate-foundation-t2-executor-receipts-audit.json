@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T07:03:52.281Z",
+  "request": {
+    "task": "T2-executor-receipts",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt",
+      "src/lib/aiTeammates/executor.test.ts",
+      "src/lib/aiTeammates/executor.ts",
+      "src/lib/aiTeammates/receiptBinding.test.ts",
+      "src/lib/aiTeammates/receiptBinding.ts",
+      "src/lib/aiTeammates/serialization.ts",
+      "src/lib/contracts.test.ts",
+      "src/lib/contracts.ts"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-29-ai-teammate-foundation-t2-executor-receipts.txt"
+    ],
+    "diffBytes": 57597
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 19157,
+      "completion_tokens": 25434,
+      "total_tokens": 44591,
+      "cost": 0.190726,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.190726,
+        "upstream_inference_prompt_cost": 0.038122,
+        "upstream_inference_completions_cost": 0.152604
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 24017,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "src/lib/aiTeammates/executor.ts",
+        "line": "executeAiTeammateJobV1:231,278",
+        "scenario": "Job is Zod-parsed then handed to propose as Object.freeze({ job, input, signal }) (shallow). input is deep-frozen; job is not. propose can do job.inputSha256 = '0'*64; job.jobId = 'job-other'; return { summary: 'Bounded proposal' }. Execution still returns status complete whose jobId/inputSha256/jobSha256 follow the mutated copy, so tampering receives complete.",
+        "remediation": "Deep-freeze a clone of the parsed job (cloneAndFreezeJson) before invokeBoundedProposal and build every receipt only from that frozen snapshot."
+      },
+      {
+        "severity": "HIGH",
+        "file": "src/lib/aiTeammates/executor.ts",
+        "line": "completeReceipt/rejectedResult/failedResult/cancelledResult/budgetExhaustedResult",
+        "scenario": "Receipts come from AiTeammateRunReceiptV1Schema.parse; .readonly() is not a runtime freeze. Only the { proposal, receipt } wrapper is Object.freeze'd. After a failed/cancelled/budget-exhausted return, result.receipt.status/outputSha256/stoppingCondition can be assigned in place (ES module strict throw only if the receipt object itself were frozen). Emitted receipts are not immutable.",
+        "remediation": "Deep-freeze every parsed receipt (cloneAndFreezeJson or Object.freeze of receipt and effectClasses) before returning."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/aiTeammates/receiptBinding.ts",
+        "line": "validateAiTeammateRunReceiptV1:33-40",
+        "scenario": "Binding checks jobSha256, jobId, teammateId, inputSha256, effectClasses, outputSchemaId, executionLane. A complete receipt with a swapped outputSha256 (or any 64-hex digest) still validates. Tampered output hashes are accepted as bound complete receipts.",
+        "remediation": "Require the canonical output digest as an argument (or null for non-complete) and fail closed unless receipt.outputSha256 equals that digest and matches the complete/non-complete rule."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/aiTeammates/executor.ts",
+        "line": "invokeBoundedProposal:196-226 and executeAiTeammateJobV1:271-274",
+        "scenario": "Timeout only reject()s the wrapper promise; the default AbortController is never aborted, and the caller signal is not aborted on duration-exceeded. propose: () => new Promise(() => { /* later mutate/I/O */ }) still runs after the executor has already returned budget-exhausted/cancelled. Termination is wait-side only; proposal work remains reachable.",
+        "remediation": "Create an internal AbortController, pass AbortSignal.any([caller, internal]), abort it on timeout/cancel/return, and do not treat unexported control errors thrown by propose as cancel/duration."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/aiTeammates/executor.ts",
+        "line": "invokeBoundedProposal setTimeout:212-215 vs stoppedAtMs check:316-322",
+        "scenario": "Duration uses wall-clock setTimeout(maxDurationMs) while start/stop use options.now ?? Date.now. Frozen now() plus a slow async propose yields budget-exhausted despite 0 logical elapsed; now() jumping after a sync propose yields budget-exhausted without the timer. Deterministic injected clocks do not own the bound.",
+        "remediation": "Drive both the watchdog and elapsed check from the same clock (injectable now + injectable scheduler), and treat elapsed >= maxDurationMs as exhausted."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/aiTeammates/executor.ts",
+        "line": "deadline check:241-243",
+        "scenario": "deadlineAt is enforced only when startedAtMs > Date.parse(deadlineAt). A job with deadlineAt = start+1ms, maxDurationMs = 5000, and a propose that resolves at start+100ms still returns complete after the deadline.",
+        "remediation": "Reject deadline-expired if either startedAtMs or stoppedAtMs is past deadlineAt, before emitting complete."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/aiTeammates/executor.ts",
+        "line": "completeReceipt startedAt/stoppedAt:72-73 and schema stoppedAt < startedAt",
+        "scenario": "If now() is non-monotonic (NTP) or returns NaN/Infinity, new Date(...).toISOString() throws or AiTeammateRunReceiptV1Schema.parse throws on stoppedAt < startedAt. No terminal receipt is emitted.",
+        "remediation": "Clamp/validate timestamps; if stop < start or they are non-finite, return budget-exhausted/failed instead of throwing."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "src/lib/aiTeammates/executor.test.ts",
+        "line": "Object.isFrozen(parsedJob) in complete-path propose; never-resolving Promise.race",
+        "scenario": "The complete test expects Object.isFrozen(job) but the executor never freezes job, so that assertion fails on standard Zod. The never-resolving case races a 5ms setTimeout against a 100ms wall-clock guard and does not assert hashes, freeze, or retryEligible. Green proof of freeze/immutability is not an oracle for the criterion.",
+        "remediation": "Freeze job in production code; assert nested freeze and binding against the original job; use a fake scheduler for duration tests."
+      }
+    ],
+    "proof_assessment": "The evidence file is not authority. GREEN claims 55 passing tests including Object.isFrozen on Zod .readonly() jobs/receipts; Zod object .readonly() is type-level and executor only shallow-freezes the result wrapper, so those assertions should fail unless an unshown runtime freeze exists. GREEN also runs registry.test.ts (not in this diff) and an unspecified prohibited-capability scan. Treat the slice as unverified except by static reading.",
+    "residual_risks": [
+      "Injected propose is unsandboxed; network/fs/provider effects are possible inside the callback and are not intercepted.",
+      "Invalid jobs fail AiTeammateJobV1Schema.parse by throw rather than a rejected receipt (no bindable job).",
+      "Input is hashed/cloned before maxInputBytes is applied, so oversized payloads still pay CPU/memory.",
+      "Duration equality uses > in the post-check and setTimeout(maxDurationMs) in the watchdog, so the exact bound can complete or exhaust depending on race."
+    ]
+  }
+}

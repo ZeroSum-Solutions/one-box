@@ -22,8 +22,13 @@ engine. Intake starts at `/`; generated sites are edited at `/preview/<id>`.
   is the spine, MishMash is a quarry for specs and content, and OpenWork is not a
   base. Records nine corrected facts, three pre-existing defects (DEF-1 to DEF-3),
   the extraction manifest, and the first action for the next session.
-- Product requirements: `docs/specs/2026-08-13-refero-editor-requirements.md`
-- Current implementation plan: `docs/plans/2026-08-13-refero-editor-evidence-workspace.md`
+- Program authority manifest: `docs/plans/one-box-master/00-authority/authority-manifest.json`
+- Human-readable plan register: `docs/plans/one-box-master/00-authority/plan-register.md`
+- Website source/candidate requirements: `docs/specs/2026-08-22-page-ir-safe-pipeline-prd.md`
+- Canvas interaction requirements: `docs/specs/2026-08-16-canvas-upgrade.md`
+- Website lifecycle direction: `docs/superpowers/specs/2026-08-27-canvas-to-agency-shipping-design.md`
+- Accepted Page IR implementation tickets: `docs/tickets/page-ir-safe-pipeline/manifest.json`
+- Program planning tickets: `docs/tickets/one-box-program/manifest.json`
 - Runtime contracts and model routes: `src/lib/contracts.ts`
 - Client-facing design contract: `DESIGN.md`
 - Local API exposure boundary: `docs/security/local-api-threat-model.md`
@@ -49,6 +54,8 @@ and reruns gates. Evidence approvals are human gates, not automatic pass states.
 - `npm run typecheck` — TypeScript validation
 - `npm run lint` — ESLint
 - `npm run build` — production build
+- `npm run verify:plans` — authority, traceability, ticket, eval, and adoption-ledger validation
+- `npm run test:plans` — positive and fail-closed authority-verifier tests
 - `npm run test:smoke` — deterministic generated-site gates
 - `npm run test:e2e:intake` / `npm run test:e2e:preview` — rendered acceptance
 
@@ -69,4 +76,6 @@ loopback without reviewing the local API threat model.
 - Use `conventional-commits` and `github:yeet` for authorized publish flows.
 - Use `verifier` for independent acceptance checks before declaring completion.
 - Work on a feature branch and integrate through review; do not commit to `main`.
+- A draft, audit, research note, rejected plan, or proposed ticket never authorizes implementation.
+- Follow `docs/plans/one-box-master/00-authority/authority-manifest.json` when documents conflict.
 - Keep changes surgical. Do not commit `sites/`, `.one-box/`, `.next/`, or secrets.

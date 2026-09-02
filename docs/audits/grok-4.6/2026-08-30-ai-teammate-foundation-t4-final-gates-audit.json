@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T09:11:18.603Z",
+  "request": {
+    "task": "T4-authority-docs-e2e-final-gates",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "head": "47650fccb0fce0e96a49f9ae725abbe6a25540f1",
+    "files": [
+      "docs/architecture/README.md",
+      "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
+      "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/security/local-api-threat-model.md",
+      "scripts/e2e/canvas-contract.mjs",
+      "scripts/e2e/canvas-coverage.mjs",
+      "scripts/e2e/preview-workbench.mjs",
+      "scripts/verify-plan-authority.mjs",
+      "scripts/verify-plan-authority.node.mjs"
+    ],
+    "proofs": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-t4-final-gates.txt"
+    ],
+    "diffBytes": 163045
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 44508,
+      "completion_tokens": 21944,
+      "total_tokens": 66452,
+      "cost": 0.220488,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.220488,
+        "upstream_inference_prompt_cost": 0.088824,
+        "upstream_inference_completions_cost": 0.131664
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 21087,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "HIGH",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "AxeBuilder.analyze() catch / `axe skipped`",
+        "scenario": "Agent Studio is added to the 1440/768/390 sweep, but axe still runs in try/catch that only logs `axe skipped` and never pushes onto `problems` or changes `process.exitCode`. If AxeBuilder throws (timeout, playwright/axe error, crashed page), workbench-agent-studio@1440/768/390 still exits 0 with no serious/critical record. That is not fail-hard a11y, so the T4 visual/axe gate can pass without running axe.",
+        "remediation": "Treat any axe exception as a hard failure: push `${label}: axe failed/skipped: ...` into `problems` (or rethrow). Do not log-and-continue."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "openAgentStudio + `if (w > 768) say(\"controls over 34px\"...)`",
+        "scenario": "At 768/390 the contract comments require 44px hit areas, but canvas-contract never asserts min 44px and disables the 34px check when `w > 768` is false. preview-workbench.mjs only 44px-audits Agent Studio after clicking Site advice, so hidden Teammates roster/assignment/data-class/Create proposal controls are excluded by `:visible`. Undersized Local foundation controls at 390 can pass the T4 Agent Studio E2E roster/visual/axe path.",
+        "remediation": "Inside openAgentStudio (or before leaving Teammates), assert visible roster radios, Assignment, Data class, and Create proposal are >=44x44 at 768/390; fail the surface if the compact workbench did not actually reopen."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/e2e/canvas-contract.mjs",
+        "line": "page.goto(...).catch(() => {}) and ensureWorkbenchOpen click `.catch(() => {})`",
+        "scenario": "Navigation and compact reopen still swallow errors. For non-Agent-Studio surfaces this remains a silent skip (proof even admits Layers tree missing does not fail). For Agent Studio, a failed goto/reopen can still reach openAgentStudio on the wrong/collapsed page; if any required string/control happens to exist elsewhere, roster/boundary asserts can run against the wrong chrome instead of failing the navigation/setup itself.",
+        "remediation": "Remove the goto/reopen swallows at least for `workbench-agent-studio`: failed navigation, missing Edit, or failed reopen must throw into a non-zero exit before roster/axe."
+      }
+    ],
+    "proof_assessment": "The T4 note matches the authorization pin (docs + three e2e exact paths, read/propose, no deps/release) and honestly says Layers still skip-logs and that security review / this audit / independent verification remain open. It is not authority: 21-surface/axe-pass claims cannot be reproduced here, unnamed `npm test` skips are unidentified, and the axe/goto swallows mean a green canvas-contract log can hide a skipped a11y run. Model review stays advisory and does not authorize merge, deploy, or release.",
+    "residual_risks": [
+      "Canonical architecture/threat-model Canvas claims (locked assignment, stale-completion discard, result envelope agreement, POST-before-body, no-store) are outside this allowlist’s src, so this slice cannot prove they are shipped.",
+      "openAgentStudio forbids only the exact name `Apply proposal` and uses unscoped `getByRole('radio')`; a differently named apply control or extra radios would not prove the documented no-apply boundary.",
+      "preview-workbench 390 touch audit never samples the Teammates pane.",
+      "Unnamed 4 skipped unit tests could conceal unrelated or slice gaps; proof does not name them."
+    ]
+  }
+}

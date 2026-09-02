@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-31T01:19:40.452Z",
+  "request": {
+    "task": "OBX-P180-S1-CLEAN-CLOSURE",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "head": "b6486fdfa4601b315944ad099bf2beba1c053e91",
+    "files": [
+      "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md"
+    ],
+    "proofs": [
+      ".claude/handoffs/one-box-operating-environment-next-phase.md",
+      "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+      "docs/adr/0003-deep-agents-js-job-plane-evaluation.md",
+      "docs/eval/one-box-program/deepagents-js-spike-results-2026-08-29.json",
+      "docs/eval/model-routing/policy.md",
+      "docs/eval/one-box-program/evaluation-strategy.md",
+      "docs/security/2026-08-29-program-threat-model.md",
+      "docs/security/supply-chain-policy.md"
+    ],
+    "diffBytes": 24074,
+    "timeoutMs": 600000,
+    "maxOutputTokens": 4000
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 27903,
+      "completion_tokens": 15220,
+      "total_tokens": 43123,
+      "cost": 0.146934,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.146934,
+        "upstream_inference_prompt_cost": 0.055614,
+        "upstream_inference_completions_cost": 0.09132
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 14803,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "MEDIUM",
+        "file": "docs/plans/one-box-master/04-operating-environment/obx-p180/01-gap-and-conflict-matrix.md",
+        "line": "113 GC-07",
+        "scenario": "CLEAN requires GC-07 to recognize TM-05 as already governing. GC-07 only cites SRC-15 generically for a receipted switch and leaves the row open-to-step-3. SRC-15 also contains TM-02/TM-03/TM-04/TM-08/TM-09/TM-13, so a later Step 2/3 author can treat the TM-05 no-hidden-fallback / new-receipted-segment rule as unsettled design space rather than a closed governing control whose only remaining gap is schema/state-transition fields.",
+        "remediation": "In both GC-07 evidence cells, name TM-05 as already governing receipted per-switch route segments and the ban on hidden fallback/silent effort change; keep only segment schema, allowed transitions, mid-turn rejection, stale-result, and receipt-link fields open to Steps 2–3."
+      }
+    ],
+    "proof_assessment": "The supplied file and proof show SRC IDs in both GC evidence cells, exact Deep Agents md/json paths on SRC-07, SRC-02 exclusive implementation-authority language, capacity on Step 4 (P180-R009/GC-12), coherent classes for provisional policy/ADR/research/audits/closure receipt, and preserved provider-offline, no-authorization, Canvas/Page-IR, and runtime-route decisions. They do not show TM-05 identified on GC-07 after three disposition rounds.",
+    "residual_risks": [
+      "Steps 2–3 may reopen TM-05 switching/fallback controls as if they were undecided.",
+      "Cited source line-ranges were not re-verified against the omitted files' current bytes."
+    ]
+  }
+}

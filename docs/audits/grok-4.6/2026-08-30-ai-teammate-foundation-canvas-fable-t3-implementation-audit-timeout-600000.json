@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T12:19:43Z",
+  "requestRef": "docs/audits/grok-4.6/2026-08-30-ai-teammate-foundation-canvas-fable-t3-implementation-audit-timeout.json",
+  "transport": {
+    "clientTimeoutMs": 600000,
+    "result": "TimeoutError",
+    "verdictReturned": false,
+    "candidateChangedSinceFirstAttempt": false,
+    "reviewInputsChangedSinceFirstAttempt": false,
+    "note": "The identical exact x-ai/grok-4.6 xhigh request also reached the extended transport ceiling. This is unavailable evidence, not a review verdict. T3 is therefore decomposed into independently complete file slices followed by an aggregate receipt audit; model, effort, baseline, criterion, and no-fallback rule remain unchanged."
+  }
+}

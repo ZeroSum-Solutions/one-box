@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T19:07:00Z",
+  "reviewer": {
+    "name": "Maxwell",
+    "canonicalTask": "/root/ai_teammate_final_verifier",
+    "role": "independent read-only verifier",
+    "separateFromImplementer": true
+  },
+  "target": {
+    "baselineCommit": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "authorization": "OBX-AUTH-ATF-001",
+    "sourceIntegrity": [
+      { "path": "docs/architecture/README.md", "algorithm": "sha256", "value": "bd0fe8b0c083fca7b8d20589852b9465f16c5ba6b3342a2b166593f467f6dd55" },
+      { "path": "docs/security/local-api-threat-model.md", "algorithm": "sha256", "value": "cc502382d4253190d6d949f2842ffb5e88b6d26c130ec68897013c6df13e881c" },
+      { "path": "scripts/e2e/canvas-contract.mjs", "algorithm": "sha256", "value": "aff029ced45eac675eab41f03c670a70dc4d9f368528eb7e57eabc8bbb016051" },
+      { "path": "src/app/api/ai-teammates/[id]/route.ts", "algorithm": "sha256", "value": "d9a512f0bfe53f9d4ed96fb8be30c6b2a4db922c04b7898d572f1156f285d7b5" },
+      { "path": "src/app/styles/workbench.css", "algorithm": "sha256", "value": "11238437b99c0a88c9926c15bce96958f8fd1dea960e4ecb1a6abd05ddb35f6c" },
+      { "path": "src/components/preview/AiTeammate/LocalAiTeammatePanel.tsx", "algorithm": "sha256", "value": "5a537f2da5ea750e85d871e69cfe71c31f3cfc8d213f15a038f1632920e28cf8" },
+      { "path": "src/components/preview/Workbench.tsx", "algorithm": "sha256", "value": "75f3b299063a61705acc425debddbed28bcae4df8362cfd21a957701a67b8db7" }
+    ]
+  },
+  "criteria": [
+    { "id": "selection", "status": "PASS", "evidence": "Live 1440, 768, and 390 checks selected hero.headline and resolved section hero." },
+    { "id": "hierarchy", "status": "PASS", "evidence": "Parent and Back worked live at all three widths." },
+    { "id": "persistent-selection-scoped-composition", "status": "PASS", "evidence": "Draft, selection scope, and composer survived tool and collapse transitions while a target change cleared stale drafts." },
+    { "id": "references", "status": "PASS", "evidence": "Run-local reference selection remains separate and referenceAssetId reaches only the established edit route." },
+    { "id": "typed-mutation-separation", "status": "PASS", "evidence": "Teammate POST carries only teammate, task, data class, fixed read/propose effects, and empty grants; mutation stays in established edit and element routes." },
+    { "id": "preview-diff-history-separation", "status": "PASS", "evidence": "Local Teammates and Site Advice remain separate, proposals have no Apply control, and Undo, Redo, and Reset stay on the elements history rail." },
+    { "id": "deterministic-local-read-propose", "status": "PASS", "evidence": "Eight-role immutable roster, strict assignment, one attempt, zero delegation, process-only retention, no fallback, and fixed local callback." },
+    { "id": "selection-display-only", "status": "PASS", "evidence": "Selection appears only in the boundary banner; no non-GET request occurred during live verification." },
+    { "id": "collapse-continuity-and-non-retention", "status": "PASS", "evidence": "Assignment, teammate, receipt, and composer state survived; collapsed tree was hidden, aria-hidden, inert, display none, zero by zero, and retained no unrelated tool content." },
+    { "id": "blocked-capabilities", "status": "PASS", "evidence": "No provider, credentials, external network, persistence, shell, browser, deployment, release, or teammate mutation path was found." }
+  ],
+  "gates": {
+    "aiTeammateTests": "95/95 passed",
+    "canvasSelectionEditReferenceHistoryTests": "85/85 passed",
+    "fullVitest": "104 files passed, 4 deliberate fixture-entrypoint skips; 1328 tests passed",
+    "planVerifier": "17 domains, 29 tickets, 21 evaluations passed",
+    "planTests": "48/48 passed",
+    "typecheck": "passed",
+    "lint": "0 errors; 6 pre-existing warnings",
+    "responsiveVisual": "1440, 768, and 390 passed with no overflow and zero serious or critical Canvas-shell accessibility findings"
+  },
+  "residuals": [
+    "The installed shell Node is 22.22.3, while the separate frozen Page IR evaluator requires exact Node 26.7.0; its 13 guard failures are outside the Canvas and AI teammate slice.",
+    "Production build and fixture-writing official E2E commands were not rerun by this read-only reviewer; the implementer had separate current command evidence.",
+    "Any product-source byte change invalidates this verification. Later evidence-only receipts require a supplemental evidence-coherence check but do not alter the bound source hashes above."
+  ],
+  "verdict": "PASS"
+}

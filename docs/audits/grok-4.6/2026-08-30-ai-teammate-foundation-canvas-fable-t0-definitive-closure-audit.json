@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-30T11:26:44.813Z",
+  "request": {
+    "task": "T0 definitive closure Canvas Agent Studio audit scope, authority cage, and baseline",
+    "model": "x-ai/grok-4.6",
+    "effort": "xhigh",
+    "base": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "head": "899b39433c4be242b4b3adcd39f3e6cd53df99c0",
+    "files": [
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-baseline-runs.json",
+      "docs/audits/evidence/goal/2026-08-30-ai-teammate-foundation-canvas-fable-t0-scope-baseline.md"
+    ],
+    "proofs": [],
+    "diffBytes": 26409
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 14272,
+      "completion_tokens": 32361,
+      "total_tokens": 46633,
+      "cost": 0.222518,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.222518,
+        "upstream_inference_prompt_cost": 0.028352,
+        "upstream_inference_completions_cost": 0.194166
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 31912,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "The two allowlisted evidence files are the entire slice. Scope-baseline.md binds the Local Canvas section to full commit 899b39433c4be242b4b3adcd39f3e6cd53df99c0, path docs/specs/2026-08-29-ai-teammate-foundation-v1.md, git show with no newline normalization, half-open UTF-8 byte range [3529, 4136) (607 bytes) and SHA-256, plus full-spec size/hash. Full Canvas-upgrade and master-index files are bound by baseline-commit path, byte length, and SHA-256; A1–A3, B1–B3, G1–G9, and M1 are each bound by UTF-8 table-row start `| `<id>``, terminating LF 0a, length, and SHA-256. OBX-AUTH-ATF-001 is enumerated with exhaustive prefixes/exact paths, evidence prefixes, read/propose-only effects, and the prohibited-capability list; audit integration surfaces are stated as dependencies, not implementation authority. Baseline-runs.json records spawnSync shell:false encoding:null argv, cwd, exit codes, byte counts, SHA-256, and base64 preimages for the three baseline commands; the zsh glob failure is preserved separately with baselineEvidence false, extra LocalAiTeammatePanel.tsx path, and matching 69-byte stderr preimage. Spec/upgrade/index blobs are not in the slice, so those content hashes were not recomputed here.",
+    "residual_risks": [
+      "Criterion-row git show uses abbreviated 899b394 rather than the full immutable SHA.",
+      "Full Canvas-upgrade and index hashes omit an explicit git-show/UTF-8/newline recipe (blob at baseline commit is still content-addressed).",
+      "test:plans transcript includes non-deterministic duration_ms, so a re-run will not match the pinned stdout hash.",
+      "Local cwd /Users/zero-suminc./... is baked into transcripts."
+    ]
+  }
+}
