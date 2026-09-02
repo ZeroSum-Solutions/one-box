@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-09-02T15:21:35.562Z",
+  "capturedAt": "2026-09-02T16:11:26.938Z",
   "request": {
     "task": "Certify OBX-AUTH-R1-P2-SOLO-001 inside the complete wave-2 Release 1 governance change",
     "model": "x-ai/grok-4.6",
     "effort": "high",
     "base": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
-    "head": "206d37c48604ca33fb364744a0c3c51a5b2c37ce",
+    "head": "528dfd36f31c90673e0a466ca196ffd6311a0b3f",
     "files": [
       "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
       "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
@@ -23,7 +23,7 @@
       "scripts/verify-r1-phase-authorization.mjs"
     ],
     "proofs": [],
-    "diffBytes": 268383,
+    "diffBytes": 272868,
     "timeoutMs": 900000,
     "maxOutputTokens": 12000
   },
@@ -31,74 +31,40 @@
     "id": "xAI",
     "model": "x-ai/grok-4.6",
     "usage": {
-      "prompt_tokens": 80941,
-      "completion_tokens": 26003,
-      "total_tokens": 106944,
-      "cost": 0.317708,
+      "prompt_tokens": 81901,
+      "completion_tokens": 36320,
+      "total_tokens": 118221,
+      "cost": 0.259034,
       "is_byok": false,
       "prompt_tokens_details": {
-        "cached_tokens": 128,
+        "cached_tokens": 81792,
         "cache_write_tokens": 0,
         "audio_tokens": 0,
         "video_tokens": 0
       },
       "cost_details": {
-        "upstream_inference_cost": 0.317708,
-        "upstream_inference_prompt_cost": 0.16169,
-        "upstream_inference_completions_cost": 0.156018
+        "upstream_inference_cost": 0.259034,
+        "upstream_inference_prompt_cost": 0.041114,
+        "upstream_inference_completions_cost": 0.21792
       },
       "completion_tokens_details": {
-        "reasoning_tokens": 24718,
+        "reasoning_tokens": 35648,
         "image_tokens": 0,
         "audio_tokens": 0
       }
     }
   },
   "audit": {
-    "verdict": "FINDINGS",
-    "findings": [
-      {
-        "severity": "HIGH",
-        "file": "scripts/verify-r1-phase-authorization.mjs",
-        "line": "validatePredecessorGate / P2_ACTIVATION_PRECONDITION",
-        "scenario": "P2 is recorded with implementationAuthorized true while predecessorBinding.status is PENDING_PREDECESSOR_MERGE. validatePredecessorGate treats that pending shape as success, never emits invalidator predecessor-phase-not-merged, does not inspect the tree, and does not look up OBX-P210-T00..T03 in the program ticket manifest. After this governance merge, editing a P2-only path such as src/lib/pageIrMutation.ts (or inserting those child tickets as ready) still lets verifyRelease1PhaseAuthorizations and verify:plans pass while P1 is unmerged. The activationPrecondition string claims it is enforced by validatePredecessorGate; the function only exact-matches the prose.",
-        "remediation": "Keep the recorded grant, but fail closed on exercisable P2 authority until predecessorBinding.status is COMPLETED_VERIFIED: while PENDING, reject any git delta in P2 allowedPaths relative to baseCommit, reject any OBX-P210 child in the ticket manifest, and push predecessor-phase-not-merged. Do not treat implementationAuthorized true as a live path grant until that gate flips."
-      },
-      {
-        "severity": "HIGH",
-        "file": "scripts/verify-r1-phase-authorization.mjs",
-        "line": "verifyRelease1PhaseAuthorizations present.length === 0",
-        "scenario": "If the registry contains no id matching R1_PHASE_AUTHORIZATION_ID_PATTERN, the module returns {failures:[], verified:[]} and skips validateOwnerAcceptance and validatePredecessorRegistryRecords. Deleting OBX-AUTH-R1-P2-SOLO-001 alone also succeeds, because PHASES ids are not required to be present—only present records are validated. A later verify:plans run can pass after the P2 artefact it is supposed to attest has been removed.",
-        "remediation": "Never early-return success on an empty present set. Require every id in R1_PHASE_AUTHORIZATION_IDS/PHASES to exist in registry.authorizations and fail closed on omission or reorder after the frozen first three records."
-      },
-      {
-        "severity": "MEDIUM",
-        "file": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
-        "line": "OBX-AUTH-ATF-001 ticketIds/requirements/scope arrays; OBX-AUTH-P180-T02-SOLO-001 predecessorBinding.files/planBindings/governanceBindings/dependencyBindings",
-        "scenario": "Criterion (1) requires the first three scoped records to remain byte-identical to 4b02f75. This diff pretty-prints ATF arrays and T02 nested binding objects. Canonical self-hashes are unchanged, but the serialized records are not byte-identical, so any byte-level freeze or receipt that pinned the old registry bytes has already drifted.",
-        "remediation": "Restore authorizations[0..2] to their pre-change bytes. Apply formatting only to the newly appended P1/P2 records."
-      },
-      {
-        "severity": "MEDIUM",
-        "file": "scripts/verify-r1-phase-authorization.mjs",
-        "line": "validatePredecessorGate COMPLETED_VERIFIED branch",
-        "scenario": "The delivered COMPLETED_VERIFIED path accepts any 40-hex checkpointCommit and hashes binding.files from the worktree via checkBindings. It does not verify the commit exists, is on main, is the P1 merge, or that those bytes are the blobs at that commit. A later one-line PHASES.predecessorBinding flip plus a rehashed P2 record would make the predecessor check pass while the attested merge artefacts are absent or different.",
-        "remediation": "Resolve checkpointCommit with git, require it to be the recorded P1 merge on main, and SHA-256 the blobs at that commit (not the worktree). Also require files to equal P1 allowedPaths and clear or rewrite activationPrecondition in that state."
-      },
-      {
-        "severity": "MEDIUM",
-        "file": "scripts/verify-r1-phase-authorization.mjs",
-        "line": "ACTIVATION_WRITE_SET",
-        "scenario": "ACTIVATION_WRITE_SET and the node tests require docs/audits/grok-4.6/2026-09-02-release-1-p{1,2}-authorization-audit.json and the matching -raw.json files. Those paths are not in this diff or allowlist. The write set is only exact-matched to a constant, never to git name-status, so the module cannot fail closed when the attested activation tree delta and the delivered tree diverge; happy-path tests that mutate the grok receipts cannot run on this slice.",
-        "remediation": "Either add the grok receipts to this change or drop them from ACTIVATION_WRITE_SET until they exist. Compare the live git diff name-status to the write set (plus allowedPaths) and fail on extras or missing attested writes."
-      }
-    ],
-    "proof_assessment": "No proof artifacts were supplied. This review is static against the 4b02f75..206d37c diff only. Canonical self-hashes, live SHA-256 bindings, T02 receipt freshness after the registry rewrite, and the new fail-closed tests were not re-executed and are not authority.",
+    "verdict": "CLEAN",
+    "findings": [],
+    "proof_assessment": "No proof artifacts were supplied. FROZEN_REGISTRY_RECORDS_SHA256, P2 self-hash 716906736fe610373c1f8082f4acf1a6c57d52ccb2242b4ba23c712902b5444f, amendment digest bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e, receipt targetHashes, and authorityManifestWithoutPacketDigest 8bbf07e6de63d9c70234e775ac2eed077e468643346e2bc302cecd0dcdff2f25 are pins in the slice, not recomputed evidence. Negative tests in scripts/verify-plan-authority.node.mjs describe intended fail-closed branches for (1)–(5) but are not execution transcripts. On the text of the slice: first three registry records are appended after, not rewritten; authority-manifest.json and the program ticket manifest keep implementationAuthorized false at top level and on every domain; OBX-AUTH-R1-P2-SOLO-001 has single-file allowedPaths, a closed five-effect set, empty nonWaivableClassesTouched, governance/dependency bindings value-equal to T02, a PENDING predecessorBinding naming OBX-AUTH-R1-P1-SOLO-001 plus P1 allowedPaths plus eight expectedAbsentFiles, the stated P210 activationPrecondition, a 336-hour non-renewable window with effectiveExpiresAt 2026-09-14T13:33:33Z sourced from T01, and a canonical-json-v1 self-hash; verify-r1-phase-authorization.mjs exact-matches and live-hashes those properties; security receipts bind the manifest without /packetDigest and do not hash the T02 receipt.",
     "residual_risks": [
-      "Solo owner holds every role; independentHumanReview stays NOT_AVAILABLE and is only accepted, not closed.",
-      "Effective P1/P2 window is truncated by frozen non-renewable T01 expiry; validateEffectiveWindow does not compare Date.now() to effectiveExpiresAt and relies on validatePredecessorRegistryRecords instead.",
-      "Allowed effects are labels, not AST/runtime oracles, so shared files with ATF/P1 can still take P2 behavior under a live P1 or ATF grant.",
-      "Packet-digest and T02-receipt re-pin is sequenced after this audit; T02 targetHashes of the rewritten registry are expected stale at this HEAD until that re-pin."
+      "Grok receipts are in activationWriteSet and requiredEvidencePaths but not in this git slice; the module fail-closes if they are absent, while the node fixture copies whatever is on disk, so untracked worktree files can green tests that a clean checkout cannot.",
+      "Criterion (5) re-pin of four T02 receipt targetHashes is after this audit; verifyP180T02Authorization({verifyReceipt:true}) live-hashes those targets, so this slice may be red until that re-pin. AUDITED_TREE_DELTA points at /targetHashes wholesale and never inspects the T02 receipt.",
+      "Fixture has no git, so “merged to main” is approximated by expectedAbsentFiles absence and no OBX-P210-* rows in the program manifest; P2 allowedPath writes are not themselves blocked while pending.",
+      "expectedAbsentFiles is a pinned eight-file subset, not an independent inventory of every missing P1 path.",
+      "T01 focused flags (--verify-solo-structure-only / receipts-only / source-scope-only) now also run R1 verification.",
+      "FROZEN_REGISTRY_RECORDS_SHA256 is not independently recomputed against BASE in the supplied proof."
     ]
   }
 }

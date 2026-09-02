@@ -2,17 +2,19 @@
   "schemaVersion": 1,
   "receiptKind": "solo-phase-model-audit-v3",
   "authorizationId": "OBX-AUTH-R1-P1-SOLO-001",
-  "authorizationHash": "26f7ff8f9051560d7798f11b4a5b86f69cc8024e74d067f1f826e66716ec3a27",
+  "authorizationHash": "60a23140ba8d2afa64a835f3364838be0bcf3bc727095986ffbe2fc7d7f1e6c3",
   "amendmentId": "OBX-R1-P1-SOLO-AMENDMENT-001",
-  "amendmentHash": "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147",
+  "amendmentHash": "cc4fbde44e5c6e37511ba6b13a2b2f4d583ccefff4aa25adeaf94092683915ce",
   "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+  "auditedHeadCommit": "528dfd36f31c90673e0a466ca196ffd6311a0b3f",
   "requestedModel": "x-ai/grok-4.6",
   "providerReportedModel": "x-ai/grok-4.6",
   "effort": "high",
   "lane": "openrouter-metered",
   "auditScript": "scripts/eval/grok-audit.mjs",
   "rawAuditPath": "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit-raw.json",
-  "rawAuditSha256": "eb36023b253ab069e9f13d5913063418738387bb85b3af5fe2490fa799312c61",
+  "rawAuditSha256": "2c4708efa0bec59e6e74c3d27bcb3414b48cd6011b760f37aa97075a5cedcf49",
+  "diffBytes": 272868,
   "reviewedFiles": [
     "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
     "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
@@ -32,12 +34,12 @@
     {
       "path": "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
       "algorithm": "sha256",
-      "digest": "93d260dc505526d0b4335ccaf502618ad483816f7f8cbc14285343beae1a1716"
+      "digest": "359d965529affd0d5e21e08ded5edc29bcee92a013333c7e857920e44dacc56b"
     },
     {
       "path": "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
       "algorithm": "sha256",
-      "digest": "9fe386d22a11a9ebb73f88dd38c84da3dce595918f38f0a92132d17140f878e3"
+      "digest": "b494523aa4bba7fa09966eeefa59d3f4074e897baec1617a52fd30d0db14caf2"
     },
     {
       "path": "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
@@ -47,27 +49,22 @@
     {
       "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json",
       "algorithm": "sha256",
-      "digest": "4331fe6de9b54a1ba9f7c8d565399c8b2b1bb73b4e27c1d2a26d6c0e971e5147"
+      "digest": "cc4fbde44e5c6e37511ba6b13a2b2f4d583ccefff4aa25adeaf94092683915ce"
     },
     {
       "path": "docs/governance/risk-exceptions/2026-09-02-release-1-p2-solo.json",
       "algorithm": "sha256",
-      "digest": "d66f00a64ce7680accefdf7a9618720e0b396135f09a20851fc0b55eebe2ee51"
+      "digest": "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e"
     },
     {
       "path": "docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md",
       "algorithm": "sha256",
-      "digest": "9c117486271d89eb9a758e4805dfa2334ceb353f8bd3353df0fef3cf47f3bbfb"
+      "digest": "af36eaccc62a4fb0825ac7e3d4c22ea61ebaf981461fed8e1307107cf33b7141"
     },
     {
       "path": "docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md",
       "algorithm": "sha256",
-      "digest": "6a38f2d98d77bc14b60d5f87d770b2146bf8b91b611faaaa6bec430cb094467b"
-    },
-    {
-      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
-      "algorithm": "sha256",
-      "digest": "20df55276d786dc44538ff3a3e5cb69cd0bca42072da7a44a09a01c12fd282da"
+      "digest": "4bc4a10df2d57db3d564547279ad6352b166754663892dee10f7a03604917f8e"
     },
     {
       "path": "docs/plans/one-box-master/00-authority/plan-register.md",
@@ -77,7 +74,7 @@
     {
       "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
       "algorithm": "sha256",
-      "digest": "39f193a31e70988dcab212664c5ce9399164d5824e0e9b275c2be230e9ca35fe"
+      "digest": "f6a4ccfb5dd3669ae94aafbcd464964cdb808f54cbfe0375f8b772cd700bb75d"
     },
     {
       "path": "scripts/verify-plan-authority.mjs",
@@ -87,32 +84,47 @@
     {
       "path": "scripts/verify-plan-authority.node.mjs",
       "algorithm": "sha256",
-      "digest": "ca28d53ba1707d230c894a9812f08da8a83aba226e77be0b1be71e8330cf7b60"
+      "digest": "cbe797dfb575d0586a6ec24b5289bbf452d19eb9ac7db7ad8883d2f5ee08d516"
     },
     {
       "path": "scripts/verify-r1-phase-authorization.mjs",
       "algorithm": "sha256",
-      "digest": "74ff7229635025daa18d8b6e427c145e51c59e7c94b9edd8318c66806ce3ab55"
+      "digest": "361cdc72da8c39f6eb060bfafa7036705c8f678493289198d5374714206b2d70"
     }
   ],
-  "verdict": "FINDINGS",
-  "findings": [
+  "authorityManifestWithoutPacketDigest": {
+    "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+    "algorithm": "sha256",
+    "canonicalization": "canonical-json-v1",
+    "excludedJsonPointers": [
+      "/packetDigest"
+    ],
+    "digest": "8bbf07e6de63d9c70234e775ac2eed077e468643346e2bc302cecd0dcdff2f25"
+  },
+  "auditedTreeDelta": [
     {
-      "severity": "MEDIUM",
-      "file": "scripts/verify-r1-phase-authorization.mjs",
-      "line": "validatePredecessorGate COMPLETED_VERIFIED branch",
-      "scenario": "P2 is correctly PENDING in this wave, but the closer this module already implements is forgeable. A later re-issue that updates PHASES plus the P2 record can set predecessorBinding.status=COMPLETED_VERIFIED, checkpointCommit to any 40 hex chars (not a git object), and files to live SHA-256 of the current working tree, including unmodified pre-P1 bytes or stub P1 files, then set implementationAuthorized=true. The branch never checks that checkpointCommit exists, that the hashes are the blobs of that commit, that P1 actually merged, or that the P1 record is still live. verify:plans would pass and P2 would become a live implementation grant without P1 having merged.",
-      "remediation": "For COMPLETED_VERIFIED require: git rev-parse/cat-file of checkpointCommit; each predecessor file digest equal to `git show <checkpointCommit>:<path>`; checkpointCommit is a descendant of P1 activationBaseCommit; P1 record still present, unexpired, and implementationAuthorized; and keep implementationAuthorized false unless those checks pass. Add a negative test with a fake 40-hex commit and pre-P1 bytes."
+      "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "jsonPointer": "/packetDigest",
+      "change": "packet digest re-pinned after capture",
+      "reason": "The packet digest hashes this audit's own inputs, so it can only be written after them. It is a fixed-length hexadecimal field, so the audited diff and the delivered diff have identical byte lengths."
+    },
+    {
+      "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
+      "jsonPointer": "/targetHashes",
+      "change": "four OBX-AUTH-P180-T02-SOLO-001 receipt digests refreshed after capture",
+      "reason": "The sanctioned re-pin path for the frozen T02 receipt. The file sits outside this audit's reviewed set and every other field of it is unchanged."
     }
   ],
+  "verdict": "CLEAN",
+  "findings": [],
   "residualRisks": [
-    "No R1 source-scope checker: after merge, edits to P2-only paths (pageIrMutation.ts, siteMutation.ts, elementEditor.ts, mutationGateMatrix.ts, candidatePromotion.ts, the T00 design note) do not fail verify:plans while P2 remains PENDING.",
-    "Shared live P1 paths (contracts.ts, releaseLifecycleStore.ts, pageIrController.ts, LifecycleStatus.tsx, preview-workbench.mjs) can absorb P2 behavior under P1's implementationAuthorized=true grant; effects are labels, not AST-checked.",
-    "ATF remains a live grant on Workbench.tsx, workbench.css, canvas-contract.mjs, contracts.ts, and preview-workbench.mjs, which overlap P2 T03.",
-    "Frozen T01/T02 expiry (2026-09-14) fails the R1 module before P1/P2 expiresAt (2026-09-16), shortening the advertised 336-hour window.",
-    "validateOwnerAcceptance does not live-hash acceptance.acceptedPaths or require boundary text to keep the unresolved-decision list.",
-    "Grok receipts are required at verify time and are named in activationWriteSet/requiredEvidencePaths; they are absent from this diff by design and were not treated as a finding."
+    "Frozen first-three byte pin cannot be compared to git show BASE_COMMIT at verify time (copied fixture, no git); a wrong pin that matches the current slice would still pass.",
+    "No source-scope walk of the tree or diff; later P1 work that edits files outside allowedPaths is not caught by this module.",
+    "Effect/forbidden-effect lists are not enforced against actual code.",
+    "Grok receipts are required by the module and tests but are not in the supplied git diff; a clean checkout fails closed if they are absent.",
+    "unavailableControls row bodies and owner-acceptance extra keys are weakly checked; contradiction there is still blocked by pinned independentHumanReview/grants and by receipt target hashes.",
+    "T02 receipt re-pin (four targetHashes) is a follow-up; P1 receipts omit that file and bind authority-manifest.json only via canonical-json-v1 without /packetDigest."
   ],
-  "proofAssessment": "Req 1: NAME STATUS and the registry hunk only append after T02; package.json, package-lock.json, reviewer-roles.md, and risk-exceptions/README.md are untouched; ATF/T01/T02 validators still pin the first three records. Req 2: every domain in the manifest diff keeps implementationAuthorized false; ticket manifest is not in the change. Req 3: P1/P2 allowedPaths/allowedEffects equal the ticket-scope unions, forbiddenEffects match the shared floor, denyUnlistedPathsAndEffects is true on both amendments, and checkAuthorizedPath rejects globs, traversal, absolute paths, bare directories, and prefixes. Req 4: nonWaivableClassesTouched is empty and fail-closed; pins, expiry, T01/T02 expiry, self-hash, amendment hash, and receipt/model labels are checked; BLOCK/HIGH model findings fail. Req 5: recordedAt 2026-09-02T13:00:00Z, expiresAt 2026-09-16T13:00:00Z (336h), renewable false, amendment ownerDirection.recordedAt equals recordedAt. Req 6: no ticket/eval/assignment files in the diff; module requires P200/P210 proposed and PROG-EVAL-LIFE-001/PROG-EVAL-CANVAS-001 planned. Req 7: target-topology and program-security stay proposed; release-1 and compatibility are owner-approved with acceptanceRecord naming Devin Wiggins / person:devin-wiggins and citing the acceptance file; both boundaries still list the unresolved decisions. Req 8: this wave does not grant P2 implementation — PHASES pins predecessorBinding to PENDING_PREDECESSOR_MERGE with P1's exact path list and implementationAuthorized false, and flipping that flag fails. That is strong enough to keep this packet from authorizing P2 code. It is not strong enough as a merge proof: there is no R1 source-scope/diff check, and the COMPLETED_VERIFIED closer can be satisfied without a real P1 merge. No proof artifacts were supplied; digest cross-links inside the packet are internally consistent.",
-  "capturedAt": "2026-09-02T14:22:10.951Z"
+  "proofAssessment": "No proof artifacts were supplied; assessment is from the diff only. Hash pins (frozen first-three slice, P1 self-hash, amendment/receipt digests, without-packetDigest) are internally consistent with each other and with live-hash checks in scripts/verify-r1-phase-authorization.mjs, but they were not independently recomputed here. New node tests encode fail-closed oracles for (1)-(5) and were not executed in this review.",
+  "capturedAt": "2026-09-02T16:22:26.639Z"
 }
