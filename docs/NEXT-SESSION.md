@@ -9,8 +9,7 @@ Last updated: 2026-09-01 (repository-state sweep against `main` at `cb26ae9`).
 Authority order when documents disagree:
 
 1. `docs/plans/one-box-master/00-authority/plan-register.md` — the domain
-   authority table. It lives on `research/la-appointment-field-study` and its
-   descendants, not yet on `main`.
+   authority table, on `main` since PR #19 (lineage C slice 1).
 2. `docs/plans/2026-08-20-studio-consolidation-extraction.md` — decisions D1–D6,
    defects DEF-1 to DEF-3, kill criteria.
 3. This file. It is a queue and a map, not a source of truth.
