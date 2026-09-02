@@ -292,3 +292,61 @@ checking, outside the two the gap register named: one fixed in this task
 (`docs/NEXT-SESSION.md`), one found and left for a follow-up because fixing
 it requires re-pinning the hash-pinned authority packet, which is out of this
 task's authority (`docs/plans/one-box-master/02-canvas/index.md`, §3.2).
+
+## 7. Post-integration addendum (wave-0 integration, 2026-09-02)
+
+Sections 1 to 6 and the Conclusion were written on branch `wave-0/eos-001` and
+describe that branch. The wave-0 integrator then merged this task with
+`wave-0/eos-003` and `wave-0/hygiene` into `wave-0/integration` and did the
+follow-up §3.2 reserved for it. Where the two disagree, **this addendum wins**;
+it supersedes the affected claims rather than rewriting the record they were
+recorded in.
+
+### 7.1 §3.2 is fixed, not open
+
+The label residue is closed. `docs/plans/one-box-master/02-canvas/index.md` no
+longer lists `2026-08-13-refero-editor-requirements.md` under
+`## Canonical sources`. The entry now sits alone under a new
+`## Supporting and historical` heading (`index.md:9`), at `index.md:11`,
+carrying the register's own wording verbatim: "Retain unsuperseded editor,
+evidence, motion, accessibility, and benchmark requirements. Ignore older
+multi-target production assumptions." (`plan-register.md:36`). Nothing else in
+that file changed. §3.2's closing sentence — "Flagged here as a follow-up" — and
+the Conclusion's "one found and left for a follow-up" no longer describe the
+tree.
+
+### 7.2 The packet was re-pinned; §6's digest claim is superseded
+
+§6 states that this branch "differs from `main` at `4b02f75` only by
+documentation" and that packet SHA-256
+`6abc215646fd239feb001fc3d94e8f3cf9ca39bdf7ab756763639178487e66ab` is
+"unchanged from `main`". That was true of `wave-0/eos-001`. It is not true of
+`wave-0/integration`, which carries the §3.2 fix and PR #17's deferred
+`docs/architecture/README.md` paragraph — both packet inputs. The packet digest
+moved to
+`48999a437bc127f7c4e27066a0c2ab344c91c09f0940f43d114f09c204faef36`, recorded in
+`authority-manifest.json` and endorsed in
+`docs/audits/evidence/security/2026-09-02-wave-0-authority-repin.json`, which
+supersedes the 2026-09-02 ci-oracle re-pin. `GITHUB_ACTIONS=true npm run
+verify:plans` passes on the integration tree with that digest, and
+`node scripts/verify-p180-t02-authorization.mjs` exits 0.
+
+### 7.3 Line citations that moved
+
+W0.6 rewrote `docs/NEXT-SESSION.md` in the same integration, so two citations in
+this record point at their base-commit lines, not at the integrated file:
+
+| Cited as | Claim | Where it is now |
+|---|---|---|
+| `docs/NEXT-SESSION.md:15` (§2) | "This file. It is a queue and a map, not a source of truth." | `docs/NEXT-SESSION.md:16` |
+| `docs/NEXT-SESSION.md:11-13` (§3.1) | The "Authority order" entry for `plan-register.md` | `docs/NEXT-SESSION.md:12-13` |
+
+The §3.1 fix itself stands: the stale "not yet on `main`" claim is gone. §3.1's
+"no other line in that document was touched" describes the `wave-0/eos-001`
+commit only; W0.6 later rewrote the board deliberately.
+
+Two citations in §4.2 also moved with the §3.2 fix, because the file gained a
+heading: the `## Canonical sources` list is now `index.md:3-7`, and the Grok
+audit under `## Supporting review evidence` with its "adversarial review
+evidence, not product authority" caveat is now `index.md:13-15`. The claim is
+unchanged — the audit is still correctly demoted.

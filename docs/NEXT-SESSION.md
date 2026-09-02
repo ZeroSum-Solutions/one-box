@@ -42,10 +42,11 @@ Four branches landed by the PR #15 squash (`feat/ui-overhaul-linear`,
 were deleted on 2026-09-01 after an ancestry re-check.
 
 **Integration order (decided 2026-09-01, executed 2026-09-02):** A, then C in
-reviewed slices, then rebase B. Done in that order: PR #18, PR #19, PR #20. C
-lands with true merge commits only; the OBX-P180 program pins `62b7b74` and
-`c09dfd0` by SHA, and a squash or rebase would orphan its branches and the
-pushed checkpoint.
+reviewed slices, then rebase B. A landed as PR #18 and C slice 1 as PR #19; B
+was rebased onto that result and opened as PR #20, which is **not merged** —
+the owner holds it. C lands with true merge commits only; the OBX-P180 program
+pins `62b7b74` and `c09dfd0` by SHA, and a squash or rebase would orphan its
+branches and the pushed checkpoint.
 
 ### Worktrees
 
@@ -53,7 +54,7 @@ pushed checkpoint.
 |---|---|---|
 | `~/projects/one-box` | `docs/studio-consolidation-plan` | Primary checkout. Lineage A has landed (PR #18), so switch it to `main` and delete the branch. |
 | `~/projects/one-box-worktrees/gauntlet-r1` | `wave-0/integration` | The `one-box-gauntlet-r1` run's own worktree. Wave-0 integration branch; gates run here. |
-| `~/projects/one-box-worktrees/latest-main-20260825` | detached at `cb26ae9` | Clean mirror of `main` with `node_modules`; use it for gates against `main`. |
+| `~/projects/one-box-worktrees/latest-main-20260825` | detached at `cb26ae9` | A 2026-08-25 snapshot with `node_modules`, two merges behind current `main`. **Not** a mirror of `main`; do not run gates against `main` here. Retarget it or delete it. |
 | `~/projects/one-box-worktrees/repo-state-20260901` | `chore/repo-state-20260901` | The 2026-09-01 sweep. Landed as PR #18; removable. |
 | `~/projects/one-box-worktrees/integrate-lineage-c` | `integrate/lineage-c-slice-1` | Lineage C slice 1. Landed as PR #19 (`4b02f75`); **removable**. |
 | `~/projects/one-box-worktrees/la-appointment-field-study` | `research/la-appointment-field-study` | OBX-P180 source worktree. Read-only for the program. Holds the protected untracked handoff; never open it. |
