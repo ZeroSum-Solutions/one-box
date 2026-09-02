@@ -138,8 +138,28 @@ record supersedes it for the merged tree.
 > },
 > ```
 
-The rule is mechanical, not advisory. `scripts/verify-plan-authority.mjs:45`
-defines the statuses it covers:
+**Precisely what is mechanical, and what is not.** No branch of the verifier
+reads `humanAssignments.status`. `scripts/verify-plan-authority.mjs:1295-1305`
+is the only code that touches `humanAssignments`, and it reads `.records`:
+
+> ```
+> if (!isPlainObject(ticketManifest.humanAssignments) || !Array.isArray(ticketManifest.humanAssignments.records)) {
+>   fail("ticket manifest: humanAssignments.records must exist");
+> } else {
+>   for (const record of ticketManifest.humanAssignments.records) {
+>     ...
+>     assignments.set(record.ticketId, record);
+>   }
+> }
+> ```
+
+So `"status": "unassigned-blocking"` is a declared label with no oracle behind
+it, and the `rule` string is prose. The **enforced** lock is the pair of empty
+`records` and the active-status gate below. Filling `records` would lift it;
+the label would not stop that. Read the label as a statement of intent and the
+next two citations as the mechanism.
+
+`scripts/verify-plan-authority.mjs:45` defines the statuses the gate covers:
 
 > `const activeTicketStatuses = new Set(["ready", "in-progress", "verification", "done"]);`
 
@@ -154,7 +174,7 @@ assignment:
 > ```
 
 `records` is empty, so `assignments` is empty, so **every** transition to `ready`
-fails today. A second gate compounds it at `:1349`:
+fails today. That is the real lock. A second gate compounds it at `:1349`:
 
 > `else if (activeTicketStatuses.has(ticket.status) && tickets.get(dependency).status !== "done") fail(`${ticket.id}: ${ticket.status} requires done dependency ${dependency}`);`
 
@@ -210,8 +230,10 @@ ledger; the plan names it at `plans/wave-2-authorization-path.md:70`:
 EOS-004 is confirmed on `main`: the four wave-2 parents are on the program board
 with requirements, evaluations, dependencies, owner role, and an evidence file that
 the verifier reads; `verify:plans` validates the board and exits 0; and two
-independent locks — `humanAssignments.status: unassigned-blocking` and the
-`done`-dependency rule — keep every one of them out of `ready`. The child tickets
+independent locks — the empty `humanAssignments.records` list checked against
+`activeTicketStatuses`, and the `done`-dependency rule — keep every one of them out
+of `ready`. The `unassigned-blocking` label states that intent; the two gates
+enforce it. The child tickets
 are sequenced in the P1 and P2 phase packets on `wave-2/governance` and are
 likewise unable to become ready.
 

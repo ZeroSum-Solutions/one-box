@@ -7,10 +7,17 @@
   "ownerDirection": {
     "actorId": "person:devin-wiggins",
     "channel": "Claude Code session, 2026-09-02",
-    "request": "Approve the autonomous run one-box-gauntlet-r1 and its wave-0 governance and hygiene scope; the wave-0 integrator re-pins the authority packet once for the wave's packet-document edits.",
+    "request": "Approve the autonomous run one-box-gauntlet-r1, merge PR #18, accept the Release 1 packet, and say which waves to run.",
     "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1. Number two, I accept the release packet. Number three, let's run zero through three. Number four, please provide me an initialization prompt so that I can fan out, do research, and gather real agency analysis inside of Codex, in a separate session. For visual quality bars I've added 2 different worksheets ... please, any blockers, let's take care of them now so we can run this on a loop.",
-    "recordedIn": "~/.claude/goal-state/one-box-gauntlet-r1/contract.md section 7, lines 179-184"
+    "ownerResponseSource": "~/.claude/goal-state/one-box-gauntlet-r1/contract.md section 7, lines 179-184. Quoted byte-for-byte from that record. The ellipsis is the contract's own elision of the owner's message, made when the owner block was filled; it is not this record's abridgement. That contract file is outside the repository, so it is not hash-pinned here.",
+    "authorizationBoundaryStatedPlainly": "The owner authorized running waves 0 through 3 of this contract. He did not name a packet re-pin; no owner ever does. This record must not be read as owner approval of a re-pin."
   },
+  "derivationFromOwnerDirection": [
+    "The owner's words authorize the run's waves, not any specific file edit: 'let's run zero through three'.",
+    "Contract section 5, wave 0, sets the wave's scope: W0.2 (EOS-004 program board), W0.6 (board and ledger current), and the EOS-001 authority chain, whose confirmation record left one label residue in a packet document.",
+    "The run's own governance rule decides who re-pins and how often. Run log entry [W0 GOVERNANCE], 2026-09-02: plan files, ticket manifests, .github/ and the verifier scripts are packet inputs; docs/audits/ is excluded; package.json and package-lock.json are hash-pinned and off limits; builders do not re-pin; the wave-0 integrator re-pins once on the integration branch with a single wave-0 re-pin record following the ci-oracle precedent.",
+    "Two wave-0 edits land in packet inputs, so exactly one re-pin is required and exactly one is made. The derived write authority for a packet-digest refresh is the 2026-08-30 record named in derivedWriteAuthorization, not the owner's message."
+  ],
   "packetDocumentEdits": [
     {
       "path": "docs/plans/one-box-master/02-canvas/index.md",
