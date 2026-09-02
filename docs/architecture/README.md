@@ -86,6 +86,20 @@ upload area. Guarded mutations use the run/site authority and re-run blocking
 gates; a human evidence or visual approval is never replaced by a mechanical
 test result.
 
+Review feedback is additive evidence, not an approval transition. The evidence
+route binds every feedback receipt to the current server-owned stage, artifact
+type, and version before `src/lib/reviewFeedback.ts` writes it beneath the
+closed `sites/<id>/evidence/review-feedback/` root. `src/lib/uploads.ts` reuses
+the existing staging lock, session validation, verified-blob, size, and type
+policy to claim only the selected upload IDs into that root. Receipts store
+file metadata and run-owned paths, never the opaque staging-session handle.
+Stable UUIDs and request hashes make exact retries idempotent and reject a
+different request that reuses an ID; malformed or unbound requests write
+nothing. Claimed feedback shares the run directory's lifecycle and has no
+independent deletion API; unclaimed staging retains its 30-minute expiry. The
+summary-first client keeps this operation separate from submit, approve,
+advance, and request-revision actions.
+
 The candidate contract is additive to the legacy site manifest and run-stage
 state. One validated run ID maps to the closed
 `sites/<id>/candidate/{site,manifest.json,provenance.json,gates.json}` layout;
