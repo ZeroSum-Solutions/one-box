@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-09-02T16:22:26.639Z",
+  "capturedAt": "2026-09-02T19:15:36.236Z",
   "request": {
-    "task": "Certify OBX-AUTH-R1-P1-SOLO-001 inside the complete wave-2 Release 1 governance change",
+    "task": "Certify OBX-AUTH-R1-P1-SOLO-001 inside the wave-2 Release 1 governance change as corrected by the P2 predecessor-gate fix",
     "model": "x-ai/grok-4.6",
     "effort": "high",
     "base": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
-    "head": "528dfd36f31c90673e0a466ca196ffd6311a0b3f",
+    "head": "ea2eccba6e3e0f4acba447226b5d96b41e1394f1",
     "files": [
       "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
       "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
@@ -23,7 +23,7 @@
       "scripts/verify-r1-phase-authorization.mjs"
     ],
     "proofs": [],
-    "diffBytes": 272868,
+    "diffBytes": 278815,
     "timeoutMs": 900000,
     "maxOutputTokens": 12000
   },
@@ -31,10 +31,10 @@
     "id": "xAI",
     "model": "x-ai/grok-4.6",
     "usage": {
-      "prompt_tokens": 81851,
-      "completion_tokens": 36502,
-      "total_tokens": 118353,
-      "cost": 0.382714,
+      "prompt_tokens": 83544,
+      "completion_tokens": 20302,
+      "total_tokens": 103846,
+      "cost": 0.2889,
       "is_byok": false,
       "prompt_tokens_details": {
         "cached_tokens": 0,
@@ -43,12 +43,12 @@
         "video_tokens": 0
       },
       "cost_details": {
-        "upstream_inference_cost": 0.382714,
-        "upstream_inference_prompt_cost": 0.163702,
-        "upstream_inference_completions_cost": 0.219012
+        "upstream_inference_cost": 0.2889,
+        "upstream_inference_prompt_cost": 0.167088,
+        "upstream_inference_completions_cost": 0.121812
       },
       "completion_tokens_details": {
-        "reasoning_tokens": 36193,
+        "reasoning_tokens": 19729,
         "image_tokens": 0,
         "audio_tokens": 0
       }
@@ -57,14 +57,13 @@
   "audit": {
     "verdict": "CLEAN",
     "findings": [],
-    "proof_assessment": "No proof artifacts were supplied; assessment is from the diff only. Hash pins (frozen first-three slice, P1 self-hash, amendment/receipt digests, without-packetDigest) are internally consistent with each other and with live-hash checks in scripts/verify-r1-phase-authorization.mjs, but they were not independently recomputed here. New node tests encode fail-closed oracles for (1)-(5) and were not executed in this review.",
+    "proof_assessment": "validatePredecessorGate no longer treats presence of OBX-AUTH-R1-P1-SOLO-001 allowedPaths (including expectedAbsentFiles) as a pending-gate failure; that is the predecessor doing authorized work. Required refusals are implemented on the live PENDING path: program-manifest children of OBX-P210; P2-only paths not in P2_PRE_EXISTING_PHASE_ONLY_PATHS; that 13-list must be P2-only and currently present; binding.files must equal the live predecessor allowedPaths; pending checkpointCommit must be null; predecessor must be present, unexpired, and implementationAuthorized. COMPLETED_VERIFIED is untouched. P1/P2 registry records still carry expectedAbsentFiles; the first three frozen records are only comma-extended. This does not weaken the recorded boundary relative to the stated presence semantics. The pin list cannot be silently abused without editing the hashed verifier/receipts, and it is self-calibrating against the current tree (omit an existing P2-only path and the gate fails; pin a non-phase-only path and the gate fails). The remaining P2-before-P1-merge escape is outside the stated presence rule: edits to the thirteen pre-existing files and to shared P1/P2 paths are invisible to this gate.",
     "residual_risks": [
-      "Frozen first-three byte pin cannot be compared to git show BASE_COMMIT at verify time (copied fixture, no git); a wrong pin that matches the current slice would still pass.",
-      "No source-scope walk of the tree or diff; later P1 work that edits files outside allowedPaths is not caught by this module.",
-      "Effect/forbidden-effect lists are not enforced against actual code.",
-      "Grok receipts are required by the module and tests but are not in the supplied git diff; a clean checkout fails closed if they are absent.",
-      "unavailableControls row bodies and owner-acceptance extra keys are weakly checked; contradiction there is still blocked by pinned independentHumanReview/grants and by receipt target hashes.",
-      "T02 receipt re-pin (four targetHashes) is a follow-up; P1 receipts omit that file and bind authority-manifest.json only via canonical-json-v1 without /packetDigest."
+      "Presence-only enforcement: P2 may edit all 13 P2_PRE_EXISTING_PHASE_ONLY_PATHS and every shared P1/P2 path (contracts, pageIrController, releaseLifecycleStore, LifecycleStatus, preview-workbench) before P1 merges; only new P2-only paths (candidatePromotion.ts and the fingerprint design note) and OBX-P210-* manifest rows are blocked.",
+      "P2_PRE_EXISTING_PHASE_ONLY_PATHS is not proven with git at 4b02f75f—only existsSync now. A later activation-write-set change that adds a path to the list and creates the file in the same change could launder new P2 work as pre-existing.",
+      "Child-ticket refusal is live but inert in the intended workflow: P1/P2 child tickets are kept off docs/tickets/one-box-program/manifest.json, so that control does not constrain actual P2 start.",
+      "COMPLETED_VERIFIED remains untested dead code until PHASES and the P2 record are updated together.",
+      "Tree occupancy uses existsSync rather than the module's symlink-safe lstat/isFile reader; a broken symlink at a new P2-only path would not trip predecessor-phase-not-merged."
     ]
   }
 }

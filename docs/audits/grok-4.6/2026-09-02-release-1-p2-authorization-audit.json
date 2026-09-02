@@ -6,15 +6,15 @@
   "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
   "amendmentHash": "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e",
   "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
-  "auditedHeadCommit": "528dfd36f31c90673e0a466ca196ffd6311a0b3f",
+  "auditedHeadCommit": "ea2eccba6e3e0f4acba447226b5d96b41e1394f1",
   "requestedModel": "x-ai/grok-4.6",
   "providerReportedModel": "x-ai/grok-4.6",
   "effort": "high",
   "lane": "openrouter-metered",
   "auditScript": "scripts/eval/grok-audit.mjs",
   "rawAuditPath": "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit-raw.json",
-  "rawAuditSha256": "a2dc42c8523ff9ba4dccda363c7c9724693c59c2c041feaa702bca5820aa6c5c",
-  "diffBytes": 272868,
+  "rawAuditSha256": "b7e92fcefd9ec2ed7bbbfb648503f2b98d4e40e9199c7778f024901a6ffe47f5",
+  "diffBytes": 278815,
   "reviewedFiles": [
     "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
     "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
@@ -34,12 +34,12 @@
     {
       "path": "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
       "algorithm": "sha256",
-      "digest": "359d965529affd0d5e21e08ded5edc29bcee92a013333c7e857920e44dacc56b"
+      "digest": "f3dfcd0240ad53bb79195d4dd1f9270ad53a554ab2b8598bdce9fa7a7aa3bd14"
     },
     {
       "path": "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
       "algorithm": "sha256",
-      "digest": "b494523aa4bba7fa09966eeefa59d3f4074e897baec1617a52fd30d0db14caf2"
+      "digest": "db6a3142934462ce8fa8d1d8d5be0caca3183e3e0a8a329506c6cb7a7d4f1dd3"
     },
     {
       "path": "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
@@ -84,12 +84,12 @@
     {
       "path": "scripts/verify-plan-authority.node.mjs",
       "algorithm": "sha256",
-      "digest": "cbe797dfb575d0586a6ec24b5289bbf452d19eb9ac7db7ad8883d2f5ee08d516"
+      "digest": "5488f8eb6a53a43cb252926057887ddf52b4c8d5bcc5c71862f8da0ec9bcfad6"
     },
     {
       "path": "scripts/verify-r1-phase-authorization.mjs",
       "algorithm": "sha256",
-      "digest": "361cdc72da8c39f6eb060bfafa7036705c8f678493289198d5374714206b2d70"
+      "digest": "07eefebc9c50f14bacd638f528f11a6158e77c5021738d4b2886c8625b9042d5"
     }
   ],
   "authorityManifestWithoutPacketDigest": {
@@ -118,13 +118,12 @@
   "verdict": "CLEAN",
   "findings": [],
   "residualRisks": [
-    "Grok receipts are in activationWriteSet and requiredEvidencePaths but not in this git slice; the module fail-closes if they are absent, while the node fixture copies whatever is on disk, so untracked worktree files can green tests that a clean checkout cannot.",
-    "Criterion (5) re-pin of four T02 receipt targetHashes is after this audit; verifyP180T02Authorization({verifyReceipt:true}) live-hashes those targets, so this slice may be red until that re-pin. AUDITED_TREE_DELTA points at /targetHashes wholesale and never inspects the T02 receipt.",
-    "Fixture has no git, so “merged to main” is approximated by expectedAbsentFiles absence and no OBX-P210-* rows in the program manifest; P2 allowedPath writes are not themselves blocked while pending.",
-    "expectedAbsentFiles is a pinned eight-file subset, not an independent inventory of every missing P1 path.",
-    "T01 focused flags (--verify-solo-structure-only / receipts-only / source-scope-only) now also run R1 verification.",
-    "FROZEN_REGISTRY_RECORDS_SHA256 is not independently recomputed against BASE in the supplied proof."
+    "P2_PRE_EXISTING_PHASE_ONLY_PATHS is a same-module constant checked with existsSync now, not git cat-file/show at 4b02f75f. Expanding the list and re-pinning the security-receipt hash of this module reclassifies a new P2 file as pre-existing and defeats predecessor-phase-not-merged.",
+    "The 13 P2-only pre-existing files are not content-frozen. P1 does not authorize them, so edits to pageIrMutation.ts, Workbench.tsx, canvas-contract.mjs, and the rest are P2 work; the gate cannot see them. P2-T01 and P2-T03 can start while verify:plans stays green.",
+    "Shared P1/P2 paths (contracts, pageIrController, releaseLifecycleStore, LifecycleStatus, preview-workbench) are attributed to P1 as soon as they exist. P2 can create or edit the four overlapping expectedAbsent files (store + LifecycleStatus) and the gate will call that predecessor work. That is the only new start path opened by dropping the live-absence check.",
+    "Only two presence tripwires remain: src/lib/candidatePromotion.ts and docs/plans/2026-09-02-release-1-p2-fingerprint-and-lock-order-design.md. That is thinner than the recorded activationPrecondition text (no OBX-P210 child ticket may start).",
+    "implementationAuthorized stays true on the pending P2 record. Any consumer that keys only on that flag treats P2 as live. The gate never queries whether P1 actually merged."
   ],
-  "proofAssessment": "No proof artifacts were supplied. FROZEN_REGISTRY_RECORDS_SHA256, P2 self-hash 716906736fe610373c1f8082f4acf1a6c57d52ccb2242b4ba23c712902b5444f, amendment digest bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e, receipt targetHashes, and authorityManifestWithoutPacketDigest 8bbf07e6de63d9c70234e775ac2eed077e468643346e2bc302cecd0dcdff2f25 are pins in the slice, not recomputed evidence. Negative tests in scripts/verify-plan-authority.node.mjs describe intended fail-closed branches for (1)–(5) but are not execution transcripts. On the text of the slice: first three registry records are appended after, not rewritten; authority-manifest.json and the program ticket manifest keep implementationAuthorized false at top level and on every domain; OBX-AUTH-R1-P2-SOLO-001 has single-file allowedPaths, a closed five-effect set, empty nonWaivableClassesTouched, governance/dependency bindings value-equal to T02, a PENDING predecessorBinding naming OBX-AUTH-R1-P1-SOLO-001 plus P1 allowedPaths plus eight expectedAbsentFiles, the stated P210 activationPrecondition, a 336-hour non-renewable window with effectiveExpiresAt 2026-09-14T13:33:33Z sourced from T01, and a canonical-json-v1 self-hash; verify-r1-phase-authorization.mjs exact-matches and live-hashes those properties; security receipts bind the manifest without /packetDigest and do not hash the T02 receipt.",
-  "capturedAt": "2026-09-02T16:11:26.938Z"
+  "proofAssessment": "validatePredecessorGate PENDING_PREDECESSOR_MERGE now treats expectedAbsentFiles as a recording-time shape check (non-empty strings subset of binding.files) and does not inspect the tree for those paths. P2-only paths are refused only when they are outside predecessor.allowedPaths, outside P2_PRE_EXISTING_PHASE_ONLY_PATHS, and existsSync. The 13-pin is required to be P2-only and present; checkpointCommit must stay null; binding.files must equal the live predecessor allowedPaths; missing/expired/non-authorizing predecessor still fails; OBX-P210-* manifest rows still fail; COMPLETED_VERIFIED is still the hash-binding branch. Tests cover P1-created files passing, candidatePromotion.ts failing, files-list drift, dead/expired predecessor, and a manifest child ticket. They do not prove the 13 existed at 4b02f75f via git, do not exercise the fingerprint design-note tripwire, and the tolerate test would still pass if the pending gate were deleted. Independent of those tests: the 13 pin paths are absent from 4b02f75f..HEAD (unchanged, so they existed at base); the two P2-only new paths are also absent (not created). Registry records are hash-pinned and exact()-matched to PHASES, including expectedAbsentFiles.",
+  "capturedAt": "2026-09-02T19:21:10.392Z"
 }

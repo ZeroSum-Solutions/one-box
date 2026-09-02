@@ -6,15 +6,15 @@
   "amendmentId": "OBX-R1-P1-SOLO-AMENDMENT-001",
   "amendmentHash": "cc4fbde44e5c6e37511ba6b13a2b2f4d583ccefff4aa25adeaf94092683915ce",
   "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
-  "auditedHeadCommit": "528dfd36f31c90673e0a466ca196ffd6311a0b3f",
+  "auditedHeadCommit": "ea2eccba6e3e0f4acba447226b5d96b41e1394f1",
   "requestedModel": "x-ai/grok-4.6",
   "providerReportedModel": "x-ai/grok-4.6",
   "effort": "high",
   "lane": "openrouter-metered",
   "auditScript": "scripts/eval/grok-audit.mjs",
   "rawAuditPath": "docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit-raw.json",
-  "rawAuditSha256": "2c4708efa0bec59e6e74c3d27bcb3414b48cd6011b760f37aa97075a5cedcf49",
-  "diffBytes": 272868,
+  "rawAuditSha256": "ac9479dfd7be0c3b1f6907a5619e7681e3fde9688ee3e884673b67c50870af80",
+  "diffBytes": 278815,
   "reviewedFiles": [
     "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
     "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
@@ -34,12 +34,12 @@
     {
       "path": "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
       "algorithm": "sha256",
-      "digest": "359d965529affd0d5e21e08ded5edc29bcee92a013333c7e857920e44dacc56b"
+      "digest": "f3dfcd0240ad53bb79195d4dd1f9270ad53a554ab2b8598bdce9fa7a7aa3bd14"
     },
     {
       "path": "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
       "algorithm": "sha256",
-      "digest": "b494523aa4bba7fa09966eeefa59d3f4074e897baec1617a52fd30d0db14caf2"
+      "digest": "db6a3142934462ce8fa8d1d8d5be0caca3183e3e0a8a329506c6cb7a7d4f1dd3"
     },
     {
       "path": "docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json",
@@ -84,12 +84,12 @@
     {
       "path": "scripts/verify-plan-authority.node.mjs",
       "algorithm": "sha256",
-      "digest": "cbe797dfb575d0586a6ec24b5289bbf452d19eb9ac7db7ad8883d2f5ee08d516"
+      "digest": "5488f8eb6a53a43cb252926057887ddf52b4c8d5bcc5c71862f8da0ec9bcfad6"
     },
     {
       "path": "scripts/verify-r1-phase-authorization.mjs",
       "algorithm": "sha256",
-      "digest": "361cdc72da8c39f6eb060bfafa7036705c8f678493289198d5374714206b2d70"
+      "digest": "07eefebc9c50f14bacd638f528f11a6158e77c5021738d4b2886c8625b9042d5"
     }
   ],
   "authorityManifestWithoutPacketDigest": {
@@ -118,13 +118,12 @@
   "verdict": "CLEAN",
   "findings": [],
   "residualRisks": [
-    "Frozen first-three byte pin cannot be compared to git show BASE_COMMIT at verify time (copied fixture, no git); a wrong pin that matches the current slice would still pass.",
-    "No source-scope walk of the tree or diff; later P1 work that edits files outside allowedPaths is not caught by this module.",
-    "Effect/forbidden-effect lists are not enforced against actual code.",
-    "Grok receipts are required by the module and tests but are not in the supplied git diff; a clean checkout fails closed if they are absent.",
-    "unavailableControls row bodies and owner-acceptance extra keys are weakly checked; contradiction there is still blocked by pinned independentHumanReview/grants and by receipt target hashes.",
-    "T02 receipt re-pin (four targetHashes) is a follow-up; P1 receipts omit that file and bind authority-manifest.json only via canonical-json-v1 without /packetDigest."
+    "Presence-only enforcement: P2 may edit all 13 P2_PRE_EXISTING_PHASE_ONLY_PATHS and every shared P1/P2 path (contracts, pageIrController, releaseLifecycleStore, LifecycleStatus, preview-workbench) before P1 merges; only new P2-only paths (candidatePromotion.ts and the fingerprint design note) and OBX-P210-* manifest rows are blocked.",
+    "P2_PRE_EXISTING_PHASE_ONLY_PATHS is not proven with git at 4b02f75f—only existsSync now. A later activation-write-set change that adds a path to the list and creates the file in the same change could launder new P2 work as pre-existing.",
+    "Child-ticket refusal is live but inert in the intended workflow: P1/P2 child tickets are kept off docs/tickets/one-box-program/manifest.json, so that control does not constrain actual P2 start.",
+    "COMPLETED_VERIFIED remains untested dead code until PHASES and the P2 record are updated together.",
+    "Tree occupancy uses existsSync rather than the module's symlink-safe lstat/isFile reader; a broken symlink at a new P2-only path would not trip predecessor-phase-not-merged."
   ],
-  "proofAssessment": "No proof artifacts were supplied; assessment is from the diff only. Hash pins (frozen first-three slice, P1 self-hash, amendment/receipt digests, without-packetDigest) are internally consistent with each other and with live-hash checks in scripts/verify-r1-phase-authorization.mjs, but they were not independently recomputed here. New node tests encode fail-closed oracles for (1)-(5) and were not executed in this review.",
-  "capturedAt": "2026-09-02T16:22:26.639Z"
+  "proofAssessment": "validatePredecessorGate no longer treats presence of OBX-AUTH-R1-P1-SOLO-001 allowedPaths (including expectedAbsentFiles) as a pending-gate failure; that is the predecessor doing authorized work. Required refusals are implemented on the live PENDING path: program-manifest children of OBX-P210; P2-only paths not in P2_PRE_EXISTING_PHASE_ONLY_PATHS; that 13-list must be P2-only and currently present; binding.files must equal the live predecessor allowedPaths; pending checkpointCommit must be null; predecessor must be present, unexpired, and implementationAuthorized. COMPLETED_VERIFIED is untouched. P1/P2 registry records still carry expectedAbsentFiles; the first three frozen records are only comma-extended. This does not weaken the recorded boundary relative to the stated presence semantics. The pin list cannot be silently abused without editing the hashed verifier/receipts, and it is self-calibrating against the current tree (omit an existing P2-only path and the gate fails; pin a non-phase-only path and the gate fails). The remaining P2-before-P1-merge escape is outside the stated presence rule: edits to the thirteen pre-existing files and to shared P1/P2 paths are invisible to this gate.",
+  "capturedAt": "2026-09-02T19:15:36.236Z"
 }
