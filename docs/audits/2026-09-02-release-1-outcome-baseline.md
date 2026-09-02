@@ -281,3 +281,67 @@ git log -1 --format='%ad' --date=short                # 2026-09-02
 All eight Release 1 outcomes are **unmeasurable at HEAD**. Per Release 1
 contract §8.1 and gate R1-9, no numeric target may be proposed for any of them
 until its named instrument exists and produces a reproducible baseline.
+
+## Post-integration addendum (wave-0 integration, 2026-09-02)
+
+Everything above was measured on branch `wave-0/eos-003`, whose only change to
+`main` at `4b02f75` is this file. The wave-0 integrator then merged that branch
+with `wave-0/eos-001` and `wave-0/hygiene`, and wave 0 itself edited the ledger
+this record counts. Three corrections follow. None changes a baseline: every
+outcome above is still **Not yet measurable**, and no target is proposed.
+
+### A. Outcome 3's S1 status split is reported wrong
+
+§3 reads "S1 status split: 12 FIXED, 3 OPEN, 2 TRACKED, 2 CONFIRMED". The awk
+quoted immediately below it does not emit that. It emits five keys, and one of
+them is a compound the prose silently folded into `CONFIRMED`:
+
+```
+CONFIRMED 1 / CONFIRMED,nowgated 1 / FIXED 12 / OPEN 3 / TRACKED 2
+```
+
+`CONFIRMED,nowgated` is `ENG-010`'s own status string, not a `CONFIRMED` row.
+Read the instrument's output as it is printed; the prose count of 2 CONFIRMED
+is an unstated normalization.
+
+### B. Wave 0 moved the ledger this record counts
+
+Wave 0 flipped `REPO-002` and `REPO-003` from `OPEN` to `FIXED` (both `S3`) and
+added `REPO-013` (`S1`, `OPEN`, the 2026-09-14 T01/T02 expiry cliff). On the
+integration tree the same two commands print:
+
+```
+$ awk -F'|' '$2 ~ /^ [A-Z0-9]+-[0-9]+ $/ { s=$3; gsub(/[ *]/,"",s); if (s ~ /^S[123]$/) c[s]++ } END { for (k in c) print k, c[k] }' docs/ENGINE-LEDGER.md | sort
+S1 20
+S2 24
+S3 10
+
+$ awk -F'|' '$2 ~ /^ [A-Z0-9]+-[0-9]+ $/ { s=$3; st=$4; gsub(/[ *]/,"",s); gsub(/[ *]/,"",st); if (s=="S1") c[st]++ } END { for (k in c) print k, c[k] }' docs/ENGINE-LEDGER.md | sort
+CONFIRMED 1
+CONFIRMED,nowgated 1
+FIXED 12
+OPEN 4
+TRACKED 2
+```
+
+So §3's adjacent measurable reads, on the integration tree: **54**
+severity-bearing rows, **20** of them `S1`, split as printed above. Outcome 3
+itself is unchanged — the denominator is still zero releases, so no escape rate
+exists either way.
+
+### C. Outcome 4's trailer grep is wider than its claim
+
+§4 says 11 of 74 commits carry a `Co-authored-by: Claude ...` trailer, but the
+quoted command, `git rev-list --count -i --grep='co-authored-by'`, counts any
+co-author trailer. On `main` at `4b02f75` the two happen to agree — the narrow
+grep returns the same number:
+
+```
+$ git rev-list --count -i --grep='^Co-authored-by: Claude' origin/main
+11
+```
+
+The claim stands; the instrument written beside it did not prove it. Use the
+narrow form. The conclusion §4 draws is unaffected, and is the important part:
+the trailer is a lower bound on agent involvement, never a partition of the
+history.
