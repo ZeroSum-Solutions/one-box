@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-26T03:12:27.852Z",
+  "request": {
+    "task": "Architect a default guided non-developer OneBox pipeline view while preserving the existing developer view and controller",
+    "model": "x-ai/grok-4.6",
+    "effort": "high",
+    "base": "HEAD",
+    "head": "e43513363384c3583034c0505c91184535918ef1",
+    "files": [
+      "docs/specs/2026-08-25-guided-pipeline-mode.md"
+    ],
+    "proofs": [
+      "src/lib/contracts.ts",
+      "src/lib/pipeline.ts",
+      "src/lib/referenceStage.ts",
+      "src/app/api/reference/[id]/route.ts",
+      "src/components/RunTimeline.tsx"
+    ],
+    "diffBytes": 28037
+  },
+  "provider": {
+    "id": "xAI",
+    "model": "x-ai/grok-4.6",
+    "usage": {
+      "prompt_tokens": 60182,
+      "completion_tokens": 19405,
+      "total_tokens": 79587,
+      "cost": 0.236602,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 128,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.236602,
+        "upstream_inference_prompt_cost": 0.120172,
+        "upstream_inference_completions_cost": 0.11643
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 17081,
+        "image_tokens": 0,
+        "audio_tokens": 0
+      }
+    }
+  },
+  "audit": {
+    "verdict": "FINDINGS",
+    "findings": [
+      {
+        "severity": "BLOCK",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§7.3 ReferenceSelection union (approx. L256–L280)",
+        "scenario": "An existing run.json has referenceSelection.status=selected with the current untagged shape {selectedId, selectionKind, version, at, note?} and no type field (ReferenceSelectionStateSchema today). Implementing the spec’s discriminated union as written (both arms require type: legacy-single-v1 | ranked-v1) makes RunStateSchema.parse fail. loadRun/resume then cannot read the durable machine, so existing picker runs cannot reconnect, invalidate reference-paused, or finalize the lock.",
+        "remediation": "Keep the on-disk untagged legacy object as a first-class parse arm. Accept z.union([currentSelectionSchema, z.object({type:'legacy-single-v1',...}), rankedV1Schema]). Tag/normalize in memory only inside one server helper; do not require type on historical bytes and do not rewrite run.json on read."
+      },
+      {
+        "severity": "BLOCK",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§5.3–5.4 state-to-surface matrix (approx. L101–L137)",
+        "scenario": "After scanned=done the controller runs stageLockCandidates while stages.locked is still pending and referenceSelection is absent; later it runs stage('locked')/finalizeReferenceLock, stage('synthesized'), and the picker-disabled auto-lock path (referencePickerEnabled default false). None of these states appear in the matrix. The only catch-all is unknown → generic Review required, which would render normal candidate generation / synthesize / auto-lock as a review gate. Separately, guided step 2 'Understanding the leaders' and step 4 'Your design system' are never a Guided surface, so completed research has no authoritative mapping.",
+        "remediation": "Enumerate every current controller combination from executeEvidenceGatedPipeline/runPipeline (scanned done + locked pending/running ± referenceSelection, picker off, locked/synthesized/built failed, evidence draft generation, revision-requested, parked PageIR, cost-cap vs failed-stage precedence). Map each to a named surface and primary action. Define when steps 2 and 4 are current vs collapsed. Limit fail-closed Review required to truly unknown future terminals, not omitted known states."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§7.3 ranked-v1 vs legacy selectedId (approx. L256–L287)",
+        "scenario": "A guided confirm persists {type:'ranked-v1', preferences:[...]} with no selectedId. Unchanged developer/evidence clients and finalizeReferenceLock still parse selection as {selectedId, selectionKind, version, at}. GET /api/reference/:id and POST action=select idempotency (state.selection?.selectedId === input.selectedId) then either throw, show the picker again, or cannot build a lock — violating unchanged developer view and cross-mode resume.",
+        "remediation": "Make ranked-v1 additive: persist preferences plus derived compatibility fields (selectedId/version/selectionKind/note from rank 1). Keep legacy POST {action:'select', selectedId} working. Update only the shared normalizer, replay check, and finalizeReferenceLock to consume ranked form; do not require evidence UI changes to hide the picker."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§7.3 fingerprint/at idempotency (approx. L278–L280)",
+        "scenario": "Client retries the same 1–3 notes/ranks with a new at (or a client-computed fingerprint). Spec stores at on ranked-v1 and treats fingerprint as SHA-256 of the canonical payload, but does not say the server computes it or excludes at/sourceMode. Comparison then 409s a true retry, or a client-supplied fingerprint makes two different payloads look identical.",
+        "remediation": "Server-assign at, checkpointId, sourceMode, and fingerprint. Fingerprint only canonical preferences+overallNote+checkpointId (sorted keys, trimmed notes). Identical retry = 200 if that digest matches; any other payload on a selected checkpoint = 409 with no mutation. Ignore client fingerprint/checkpointId."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§6.2 cardinality persist-complete-set (approx. L166–L172)",
+        "scenario": "More than 4 sites pass eligibility. Spec says persist the complete analyzed set and display top four. ScanResultSchema.competitors.max(4) and stageScan(...slice(0,4)) will throw or drop the tail, so reconnect ranking/cardinality cannot be implemented on the supplied artifact.",
+        "remediation": "Do not overload scan.json. Add an additive analyzed-competitors artifact (or lift max with an explicit schema version) that stores every scored row, ranks, evidence refs, and displayCutoff=4. Keep legacy scan.json ≤4 parsable. Point the guided GET at that artifact."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§6.1–6.2 rubric inputs (approx. L148–L164)",
+        "scenario": "A fixture inverts Yelp/Maps rating and review count but those fields remain on PlaceSchema/CompetitorSchema and are passed into a model scorer. Excluding them only from the numeric total/tie-break does not stop the model from ranking by directory popularity while citing first-party text. The required inverted-Yelp test can pass the formula and still fail the product rule.",
+        "remediation": "Strip rating, userRatingCount, Yelp rank/review/rating, and directory rank from rubric model inputs. Score only crawled first-party text/structure plus persisted citations. Fixture must keep inverted directory fields present on the scan and assert they cannot change eligibility, rank, or tie-break."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§7.4 ReferenceLock preference ledger (approx. L291–L299)",
+        "scenario": "stageLock is specified to produce a ReferenceLock that includes an ordered preference ledger. ReferenceLockSchema today has no such field; making it required breaks parse of existing lock artifacts and in-flight runs. finalizeReferenceLock also currently forces borrowedDetails:[].",
+        "remediation": "Add optional preferenceLedger (default absent/empty) and map ranks 2–3 notes into existing borrowedDetails (max 2). Legacy locks keep parsing. Rank 1 remains primary; notes stay untrusted prose and cannot add competitor IDs/URLs to provenance."
+      },
+      {
+        "severity": "HIGH",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§5.2 / success criteria 7–10 vs referencePickerEnabled",
+        "scenario": "Guided default must collect 1–3 Refero choices, but RunState.referencePickerEnabled defaults false and referenceGateApplies() then auto-locks with no pause. The matrix has no picker-off row, so a first-time guided user never sees Choose your direction and cannot satisfy ranked selection without an unspecified controller flag change.",
+        "remediation": "Explicitly require new guided-eligible runs to set referencePickerEnabled=true (creation-time, immutable like today). Map picker-off/legacy runs to auto-lock surfaces (skip step 3, do not invent a chooser). Do not derive picker enablement from presentation mode."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§6.3 GuidedMarketResearch.status (approx. L188–L193)",
+        "scenario": "scanned failed, cost-cap during scan, or research-disabled empty scan all have to squeeze into researching|ready|unavailable. unavailable collides with missing Maps key and 0 eligible, so the matrix’s Research could not finish / recover action cannot be driven from the typed projection.",
+        "remediation": "Add status values (or a separate error class) for failed, disabled, and degraded-maps. Drive §5.4 surfaces from durable stage status + this projection, not from one overloaded unavailable flag."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "docs/specs/2026-08-25-guided-pipeline-mode.md",
+        "line": "§7.4 vs PAGE_IR_BOUNDS.maxReferenceSources",
+        "scenario": "Ranked 3 preferences must flow into Page IR ReferenceContractV1 selection.sources (exactly one primary, max 3). The spec only describes ReferenceLock. A page-ir-v1 run can lock ranks 2–3 in the ledger and then drop them from IR sources, silently changing design influence by layout authority.",
+        "remediation": "Specify a single normalizer: rank 1 → role primary, ranks 2–3 → supporting, capped at maxReferenceSources=3, used by both finalizeReferenceLock and Page IR contract derivation."
+      }
+    ],
+    "proof_assessment": "The spec correctly keeps one controller, forbids a second pipeline/CSS-only hide, treats SSE as transport, persists rubric scores, requires confirm-before-resume, auth-bounds the research GET, and lists a11y/rollout/tests. It does not close the criterion: the selection union is not parse-compatible with current untagged run.json; the state-to-surface table omits real executeEvidenceGatedPipeline states (candidate generation before locked starts, synthesize, picker-off, failed lock/synth) while fail-closed would mislabel them; ranked-v1 is not additive to selectedId consumers; >4 persistence contradicts ScanResultSchema.max(4); idempotency/fingerprint and Yelp-exclusion are underspecified against the actual schemas and finalizeReferenceLock.",
+    "residual_risks": [
+      "Two-step POST select then POST /api/run remains crash-windowy; reconnect must always resume from status=selected without a second confirm.",
+      "Home passing the event timeline into GuidedPipeline still invites prose parsing unless the guided read-model fetch is mandatory and tests forbid event-card oracles.",
+      "Canonical URL / first-party / social-only eligibility has no deterministic classifier against CompetitorSchema.url+kind, so 0-eligible outcomes may be brittle.",
+      "Evidence-workspace picker and guided chooser can both submit; server 409 must be the only cross-mode lock, including ranked-then-legacy and legacy-then-ranked."
+    ]
+  }
+}

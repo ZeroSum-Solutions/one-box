@@ -135,6 +135,14 @@ npm run test:eval           # offline frozen-comparison harness tests
 npm run eval:baseline:verify # verify frozen brief, rubric, and hashes
 ```
 
+Three acceptance scripts have no `npm run` alias; invoke them with `node`:
+
+```bash
+node scripts/e2e/evidence-review.mjs    # summary, feedback, attachment, a11y matrix
+node scripts/e2e/guided-pipeline.mjs    # guided intake, competitor, and reference flow
+node scripts/smoke/google-maps-live.mjs # one bounded live Places check; needs credentials
+```
+
 Page IR rollout is default-off. Set `ONE_BOX_PAGE_IR_ROLLOUT=1` to select
 `page-ir-v1` for newly created runs. Set `ONE_BOX_PAGE_IR_KILL_SWITCH=1` to
 select `template-v1` for new runs even when rollout is enabled. The decision is
@@ -170,6 +178,19 @@ then requires the same final visual review.
 and each approval advances a persisted workflow gate. `/preview/<id>` serves a
 sandboxed generated site; structured and natural-language edits share the same
 per-run lock, history, validation, and rollback path.
+
+`/evidence/<id>` presents reference selection and each evidence gate as four
+plain-language review answers before sources and technical tables. Their bottom
+decision composers can save a note and up to five private attachments without
+approving or changing the site. A decision with attachments is blocked until
+feedback text can bind those files to the reviewed version; expired sessions
+clear only the stale file claims and preserve the written draft for reselection.
+Each submission has a stable feedback ID: an exact retry replays its receipt,
+while conflicting reuse fails closed. Accepted files move from the bounded
+upload staging area into `sites/<id>/evidence/review-feedback/`; the opaque
+upload session is never persisted in the receipt. Claimed feedback remains for
+the life of the local run and is removed only when that run directory is
+intentionally removed; unclaimed staging still expires after 30 minutes.
 
 The intake keeps attachment, the Phase 1 Website target, research, and paid
 fallback choices inside one composer. The prompt begins at 120px, grows to

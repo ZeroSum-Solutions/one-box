@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { IntakeSchema, type PipelineEvent } from "./contracts";
+import { ARTIFACTS, IntakeSchema, MarketAnalysisSchema, type PipelineEvent } from "./contracts";
 import {
   researchCriteriaForTarget,
   decodeReferoBase64Image,
@@ -11,7 +11,7 @@ import {
   stageScan,
   shouldLoadReferenceDetails,
 } from "./pipeline";
-import { createRun, sitePaths } from "./runstate";
+import { createRun, loadArtifact, sitePaths } from "./runstate";
 import { decorateTargetMarkup } from "./builder";
 import { preflight } from "./preflight";
 import { findCompetitors } from "./tools/maps";
@@ -71,6 +71,9 @@ describe("evidence pipeline research controls", () => {
     const scan = await stageScan(runId, intake, emit);
     const lock = await stageLock(runId, intake, scan, emit, "refero");
     expect(scan).toMatchObject({ competitors: [], commonSections: [], gaps: [] });
+    expect(
+      MarketAnalysisSchema.parse(await loadArtifact(runId, ARTIFACTS.marketAnalysis)),
+    ).toMatchObject({ status: "disabled", competitors: [] });
     expect(lock.primary.referoId).toBe("research-disabled");
     expect(shouldLoadReferenceDetails("refero", lock)).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -110,7 +113,7 @@ describe("evidence pipeline research controls", () => {
     const runId = await createRun();
     runIds.push(runId);
     vi.stubEnv("FIRECRAWL_API_KEY", "test-firecrawl");
-    vi.stubEnv("GOOGLE_MAPS_API_KEY", "");
+    vi.stubEnv("GOOGLE_PLACES_API_KEY", "");
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       data: { web: [{ title: "Local Operator", url: "https://operator.example" }] },
     }), { status: 200, headers: { "Content-Type": "application/json" } }));

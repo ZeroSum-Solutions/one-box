@@ -11,10 +11,13 @@ import {
   isPageIrSourceReviewActive,
   mergeEvidenceWorkspaceResponse,
   pageIrSourceApprovalReady,
+  reviewComposerDecisionBlocked,
+  reviewStageAnswers,
   syncHumanVisualReviewDraft,
   syncPageIrSourceReviewDraft,
   type PageIrSourceReviewView,
 } from "./EvidenceWorkspace";
+import { TokenSpecList } from "./evidence/ArtifactViewers";
 import type { RunState } from "../lib/contracts";
 
 const base = {
@@ -30,6 +33,221 @@ function render(artifact: unknown): string {
 }
 
 describe("EvidenceWorkspace artifact previews", () => {
+  it("answers the review contract for all six evidence stages", () => {
+    const artifacts = [
+      {
+        ...base,
+        artifactType: "ledger",
+        artifact: {
+          projectTarget: "website",
+          businessIntelligence: { kind: "business-intelligence", sources: [], competitors: [], marketExpectations: [], differentiationOpportunities: [], claims: [] },
+          referoDesignEvidence: { kind: "refero-design-evidence", sources: [], references: [], claims: [] },
+          clientEvidence: { sources: [], claims: [], unsupportedUploadIds: [], artifactRelationships: [] },
+        },
+      },
+      { ...base, artifactType: "design-contract", artifact: { title: "Contract", contractPath: "contract.md", sourceLedgerVersion: 1, approvedEvidenceIds: [], exportPaths: [], contractSha256: "a".repeat(64), exportSha256: "b".repeat(64) } },
+      { ...base, artifactType: "token-inventory", artifact: { sourceContractVersion: 1, tokens: [] } },
+      { ...base, artifactType: "tailwind-plan", artifact: { sourceTokenInventoryVersion: 1, themeMappings: [], componentVariants: [], responsiveRules: [] } },
+      { ...base, artifactType: "css-architecture", artifact: { sourceTailwindPlanVersion: 1, cssVariableHierarchy: [], tokenToComponentUsage: {}, justifiedExceptions: [], generatedCssPath: "site.css" } },
+      { ...base, artifactType: "visual-qa", artifact: { sourceCssArchitectureVersion: 1, buildSha256: "c".repeat(64), checks: [] } },
+    ] as unknown as WorkflowArtifactVersion[];
+
+    expect(artifacts.map((artifact) => reviewStageAnswers(artifact, "in-review")))
+      .toHaveLength(6);
+    for (const answers of artifacts.map((artifact) => reviewStageAnswers(artifact, "in-review"))) {
+      expect(answers.deciding).not.toHaveLength(0);
+      expect(answers.learned).not.toHaveLength(0);
+      expect(answers.proposed).not.toHaveLength(0);
+      expect(answers.next).toContain("approve");
+    }
+  });
+
+  it("shows the four plain-language review answers before technical detail", () => {
+    const ledger = {
+      ...base,
+      artifactType: "ledger",
+      artifact: {
+        projectTarget: "website",
+        businessIntelligence: {
+          kind: "business-intelligence",
+          sources: [],
+          competitors: [],
+          marketExpectations: ["People expect clear service details"],
+          differentiationOpportunities: ["Show proof near the contact action"],
+          claims: [],
+        },
+        referoDesignEvidence: {
+          kind: "refero-design-evidence",
+          sources: [],
+          references: [],
+          claims: [],
+        },
+        clientEvidence: {
+          sources: [],
+          claims: [],
+          unsupportedUploadIds: [],
+          artifactRelationships: [],
+        },
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "evidence", artifacts: [ledger] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    const deciding = html.indexOf("What are we deciding?");
+    const learned = html.indexOf("What did OneBox learn?");
+    const proposed = html.indexOf("What does the proposed choice look like?");
+    const next = html.indexOf("What do you need to do next?");
+    const details = html.indexOf("View sources and technical details");
+
+    expect(deciding).toBeGreaterThan(-1);
+    expect(learned).toBeGreaterThan(deciding);
+    expect(proposed).toBeGreaterThan(learned);
+    expect(next).toBeGreaterThan(proposed);
+    expect(details).toBeGreaterThan(next);
+    expect(html).toContain("People expect clear service details");
+    expect(html).not.toContain("Every stage is versioned and must be approved in order.");
+  });
+
+  it("puts one attachment-aware feedback composer and decision controls after reviewed content", () => {
+    const ledger = {
+      ...base,
+      artifactType: "ledger",
+      artifact: {
+        projectTarget: "website",
+        businessIntelligence: {
+          kind: "business-intelligence",
+          sources: [],
+          competitors: [],
+          marketExpectations: [],
+          differentiationOpportunities: [],
+          claims: [],
+        },
+        referoDesignEvidence: {
+          kind: "refero-design-evidence",
+          sources: [],
+          references: [],
+          claims: [],
+        },
+        clientEvidence: {
+          sources: [],
+          claims: [],
+          unsupportedUploadIds: [],
+          artifactRelationships: [],
+        },
+      },
+    };
+    const run = {
+      id: "run-test",
+      createdAt: "2026-08-13T12:00:00.000Z",
+      pipelineVersion: "evidence-gated-v2",
+      stages: {},
+      costUsd: 0,
+      costCapUsd: 3,
+      modelSlugs: {},
+      referenceMode: "none",
+      evidenceWorkflow: { currentStage: "evidence", artifacts: [ledger] },
+    } as unknown as RunState;
+
+    const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
+    const details = html.indexOf("View sources and technical details");
+    const composer = html.indexOf("Add feedback or evidence");
+
+    expect(composer).toBeGreaterThan(details);
+    expect(html.match(/Add feedback or evidence/g)).toHaveLength(1);
+    expect(html).toContain("Drop files here");
+    expect(html).toContain("Attach files");
+    expect(html).toContain("Send feedback");
+    expect(html).toContain("Approve to Continue");
+    expect(html).toContain("Request Changes");
+    expect(html).toContain('aria-live="polite"');
+  });
+
+  it("renders token values as realistic specimens before the technical table", () => {
+    const html = renderToStaticMarkup(
+      <TokenSpecList
+        groups={[
+          {
+            category: "typography",
+            tokens: [
+              { semanticName: "--font-heading", value: "Switzer", usage: "Headings; weights 400, 590", evidenceIds: [] },
+              { semanticName: "--font-editorial", value: "Client Serif", usage: "Editorial accents; weights 400, 700", evidenceIds: [] },
+              { semanticName: "--text-caption", value: "12px", usage: "caption; line-height 1.35", evidenceIds: [] },
+              { semanticName: "--text-body", value: "16px", usage: "body; line-height 1.5", evidenceIds: [] },
+              { semanticName: "--text-heading", value: "32px", usage: "heading; line-height 1.2; tracking -0.02em", evidenceIds: [] },
+            ],
+          },
+          { category: "color", tokens: [
+            { semanticName: "--color-action", value: "#f0c14b", usage: "Primary action; Never: body text", evidenceIds: [] },
+            { semanticName: "--color-surface", value: "#151515", usage: "Card surface", evidenceIds: [] },
+          ] },
+          { category: "spacing", tokens: [{ semanticName: "--space-lg", value: "24px", usage: "Section gap", evidenceIds: [] }] },
+          { category: "radius", tokens: [{ semanticName: "--radius-card", value: "12px", usage: "Cards", evidenceIds: [] }] },
+          { category: "border", tokens: [{ semanticName: "--border-card", value: "2px solid #808080", usage: "Cards", evidenceIds: [] }] },
+          { category: "shadow", tokens: [{ semanticName: "--shadow-card", value: "0 4px 16px #00000040", usage: "Cards", evidenceIds: [] }] },
+          { category: "layer", tokens: [
+            { semanticName: "--layer-base", value: "0", usage: "base stacking layer", evidenceIds: [] },
+            { semanticName: "--layer-overlay", value: "40", usage: "overlay stacking layer", evidenceIds: [] },
+          ] },
+          { category: "component-state", tokens: [
+            { semanticName: "--state-button-hover", value: "quiet raised border", usage: "button hover", evidenceIds: [] },
+            { semanticName: "--state-button-focus", value: "2px solid #ffffff", usage: "button focus", evidenceIds: [] },
+            { semanticName: "--state-button-selected", value: "paper text", usage: "button selected", evidenceIds: [] },
+            { semanticName: "--state-button-disabled", value: "muted", usage: "button disabled", evidenceIds: [] },
+            { semanticName: "--state-button-error", value: "coral edge", usage: "button error", evidenceIds: [] },
+          ] },
+        ]}
+      />
+    );
+
+    expect(html).toContain("token-specimen-gallery");
+    expect(html).toContain("The quick brown fox");
+    expect(html).toContain("font-family:var(--font-body)");
+    expect(html).toContain("font-family:Client Serif");
+    expect(html).toContain("Client Serif");
+    expect(html).toContain("Uses this family and its declared weights when available; otherwise shows a browser fallback or synthesized weight.");
+    expect(html).toContain("Loaded in this reviewer at every declared weight.");
+    expect(html).toContain("font-weight:590");
+    expect(html).toContain("line-height:1.2");
+    expect(html).toContain("letter-spacing:-0.02em");
+    expect(html).toContain("font-weight:400");
+    expect(html).toContain("line-height:1.5");
+    expect(html).toContain("font-size:12px");
+    expect(html).toContain("gap:24px");
+    expect(html).toContain("Primary action");
+    expect(html).toContain("--color-action");
+    expect(html).toContain("border-radius:12px");
+    expect(html).toContain("border:2px solid #808080");
+    expect(html).toContain("box-shadow:0 4px 16px #00000040");
+    expect(html).toContain("z-index:0");
+    expect(html).toContain("z-index:40");
+    expect(html).toContain("--layer-overlay");
+    expect(html).toContain("Hover");
+    expect(html).toContain("Focus");
+    expect(html).toContain("Selected");
+    expect(html).toContain("Disabled");
+    expect(html).toContain("Error");
+    expect(html.indexOf("quiet raised border")).toBeLessThan(html.indexOf("spec-table"));
+    expect(html.indexOf("coral edge")).toBeLessThan(html.indexOf("spec-table"));
+    expect(html.indexOf("token-specimen-gallery")).toBeLessThan(html.indexOf("spec-table"));
+  });
+
+  it("blocks a decision from clearing attachments until feedback can bind them", () => {
+    expect(reviewComposerDecisionBlocked(1, "")).toBe(true);
+    expect(reviewComposerDecisionBlocked(1, "  ")).toBe(true);
+    expect(reviewComposerDecisionBlocked(1, "Use this logo")).toBe(false);
+    expect(reviewComposerDecisionBlocked(0, "")).toBe(false);
+  });
+
   it("renders explicit empty states when a research group collected no evidence", () => {
     const ledger = render({
       ...base,
@@ -270,7 +488,7 @@ describe("EvidenceWorkspace artifact previews", () => {
       evidenceWorkflow: { currentStage: "build", artifacts: [qa] },
     } as unknown as RunState;
     const html = renderToStaticMarkup(<EvidenceWorkspace initialRun={run} />);
-    expect(html).toContain("Submit for review");
+    expect(html).toContain("Submit for Review");
     expect(html).not.toContain("Approve &amp; continue");
     // The gate rail must mirror the panel's real approval state, not a
     // hardcoded "in review" for whichever gate happens to be current.
@@ -347,7 +565,9 @@ describe("EvidenceWorkspace artifact previews", () => {
     expect(html).not.toContain('value="design-and-references"');
     expect(html).toContain("Open build preview");
     expect(html).toContain("I attest that I am the human reviewer");
-    expect(html).not.toContain(">Approve<");
+    expect(html).toContain("Approve to Continue");
+    expect(html).toContain("Request Changes");
+    expect(html).not.toContain("Approve &amp; continue");
   });
 
   it("keeps a completed human review readable in visual-QA history", () => {

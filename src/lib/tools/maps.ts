@@ -23,48 +23,14 @@ import {
   postJson,
   requireFirecrawlKey,
 } from "./firecrawl";
-import { findPlace, mapsConfigured, mapsSearchUrl } from "./places";
+import { findPlace, placesConfigured, mapsSearchUrl } from "./places";
 import type { CrawlProvenance, Place } from "../contracts";
+import { isBlockedMarketHost } from "../marketSourcePolicy";
 
 const RESULTS_PER_QUERY = 10;
-const MAX_COMPETITORS = 4;
+const MAX_COMPETITORS = 8;
 /** Firecrawl credit cost per search call, tracked into the run's costUsd. */
 const FIRECRAWL_SEARCH_COST_USD = FIRECRAWL_CALL_COST_USD;
-
-// Directories/aggregators are structure noise, not real competitors — never
-// count as a market signal, never worth crawling for design reference.
-const DIRECTORY_DOMAINS = [
-  "yelp.com",
-  "angi.com",
-  "homeadvisor.com",
-  "thumbtack.com",
-  "facebook.com",
-  "instagram.com",
-  "bbb.org",
-  "mapquest.com",
-  "reddit.com",
-  "wikipedia.org",
-  "yellowpages.com",
-  "nextdoor.com",
-  "tripadvisor.com",
-  "opentable.com",
-  "doordash.com",
-  "ubereats.com",
-  "grubhub.com",
-  "google.com",
-  "youtube.com",
-  "pinterest.com",
-  "tiktok.com",
-  // job boards rank high for "<trade> <city>" queries but are never competitors
-  "indeed.com",
-  "ziprecruiter.com",
-  "glassdoor.com",
-  "linkedin.com",
-  "monster.com",
-  "simplyhired.com",
-  "careerbuilder.com",
-  "craigslist.org",
-];
 
 // Media/editorial publishers. They rank at the top for "best <trade> <city>"
 // and are never the competitor — they're writing ABOUT the competitors.
@@ -244,10 +210,6 @@ function registrableDomain(rawUrl: string): string | undefined {
   }
 }
 
-function isDirectoryDomain(domain: string): boolean {
-  return DIRECTORY_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`));
-}
-
 /**
  * Google Places verification for one candidate. A match means Google knows a
  * local business at this exact domain — the strongest "real operator" signal
@@ -312,7 +274,7 @@ export async function findCompetitors(
         if (!r.url) continue;
         const domain = registrableDomain(r.url);
         if (!domain) continue;
-        if (isDirectoryDomain(domain)) {
+      if (isBlockedMarketHost(domain)) {
           drop(r.url, r.title, `${domain} is a directory/aggregator`);
           continue;
         }
@@ -352,7 +314,7 @@ export async function findCompetitors(
   // Places verification runs only when the Maps lane is wired. Concurrent —
   // these are independent lookups and each is a network round-trip.
   let mapsNote: string | undefined;
-  if (mapsConfigured() && competitors.length > 0) {
+  if (placesConfigured() && competitors.length > 0) {
     const verdicts = await Promise.all(
       competitors.map((c) => verifyWithPlaces(c, opts.location, runId))
     );
@@ -363,8 +325,8 @@ export async function findCompetitors(
       competitors[i].kind = "business";
       competitors[i].kindReason = `Google Places confirms a local business at this domain (${v.place.address})`;
     });
-  } else if (!mapsConfigured()) {
-    mapsNote = "GOOGLE_MAPS_API_KEY is not set — map embed and Places verification skipped";
+  } else if (!placesConfigured()) {
+    mapsNote = "GOOGLE_PLACES_API_KEY is not set — Places verification skipped; map embed is configured independently";
   }
 
   return { competitors, excluded, mapsNote };

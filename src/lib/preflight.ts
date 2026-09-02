@@ -76,11 +76,28 @@ export function preflight(
       fix: "open /api/refero/connect in ONE BOX and complete browser authorization",
     });
   }
-  if (!process.env.GOOGLE_MAPS_API_KEY) {
+  if (!process.env.GOOGLE_PLACES_API_KEY) {
+    advisory.push({
+      key: "GOOGLE_PLACES_API_KEY",
+      message: "Google Places competitor verification",
+      fix: "add the restricted server-side Places key to ZS Vault",
+    });
+  }
+  if (!process.env.GOOGLE_MAPS_EMBED_API_KEY) {
+    advisory.push({
+      key: "GOOGLE_MAPS_EMBED_API_KEY",
+      message: "Google Maps market-map display",
+      fix: "add the local-origin-restricted Maps Embed key to ZS Vault",
+    });
+  }
+  if (
+    process.env.GOOGLE_MAPS_API_KEY &&
+    (!process.env.GOOGLE_PLACES_API_KEY || !process.env.GOOGLE_MAPS_EMBED_API_KEY)
+  ) {
     advisory.push({
       key: "GOOGLE_MAPS_API_KEY",
-      message: "map embed + Google Places competitor verification",
-      fix: "needs a Maps Platform key — the vault's google_api_key is AI-Studio-only and Places rejects it",
+      message: "legacy mixed-use Maps credential is ignored",
+      fix: "split it into the Places and Embed Vault entries",
     });
   }
 

@@ -8,6 +8,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import {
   ARTIFACTS,
+  CompetitorSchema,
   CopyDocSchema,
   DesignTokensSchema,
   FORBIDDEN_CONTEXTS,
@@ -48,6 +49,7 @@ import {
   startStage,
   finishStage,
   failStage,
+  assertVisualQaApprovedForBuild,
   stageDone,
   appendEvent,
   readEvents,
@@ -55,6 +57,13 @@ import {
   withRunTransaction,
 } from "./runstate";
 import { generateJson } from "./openrouter";
+import {
+  analyzeMarketCompetitor,
+  eligibleMarketCompetitors,
+  marketAnalysisArtifact,
+  projectLegacyMarketCompetitors,
+  rankMarketCompetitors,
+} from "./marketAnalysis";
 import {
   finalizeReferenceLock,
   referenceGateApplies,
@@ -68,7 +77,8 @@ import {
 import { ConfigError, preflight } from "./preflight";
 import { findCompetitors } from "./tools/maps";
 import { fetchYelpMarket } from "./tools/yelp";
-import { embedSearchUrl, mapsSearchUrl } from "./tools/places";
+import { embedSearchQuery, MapEmbedQuerySchema } from "./tools/mapEmbed";
+import { mapsSearchUrl } from "./tools/places";
 import { crawlSite } from "./tools/crawl";
 import { capture } from "./tools/capture";
 import {
@@ -91,6 +101,7 @@ import {
   inspectCandidate,
   inspectPromotedLiveBundle,
   loadCandidateRecoveryRecord,
+  promoteCandidate,
   recoverCandidateState,
   type CandidateInspection,
 } from "./candidate";
@@ -98,7 +109,10 @@ import {
   loadPageIrSourceBundleForReview,
   loadPersistedPageIr,
 } from "./pageIrPipeline";
-import { executePageIrBuildController } from "./pageIrController";
+import {
+  executePageIrBuildController,
+  materializePromotedTemplateVisualQa,
+} from "./pageIrController";
 import { assertWebsiteProductionRun } from "./productionTarget";
 import { enforceTemplateTextContrast, reconcileTemplateRoles } from "./templateRoles";
 import {
@@ -109,7 +123,6 @@ import {
   buildTokenInventory,
   renderTailwindThemeCss,
   tailwindComponentUtilityClasses,
-  runThreeWidthVisualQa,
   materializeDesignContractArtifacts,
   preferredReferenceEvidenceImage,
 } from "./evidence";
@@ -449,15 +462,30 @@ function replayEventKey(event: PipelineEvent): string {
   return JSON.stringify(event);
 }
 
+function mapSafeReplayEvent(event: PipelineEvent): PipelineEvent {
+  if (event.type !== "card" || !event.map) return event;
+  const parsedQuery = MapEmbedQuerySchema.safeParse(event.map.embedQuery);
+  return {
+    ...event,
+    map: {
+      ...(parsedQuery.success ? { embedQuery: parsedQuery.data } : {}),
+      fallbackUrl: event.map.fallbackUrl,
+      pins: event.map.pins,
+      ...(event.map.note !== undefined ? { note: event.map.note } : {}),
+    },
+  };
+}
+
 /** events.jsonl remains the complete audit record. Reconnect consumers need a
  * current journey instead: one copy of each narrative card and only the latest
  * terminal outcome, so an old repaired error never masquerades as current. */
 export function projectPipelineReplayEvents(
   events: PipelineEvent[]
 ): PipelineEvent[] {
+  const replayEvents = events.map(mapSafeReplayEvent);
   let latestTerminalIndex = -1;
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
+  for (let index = replayEvents.length - 1; index >= 0; index -= 1) {
+    const event = replayEvents[index];
     if (
       event.type === "paused" ||
       event.type === "page-ir-source-paused" ||
@@ -468,7 +496,7 @@ export function projectPipelineReplayEvents(
       break;
     }
   }
-  const onlyObservabilityAfterTerminal = latestTerminalIndex >= 0 && events
+  const onlyObservabilityAfterTerminal = latestTerminalIndex >= 0 && replayEvents
     .slice(latestTerminalIndex + 1)
     .every(
       (event) =>
@@ -478,13 +506,13 @@ export function projectPipelineReplayEvents(
         event.type === "cost",
     );
   if (
-    latestTerminalIndex !== events.length - 1 &&
+    latestTerminalIndex !== replayEvents.length - 1 &&
     !onlyObservabilityAfterTerminal
   ) {
     latestTerminalIndex = -1;
   }
   const seenCards = new Set<string>();
-  return events.filter((event, index) => {
+  return replayEvents.filter((event, index) => {
     if (
       event.type === "paused" ||
       event.type === "page-ir-source-paused" ||
@@ -840,10 +868,13 @@ export async function runPipeline(
       }
     }
   }
-  const candidateAwaitingPromotion =
+  const templateCandidateCanContinue =
+    run.pipelineVersion === "evidence-gated-v2" &&
     run.layoutAuthority === "template-v1" &&
+    run.evidenceWorkflow.currentStage === "build" &&
+    run.stages.built.status === "done" &&
     candidate.status === "present" &&
-    candidate.provenance.state === "promotable";
+    ["promotable", "promoted"].includes(candidate.provenance.state);
   const completedRepairStillFailed =
     run.layoutAuthority === "template-v1" &&
     candidate.status === "present" &&
@@ -975,13 +1006,14 @@ export async function runPipeline(
     return;
   }
 
-  if (candidateAwaitingPromotion || completedRepairStillFailed) {
-    replayHistory(completedRepairStillFailed);
+  if (completedRepairStillFailed) {
+    replayHistory(true);
     emit({ type: "cost", usd: run.costUsd });
     return;
   }
 
   if (
+    !templateCandidateCanContinue &&
     replayedPauseIsCurrent(history, {
       id: run.id,
       pipelineVersion: run.pipelineVersion,
@@ -1015,7 +1047,7 @@ export async function runPipeline(
   // UI recovers from a dropped stream ("refresh — the run resumes"), so an
   // over-cap run would re-run the failing stage and spend MORE on every
   // reload. Observed live in HOmEC9VCJ9Ri: $0.232 → $0.264 on one reconnect.
-  if (run.costUsd > run.costCapUsd) {
+  if (run.costUsd > run.costCapUsd && !templateCandidateCanContinue) {
     replayHistory(false);
     emit({ type: "cost", usd: run.costUsd });
     const error: PipelineEvent = {
@@ -1179,6 +1211,110 @@ export async function executePageIrEvidenceBuildIfSelected(
   return true;
 }
 
+interface TemplateBuildContinuationDependencies {
+  inspectCandidate: typeof inspectCandidate;
+  promoteCandidate: typeof promoteCandidate;
+  materializePromotedTemplateVisualQa: typeof materializePromotedTemplateVisualQa;
+  inspectPromotedLiveBundle: typeof inspectPromotedLiveBundle;
+  loadRun: typeof loadRun;
+  buildRunProvenance: typeof buildRunProvenance;
+  assertVisualQaApprovedForBuild: typeof assertVisualQaApprovedForBuild;
+}
+
+const defaultTemplateBuildContinuationDependencies: TemplateBuildContinuationDependencies = {
+  inspectCandidate,
+  promoteCandidate,
+  materializePromotedTemplateVisualQa,
+  inspectPromotedLiveBundle,
+  loadRun,
+  buildRunProvenance,
+  assertVisualQaApprovedForBuild,
+};
+
+/** Complete the local, non-provider continuation that follows a successful
+ * template candidate gate run. Promotion is atomic; visual QA remains a human
+ * review boundary, so this always emits either a pause or a true completion. */
+export async function executeTemplateEvidenceBuildContinuation(
+  authority: "page-ir-v1" | "template-v1",
+  runId: string,
+  emit: Emit,
+  dependencies: TemplateBuildContinuationDependencies =
+    defaultTemplateBuildContinuationDependencies,
+): Promise<boolean> {
+  if (authority !== "template-v1") return false;
+
+  const candidate = await dependencies.inspectCandidate(runId);
+  if (candidate.status !== "present") {
+    throw new Error("template build continuation requires a candidate");
+  }
+  if (candidate.provenance.state === "promotable") {
+    try {
+      const promoted = await dependencies.promoteCandidate(runId);
+      emit({
+        type: "card",
+        stage: "built",
+        title: "Candidate promoted",
+        body: `The gated build is now the local preview (build ${promoted.buildSha256.slice(0, 12)}).`,
+      });
+    } catch (error) {
+      emit(lifecycleEvent(
+        "promotion-failure",
+        error instanceof Error ? error.message : String(error),
+        { layoutAuthority: "template-v1" },
+      ));
+      throw error;
+    }
+  } else if (candidate.provenance.state !== "promoted") {
+    throw new Error(
+      `template build continuation cannot resume candidate state ${candidate.provenance.state}`,
+    );
+  }
+
+  const visualQa = await dependencies.materializePromotedTemplateVisualQa(runId);
+  const [run, live] = await Promise.all([
+    dependencies.loadRun(runId),
+    dependencies.inspectPromotedLiveBundle(runId),
+  ]);
+  if (
+    live.status !== "present" ||
+    live.provenance.layoutAuthority !== "template-v1" ||
+    live.provenance.state !== "promoted" ||
+    live.provenance.promotedBuildSha256 !== live.manifest.buildSha256 ||
+    visualQa.artifact.buildSha256 !== live.manifest.buildSha256
+  ) {
+    throw new Error("exact promoted template live bundle is not valid");
+  }
+
+  const approvalState = artifactApprovalState(visualQa);
+  const visualReview =
+    approvalState === "approved"
+      ? visualQa.approvalTransitions.at(-1)?.humanVisualReview
+      : undefined;
+  if (approvalState === "approved") {
+    dependencies.assertVisualQaApprovedForBuild(
+      run,
+      live.manifest.buildSha256,
+    );
+  }
+  emit({
+    type: "provenance",
+    stage: "built",
+    provenance: dependencies.buildRunProvenance(
+      run,
+      live.provenance,
+      visualReview,
+    ),
+  });
+  emit({ type: "cost", usd: run.costUsd });
+
+  if (approvalState === "approved") {
+    emit({ type: "complete", runId, previewUrl: `/preview/${runId}` });
+  } else {
+    pauseForApproval(runId, "build", emit);
+  }
+  return true;
+}
+
 function latestWorkflowArtifact<T extends WorkflowArtifactType>(
   run: Awaited<ReturnType<typeof loadRun>>,
   artifactType: T
@@ -1198,7 +1334,20 @@ function latestWorkflowArtifact<T extends WorkflowArtifactType>(
 async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
   const intake = (await loadArtifact(runId, ARTIFACTS.intake)) as Intake;
   if (!intake) throw new Error("intake artifact missing — run /api/chat first");
-  const mode = (await loadRun(runId)).referenceMode;
+  const initialRun = await loadRun(runId);
+  const mode = initialRun.referenceMode;
+  if (
+    initialRun.layoutAuthority === "template-v1" &&
+    initialRun.evidenceWorkflow.currentStage === "build" &&
+    initialRun.stages.built.status === "done"
+  ) {
+    await executeTemplateEvidenceBuildContinuation(
+      initialRun.layoutAuthority,
+      runId,
+      emit,
+    );
+    return;
+  }
   const uploadContext = await buildRunUploadContext(runId, intake.uploads);
 
   const pre = pipelinePreflight(mode, intake);
@@ -1264,13 +1413,6 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
     }
     const run = await loadRun(runId);
     const workflowStage = run.evidenceWorkflow.currentStage;
-    if (
-      workflowStage === "build" &&
-      run.stages.built.status === "done" &&
-      assertBuiltCandidateParked(await inspectCandidate(runId))
-    ) {
-      return;
-    }
     const expectedType = EVIDENCE_STAGE_ARTIFACT[workflowStage];
     const existing = latestWorkflowArtifact(run, expectedType);
 
@@ -1494,20 +1636,16 @@ async function executeEvidenceGatedPipeline(runId: string, emit: Emit) {
         tailwindComponentUtilityClasses(approvedPlan.artifact)
       )
     );
-    if (assertBuiltCandidateParked(await inspectCandidate(runId))) {
+    if (
+      await executeTemplateEvidenceBuildContinuation(
+        run.layoutAuthority,
+        runId,
+        emit,
+      )
+    ) {
       return;
     }
-    const qa = await runThreeWidthVisualQa(
-      runId,
-      sitePaths(runId).site,
-      approvedArchitecture.version
-    );
-    await saveArtifact(runId, ARTIFACTS.visualQa, qa);
-    await saveEvidenceArtifactVersion(runId, {
-      artifactType: "visual-qa",
-      artifact: qa,
-    });
-    pauseForApproval(runId, workflowStage, emit);
+    throw new Error("template build continuation was not selected");
   } catch (error) {
     emit({
       type: "error",
@@ -1570,6 +1708,11 @@ export async function stageScan(
       excluded: [],
     });
     await saveArtifact(runId, ARTIFACTS.scan, scan);
+    await saveArtifact(
+      runId,
+      ARTIFACTS.marketAnalysis,
+      marketAnalysisArtifact({ status: "disabled" }),
+    );
     emit({
       type: "card",
       stage: "scanned",
@@ -1621,7 +1764,7 @@ export async function stageScan(
       .filter((c) => c.place)
       .map((c) => ({ name: c.place!.name, lat: c.place!.lat, lng: c.place!.lng }));
     const joinedMap: CardMap = {
-      embedUrl: embedSearchUrl(marketQuery),
+      embedQuery: embedSearchQuery(marketQuery),
       fallbackUrl: mapsSearchUrl(marketQuery),
       pins: joinedPins,
       note:
@@ -1644,6 +1787,11 @@ export async function stageScan(
       yelp,
     });
     await saveArtifact(runId, ARTIFACTS.scan, scan);
+    await saveArtifact(
+      runId,
+      ARTIFACTS.marketAnalysis,
+      marketAnalysisArtifact({ status: "ready" }),
+    );
     emit({
       type: "card",
       stage: "scanned",
@@ -1652,6 +1800,22 @@ export async function stageScan(
     });
     return scan;
   }
+  const analysisCandidates = found.slice(0, 4);
+
+  // Persist the discovery roster before crawling or model analysis begins.
+  // The guided read model polls this durable snapshot, so real competitor
+  // links can appear while the slower evidence work is still in flight.
+  await saveArtifact(
+    runId,
+    ARTIFACTS.scan,
+    ScanResultSchema.parse({
+      competitors: analysisCandidates,
+      commonSections: [],
+      gaps: [],
+      excluded,
+      yelp,
+    }),
+  );
 
   // Every competitor is clickable from the moment it is found — its own site
   // and its Google Maps listing. This card is what proves (or disproves) that
@@ -1701,9 +1865,9 @@ export async function stageScan(
 
   const competitors: typeof found = [];
   // concurrency 2 (audit A5) — simple pair batching
-  for (let i = 0; i < found.length; i += 2) {
+  for (let i = 0; i < analysisCandidates.length; i += 2) {
     const batch = await Promise.all(
-      found.slice(i, i + 2).map(async (c) => {
+      analysisCandidates.slice(i, i + 2).map(async (c) => {
         const dir = path.join(/*turbopackIgnore: true*/ paths.research, domainSlug(c.url));
         await fs.mkdir(dir, { recursive: true });
         const crawl = await crawlSite(
@@ -1734,6 +1898,26 @@ export async function stageScan(
         };
       })
     );
+    competitors.push(...batch);
+    const capturedByUrl = new Map(competitors.map((competitor) => [competitor.url, competitor]));
+    await saveArtifact(
+      runId,
+      ARTIFACTS.scan,
+      ScanResultSchema.parse({
+        competitors: analysisCandidates.map((competitor) => {
+          const captured = capturedByUrl.get(competitor.url) ?? competitor;
+          return CompetitorSchema.parse({
+            ...captured,
+            markdownPath: captured.markdownPath ? rel(captured.markdownPath) : undefined,
+            screenshotPaths: (captured.screenshotPaths ?? []).map(rel),
+          });
+        }),
+        commonSections: [],
+        gaps: [],
+        excluded,
+        yelp,
+      }),
+    );
     // Report each pair as it lands. Before this, the crawl+screenshot window
     // (~30s) emitted nothing at all and the UI looked frozen.
     for (const c of batch) {
@@ -1751,40 +1935,69 @@ export async function stageScan(
         })),
       });
     }
-    competitors.push(...batch);
   }
 
-  // Structure inventory — one bulk-model call per competitor. These are
-  // INDEPENDENT, so they run concurrently: serially they were ~110s of the
-  // scan's 147s (measured, run 2KJ9KwYM4SeA) with no UI output the whole time.
-  // Each task emits its own card the moment it finishes.
-  await Promise.all(
-    competitors.map(async (c) => {
-      if (!c.markdownPath) return;
-      const md = (await fs.readFile(c.markdownPath, "utf8")).slice(0, 12000);
-      const out = await generateJson(
-        runId,
-        MODELS.bulk,
-        z.object({ sections: z.array(z.string()), notes: z.string() }),
-        `Analyze this ${targetCriteria.outputLabel} reference. List its primary sections or screens in order (short kebab-case names). Then one sentence on what it does well or badly for ${targetCriteria.researchLens}.\n\nSITE MARKDOWN:\n${md}`
-      );
-      Object.assign(c, { structure: out.sections, notes: out.notes });
-      emit({
-        type: "card",
-        stage: "scanned",
-        title: `Decoded ${c.name}`,
-        body: `${out.sections.length} sections: ${out.sections.join(", ")}\n${out.notes}`,
-        links: [
-          {
-            label: "Crawled page text",
-            href: `/api/sites/${runId}/${rel(c.markdownPath!)}`,
-            kind: "artifact",
-            sub: rel(c.markdownPath!),
-          },
-        ],
-      });
-    })
+  // The ranking call sees only verified business sites and their first-party
+  // crawl bytes. Directory popularity (including Yelp and Places ratings) is
+  // deliberately absent from this boundary.
+  const normalizedCompetitors = competitors.map((competitor) =>
+    CompetitorSchema.parse({
+      ...competitor,
+      markdownPath: competitor.markdownPath
+        ? rel(competitor.markdownPath)
+        : undefined,
+      screenshotPaths: (competitor.screenshotPaths ?? []).map(rel),
+    }),
   );
+  const eligible = eligibleMarketCompetitors(normalizedCompetitors);
+  const analyzed = (
+    await Promise.all(
+      eligible.map(async (competitor) => {
+        const source = competitors.find((entry) => entry.url === competitor.url);
+        if (!source?.markdownPath) return undefined;
+        try {
+          const decoded = await analyzeMarketCompetitor({
+            runId,
+            competitor,
+            markdown: await fs.readFile(source.markdownPath, "utf8"),
+            market: { category: intake.category, location: intake.location },
+            generate: generateJson,
+          });
+          Object.assign(source, {
+            structure: decoded.sections,
+            notes: decoded.notes,
+          });
+          emit({
+            type: "card",
+            stage: "scanned",
+            title: `Decoded ${source.name}`,
+            body: `${decoded.sections.length} sections: ${decoded.sections.join(", ")}\n${decoded.notes}`,
+            links: [
+              {
+                label: "Crawled page text",
+                href: `/api/sites/${runId}/${rel(source.markdownPath)}`,
+                kind: "artifact",
+                sub: rel(source.markdownPath),
+              },
+            ],
+          });
+          return decoded.analysis;
+        } catch (error) {
+          emit({
+            type: "card",
+            stage: "scanned",
+            title: `Analysis unavailable for ${competitor.name}`,
+            body:
+              error instanceof Error
+                ? error.message
+                : "The structured analysis response was invalid.",
+          });
+          return undefined;
+        }
+      }),
+    )
+  ).filter((entry) => entry !== undefined);
+  const ranked = rankMarketCompetitors(analyzed);
 
   emit({
     type: "card",
@@ -1793,17 +2006,59 @@ export async function stageScan(
     body: "Comparing every competitor's structure to find table stakes and gaps…",
   });
 
-  const agg = await generateJson(
+  const agg = ranked.length
+    ? await generateJson(
+        runId,
+        MODELS.orchestrator,
+        z.object({ commonSections: z.array(z.string()), gaps: z.array(z.string()) }),
+        `Competitor ${targetCriteria.outputLabel} inventories for ${intake.category} in ${intake.location}; evaluate ${targetCriteria.researchLens}:\n${ranked
+          .map((entry) => {
+            const competitor = competitors.find((candidate) => candidate.url === entry.url);
+            return `${entry.name}: ${(competitor?.structure ?? []).join(", ")}`;
+          })
+          .join("\n")}\n\nReturn commonSections (the structural table stakes, ordered) and gaps (what nobody does well — opportunities). Structure signal only; style is decided elsewhere.`
+      )
+    : { commonSections: [], gaps: [] };
+
+  await saveArtifact(
     runId,
-    MODELS.orchestrator,
-    z.object({ commonSections: z.array(z.string()), gaps: z.array(z.string()) }),
-    `Competitor ${targetCriteria.outputLabel} inventories for ${intake.category} in ${intake.location}; evaluate ${targetCriteria.researchLens}:\n${competitors
-      .map((c) => `${c.name}: ${(c.structure ?? []).join(", ")}`)
-      .join("\n")}\n\nReturn commonSections (the structural table stakes, ordered) and gaps (what nobody does well — opportunities). Structure signal only; style is decided elsewhere.`
+    ARTIFACTS.marketAnalysis,
+    marketAnalysisArtifact({
+      status: "ready",
+      competitors: ranked,
+      commonPatterns: agg.commonSections,
+      gaps: agg.gaps,
+    }),
   );
 
+  const rankedCompetitors = projectLegacyMarketCompetitors(
+    ranked,
+    competitors.map((competitor) => CompetitorSchema.parse(competitor)),
+  );
+  const rosterUrlKey = (rawUrl: string) => {
+    try {
+      const url = new URL(rawUrl);
+      url.hash = "";
+      url.search = "";
+      if (url.pathname !== "/") url.pathname = url.pathname.replace(/\/+$/, "");
+      return url.toString();
+    } catch {
+      return rawUrl;
+    }
+  };
+  const rankedUrls = new Set(rankedCompetitors.map((competitor) => rosterUrlKey(competitor.url)));
+  const durableCompetitors = [
+    ...rankedCompetitors,
+    ...eligible.filter(
+      (competitor) =>
+        competitor.crawl?.outcome === "succeeded" &&
+        Boolean(competitor.markdownPath) &&
+        !rankedUrls.has(rosterUrlKey(competitor.url)),
+    ),
+  ].slice(0, 4);
+
   const scan: ScanResult = ScanResultSchema.parse({
-    competitors: competitors.slice(0, 4),
+    competitors: durableCompetitors,
     commonSections: agg.commonSections,
     gaps: agg.gaps,
     excluded,
@@ -1860,7 +2115,7 @@ export async function stageScan(
     map: mapJoinedToRoster
       ? undefined
       : {
-          embedUrl: embedSearchUrl(marketQuery),
+          embedQuery: embedSearchQuery(marketQuery),
           fallbackUrl: mapsSearchUrl(marketQuery),
           pins: scan.competitors
             .filter((c) => c.place)

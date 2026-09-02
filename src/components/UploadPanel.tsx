@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import type { UploadMetadata } from "@/lib/contracts";
 import {
   MAX_UPLOAD_BYTES,
@@ -18,6 +18,7 @@ interface UploadPanelProps {
   onExternalSessionErrorClear?: () => void;
   disabled?: boolean;
   compact?: boolean;
+  review?: boolean;
 }
 
 interface UploadResponse {
@@ -42,6 +43,7 @@ export function UploadPanel({
   onExternalSessionErrorClear,
   disabled = false,
   compact = false,
+  review = false,
 }: UploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -49,6 +51,7 @@ export function UploadPanel({
   const [failedFiles, setFailedFiles] = useState<File[]>([]);
   const [failedRequestId, setFailedRequestId] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const addFilesDisabled =
     disabled || isUploading || uploads.length >= MAX_UPLOAD_FILES;
   const externalExpiryActive = Boolean(
@@ -185,6 +188,14 @@ export function UploadPanel({
     await uploadFiles(files, crypto.randomUUID());
   }
 
+  async function handleDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    if (addFilesDisabled) return;
+    const files = Array.from(event.dataTransfer.files ?? []);
+    await uploadFiles(files, crypto.randomUUID());
+  }
+
   const uploadedFileList = uploads.length > 0 && (
     <ul className="intake-upload__list" aria-label="Uploaded files">
       {uploads.map((upload) => (
@@ -203,7 +214,11 @@ export function UploadPanel({
           </span>
           <button
             type="button"
-            onClick={() => onChange(uploads.filter((item) => item.id !== upload.id))}
+            onClick={() => {
+              const remaining = uploads.filter((item) => item.id !== upload.id);
+              onChange(remaining);
+              if (review && remaining.length === 0) onUploadSessionChange(null);
+            }}
             disabled={disabled || isUploading}
             aria-label={`Remove ${upload.fileName}`}
           >
@@ -278,11 +293,36 @@ export function UploadPanel({
 
   return (
     <section
-      className={`intake-upload${compact ? " intake-upload--compact" : ""}`}
-      aria-label={compact ? "Project files" : undefined}
-      aria-labelledby={compact ? undefined : "upload-heading"}
+      className={`intake-upload${compact ? " intake-upload--compact" : ""}${review ? " intake-upload--review" : ""}`}
+      aria-label={compact || review ? "Project files" : undefined}
+      aria-labelledby={compact || review ? undefined : "upload-heading"}
+      data-dragging={review && isDragging ? "" : undefined}
+      onDragEnter={review ? (event) => {
+        event.preventDefault();
+        if (!addFilesDisabled) setIsDragging(true);
+      } : undefined}
+      onDragOver={review ? (event) => event.preventDefault() : undefined}
+      onDragLeave={review ? (event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setIsDragging(false);
+        }
+      } : undefined}
+      onDrop={review ? handleDrop : undefined}
     >
-      <div className="intake-control__heading">
+      {review ? (
+        <div className="review-upload__drop">
+          <span>Drop files here</span>
+          <span className="review-upload__or">or</span>
+          <button
+            type="button"
+            className="intake-upload__button"
+            onClick={() => inputRef.current?.click()}
+            disabled={addFilesDisabled}
+          >
+            {isUploading ? "Uploading…" : "Attach files"}
+          </button>
+        </div>
+      ) : <div className="intake-control__heading">
         {!compact && (
           <div>
             <h2 id="upload-heading">Project files</h2>
@@ -305,7 +345,7 @@ export function UploadPanel({
             "Add files"
           )}
         </button>
-      </div>
+      </div>}
       {/* A click proxy, not a control: the button above opens it and already
         carries the accessible name. Leaving it in the a11y tree publishes a
         second, unreachable "choose files" input (axe: form elements must have
@@ -323,7 +363,7 @@ export function UploadPanel({
         tabIndex={-1}
         aria-hidden="true"
       />
-      {compact ? (
+      {compact || review ? (
         (uploads.length > 0 || failedFiles.length > 0 || visibleError) && (
           <details className="intake-upload__disclosure" open={Boolean(visibleError)}>
             <summary>
@@ -338,9 +378,10 @@ export function UploadPanel({
             <div className="intake-upload__disclosure-body">
               <p className="intake-upload__policy">
                 {UPLOAD_TYPE_COPY}. Up to 10 MiB each and {MAX_UPLOAD_FILES} files total.
-                Text can inform copy or design guidance after the build starts. Images,
-                PDF, DOC, DOCX, and ZIP remain private review material and are not used
-                automatically. Unclaimed staging expires after 30 minutes.
+                {review
+                  ? " Files stay private and are recorded with this review. They do not change the site automatically."
+                  : " Text can inform copy or design guidance after the build starts. Images, PDF, DOC, DOCX, and ZIP remain private review material and are not used automatically."}
+                {" "}Unclaimed staging expires after 30 minutes.
               </p>
               {uploadedFileList}
               {failedFileList}

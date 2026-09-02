@@ -7,6 +7,12 @@ import {
   type TerminalKind,
   type TimelineItem as RunTimelineItem,
 } from "@/components/RunTimeline";
+import { GuidedPipeline } from "@/components/GuidedPipeline";
+import {
+  PipelineModeToggle,
+  resolvePipelineMode,
+  type PipelineMode,
+} from "@/components/PipelineModeToggle";
 import {
   buildChatRequest,
   completedChatReplayRunId,
@@ -434,6 +440,15 @@ export default function Home() {
   const [uploads, setUploads] = useState<UploadMetadata[]>([]);
   const [uploadSession, setUploadSession] = useState<string | null>(null);
   const [uploadRecoveryMessage, setUploadRecoveryMessage] = useState<string | null>(null);
+  const [pipelineMode, setPipelineMode] = useState<PipelineMode>(() =>
+    typeof window === "undefined"
+      ? "guided"
+      : resolvePipelineMode(
+          window.location.search,
+          window.localStorage.getItem("onebox:pipeline-view"),
+        ),
+  );
+  const [pipelineResumeKey, setPipelineResumeKey] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -486,6 +501,14 @@ export default function Home() {
     }
   }, [state.phase, state.runId]);
 
+  function handlePipelineModeChange(mode: PipelineMode) {
+    setPipelineMode(mode);
+    window.localStorage.setItem("onebox:pipeline-view", mode);
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", mode);
+    window.history.replaceState(null, "", url);
+  }
+
   const activeAttemptId = state.activeAttempt?.id;
   const activeAttemptStatus = state.activeAttempt?.status;
 
@@ -524,7 +547,7 @@ export default function Home() {
       }
     })();
     return () => controller.abort();
-  }, [state.phase, state.runId]);
+  }, [state.phase, state.runId, pipelineResumeKey]);
 
   function runAttempt(attempt: SubmissionAttempt, history: ChatMsg[]) {
     void sendMessage(
@@ -796,16 +819,30 @@ export default function Home() {
       )}
 
       {state.phase === "pipeline" && state.runId && (
-        <RunTimeline
-          runId={state.runId}
-          timeline={state.timeline}
-          costUsd={state.costUsd}
-          previewUrl={state.previewUrl}
-          evidenceUrl={state.evidenceUrl}
-          terminal={state.terminal}
-          hasActiveAttempt={state.activeAttempt !== null}
-          onRecover={handlePipelineRecovery}
-        />
+        <section className="pipeline-shell" aria-label="Website pipeline">
+          <div className="pipeline-shell__toolbar">
+            <PipelineModeToggle mode={pipelineMode} onChange={handlePipelineModeChange} />
+          </div>
+          {pipelineMode === "developer" ? (
+            <RunTimeline
+              runId={state.runId}
+              timeline={state.timeline}
+              costUsd={state.costUsd}
+              previewUrl={state.previewUrl}
+              evidenceUrl={state.evidenceUrl}
+              terminal={state.terminal}
+              hasActiveAttempt={state.activeAttempt !== null}
+              onRecover={handlePipelineRecovery}
+            />
+          ) : (
+            <GuidedPipeline
+              runId={state.runId}
+              refreshKey={state.timeline.length + pipelineResumeKey}
+              onResume={() => setPipelineResumeKey((value) => value + 1)}
+              onRecover={handlePipelineRecovery}
+            />
+          )}
+        </section>
       )}
     </main>
   );

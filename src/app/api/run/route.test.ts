@@ -100,4 +100,15 @@ describe("POST /api/run", () => {
     expect(body).toContain("before progress could be recorded");
     expect(body).not.toContain("private internal path");
   });
+
+  it("emits a diagnostic terminal error when the pipeline returns without an outcome", async () => {
+    runPipeline.mockImplementationOnce(async () => undefined);
+    const response = await POST(
+      request('{"runId":"run-test"}', "http://localhost:3000")
+    );
+    const body = await response.text();
+
+    expect(body.match(/"type":"error"/g)).toHaveLength(1);
+    expect(body).toContain("ended without a final outcome");
+  });
 });
