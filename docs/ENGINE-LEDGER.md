@@ -380,6 +380,34 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
   checklist addition: grep for scripts that assert a prior re-pin record before
   refreshing any digest.
 
+- **Wave 2 of `one-box-gauntlet-r1` landed the release-1 P1 and P2
+  implementation authority.** Records `OBX-AUTH-R1-P1-SOLO-001` and
+  `OBX-AUTH-R1-P2-SOLO-001` (`owner-solo-phase-exception-v3`) join the scoped
+  registry behind the three frozen records, which stay byte-identical. Their
+  risk-exception amendments are
+  `docs/governance/risk-exceptions/2026-09-02-release-1-p1-solo.json` and
+  `-p2-solo.json`; the owner's packet acceptance is
+  `docs/governance/acceptances/2026-09-02-release-1-packet-acceptance.json`,
+  which moves the `release-1` and `compatibility` domains to `owner-approved`
+  with every grant withheld. The phase scopes are written out in
+  `docs/plans/2026-09-02-release-1-p1-lifecycle-authorization-design.md` and
+  `docs/plans/2026-09-02-release-1-p2-canvas-approval-authorization-design.md`.
+  A new module, `scripts/verify-r1-phase-authorization.mjs`, validates every
+  phase record on each `verify:plans` run;
+  `scripts/verify-plan-authority.mjs` now requires the first three registry ids
+  exactly and in order and pattern-matches later ones, and
+  `scripts/verify-plan-authority.node.mjs` adds seven negative and positive
+  tests (115 total). Evidence: security receipts
+  `docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json`
+  and `-p2-`, Grok 4.6 model receipts
+  `docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json` and
+  `-p2-` with their raw audits, and the integration audit
+  `docs/audits/grok-4.6/2026-09-02-wave-2-integration.json`. The merge with wave
+  0 re-pins the packet once (`67623504…` → `61afa7b8…`) in
+  `docs/audits/evidence/security/2026-09-02-release-1-wave2-authority-repin.json`,
+  which supersedes the wave-0 re-pin. No ticket status moved and REPO-013 still
+  bounds the effective window at 2026-09-14.
+
 ### Resolutions — 2026-09-01
 
 - **REPO-001:** root cause was PR #17 commit `7d2e7f9`, which made the guided
