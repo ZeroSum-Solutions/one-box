@@ -396,8 +396,8 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
   phase record on each `verify:plans` run;
   `scripts/verify-plan-authority.mjs` now requires the first three registry ids
   exactly and in order and pattern-matches later ones, and
-  `scripts/verify-plan-authority.node.mjs` adds seven negative and positive
-  tests (115 total). Evidence: security receipts
+  `scripts/verify-plan-authority.node.mjs` adds 27 tests, 26 negative and 1
+  positive (88 at origin/main, 115 total). Evidence: security receipts
   `docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json`
   and `-p2-`, Grok 4.6 model receipts
   `docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json` and
