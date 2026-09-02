@@ -23,13 +23,16 @@ defects from this sweep are the `REPO-*` rows there.
 `main` is `4b02f75` (the PR #19 merge commit). Verified on the wave-0
 integration branch: 1399 Vitest tests pass (4 skipped), typecheck clean, lint
 0 errors and 0 warnings, `test:smoke` passes with no module-type warning,
-`verify:plans` and `test:plans` pass. CI (`.github/workflows/ci.yml`) runs
-`npm test`, typecheck, lint, build, the plan-authority job
-("Verify plan authority and traceability", `verify:plans` and `test:plans`,
-fail-closed), and then the rendered Page IR regressions
-(`test:e2e:page-ir` against a started server) on every PR to `main`.
+`verify:plans` and `test:plans` pass. CI (`.github/workflows/ci.yml`) runs the
+authority oracle **first**, fail-closed and before dependency install: step
+"Verify plan authority and traceability" (`verify:plans && test:plans`,
+`ci.yml:30-31`) precedes `npm ci` (`:33-34`). Only then come `npm test`,
+typecheck, lint, build, and last the rendered Page IR regressions
+(`test:e2e:page-ir` against a started server). This runs on every PR to `main`.
 
-Two of the three lineages have landed. Lineage B is the only one still out.
+Lineage A landed (PR #18) and lineage C's first slice landed (PR #19). Two
+things are still out: lineage B, open as PR #20, and lineage C's terminal
+correction wave (T-8), which has no PR.
 
 | Lineage | Branch(es) | Ahead of `main` | Holds | State on 2026-09-02 |
 |---|---|---|---|---|
