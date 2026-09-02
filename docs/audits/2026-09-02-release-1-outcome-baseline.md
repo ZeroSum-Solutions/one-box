@@ -300,9 +300,16 @@ them is a compound the prose silently folded into `CONFIRMED`:
 CONFIRMED 1 / CONFIRMED,nowgated 1 / FIXED 12 / OPEN 3 / TRACKED 2
 ```
 
-`CONFIRMED,nowgated` is `ENG-010`'s own status string, not a `CONFIRMED` row.
-Read the instrument's output as it is printed; the prose count of 2 CONFIRMED
-is an unstated normalization.
+`CONFIRMED,nowgated` is one row's own status string, not a `CONFIRMED` row.
+Which row, from the file rather than from memory:
+
+```
+$ grep -n 'CONFIRMED, \*\*now gated\*\*' docs/ENGINE-LEDGER.md | cut -c1-51
+197:| REF-006 | **S1** | CONFIRMED, **now gated** |
+```
+
+`REF-006`. Read the instrument's output as it is printed; the prose count of
+2 CONFIRMED is an unstated normalization.
 
 ### B. Wave 0 moved the ledger this record counts
 
