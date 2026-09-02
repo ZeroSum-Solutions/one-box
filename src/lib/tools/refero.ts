@@ -72,9 +72,7 @@ interface ReferoClientState {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var referoClient: ReferoClientState | undefined;
-  // eslint-disable-next-line no-var
   var referoExitHandlerRegistered: boolean | undefined;
 }
 
@@ -247,10 +245,6 @@ function parsePayload(result: ReferoCallResult): unknown {
 function asString(v: unknown): string {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
-function asOptionalString(v: unknown): string | undefined {
-  return typeof v === "string" ? v : undefined;
-}
-
 // ---------- search-result markdown parsing ----------
 //
 // Verified live 2026-08-12: refero_search_styles/refero_search_screens do

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ReferenceSelectionPanel } from "./ReferenceSelectionPanel";
 import { consumePipelineRunStream } from "./resumeRun";
