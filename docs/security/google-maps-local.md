@@ -89,7 +89,7 @@ without emitting values:
 Then run one bounded live check:
 
 ```zsh
-npm run smoke:maps:live
+node scripts/smoke/google-maps-live.mjs
 ```
 
 It makes one Places request with `pageSize: 1` and emits only a redacted status,

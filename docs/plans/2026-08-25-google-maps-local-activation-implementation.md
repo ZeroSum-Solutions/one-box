@@ -532,7 +532,7 @@ git commit -m "fix: keep Maps keys out of run artifacts"
 
 **Interfaces:**
 - Consumes: Vault IDs `google_places_api_key` and `google_maps_embed_api_key`
-- Produces: `npm run smoke:maps:live`
+- Produces: `node scripts/smoke/google-maps-live.mjs`
 
 - [ ] **Step 1: Write a failing smoke-script behavior test**
 
@@ -606,7 +606,7 @@ Keep the reads conditional. Print separate missing-lane warnings without values.
 
 - [ ] **Step 6: Update environment and security documentation**
 
-Replace the legacy variable in `.env.example` with the two new optional variables. Add `smoke:maps:live` to `package.json`.
+Replace the legacy variable in `.env.example` with the two new optional variables. The smoke script is invoked directly as `node scripts/smoke/google-maps-live.mjs`; `package.json` is hash-pinned by the program records and gains no alias.
 
 Create `docs/security/google-maps-local.md` with:
 
@@ -694,7 +694,7 @@ Expected: both commands exit 0 and print no value.
 
 - [ ] **Step 8: Run one approved Places call**
 
-Start a shell through `./scripts/dev.sh` or export the two Vault reads only into the smoke process. Run `npm run smoke:maps:live` once.
+Start a shell through `./scripts/dev.sh` or export the two Vault reads only into the smoke process. Run `node scripts/smoke/google-maps-live.mjs` once.
 
 Expected: exit 0 with `status=ok places=1`. Do not retry a billing, restriction, or quota failure until its Cloud configuration is inspected.
 
@@ -773,7 +773,7 @@ npm run typecheck
 npm run lint
 npm run build
 npm run test:smoke
-npm run test:e2e:evidence-review
+node scripts/e2e/evidence-review.mjs
 node scripts/e2e/maps-local.mjs
 ```
 

@@ -127,13 +127,20 @@ npm run test:plans          # positive and fail-closed plan-authority tests
 npm run test:smoke          # deterministic generated-site gates
 npm run test:e2e:intake     # rendered intake/upload acceptance
 npm run test:e2e:preview    # rendered View/Edit workbench acceptance
-npm run test:e2e:evidence-review # summary, feedback, attachment, a11y matrix
 npm run test:e2e:page-ir    # merge-blocking intake, workbench, and rollout UI
 npm run test:e2e:motion     # isolated GSAP lifecycle/reduced-motion matrix
 npm run test:e2e:token-motion # integrated token/motion workbench matrix
 npm run test:e2e:full-unit  # live full-run terminal-state tests
 npm run test:eval           # offline frozen-comparison harness tests
 npm run eval:baseline:verify # verify frozen brief, rubric, and hashes
+```
+
+Three acceptance scripts have no `npm run` alias; invoke them with `node`:
+
+```bash
+node scripts/e2e/evidence-review.mjs    # summary, feedback, attachment, a11y matrix
+node scripts/e2e/guided-pipeline.mjs    # guided intake, competitor, and reference flow
+node scripts/smoke/google-maps-live.mjs # one bounded live Places check; needs credentials
 ```
 
 Page IR rollout is default-off. Set `ONE_BOX_PAGE_IR_ROLLOUT=1` to select
