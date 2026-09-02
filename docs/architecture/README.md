@@ -88,8 +88,9 @@ test result.
 
 Review feedback is additive evidence, not an approval transition. The evidence
 route binds every feedback receipt to the current server-owned stage, artifact
-type, and version before `src/lib/reviewFeedback.ts` writes it beneath the
-closed `sites/<id>/evidence/review-feedback/` root. `src/lib/uploads.ts` reuses
+type, and version before `src/lib/reviewFeedback.ts` (which lands with PR #20
+and is not yet in this tree) writes it beneath the closed
+`sites/<id>/evidence/review-feedback/` root. `src/lib/uploads.ts` reuses
 the existing staging lock, session validation, verified-blob, size, and type
 policy to claim only the selected upload IDs into that root. Receipts store
 file metadata and run-owned paths, never the opaque staging-session handle.

@@ -43,18 +43,18 @@
   },
   "currentAuthorityManifest": {
     "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
-    "packetDigest": "48999a437bc127f7c4e27066a0c2ab344c91c09f0940f43d114f09c204faef36",
-    "sha256": "fac46d96f8e9f5e366860f716d031beb291a69234530c80136f2e73fcd614b48"
+    "packetDigest": "67623504e5856e9fc445f2d8bcb9bd0608f3fab3bb17e7f7368614541202fbef",
+    "sha256": "f883c5ccfbb3e377da22fea1b6115f7ade7260c542a561abea1eb467588fec1b"
   },
   "refreshedT02SecurityReceipt": {
     "path": "docs/audits/evidence/security/2026-08-31-obx-p180-t02-solo-authorization-security-review.json",
     "priorSha256": "c81a49c3129c5169409c5e3515cecf4d0962caa73c82c7f4d3eff8cda93b4510",
-    "sha256": "06fb94f5bd7e3fd48358fc86d9e4e69bc4b2d19b6fd3b3db43bb0c3783c4dfb2",
+    "sha256": "d3faf77f0ab54534a5e7e2428479fb56801be433129a04ed91aaf76b884f3876",
     "refreshedTargets": [
       {
         "path": "docs/plans/one-box-master/00-authority/authority-manifest.json",
         "priorDigest": "10f67653302854aa76ba7944ec797c04dbaa799f4af26c04e1c1557f82b0d6c9",
-        "digest": "fac46d96f8e9f5e366860f716d031beb291a69234530c80136f2e73fcd614b48"
+        "digest": "f883c5ccfbb3e377da22fea1b6115f7ade7260c542a561abea1eb467588fec1b"
       }
     ]
   },
@@ -74,7 +74,8 @@
     "npm run build: exit 0",
     "npm run test:smoke: exit 0, no MODULE_TYPELESS_PACKAGE_JSON line (REPO-003 closed by the wave-0 hygiene merge)",
     "re-pin checklist item from ENGINE-LEDGER REPO-012: grepped for scripts that assert a prior re-pin record before refreshing any digest; scripts/verify-obx-p180-source-adoption.mjs is the only one and is unwired (see knownRedUnwiredScript)",
-    "independent advisory audit: x-ai/grok-4.6 via scripts/eval/grok-audit.mjs, artifact docs/audits/grok-4.6/2026-09-02-wave-0-integration.json"
+    "independent advisory audit: x-ai/grok-4.6 via scripts/eval/grok-audit.mjs, artifact docs/audits/grok-4.6/2026-09-02-wave-0-integration.json",
+    "independent code review of PR #21 (Opus, fresh context): one Important finding, the architecture README paragraph described src/lib/reviewFeedback.ts in the present tense with the forward reference disclosed only in audit files; the paragraph now states in place that the module lands with PR #20 and is not yet in this tree; packet digest, manifest sha256 and T02 receipt refreshed a second time for that one clause"
   ],
   "knownRedUnwiredScript": {
     "path": "scripts/verify-obx-p180-source-adoption.mjs",
