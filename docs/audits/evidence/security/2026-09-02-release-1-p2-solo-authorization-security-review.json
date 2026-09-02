@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "receiptKind": "solo-phase-security-review-v3",
   "authorizationId": "OBX-AUTH-R1-P2-SOLO-001",
-  "authorizationHash": "07a26233aea4f599139b3919880e1de035f677f275c162d65c10fbab2957e9f5",
+  "authorizationHash": "716906736fe610373c1f8082f4acf1a6c57d52ccb2242b4ba23c712902b5444f",
   "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
   "amendmentHash": "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e",
   "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
@@ -22,7 +22,7 @@
     {
       "path": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
       "algorithm": "sha256",
-      "digest": "c145a6471f9c18ed5eadf0a3702bca5e312eef633b2543d745760df94a3c1faa"
+      "digest": "f6a4ccfb5dd3669ae94aafbcd464964cdb808f54cbfe0375f8b772cd700bb75d"
     },
     {
       "path": "docs/plans/one-box-master/00-authority/plan-register.md",
@@ -62,12 +62,12 @@
     {
       "path": "scripts/verify-plan-authority.node.mjs",
       "algorithm": "sha256",
-      "digest": "dc054fb0b112fdd0471ff977ddcc771b919b0a3818a5d2c4a8b17038ce587aeb"
+      "digest": "307b6ed35c9884186d5bbacc3352554fcc7e78755767acc97a94cc31aceff501"
     },
     {
       "path": "scripts/verify-r1-phase-authorization.mjs",
       "algorithm": "sha256",
-      "digest": "2883b87fe7eb1ec834b30a61f1969a34c9d4569aca7b232b7cafd8de3ffac18f"
+      "digest": "bbb47fcfbf1291a243b47e51701cb9755b307f16315bcb7bc1cdbe93857829ba"
     }
   ],
   "authorityManifestWithoutPacketDigest": {

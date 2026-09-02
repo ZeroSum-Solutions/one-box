@@ -18,26 +18,16 @@
       "sourceSpec": "docs/specs/2026-08-29-ai-teammate-foundation-v1.md",
       "implementationPlan": "docs/plans/2026-08-29-ai-teammate-foundation-v1-implementation.md",
       "ticketManifest": "docs/tickets/ai-teammate-foundation/manifest.json",
-      "ticketIds": [
-        "OBX-AT-001"
-      ],
-      "requirements": [
-        "E1"
-      ],
+      "ticketIds": ["OBX-AT-001"],
+      "requirements": ["E1"],
       "scope": {
         "fullProgramAuthorization": false,
         "productionReleaseAuthorized": false,
         "deploymentAuthorized": false,
         "newRuntimeDependenciesAllowed": false,
         "runtimeDependencies": [],
-        "allowedEffectClasses": [
-          "read",
-          "propose"
-        ],
-        "allowedDataClasses": [
-          "public",
-          "project-internal"
-        ],
+        "allowedEffectClasses": ["read", "propose"],
+        "allowedDataClasses": ["public", "project-internal"],
         "allowedPathPrefixes": [
           "src/lib/aiTeammates/",
           "src/app/api/ai-teammates/",
@@ -573,83 +563,27 @@
         "checkpointCommit": "07864a45d414db0998cc7cfb2731010d0d4cbe8b",
         "status": "COMPLETED_VERIFIED",
         "files": [
-          {
-            "path": "src/lib/operatingEnvironment/canonical.ts",
-            "algorithm": "sha256",
-            "digest": "0778ae2cb1183a6ce27127a83c5ecb86f54b08b9b037cf7675bcc07270d1f3ce"
-          },
-          {
-            "path": "src/lib/operatingEnvironment/canonical.test.ts",
-            "algorithm": "sha256",
-            "digest": "a0ec248f0bad2f38616a7f078bdbbb58dde76941c8da40f11e57ca319e808097"
-          },
-          {
-            "path": "src/lib/operatingEnvironment/contracts.ts",
-            "algorithm": "sha256",
-            "digest": "ae7048cc60df003dc5991d04bae975d7033aa60ad84ae5bf276f73e13d092b25"
-          },
-          {
-            "path": "src/lib/operatingEnvironment/contracts.test.ts",
-            "algorithm": "sha256",
-            "digest": "218e1c473687958d89194bf5b4091bad0535b5ccb6ff16f017ce5c9b41fb1c60"
-          },
-          {
-            "path": "src/lib/operatingEnvironment/reasonCodes.ts",
-            "algorithm": "sha256",
-            "digest": "d6d6821d2aeba7882f7e4192c22e5cb985dda2b7190965f32969acd2eac38832"
-          },
-          {
-            "path": "src/lib/operatingEnvironment/reasonCodes.test.ts",
-            "algorithm": "sha256",
-            "digest": "d0cfd015eb2a1c20c87b8c1bb690300f7f33cf7d7be5e6c72692a6516624a64f"
-          }
+          {"path": "src/lib/operatingEnvironment/canonical.ts", "algorithm": "sha256", "digest": "0778ae2cb1183a6ce27127a83c5ecb86f54b08b9b037cf7675bcc07270d1f3ce"},
+          {"path": "src/lib/operatingEnvironment/canonical.test.ts", "algorithm": "sha256", "digest": "a0ec248f0bad2f38616a7f078bdbbb58dde76941c8da40f11e57ca319e808097"},
+          {"path": "src/lib/operatingEnvironment/contracts.ts", "algorithm": "sha256", "digest": "ae7048cc60df003dc5991d04bae975d7033aa60ad84ae5bf276f73e13d092b25"},
+          {"path": "src/lib/operatingEnvironment/contracts.test.ts", "algorithm": "sha256", "digest": "218e1c473687958d89194bf5b4091bad0535b5ccb6ff16f017ce5c9b41fb1c60"},
+          {"path": "src/lib/operatingEnvironment/reasonCodes.ts", "algorithm": "sha256", "digest": "d6d6821d2aeba7882f7e4192c22e5cb985dda2b7190965f32969acd2eac38832"},
+          {"path": "src/lib/operatingEnvironment/reasonCodes.test.ts", "algorithm": "sha256", "digest": "d0cfd015eb2a1c20c87b8c1bb690300f7f33cf7d7be5e6c72692a6516624a64f"}
         ]
       },
       "planBindings": [
-        {
-          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md",
-          "algorithm": "sha256",
-          "digest": "61ab80eb579df514a5627f4d5ecb4133c61497c6e0a7895fb22e6581729be13d"
-        },
-        {
-          "path": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md",
-          "algorithm": "sha256",
-          "digest": "385e3c046528abe7f9a7307421741386fa0abf032f06e094745833feaa3370af"
-        },
-        {
-          "path": "docs/plans/2026-08-31-obx-p180-t02-solo-authorization-design.md",
-          "algorithm": "sha256",
-          "digest": "7fb1dfbc5cb984ce60121c6fa3edabf168cb87abf77d59b7d24f893b2e61fd2a"
-        },
-        {
-          "path": "docs/plans/2026-08-31-obx-p180-t02-registry-route-reducers.md",
-          "algorithm": "sha256",
-          "digest": "3d89de03533aba40d9e1780058242c4b6a0716b0c150323d6ff7605eddc5125a"
-        }
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/02-provider-registry-and-route-contract.md", "algorithm": "sha256", "digest": "61ab80eb579df514a5627f4d5ecb4133c61497c6e0a7895fb22e6581729be13d"},
+        {"path": "docs/plans/one-box-master/04-operating-environment/obx-p180/06-ownership-tickets-and-authorization-proposal.md", "algorithm": "sha256", "digest": "385e3c046528abe7f9a7307421741386fa0abf032f06e094745833feaa3370af"},
+        {"path": "docs/plans/2026-08-31-obx-p180-t02-solo-authorization-design.md", "algorithm": "sha256", "digest": "7fb1dfbc5cb984ce60121c6fa3edabf168cb87abf77d59b7d24f893b2e61fd2a"},
+        {"path": "docs/plans/2026-08-31-obx-p180-t02-registry-route-reducers.md", "algorithm": "sha256", "digest": "3d89de03533aba40d9e1780058242c4b6a0716b0c150323d6ff7605eddc5125a"}
       ],
       "governanceBindings": [
-        {
-          "path": "docs/governance/risk-exceptions/README.md",
-          "algorithm": "sha256",
-          "digest": "c5139be92b42987e70d73b6851530d4917c8716b96cfcfbda1c7e9a685f726c2"
-        },
-        {
-          "path": "docs/governance/reviewer-roles.md",
-          "algorithm": "sha256",
-          "digest": "ea1f4cf440ce3122bf40866c0097c516550d876e9674462bbe61edc7dcb701bc"
-        }
+        {"path": "docs/governance/risk-exceptions/README.md", "algorithm": "sha256", "digest": "c5139be92b42987e70d73b6851530d4917c8716b96cfcfbda1c7e9a685f726c2"},
+        {"path": "docs/governance/reviewer-roles.md", "algorithm": "sha256", "digest": "ea1f4cf440ce3122bf40866c0097c516550d876e9674462bbe61edc7dcb701bc"}
       ],
       "dependencyBindings": [
-        {
-          "path": "package.json",
-          "algorithm": "sha256",
-          "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"
-        },
-        {
-          "path": "package-lock.json",
-          "algorithm": "sha256",
-          "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"
-        }
+        {"path": "package.json", "algorithm": "sha256", "digest": "c1feab7cc337c89a59d344da2854764b488a831bf40ab6e98d00338a5a7d421e"},
+        {"path": "package-lock.json", "algorithm": "sha256", "digest": "b2f15e1f27c86ad1c2b98a67674367ce8ada5fb9ba6d32702f9de4bd09a66191"}
       ],
       "amendmentBinding": {
         "path": "docs/governance/risk-exceptions/2026-08-31-obx-p180-t02-solo.json",
@@ -1369,6 +1303,16 @@
           "scripts/e2e/preview-workbench.mjs",
           "docs/architecture/README.md",
           "docs/security/local-api-threat-model.md"
+        ],
+        "expectedAbsentFiles": [
+          "src/lib/releaseLifecycle.ts",
+          "src/lib/releaseLifecycle.test.ts",
+          "src/lib/releaseLifecycleStore.ts",
+          "src/lib/releaseLifecycleStore.test.ts",
+          "src/app/api/lifecycle/[id]/route.ts",
+          "src/app/api/lifecycle/[id]/route.test.ts",
+          "src/components/preview/LifecycleStatus.tsx",
+          "src/components/preview/LifecycleStatus.test.tsx"
         ]
       },
       "activationPrecondition": {
@@ -1492,7 +1436,7 @@
         "excludedJsonPointers": [
           "/authorizationHash/digest"
         ],
-        "digest": "07a26233aea4f599139b3919880e1de035f677f275c162d65c10fbab2957e9f5"
+        "digest": "716906736fe610373c1f8082f4acf1a6c57d52ccb2242b4ba23c712902b5444f"
       }
     }
   ]

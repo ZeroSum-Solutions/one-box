@@ -1193,6 +1193,54 @@ test("a model receipt must be a faithful derivation of the raw audit it wraps", 
   }, [], { GITHUB_ACTIONS: "true" });
 });
 
+test("the first three authorization records are pinned as bytes, not only as hashes", () => {
+  withFileMutation(registryPath, (text) => {
+    const registry = JSON.parse(text);
+    return `${JSON.stringify(registry, null, 2)}\n`;
+  }, (result) => {
+    assert.match(result.stderr, /the first three records are no longer byte-identical to 4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
+test("a recorded phase authorization cannot be deleted back to silence", () => {
+  for (const id of r1PhaseIds) {
+    withJsonMutation(registryPath, (registry) => {
+      registry.authorizations = registry.authorizations.filter((record) => record.id !== id);
+    }, (result) => {
+      assert.match(result.stderr, new RegExp(`recorded phase authorization ${id} is missing from the registry`));
+    }, [], { GITHUB_ACTIONS: "true" });
+  }
+});
+
+test("a pending predecessor fails closed once the predecessor phase lands", () => {
+  const created = [
+    "src/lib/releaseLifecycle.ts",
+    "src/app/api/lifecycle/[id]/route.ts",
+    "src/components/preview/LifecycleStatus.tsx",
+  ];
+  const absolutes = created.map((path) => resolve(fixtureRoot, path));
+  try {
+    for (const absolute of absolutes) {
+      mkdirSync(dirname(absolute), { recursive: true });
+      writeFileSync(absolute, "export {};\n");
+    }
+    const result = run([], { GITHUB_ACTIONS: "true" });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /predecessor-phase-not-merged is stale; src\/lib\/releaseLifecycle\.ts exists/);
+  } finally {
+    for (const absolute of absolutes) rmSync(absolute, { force: true });
+  }
+});
+
+test("a pending predecessor refuses a child ticket in the program manifest", () => {
+  withJsonMutation("docs/tickets/one-box-program/manifest.json", (manifest) => {
+    const parent = manifest.tickets.find((ticket) => ticket.id === "OBX-P210");
+    manifest.tickets.push({ ...structuredClone(parent), id: "OBX-P210-T01" });
+  }, (result) => {
+    assert.match(result.stderr, /child ticket OBX-P210-T01 cannot exist in the program manifest while OBX-AUTH-R1-P1-SOLO-001 is unmerged/);
+  }, [], { GITHUB_ACTIONS: "true" });
+});
+
 test("re-pinning the packet digest cannot invalidate a phase receipt", () => {
   withJsonMutation(authorityManifestPath, (authority) => {
     authority.packetDigest = "0".repeat(64);

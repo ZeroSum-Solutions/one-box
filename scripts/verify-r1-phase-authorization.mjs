@@ -29,8 +29,13 @@ const RECORDED_AT = "2026-09-02T13:00:00Z";
 const EXPIRES_AT = "2026-09-16T13:00:00Z";
 const THREE_HUNDRED_THIRTY_SIX_HOURS_MS = 1_209_600_000;
 
+// The exact serialized bytes of authorizations[0..2] at BASE_COMMIT. A canonical
+// self-hash cannot see a re-serialization, so the module also pins the raw text
+// slice of the three frozen records.
+const FROZEN_REGISTRY_RECORDS_SHA256 = "18c6e7ee924270aee622ea71381f2de50e670e003661f572fa1f7a3dcde2ff1a";
+
 const P1_AUTHORIZATION_SHA256 = "60a23140ba8d2afa64a835f3364838be0bcf3bc727095986ffbe2fc7d7f1e6c3";
-const P2_AUTHORIZATION_SHA256 = "07a26233aea4f599139b3919880e1de035f677f275c162d65c10fbab2957e9f5";
+const P2_AUTHORIZATION_SHA256 = "716906736fe610373c1f8082f4acf1a6c57d52ccb2242b4ba23c712902b5444f";
 const P1_AMENDMENT_SHA256 = "cc4fbde44e5c6e37511ba6b13a2b2f4d583ccefff4aa25adeaf94092683915ce";
 const P2_AMENDMENT_SHA256 = "bce935bccba80e12e32b255d1c4b3584970e70a153753b991f707f42e87fe47e";
 
@@ -465,6 +470,16 @@ const PHASES = {
       checkpointCommit: null,
       status: "PENDING_PREDECESSOR_MERGE",
       files: unionPaths(P1_TICKET_SCOPES),
+      expectedAbsentFiles: [
+        "src/lib/releaseLifecycle.ts",
+        "src/lib/releaseLifecycle.test.ts",
+        "src/lib/releaseLifecycleStore.ts",
+        "src/lib/releaseLifecycleStore.test.ts",
+        "src/app/api/lifecycle/[id]/route.ts",
+        "src/app/api/lifecycle/[id]/route.test.ts",
+        "src/components/preview/LifecycleStatus.tsx",
+        "src/components/preview/LifecycleStatus.test.tsx",
+      ],
     },
     activationPrecondition: P2_ACTIVATION_PRECONDITION,
   },
@@ -599,7 +614,7 @@ function checkAuthorizedPath(path, label, failures) {
  * recorded. The predecessor's own authorization record must be present and live
  * in the registry either way.
  */
-function validatePredecessorGate(repoRoot, phase, record, registry, failures) {
+function validatePredecessorGate(repoRoot, phase, record, registry, ticketManifest, failures) {
   const label = `${record.id}.predecessorBinding`;
   const binding = record.predecessorBinding;
   if (record.implementationAuthorized !== true) {
@@ -642,14 +657,47 @@ function validatePredecessorGate(repoRoot, phase, record, registry, failures) {
     if (shared.length > 0) {
       failures.push(`${label}: pending effects ${shared.join(", ")} also sit inside the live ${binding.authorizationId} grant`);
     }
+    // "Pending" is a claim about the tree, so the module checks it. Every
+    // predecessor file the predecessor phase still has to create must be absent,
+    // and no child ticket of this phase may exist in the program manifest yet.
+    // Either one appearing means the predecessor landed and the binding is stale.
+    const absentFiles = binding.expectedAbsentFiles;
+    if (!Array.isArray(absentFiles) || absentFiles.length === 0
+      || absentFiles.some((file) => typeof file !== "string")) {
+      failures.push(`${label}.expectedAbsentFiles: a pending predecessor must list the declared files it has not created yet`);
+    } else {
+      for (const path of absentFiles) {
+        if (!(binding.files ?? []).includes(path)) {
+          failures.push(`${label}.expectedAbsentFiles: ${path} is not a declared predecessor file`);
+          continue;
+        }
+        if (existsSync(resolve(repoRoot, path))) {
+          failures.push(`${label}: predecessor-phase-not-merged is stale; ${path} exists, so the binding must record the predecessor merge commit and the live digest of every declared file`);
+        }
+      }
+    }
+    for (const ticket of ticketManifest?.tickets ?? []) {
+      if (typeof ticket?.id === "string" && ticket.id.startsWith(`${record.parentTicketId}-`)) {
+        failures.push(`${label}: predecessor-phase-not-merged; child ticket ${ticket.id} cannot exist in the program manifest while ${binding.authorizationId} is unmerged`);
+      }
+    }
     return;
   }
   if (binding.status === "COMPLETED_VERIFIED") {
-    if (record.implementationAuthorized !== true) {
-      failures.push(`${record.id}: a verified predecessor must authorize implementation`);
+    if (record.activationPrecondition !== null) {
+      failures.push(`${record.id}.activationPrecondition: a merged predecessor clears the activation precondition`);
     }
     if (!/^[a-f0-9]{40}$/.test(binding.checkpointCommit ?? "")) {
       failures.push(`${label}: a verified predecessor must name a 40-character checkpoint commit`);
+    }
+    if (binding.expectedAbsentFiles !== undefined && binding.expectedAbsentFiles !== null) {
+      failures.push(`${label}.expectedAbsentFiles: a merged predecessor has no absent file left to declare`);
+    }
+    const predecessor = (registry?.authorizations ?? []).find((candidate) => candidate?.id === binding.authorizationId);
+    if (!predecessor) {
+      failures.push(`${label}: predecessor authorization ${binding.authorizationId} is missing from the registry`);
+    } else {
+      exact(binding.files?.map((file) => file?.path), predecessor.allowedPaths, `${label}.files against ${binding.authorizationId}.allowedPaths`, failures);
     }
     checkBindings(repoRoot, binding.files, `${label}.files`, failures);
     return;
@@ -981,7 +1029,7 @@ function validatePhaseRecord(repoRoot, phase, record, context, failures) {
   exact(record.reviewProtocol, REVIEW_PROTOCOL, `${record.id}.reviewProtocol`, failures);
   exact(record.requiredEvidencePaths, [phase.securityReceiptPath, phase.grokReceiptPath], `${record.id}.requiredEvidencePaths`, failures);
   exact(record.predecessorBinding, phase.predecessorBinding, `${record.id}.predecessorBinding`, failures);
-  validatePredecessorGate(repoRoot, phase, record, context.registry, failures);
+  validatePredecessorGate(repoRoot, phase, record, context.registry, ticketManifest, failures);
 
   if (record.ownerDirection?.actorId !== "person:devin-wiggins"
     || record.ownerDirection?.ownerResponse !== OWNER_RESPONSE
@@ -1172,6 +1220,66 @@ function validatePredecessorRegistryRecords(registry, failures) {
   }
 }
 
+/**
+ * The exact text of the first three authorization records. A canonical JSON hash
+ * is blind to re-serialization, so a rewrite of the registry file can reformat
+ * OBX-AUTH-ATF-001, OBX-AUTH-P180-T01-SOLO-001, or OBX-AUTH-P180-T02-SOLO-001
+ * while every existing pin stays green. This scanner slices the first three
+ * elements of the authorizations array out of the raw file, string-aware so a
+ * brace inside a value cannot move the boundary, and the caller pins the slice.
+ */
+function frozenRegistrySlice(text) {
+  const key = '"authorizations"';
+  const keyIndex = text.indexOf(key);
+  if (keyIndex < 0) return null;
+  const arrayStart = text.indexOf("[", keyIndex + key.length);
+  if (arrayStart < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  let start = null;
+  let closed = 0;
+  for (let index = arrayStart + 1; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') { inString = true; continue; }
+    if (char === "{") {
+      if (depth === 0 && start === null) start = index;
+      depth += 1;
+      continue;
+    }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        closed += 1;
+        if (closed === 3) return text.slice(start, index + 1);
+      }
+      continue;
+    }
+    if (char === "]" && depth === 0) return null;
+  }
+  return null;
+}
+
+function validateFrozenRegistryBytes(repoRoot, failures) {
+  const label = "release-1 phase authorizations: frozen registry records";
+  const absolute = safeFile(repoRoot, REGISTRY_PATH, label, failures);
+  if (!absolute) return;
+  const slice = frozenRegistrySlice(readFileSync(absolute, "utf8"));
+  if (slice === null) {
+    failures.push(`${label}: cannot read the first three records as text`);
+    return;
+  }
+  if (createHash("sha256").update(slice, "utf8").digest("hex") !== FROZEN_REGISTRY_RECORDS_SHA256) {
+    failures.push(`${label}: the first three records are no longer byte-identical to ${BASE_COMMIT}`);
+  }
+}
+
 export function verifyRelease1PhaseAuthorizations({
   repoRoot = ROOT,
   registry,
@@ -1188,8 +1296,15 @@ export function verifyRelease1PhaseAuthorizations({
   const present = (source?.authorizations ?? []).filter((record) => (
     typeof record?.id === "string" && R1_PHASE_AUTHORIZATION_ID_PATTERN.test(record.id)
   ));
-  if (present.length === 0) return { failures, verified: [] };
+  // Absence is not success. Once a phase record is recorded, its removal has to
+  // fail this module rather than quietly restore an unverified registry.
+  for (const id of Object.keys(PHASES)) {
+    if (!present.some((record) => record?.id === id)) {
+      failures.push(`release-1 phase authorizations: recorded phase authorization ${id} is missing from the registry`);
+    }
+  }
 
+  validateFrozenRegistryBytes(repoRoot, failures);
   validateOwnerAcceptance(repoRoot, authorityManifest, failures);
   validatePredecessorRegistryRecords(source, failures);
   const verified = [];

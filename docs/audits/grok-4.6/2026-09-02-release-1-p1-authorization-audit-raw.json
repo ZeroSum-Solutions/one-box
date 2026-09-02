@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "capturedAt": "2026-09-02T14:22:10.951Z",
+  "capturedAt": "2026-09-02T15:12:58.786Z",
   "request": {
     "task": "Certify OBX-AUTH-R1-P1-SOLO-001 inside the complete wave-2 Release 1 governance change",
     "model": "x-ai/grok-4.6",
     "effort": "high",
-    "base": "origin/main",
-    "head": "ecdd4780af39f8c8678c4dfe133b8f127b29ccbd",
+    "base": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+    "head": "206d37c48604ca33fb364744a0c3c51a5b2c37ce",
     "files": [
       "docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json",
       "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
@@ -23,7 +23,7 @@
       "scripts/verify-r1-phase-authorization.mjs"
     ],
     "proofs": [],
-    "diffBytes": 227047,
+    "diffBytes": 268383,
     "timeoutMs": 900000,
     "maxOutputTokens": 12000
   },
@@ -31,24 +31,24 @@
     "id": "xAI",
     "model": "x-ai/grok-4.6",
     "usage": {
-      "prompt_tokens": 68645,
-      "completion_tokens": 29318,
-      "total_tokens": 97963,
-      "cost": 0.313198,
+      "prompt_tokens": 80886,
+      "completion_tokens": 26832,
+      "total_tokens": 107718,
+      "cost": 0.322572,
       "is_byok": false,
       "prompt_tokens_details": {
-        "cached_tokens": 0,
+        "cached_tokens": 128,
         "cache_write_tokens": 0,
         "audio_tokens": 0,
         "video_tokens": 0
       },
       "cost_details": {
-        "upstream_inference_cost": 0.313198,
-        "upstream_inference_prompt_cost": 0.13729,
-        "upstream_inference_completions_cost": 0.175908
+        "upstream_inference_cost": 0.322572,
+        "upstream_inference_prompt_cost": 0.16158,
+        "upstream_inference_completions_cost": 0.160992
       },
       "completion_tokens_details": {
-        "reasoning_tokens": 28296,
+        "reasoning_tokens": 25671,
         "image_tokens": 0,
         "audio_tokens": 0
       }
@@ -58,21 +58,34 @@
     "verdict": "FINDINGS",
     "findings": [
       {
+        "severity": "HIGH",
+        "file": "docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json",
+        "line": "authorizations[0] OBX-AUTH-ATF-001 (ticketIds/requirements/allowedEffectClasses/allowedDataClasses) and authorizations[2] OBX-AUTH-P180-T02-SOLO-001 (predecessorBinding.files/planBindings/governanceBindings/dependencyBindings)",
+        "scenario": "Criterion (1) requires the first three scoped authorization records to remain byte-identical. This diff re-serializes ATF-001 compact arrays into multi-line arrays and re-serializes T02 nested binding objects from single-line form into pretty-printed objects. T01 appears untouched, but ATF and T02 are no longer byte-identical to 4b02f75. Canonical hashes can still match, so the parent verifier stays green while the freeze the criterion named is already broken; a later semantic edit can be hidden in the same reformatting noise.",
+        "remediation": "Restore ATF-001, T01, and T02 from BASE with no whitespace or key-layout change. Insert the R1 records after those three objects only. Pin the exact serialized bytes (or a raw-substring digest) of authorizations[0..2] in verify-plan-authority.mjs and fail if they differ from 4b02f75."
+      },
+      {
+        "severity": "MEDIUM",
+        "file": "scripts/verify-plan-authority.mjs",
+        "line": "scopedAuthorizationIds.slice(0, 3) ID-and-order check",
+        "scenario": "Criterion (4) requires fail-closed enforcement of the freeze. The parent now only requires the first three IDs and order, plus ATF/T01/T02 canonical/self-hash checks. JSON.stringify of IDs and canonical-json-v1 both ignore the ATF/T02 pretty-print, and no test asserts byte identity against BASE. Result: the suite can pass (and this diff's new full-verifier test expects pass) while criterion (1) is already false.",
+        "remediation": "Add a focused test that copies authorizations[0..2] from the registry file and compares them to golden bytes taken from 4b02f75. Keep the existing canonical pins as a second oracle, not the only one."
+      },
+      {
         "severity": "MEDIUM",
         "file": "scripts/verify-r1-phase-authorization.mjs",
-        "line": "validatePredecessorGate COMPLETED_VERIFIED branch",
-        "scenario": "P2 is correctly PENDING in this wave, but the closer this module already implements is forgeable. A later re-issue that updates PHASES plus the P2 record can set predecessorBinding.status=COMPLETED_VERIFIED, checkpointCommit to any 40 hex chars (not a git object), and files to live SHA-256 of the current working tree, including unmodified pre-P1 bytes or stub P1 files, then set implementationAuthorized=true. The branch never checks that checkpointCommit exists, that the hashes are the blobs of that commit, that P1 actually merged, or that the P1 record is still live. verify:plans would pass and P2 would become a live implementation grant without P1 having merged.",
-        "remediation": "For COMPLETED_VERIFIED require: git rev-parse/cat-file of checkpointCommit; each predecessor file digest equal to `git show <checkpointCommit>:<path>`; checkpointCommit is a descendant of P1 activationBaseCommit; P1 record still present, unexpired, and implementationAuthorized; and keep implementationAuthorized false unless those checks pass. Add a negative test with a fake 40-hex commit and pre-P1 bytes."
+        "line": "validatePredecessorGate PENDING_PREDECESSOR_MERGE branch",
+        "scenario": "OBX-AUTH-R1-P2-SOLO-001 is recorded with implementationAuthorized true and predecessorBinding.status PENDING_PREDECESSOR_MERGE. validatePredecessorGate only checks pending shape (null checkpoint, file list, disjoint effects). It never emits predecessor-phase-not-merged, and the module never inspects the worktree, so a later P2 implementation diff can pass this verifier while the recorded activationPrecondition still forbids OBX-P210 child work. That is a grant the owner gated and the module claims to enforce.",
+        "remediation": "When status is PENDING_PREDECESSOR_MERGE, fail closed unless the current diff is governance-only (activationWriteSet). On any path outside that write set, or any P2 allowedPath change, emit predecessor-phase-not-merged. Add a node test that mutates a P2 allowedPath file while the binding is still pending and expects that invalidator."
       }
     ],
-    "proof_assessment": "Req 1: NAME STATUS and the registry hunk only append after T02; package.json, package-lock.json, reviewer-roles.md, and risk-exceptions/README.md are untouched; ATF/T01/T02 validators still pin the first three records. Req 2: every domain in the manifest diff keeps implementationAuthorized false; ticket manifest is not in the change. Req 3: P1/P2 allowedPaths/allowedEffects equal the ticket-scope unions, forbiddenEffects match the shared floor, denyUnlistedPathsAndEffects is true on both amendments, and checkAuthorizedPath rejects globs, traversal, absolute paths, bare directories, and prefixes. Req 4: nonWaivableClassesTouched is empty and fail-closed; pins, expiry, T01/T02 expiry, self-hash, amendment hash, and receipt/model labels are checked; BLOCK/HIGH model findings fail. Req 5: recordedAt 2026-09-02T13:00:00Z, expiresAt 2026-09-16T13:00:00Z (336h), renewable false, amendment ownerDirection.recordedAt equals recordedAt. Req 6: no ticket/eval/assignment files in the diff; module requires P200/P210 proposed and PROG-EVAL-LIFE-001/PROG-EVAL-CANVAS-001 planned. Req 7: target-topology and program-security stay proposed; release-1 and compatibility are owner-approved with acceptanceRecord naming Devin Wiggins / person:devin-wiggins and citing the acceptance file; both boundaries still list the unresolved decisions. Req 8: this wave does not grant P2 implementation — PHASES pins predecessorBinding to PENDING_PREDECESSOR_MERGE with P1's exact path list and implementationAuthorized false, and flipping that flag fails. That is strong enough to keep this packet from authorizing P2 code. It is not strong enough as a merge proof: there is no R1 source-scope/diff check, and the COMPLETED_VERIFIED closer can be satisfied without a real P1 merge. No proof artifacts were supplied; digest cross-links inside the packet are internally consistent.",
+    "proof_assessment": "Review is static against the supplied diff only. Proof artifacts were empty, so claimed SHA-256 values (P1 self-hash 60a23140…, amendment cc4fbde4…, without-packetDigest 8bbf07e6…, receipt targetHashes) were treated as pins the module rechecks, not as independent evidence they match the bytes in this slice. P1 record shape for criterion (3) matches the stated fields: single-file allowedPaths, closed allowedEffects, empty nonWaivableClassesTouched, governance/dependency bindings equal to T02's values, null predecessorBinding and activationPrecondition, 336-hour non-renewable window with effectiveExpiresAt 2026-09-14T13:33:33Z sourced from T01, canonical-json-v1 self-hash contract. Authority-manifest and this diff's ticket manifests do not set implementationAuthorized true. Receipts bind the manifest through canonical-json-v1 excluding /packetDigest, which is the right shape for criterion (5), but those hashes were not recomputed here.",
     "residual_risks": [
-      "No R1 source-scope checker: after merge, edits to P2-only paths (pageIrMutation.ts, siteMutation.ts, elementEditor.ts, mutationGateMatrix.ts, candidatePromotion.ts, the T00 design note) do not fail verify:plans while P2 remains PENDING.",
-      "Shared live P1 paths (contracts.ts, releaseLifecycleStore.ts, pageIrController.ts, LifecycleStatus.tsx, preview-workbench.mjs) can absorb P2 behavior under P1's implementationAuthorized=true grant; effects are labels, not AST-checked.",
-      "ATF remains a live grant on Workbench.tsx, workbench.css, canvas-contract.mjs, contracts.ts, and preview-workbench.mjs, which overlap P2 T03.",
-      "Frozen T01/T02 expiry (2026-09-14) fails the R1 module before P1/P2 expiresAt (2026-09-16), shortening the advertised 336-hour window.",
-      "validateOwnerAcceptance does not live-hash acceptance.acceptedPaths or require boundary text to keep the unresolved-decision list.",
-      "Grok receipts are required at verify time and are named in activationWriteSet/requiredEvidencePaths; they are absent from this diff by design and were not treated as a finding."
+      "validateEffectiveWindow returns without error if T01/T02 cannot be parsed; expiry is only enforced indirectly by validatePredecessorRegistryRecords and Date.now() vs recorded expiresAt, not vs effectiveExpiresAt.",
+      "verifyRelease1PhaseAuthorizations returns success when zero R1 records are present; absence removes the grant rather than creating one, but it will not fail a revert of this wave.",
+      "Amendments are not unknown-key rejected; extra fields cannot widen the registry grant but can look like authority to a human reader.",
+      "Effect strings are labels only; this module does not prove future P1 code stays inside isLocalApiAuthorized or the named effects.",
+      "Grok receipts are in activationWriteSet and requiredEvidencePaths but not in this slice; the module fails closed if they are missing, and they were not available to review for drift."
     ]
   }
 }
