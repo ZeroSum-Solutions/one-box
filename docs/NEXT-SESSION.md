@@ -20,10 +20,11 @@ defects from this sweep are the `REPO-*` rows there.
 
 ## Repository map (2026-09-02)
 
-`main` is `4b02f75` (the PR #19 merge commit). Verified on the wave-0
-integration branch: 1399 Vitest tests pass (4 skipped), typecheck clean, lint
-0 errors and 0 warnings, `test:smoke` passes with no module-type warning,
-`verify:plans` and `test:plans` pass. CI (`.github/workflows/ci.yml`) runs the
+`main` is `65e92df`, the wave-0 squash. It superseded `4b02f75`, the PR #19
+merge commit, which the lineage table below still names as history. Verified on
+the wave-2 integration branch, cut from `65e92df`: 1399 Vitest tests pass (4
+skipped), typecheck clean, lint 0 errors and 0 warnings, `test:smoke` passes
+with no module-type warning, `verify:plans` and `test:plans` pass. CI (`.github/workflows/ci.yml`) runs the
 authority oracle **first**, fail-closed and before dependency install: step
 "Verify plan authority and traceability" (`verify:plans && test:plans`,
 `ci.yml:30-31`) precedes `npm ci` (`:33-34`). Only then come `npm test`,
@@ -37,7 +38,7 @@ correction wave (T-8), which has no PR.
 | Lineage | Branch(es) | Ahead of `main` | Holds | State on 2026-09-02 |
 |---|---|---|---|---|
 | A — consolidation docs | `chore/repo-state-20260901` → PR #18 | landed | `AGENTS.md` pointers, this board, the 2026-08-20 consolidation plan | **Landed 2026-09-02**, squash `c7d1243`. |
-| B — evidence review UI | `wave-0/pr17-rebased` → PR #20 (supersedes #17) | 29 commits | Evidence-review feedback workflow, guided pipeline mode, Google Maps embed, token specimens, capability roadmap | Rebased onto `main` at `4b02f75`; CI green (run 33634877941); ready for review. `package.json` untouched — its four script additions are `node` invocations instead, because the file is hash-pinned. Merge is the owner's; see the typography-specimen gate in the PR body. |
+| B — evidence review UI | `wave-0/pr17-rebased` → PR #20 (supersedes #17) | 29 commits | Evidence-review feedback workflow, guided pipeline mode, Google Maps embed, token specimens, capability roadmap | Rebased onto `main` at `4b02f75`; CI green (run 33634877941); ready for review. `main` has since moved to `65e92df`, so the branch needs a fresh rebase before it merges. `package.json` untouched — its four script additions are `node` invocations instead, because the file is hash-pinned. Merge is the owner's; see the typography-specimen gate in the PR body. |
 | C — OBX-P180 operating environment | slice 1 `integrate/lineage-c-slice-1` → PR #19; then `feat/obx-p180-t03-t05-offline-wave-recovery` → `feat/obx-p180-terminal-correction-r1` | slice 1 landed; the terminal wave is still out | Master plan library, 29 program tickets, T01/T02 registry and route reducers, T03/T04 provider-offline reducers, correction governance, terminal verifier checkpoint | **Slice 1 landed 2026-09-02** as true merge commit `4b02f75`. Merge commits needed two repository toggles (`allow_merge_commit`, ruleset `allowed_merge_methods`), changed for the merge and restored after; later C descendants need the same. The terminal wave stays governed by `OBX-AUTH-P180-PHASE1-TERMINAL-CORRECTION-003`; resume only through the handoff below. |
 
 Four branches landed by the PR #15 squash (`feat/ui-overhaul-linear`,
@@ -56,7 +57,7 @@ branches and the pushed checkpoint.
 | Path | Branch | Purpose |
 |---|---|---|
 | `~/projects/one-box` | `docs/studio-consolidation-plan` | Primary checkout. Lineage A has landed (PR #18), so switch it to `main` and delete the branch. |
-| `~/projects/one-box-worktrees/gauntlet-r1` | `wave-0/integration` | The `one-box-gauntlet-r1` run's own worktree. Wave-0 integration branch; gates run here. |
+| `~/projects/one-box-worktrees/gauntlet-r1` | `wave-2/integration` | The `one-box-gauntlet-r1` run's own worktree. Wave-0 integration landed as `65e92df`; the branch is now the wave-2 integration. Gates run here. |
 | `~/projects/one-box-worktrees/latest-main-20260825` | detached at `cb26ae9` | A 2026-08-25 snapshot with `node_modules`, two merges behind current `main`. **Not** a mirror of `main`; do not run gates against `main` here. Retarget it or delete it. |
 | `~/projects/one-box-worktrees/repo-state-20260901` | `chore/repo-state-20260901` | The 2026-09-01 sweep. Landed as PR #18; removable. |
 | `~/projects/one-box-worktrees/integrate-lineage-c` | `integrate/lineage-c-slice-1` | Lineage C slice 1. Landed as PR #19 (`4b02f75`); **removable**. |
@@ -103,8 +104,10 @@ branches and the pushed checkpoint.
 
 Wave 2 added two scoped implementation authorization records to
 `docs/plans/one-box-master/00-authority/scoped-implementation-authorizations.json`.
-They are the first records outside the OBX-P180 pair that carry
-`implementationAuthorized: true`, and they are the only authority P1 or P2 code
+They are the first release-1 phase records, and the first registry ids after the
+three frozen ones. `OBX-AUTH-ATF-001` already carries
+`implementationAuthorized: true` inside its own closed boundary, so these two are
+not the first grants in the registry; they are the only authority P1 or P2 code
 may cite. A plan, roadmap, or design document still authorizes nothing.
 
 | Record | Phase | Parent ticket | Scope |

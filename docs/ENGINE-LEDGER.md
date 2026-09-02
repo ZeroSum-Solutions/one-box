@@ -401,9 +401,11 @@ tests, typecheck, lint with 0 errors, `test:smoke`.
   `docs/audits/evidence/security/2026-09-02-release-1-p1-solo-authorization-security-review.json`
   and `-p2-`, Grok 4.6 model receipts
   `docs/audits/grok-4.6/2026-09-02-release-1-p1-authorization-audit.json` and
-  `-p2-` with their raw audits, and the integration audit
-  `docs/audits/grok-4.6/2026-09-02-wave-2-integration.json`. The merge with wave
-  0 re-pins the packet once (`67623504…` → `61afa7b8…`) in
+  `-p2-` with their raw audits. The audit of the merge and re-pin themselves,
+  `docs/audits/grok-4.6/2026-09-02-wave-2-integration.json`, cannot exist in the
+  tree it reads, so it lands one commit later, together with the corrections its
+  findings asked for; it is not in the tree that carries this ledger entry. The
+  merge with wave 0 re-pins the packet once (`67623504…` → `61afa7b8…`) in
   `docs/audits/evidence/security/2026-09-02-release-1-wave2-authority-repin.json`,
   which supersedes the wave-0 re-pin. No ticket status moved and REPO-013 still
   bounds the effective window at 2026-09-14.
