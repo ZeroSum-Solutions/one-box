@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "amendmentId": "OBX-R1-P2-SOLO-AMENDMENT-001",
+  "recordKind": "owner-solo-phase-governance-amendment-v3",
+  "status": "ACTIVE",
+  "authorizationId": "OBX-AUTH-R1-P2-SOLO-001",
+  "projectId": "one-box",
+  "branch": "main",
+  "baseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+  "activationBaseCommit": "4b02f75ff8954ee09b1c58d4e16a600f6fe4ca41",
+  "parentTicketId": "OBX-P210",
+  "childTicketIds": [
+    "OBX-P210-T00",
+    "OBX-P210-T01",
+    "OBX-P210-T02",
+    "OBX-P210-T03"
+  ],
+  "ownerDirection": {
+    "actorId": "person:devin-wiggins",
+    "name": "Devin Wiggins",
+    "sourceThreadId": "one-box-gauntlet-r1 Claude Code session, 2026-09-02",
+    "decision": "ACCEPT_EXACT_SOLO_R1_P2_RISK_AND_START",
+    "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1. Number two, I accept the release packet. Number three, let's run zero through three. Number four, please provide me an initialization prompt so that I can fan out, do research, and gather real agency analysis inside of Codex, in a separate session. For visual quality bars I've added 2 different worksheets ... please, any blockers, let's take care of them now so we can run this on a loop.",
+    "pathScopeDerivation": "The exact allowedPaths, ticketScopes, and allowedEffects lists derive from section 4 of the wave-2 authorization path plan and are recorded before the first P1 or P2 task starts, as run contract section 5 requires: Path scopes are written into the run's authorization record before the task starts, never after.",
+    "recordedAt": "2026-09-02T13:00:00Z"
+  },
+  "standardWaiverEligible": false,
+  "nonWaivableDefaultPreserved": true,
+  "nonWaivableClassesTouched": [],
+  "unavailableControls": [
+    {
+      "controlId": "owner-assignment-v1-p2",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "implementation-lead",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "website-authority-owner",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "independent-security-verifier",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "canvas-and-agent-security-owner",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "design-visual-owner",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "implementation-actor-authorizer-separation",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    },
+    {
+      "controlId": "independent-human-security-review",
+      "assignmentStatus": "NOT_AVAILABLE",
+      "assignmentRecordPresent": false,
+      "humanActorId": null,
+      "escalationStatus": "NOT_AVAILABLE",
+      "escalationActorId": null,
+      "separationSatisfied": false
+    }
+  ],
+  "requirementExceptions": [
+    {
+      "requirementId": "OBX-P210-DEFINITION-OF-READY",
+      "exceptionStatus": "EXCEPT_R1_P2_SOLO",
+      "satisfactionStatus": "NOT_SATISFIED",
+      "waivedClauses": [
+        "named-accountable-owner",
+        "non-author-verifier"
+      ],
+      "preservedClauses": [
+        "exact-grok-or-fallback-packet-review-before-ready"
+      ]
+    }
+  ],
+  "acceptedRisk": {
+    "findingId": "OBX-R1-P2-SOLO-SEPARATION-001",
+    "severity": "MEDIUM",
+    "status": "ACCEPTED",
+    "reasonCode": "SOLO_OWNER_SEPARATION_UNAVAILABLE",
+    "riskOwnerActorId": "person:devin-wiggins"
+  },
+  "scope": {
+    "denyUnlistedPathsAndEffects": true,
+    "allowedPaths": [
+      "docs/plans/2026-09-02-release-1-p2-fingerprint-and-lock-order-design.md",
+      "src/lib/pageIrMutation.ts",
+      "src/lib/pageIrMutation.test.ts",
+      "src/lib/siteMutation.ts",
+      "src/lib/siteMutation.test.ts",
+      "src/lib/elementEditor.ts",
+      "src/lib/elementEditor.test.ts",
+      "src/lib/mutationGateMatrix.ts",
+      "src/lib/mutationGateMatrix.test.ts",
+      "src/lib/releaseLifecycleStore.ts",
+      "src/lib/releaseLifecycleStore.test.ts",
+      "src/lib/contracts.ts",
+      "src/lib/contracts.test.ts",
+      "src/lib/pageIrController.ts",
+      "src/lib/pageIrController.test.ts",
+      "src/lib/candidatePromotion.ts",
+      "src/lib/candidatePromotion.test.ts",
+      "src/lib/pipelineStaleVisualQa.test.ts",
+      "src/components/preview/LifecycleStatus.tsx",
+      "src/components/preview/LifecycleStatus.test.tsx",
+      "src/components/preview/Workbench.tsx",
+      "src/app/styles/workbench.css",
+      "scripts/e2e/preview-workbench.mjs",
+      "scripts/e2e/canvas-contract.mjs"
+    ],
+    "allowedEffects": [
+      "emit-design-mutation-accepted-with-presentational-flag",
+      "compute-visual-and-interaction-fingerprints",
+      "bind-named-human-visual-decision-to-candidate-hash",
+      "template-v1-promotion-lifecycle-binding",
+      "show-current-approval-state-read-only"
+    ],
+    "allowedDataClasses": [
+      "public",
+      "project-internal",
+      "synthetic-fixture"
+    ],
+    "forbiddenEffects": [
+      "provider-or-model-call-outside-existing-guarded-paths",
+      "network",
+      "credential-or-environment-access",
+      "new-endpoint-outside-isLocalApiAuthorized-guard",
+      "public-or-remote-origin",
+      "client-invitation",
+      "dependency-or-lockfile-change",
+      "page-ir-v1-or-generated-site-schema-change",
+      "mint-approval-client-lock-qualification-or-release-from-model-client-api-or-ui",
+      "deployment",
+      "release",
+      "rollback-execution",
+      "appointment-field-slot-lease-or-runtime",
+      "browser",
+      "collaboration-realtime-or-crdt",
+      "motion-authoring",
+      "edit-frozen-t01-t02-artifacts",
+      "edit-governance-defaults",
+      "edit-authority-manifest-outside-activation-write-set",
+      "parent-ticket-or-evaluation-promotion",
+      "independent-human-review-claim",
+      "production-readiness-or-release-1-exit-claim",
+      "numeric-quality-threshold"
+    ]
+  },
+  "reviewProtocol": {
+    "exactModel": "x-ai/grok-4.6",
+    "lane": "openrouter-metered",
+    "effort": "high",
+    "auditScript": "scripts/eval/grok-audit.mjs",
+    "modelAuthority": "advisory-only",
+    "testAuthority": "deterministic-fixtures-vitest-node-test-and-e2e",
+    "packetReview": "one-ticket-readiness-packet-before-first-commit-and-one-final-diff-packet-before-merge",
+    "ownerAuthorizedFallbackAllowed": true,
+    "fallbackMustRetainFailedAttempt": true,
+    "fallbackMustIdentifyActualModel": true
+  },
+  "requiredEvidencePaths": [
+    "docs/audits/evidence/security/2026-09-02-release-1-p2-solo-authorization-security-review.json",
+    "docs/audits/grok-4.6/2026-09-02-release-1-p2-authorization-audit.json"
+  ],
+  "compensatingControls": [
+    "exact-r1-p2-only-scope",
+    "exact-336-hour-non-renewable-expiry",
+    "deny-every-unlisted-path-and-effect",
+    "dependency-and-lockfile-pin-unchanged",
+    "non-waivable-class-list-untouched",
+    "exact-amendment-and-authorization-hash-binding",
+    "grok-4.6-exact-packet-review-before-first-commit-and-before-merge",
+    "deterministic-tests-remain-authoritative",
+    "ci-verify-plans-and-test-plans-fail-closed",
+    "independent-human-review-remains-not-available"
+  ],
+  "independentHumanReview": {
+    "status": "NOT_AVAILABLE",
+    "satisfied": false,
+    "actorId": null
+  },
+  "recordedAt": "2026-09-02T13:00:00Z",
+  "expiresAt": "2026-09-16T13:00:00Z",
+  "renewable": false
+}

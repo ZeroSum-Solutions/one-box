@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "recordKind": "owner-packet-acceptance-v1",
+  "acceptedBy": {
+    "name": "Devin Wiggins",
+    "identityRef": "person:devin-wiggins",
+    "role": "Product owner"
+  },
+  "recordedAt": "2026-09-02T13:00:00Z",
+  "sourceThread": "one-box-gauntlet-r1 Claude Code session, 2026-09-02",
+  "ownerResponse": "Let's go ahead and merge PR18 now. With ZS allow git 1. Number two, I accept the release packet. Number three, let's run zero through three. Number four, please provide me an initialization prompt so that I can fan out, do research, and gather real agency analysis inside of Codex, in a separate session. For visual quality bars I've added 2 different worksheets ... please, any blockers, let's take care of them now so we can run this on a loop.",
+  "acceptedPaths": [
+    {
+      "path": "docs/plans/one-box-master/01-foundation/release-1-contract.md",
+      "algorithm": "sha256",
+      "digest": "8eb61c66683e5fcdd57cb09b5ce94c71987bbb4a8b83544ba89a91ab23676a81"
+    },
+    {
+      "path": "docs/plans/one-box-master/01-foundation/release-1-compatibility-matrix.md",
+      "algorithm": "sha256",
+      "digest": "8d27cd2ff8744a304225010f08e8dcd233c8b57e7247b6955e89be286a2a47a4"
+    }
+  ],
+  "direction": [
+    {
+      "subject": "docs/adr/0002-target-desktop-cloud-topology.md",
+      "ownerIntent": "ADR 0002 accepted as the Release 1 topology (EOS-002).",
+      "recordedEffect": "Recorded as owner direction only. The target-topology domain stays proposed because ADR 0002 blocks its own acceptance until an active OwnerAssignmentV1 binds the Program Architecture Owner role to a named human, and a self-accepted assignment is inactive."
+    },
+    {
+      "subject": "docs/security/2026-08-29-program-threat-model.md",
+      "ownerIntent": "The program threat model informs P1 and P2 design constraints.",
+      "recordedEffect": "Recorded as owner direction only. The program-security domain stays proposed because the threat model states that no assignment records exist in this packet, so it cannot be accepted or used to authorize work. TM-03 and TM-04 controls are cited as design constraints."
+    },
+    {
+      "subject": "docs/plans/one-box-master/00-authority/authority-manifest.json",
+      "ownerIntent": "Accept the Release 1 packet as the run target (EOS-003).",
+      "recordedEffect": "The release-1 and compatibility domains become owner-approved with this acceptance record. implementationAuthorized stays false everywhere; implementation follows the scoped registry only."
+    }
+  ],
+  "grants": {
+    "implementation": false,
+    "providerSelection": false,
+    "deployment": false,
+    "clientInvitation": false,
+    "appointmentActivation": false
+  },
+  "unresolvedDecisionsCarried": {
+    "release-1-contract.md#10": [
+      "Which concrete deployment adapter, if any, will be authorized after provider-neutral conformance is proven?",
+      "Which exact client-review authentication/session mechanism satisfies revocation and candidate scoping without introducing a shared project backend prematurely?",
+      "Which hosting origin, persistence owner, and system-of-record boundary serves private client review, and which accepted ADR/migration authorizes that remote surface while ADR 0001 remains the executable loopback authority?",
+      "Which supported browser/device set will be frozen by the baseline protocol?",
+      "Which existing Page IR and template-v1 capabilities are admitted to the first Release 1 fixture corpus?",
+      "Which owner and independent verifier are named for each gate and for re-delivery escalation?",
+      "Which monitor observations are available in the first provider-neutral adapter, and which require an explicit manual operator step?",
+      "Which exact repository-pinned and new evaluation tools are accepted for the Release 1 qualification version after supply-chain review?"
+    ],
+    "release-1-compatibility-matrix.md#unresolved-compatibility-decisions": [
+      "The exact Apple-silicon OS/runtime/browser versions and supported client-review browser set must be frozen by the baseline protocol.",
+      "The first admitted Page IR and template-v1 fixture corpus must be named before implementation authorization.",
+      "The review-session transport/authentication mechanism remains an implementation choice until candidate scoping and revocation are proven.",
+      "A concrete deployment provider remains unselected; its adapter cannot be inferred from this matrix.",
+      "Monitor probes and the manual-operator boundary must be defined for the first authorized adapter.",
+      "Numeric accessibility, SEO, and performance targets remain unset until baseline evidence is captured and reviewed."
+    ]
+  }
+}
