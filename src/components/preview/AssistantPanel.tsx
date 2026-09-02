@@ -270,7 +270,13 @@ export function AssistantPanelContent({
                   const thumbnailUrl = assistantThumbnailUrl(runId, evidence.thumbnailPath);
                   return (
                     <figure key={`${message.id}:${evidence.screenId}`} className="assistant-evidence__card">
-                      {thumbnailUrl && <img src={thumbnailUrl} alt={`Screenshot of ${evidence.siteName}`} />}
+                      {thumbnailUrl && (
+                        // Local run-artifact thumbnail served by the guarded
+                        // /api/sites route (EvidenceWorkspace.tsx uses the same
+                        // justification) -- not a remote/build-time image.
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={thumbnailUrl} alt={`Screenshot of ${evidence.siteName}`} />
+                      )}
                       <figcaption><strong>Real business site used for inspiration</strong><span>{evidence.siteName}</span><p>{evidence.takeaway}</p></figcaption>
                     </figure>
                   );

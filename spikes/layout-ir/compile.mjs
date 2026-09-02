@@ -464,7 +464,7 @@ function renderSlot(section, slot, copy, hints) {
   return `      <${tag} class="${cls}" ${attrs}>${body}</${tag}>`;
 }
 
-export function compileLayoutProgram({ program, tokens, copy }) {
+export function compileLayoutProgram({ program, copy }) {
   const prov = new Provenance();
   const density = DENSITY_STEP[program.page.density];
 
